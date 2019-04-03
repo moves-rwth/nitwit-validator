@@ -115,7 +115,8 @@ void DebugCheckStatement(struct ParseState *Parser)
         DoBreak = TRUE;
     
     /* handle a break */
-    if (DoBreak)
+    if (TRUE)
+//    if (DoBreak)
     {
 //        PlatformPrintf(pc->CStdOut, "Handling a break\n");
 //        PicocParseInteractiveNoStartPrompt(pc, FALSE);
