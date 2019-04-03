@@ -6,7 +6,9 @@
 #define CWVALIDATOR_AUTOMATON_H
 
 #include <libxml/parser.h>
+#include <libxml/xpath.h>
 #include <stdbool.h>
+
 
 struct Node {
     const char * id;
@@ -18,7 +20,7 @@ struct Node {
     size_t thread_number;
 };
 
-struct Edge {
+typedef struct Edge {
     const char * source_id;
     const char * target_id;
     const char * origin_file;
@@ -26,14 +28,18 @@ struct Edge {
     const char * assumption;
     const char * assumption_scope;
     bool entersLoopHead;
-};
+} Edge;
 
-struct Automaton {
+typedef struct Automaton {
     const char * filename;
     struct Node * nodes;
     struct Edge * edges;
-};
+} Automaton;
 
-struct Automaton automatonFromWitness(xmlDocPtr doc);
+typedef struct defkeyvalues {
+    int s;
+} DefaultKeyValues;
+
+struct Automaton * automatonFromWitness(xmlDocPtr doc);
 
 #endif //CWVALIDATOR_AUTOMATON_H

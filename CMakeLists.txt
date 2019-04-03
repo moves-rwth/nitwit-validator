@@ -14,7 +14,7 @@ set(U_SOURCE_FILES utils/files.h utils/files.c utils/sglib.h)
 add_compile_definitions(VER="2.1")
 add_compile_definitions(UNIX_HOST)
 
-add_executable(cwvalidator main.c ${P_SOURCE_FILES} ${W_SOURCE_FILES} ${U_SOURCE_FILES})
+add_executable(cwvalidator cwvalidator.c ${P_SOURCE_FILES} ${W_SOURCE_FILES} ${U_SOURCE_FILES})
 target_link_libraries(cwvalidator m)
 target_link_libraries(cwvalidator readline)
 target_link_libraries(cwvalidator xml2)

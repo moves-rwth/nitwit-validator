@@ -22,8 +22,10 @@ int main(int argc, char **argv) {
 
 //    tryOutDebug(argv[1]);
     xmlDocPtr doc = parseGraphmlWitness(argv[1]);
-
-    struct Automaton wit_aut = automatonFromWitness(doc);
+    if (doc == NULL) {
+        return 1;
+    }
+    struct Automaton * wit_aut = automatonFromWitness(doc);
 
     xmlFreeDoc(doc);
 
