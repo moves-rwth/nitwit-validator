@@ -14,7 +14,7 @@ int main() {
     while (1) {
         step();
         if (x == 1) {
-            printf("__VERIFIER_error();");
+            printf("__VERIFIER_error();\n");
             return 1;
         }
     }
