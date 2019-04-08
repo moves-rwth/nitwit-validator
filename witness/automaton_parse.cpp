@@ -290,20 +290,6 @@ void Node::print() {
 
 }
 
-Node::Node(Node &&copy) noexcept: id(move(copy.id)), is_entry(copy.is_entry),
-                                  is_violation(copy.is_violation), is_sink(copy.is_sink),
-                                  is_frontier(copy.is_violation), thread_number(copy.thread_number) {
-
-}
-
-Node::Node(const Node &copy) noexcept: id(copy.id), is_entry(copy.is_entry),
-                                       is_violation(copy.is_violation), is_sink(copy.is_sink),
-                                       is_frontier(copy.is_violation), thread_number(copy.thread_number) {
-
-}
-
-Node::Node() = default;
-
 void Edge::print() {
     printf("%s --> %s: line: %zu, file: %s\n\tsrc: %s, ret: %s, ent: %s, ctrl: %s\n\tassume: %s, scope: %s, func: %s, loop: %d\n",
            this->source_id.c_str(), this->target_id.c_str(),

@@ -29,9 +29,6 @@ public:
     bool is_frontier{};
     size_t thread_number{};
 
-    Node();
-    Node(const Node& copy) noexcept ;
-    Node(Node&& copy) noexcept;
     void print();
 };
 
