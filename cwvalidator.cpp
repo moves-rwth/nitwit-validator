@@ -9,7 +9,7 @@ extern "C" {
 
 #include "utils/files.hpp"
 #include "witness/witness.hpp"
-#include "witness/automaton.hpp"
+#include "witness/automaton_parse.hpp"
 
 using namespace std;
 
@@ -27,18 +27,17 @@ int main(int argc, char **argv) {
     }
 
 //    tryOutDebug(argv[1]);
-    auto doc = parseGraphmlWitness(argv[1]);
+    auto *doc = parseGraphmlWitness(argv[1]);
     if (doc == nullptr) {
         return 1;
     }
-    Automaton * wit_aut = automatonFromWitness(*doc);
+    auto wit_aut = automatonFromWitness(*doc);
 
     if (wit_aut) {
         printf("Automaton built from: %s\n", wit_aut->filename);
     } else {
         printf("Reconstructing the witness automaton failed.\n");
     }
-    delete wit_aut;
     delete doc;
     return 0;
 }
