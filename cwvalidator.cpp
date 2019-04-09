@@ -9,7 +9,7 @@ extern "C" {
 
 #include "utils/files.hpp"
 #include "witness/witness.hpp"
-#include "witness/automaton_parse.hpp"
+#include "witness/automaton.hpp"
 
 using namespace std;
 
@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
     auto wit_aut = Automaton::automatonFromWitness(*doc);
 
     if (wit_aut) {
-        wit_aut->data->print();
+        wit_aut->printData();
     } else {
         printf("Reconstructing the witness automaton failed.\n");
     }

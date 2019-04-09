@@ -8,7 +8,7 @@
 
 #include <cassert>
 #include <cstring>
-#include "automaton_parse.hpp"
+#include "automaton.hpp"
 
 
 shared_ptr<DefaultKeyValues> parseKeys(const pugi::xpath_node_set &keyNodeSet);
@@ -308,7 +308,7 @@ const Key DefaultKeyValues::getDefault(const string &id) const {
         return it->second;
 }
 
-void DefaultKeyValues::print() {
+void DefaultKeyValues::print() const {
     for (auto item: this->default_keys) {
         Key::printKey(&item.second);
     }
@@ -320,14 +320,18 @@ Automaton::Automaton(vector<Node> nodes, vector<Edge> edges, shared_ptr<Data>& d
 
 }
 
-void Node::print() {
+void Automaton::printData() const {
+    this->data.print();
+}
+
+void Node::print() const {
     printf("id %s: %s, th: %zu, f: %d, v: %d, s: %d, e: %d\n", this->id.c_str(), this->node_type.c_str(),
            this->thread_number,
            this->is_frontier, this->is_violation, this->is_sink, this->is_entry);
 
 }
 
-void Edge::print() {
+void Edge::print() const {
     printf("%s --> %s: line: %zu, file: %s\n\tsrc: %s, ret: %s, ent: %s, ctrl: %s\n\tassume: %s, scope: %s, func: %s, loop: %d\n",
            this->source_id.c_str(), this->target_id.c_str(),
            this->start_line, this->origin_file.c_str(),
@@ -339,7 +343,7 @@ void Edge::print() {
     );
 }
 
-void Data::print() {
+void Data::print() const {
     printf("type: %s, src: %s, file: %s, arch: %s,\nhash: %s,\nspec: %s, prod: %s\n",
         this->witness_type.c_str(), this->source_code_lang.c_str(), this->program_file.c_str(),
         this->architecture.c_str(), this->program_hash.c_str(),

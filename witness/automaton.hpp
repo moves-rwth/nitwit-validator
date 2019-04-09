@@ -38,7 +38,7 @@ public:
     bool is_frontier{};
     size_t thread_number{};
 
-    void print();
+    void print() const;
 };
 
 class Edge {
@@ -56,7 +56,7 @@ public:
     size_t start_line;
     bool enterLoopHead;
 
-    void print();
+    void print() const ;
 };
 
 struct Key {
@@ -82,7 +82,7 @@ public:
 
     const Key getDefault(const string &id) const;
 
-    void print();
+    void print() const;
 };
 
 struct Data {
@@ -94,7 +94,7 @@ struct Data {
     string producer;
     string witness_type;
 
-    void print();
+    void print() const;
 };
 
 class Automaton {
@@ -103,6 +103,8 @@ class Automaton {
     Data data;
 public:
     Automaton(vector<Node> nodes, vector<Edge> edges, shared_ptr<Data> &data);
+
+    void printData() const;
 
     static shared_ptr<Automaton> automatonFromWitness(const pugi::xml_document &doc);
 };
