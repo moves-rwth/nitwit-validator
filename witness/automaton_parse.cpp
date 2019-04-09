@@ -6,7 +6,7 @@
 // Created by jan svejda on 3.4.19.
 //
 
-#include <assert.h>
+#include <cassert>
 #include <cstring>
 #include "automaton_parse.hpp"
 
@@ -23,7 +23,7 @@ vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<Defaul
 
 shared_ptr<Data> parseData(const pugi::xpath_node_set &set);
 
-shared_ptr<Automaton> automatonFromWitness(const pugi::xml_document &doc) {
+shared_ptr<Automaton> Automaton::automatonFromWitness(const pugi::xml_document &doc) {
     pugi::xml_node root = doc.root().first_child();
     if (!root || strcmp(root.name(), "graphml") != 0) {
         fprintf(stderr, "No graphml root element.");
@@ -315,7 +315,7 @@ void DefaultKeyValues::print() {
 }
 
 Automaton::Automaton(vector<Node> nodes, vector<Edge> edges, shared_ptr<Data>& data):
-    nodes(std::move(nodes)), edges(std::move(edges)), data(data)
+        nodes(std::move(nodes)), edges(std::move(edges)), data(*data)
 {
 
 }

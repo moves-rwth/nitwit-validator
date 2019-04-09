@@ -5,8 +5,7 @@
 #ifndef CWVALIDATOR_AUTOMATON_HPP
 #define CWVALIDATOR_AUTOMATON_HPP
 
-#include <stdbool.h>
-#include <stddef.h>
+#include <cstddef>
 #include "../utils/pugixml/pugixml.hpp"
 #include <string>
 #include <deque>
@@ -16,6 +15,16 @@
 #include <memory>
 
 using namespace std;
+
+class Node;
+
+class Edge;
+
+class Automaton;
+
+class DefaultKeyValues;
+
+struct Data;
 
 class Node {
 public:
@@ -50,17 +59,6 @@ public:
     void print();
 };
 
-struct Data;
-
-class Automaton {
-public:
-    Automaton(vector<Node> nodes, vector<Edge> edges, shared_ptr<Data>& data);
-
-    vector<Node> nodes;
-    vector<Edge> edges;
-    shared_ptr<Data> data;
-};
-
 struct Key {
     string name;
     string type;
@@ -76,14 +74,15 @@ struct Key {
     }
 };
 
-struct DefaultKeyValues {
-    void addKey(const Key& k);
-    const Key getDefault(const string& id) const;
+class DefaultKeyValues {
+    map<string, Key> default_keys;
+
+public:
+    void addKey(const Key &k);
+
+    const Key getDefault(const string &id) const;
 
     void print();
-
-private:
-    map<string, Key> default_keys;
 };
 
 struct Data {
@@ -98,6 +97,15 @@ struct Data {
     void print();
 };
 
-shared_ptr<Automaton> automatonFromWitness(const pugi::xml_document &doc);
+class Automaton {
+    vector<Node> nodes;
+    vector<Edge> edges;
+    Data data;
+public:
+    Automaton(vector<Node> nodes, vector<Edge> edges, shared_ptr<Data> &data);
+
+    static shared_ptr<Automaton> automatonFromWitness(const pugi::xml_document &doc);
+};
+
 
 #endif //CWVALIDATOR_AUTOMATON_HPP

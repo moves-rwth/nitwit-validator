@@ -1,6 +1,6 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
 
 extern "C" {
     #include "picoc/picoc.h"
@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
     if (doc == nullptr) {
         return 1;
     }
-    auto wit_aut = automatonFromWitness(*doc);
+    auto wit_aut = Automaton::automatonFromWitness(*doc);
 
     if (wit_aut) {
         wit_aut->data->print();
