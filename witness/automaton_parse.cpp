@@ -1,3 +1,7 @@
+#include <utility>
+
+#include <utility>
+
 //
 // Created by jan svejda on 3.4.19.
 //
@@ -7,17 +11,19 @@
 #include "automaton_parse.hpp"
 
 
-unique_ptr<DefaultKeyValues> parseKeys(const pugi::xpath_node_set &keyNodeSet);
+shared_ptr<DefaultKeyValues> parseKeys(const pugi::xpath_node_set &keyNodeSet);
 
-vector<Node> parseNodes(const pugi::xpath_node_set &set, unique_ptr<DefaultKeyValues> &defaultKeyValues);
+vector<Node> parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues>& defaultKeyValues);
 
 void setNodeAttributes(Node &node, const char *name, const char *value);
 
-Node getDefaultNode(unique_ptr<DefaultKeyValues> &def_values);
+Node getDefaultNode(const shared_ptr<DefaultKeyValues>& def_values);
 
-vector<Edge> parseEdges(const pugi::xpath_node_set &set, unique_ptr<DefaultKeyValues> &defaultKeyValues);
+vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues>& defaultKeyValues);
 
-unique_ptr<Automaton> automatonFromWitness(const pugi::xml_document &doc) {
+shared_ptr<Data> parseData(const pugi::xpath_node_set &set);
+
+shared_ptr<Automaton> automatonFromWitness(const pugi::xml_document &doc) {
     pugi::xml_node root = doc.root().first_child();
     if (!root || strcmp(root.name(), "graphml") != 0) {
         fprintf(stderr, "No graphml root element.");
@@ -45,22 +51,51 @@ unique_ptr<Automaton> automatonFromWitness(const pugi::xml_document &doc) {
         return nullptr; // TODO Could there be witnesses with no edges?
     }
 
-    unique_ptr<DefaultKeyValues> default_key_values = parseKeys(key_result);
-    default_key_values->print();
+    xpath = "/graphml/graph/data[@key]";
+    auto graph_data_result = doc.select_nodes(pugi::xpath_query(xpath.c_str()));
+    if (graph_data_result.empty()) {
+        fprintf(stderr, "There are no edges!");
+        return nullptr; // TODO Could there be witnesses with no edges?
+    }
+
+    shared_ptr<DefaultKeyValues> default_key_values = parseKeys(key_result);
     vector<Node> nodes = parseNodes(node_result, default_key_values);
-    for (auto n: nodes) {
-        n.print();
-    }
     vector<Edge> edges = parseEdges(edge_result, default_key_values);
-    for (auto n: edges) {
-        n.print();
-    }
-    auto aut = make_unique<Automaton>(nodes, edges);
+    auto data = parseData(graph_data_result);
+    auto aut = make_shared<Automaton>(nodes, edges, data);
 
     return aut;
 }
 
-Edge getDefaultEdge(unique_ptr<DefaultKeyValues> &def_values) {
+shared_ptr<Data> parseData(const pugi::xpath_node_set &set) {
+    auto d = make_shared<Data>();
+    for (auto xpath_node: set) {
+        if (xpath_node.node() == nullptr) continue;
+        auto attr = xpath_node.node().attribute("key");
+        if (attr.empty()){
+            continue;
+        }
+        const char * name = attr.value();
+        if (strcmp(name, "sourcecodelang") == 0) {
+            d->source_code_lang = xpath_node.node().text().get();
+        } else if (strcmp(name, "programfile") == 0) {
+            d->program_file = xpath_node.node().text().get();
+        } else if (strcmp(name, "programhash") == 0) {
+            d->program_hash = xpath_node.node().text().get();
+        } else if (strcmp(name, "specification") == 0) {
+            d->specification = xpath_node.node().text().get();
+        } else if (strcmp(name, "architecture") == 0) {
+            d->architecture = xpath_node.node().text().get();
+        } else if (strcmp(name, "producer") == 0) {
+            d->producer = xpath_node.node().text().get();
+        } else if (strcmp(name, "witness-type") == 0) {
+            d->witness_type = xpath_node.node().text().get();
+        }
+    }
+    return d;
+}
+
+Edge getDefaultEdge(const shared_ptr<DefaultKeyValues>& def_values) {
     auto e = Edge();
 
     // strings
@@ -124,7 +159,7 @@ void parseEdgeProperties(const pugi::xml_node &node, Edge &edge) {
     }
 }
 
-vector<Edge> parseEdges(const pugi::xpath_node_set &set, unique_ptr<DefaultKeyValues> &defaultKeyValues) {
+vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues>& defaultKeyValues) {
     vector<Edge> edges = vector<Edge>();
     edges.reserve(set.size());
 
@@ -155,7 +190,7 @@ void parseNodeProperties(const pugi::xml_node &node, Node &n) {
     }
 }
 
-vector<Node> parseNodes(const pugi::xpath_node_set &set, unique_ptr<DefaultKeyValues> &defaultKeyValues) {
+vector<Node> parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues>& defaultKeyValues) {
     vector<Node> nodes = vector<Node>();
     nodes.reserve(set.size());
 
@@ -177,7 +212,7 @@ vector<Node> parseNodes(const pugi::xpath_node_set &set, unique_ptr<DefaultKeyVa
     return nodes;
 }
 
-Node getDefaultNode(unique_ptr<DefaultKeyValues> &def_values) {
+Node getDefaultNode(const shared_ptr<DefaultKeyValues>& def_values) {
     auto n = Node();
 
     // strings
@@ -234,7 +269,7 @@ void setKeyAttributes(Key *key, const char *name, const char *value) {
     }
 }
 
-unique_ptr<DefaultKeyValues> parseKeys(const pugi::xpath_node_set &keyNodeSet) {
+shared_ptr<DefaultKeyValues> parseKeys(const pugi::xpath_node_set &keyNodeSet) {
 
     auto dkv = make_unique<DefaultKeyValues>();
 
@@ -279,7 +314,9 @@ void DefaultKeyValues::print() {
     }
 }
 
-Automaton::Automaton(const vector<Node> &nodes, const vector<Edge> &edges) : filename("") {
+Automaton::Automaton(vector<Node> nodes, vector<Edge> edges, shared_ptr<Data>& data):
+    nodes(std::move(nodes)), edges(std::move(edges)), data(data)
+{
 
 }
 
@@ -299,5 +336,13 @@ void Edge::print() {
            this->control.c_str(),
            this->assumption.c_str(), this->assumption_scope.c_str(), this->assumption_result_function.c_str(),
            this->enterLoopHead
+    );
+}
+
+void Data::print() {
+    printf("type: %s, src: %s, file: %s, arch: %s,\nhash: %s,\nspec: %s, prod: %s\n",
+        this->witness_type.c_str(), this->source_code_lang.c_str(), this->program_file.c_str(),
+        this->architecture.c_str(), this->program_hash.c_str(),
+        this->specification.c_str(), this->producer.c_str()
     );
 }

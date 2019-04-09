@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
     auto wit_aut = automatonFromWitness(*doc);
 
     if (wit_aut) {
-        printf("Automaton built from: %s\n", wit_aut->filename);
+        wit_aut->data->print();
     } else {
         printf("Reconstructing the witness automaton failed.\n");
     }

@@ -50,13 +50,15 @@ public:
     void print();
 };
 
+struct Data;
+
 class Automaton {
 public:
-    Automaton(const vector<Node> &nodes, const vector<Edge> &edges);
+    Automaton(vector<Node> nodes, vector<Edge> edges, shared_ptr<Data>& data);
 
-    const char *filename;
-    Node *nodes;
-    Edge *edges;
+    vector<Node> nodes;
+    vector<Edge> edges;
+    shared_ptr<Data> data;
 };
 
 struct Key {
@@ -84,7 +86,18 @@ private:
     map<string, Key> default_keys;
 };
 
+struct Data {
+    string source_code_lang;
+    string program_file;
+    string program_hash;
+    string specification;
+    string architecture;
+    string producer;
+    string witness_type;
 
-unique_ptr<Automaton> automatonFromWitness(const pugi::xml_document &doc);
+    void print();
+};
+
+shared_ptr<Automaton> automatonFromWitness(const pugi::xml_document &doc);
 
 #endif //CWVALIDATOR_AUTOMATON_HPP
