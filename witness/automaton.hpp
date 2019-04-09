@@ -11,6 +11,7 @@
 #include <deque>
 #include <vector>
 #include <map>
+#include <set>
 #include <functional>
 #include <memory>
 
@@ -98,13 +99,17 @@ struct Data {
 };
 
 class Automaton {
-    vector<Node> nodes;
+    map<string, Node> nodes;
     vector<Edge> edges;
     Data data;
+
+    map<string, set<shared_ptr<Node>>> successor_rel;
+    map<string, set<shared_ptr<Node>>> predecessor_rel;
 public:
-    Automaton(vector<Node> nodes, vector<Edge> edges, shared_ptr<Data> &data);
+    Automaton(const map<string, Node>& nodes, const vector<Edge>& edges, shared_ptr<Data> &data);
 
     void printData() const;
+    void printRelations() const;
 
     static shared_ptr<Automaton> automatonFromWitness(const pugi::xml_document &doc);
 };

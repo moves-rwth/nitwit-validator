@@ -13,13 +13,13 @@
 
 shared_ptr<DefaultKeyValues> parseKeys(const pugi::xpath_node_set &keyNodeSet);
 
-vector<Node> parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues>& defaultKeyValues);
+map<string, Node> parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues);
 
 void setNodeAttributes(Node &node, const char *name, const char *value);
 
-Node getDefaultNode(const shared_ptr<DefaultKeyValues>& def_values);
+Node getDefaultNode(const shared_ptr<DefaultKeyValues> &def_values);
 
-vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues>& defaultKeyValues);
+vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues);
 
 shared_ptr<Data> parseData(const pugi::xpath_node_set &set);
 
@@ -59,7 +59,7 @@ shared_ptr<Automaton> Automaton::automatonFromWitness(const pugi::xml_document &
     }
 
     shared_ptr<DefaultKeyValues> default_key_values = parseKeys(key_result);
-    vector<Node> nodes = parseNodes(node_result, default_key_values);
+    map<string, Node> nodes = parseNodes(node_result, default_key_values);
     vector<Edge> edges = parseEdges(edge_result, default_key_values);
     auto data = parseData(graph_data_result);
     auto aut = make_shared<Automaton>(nodes, edges, data);
@@ -72,10 +72,10 @@ shared_ptr<Data> parseData(const pugi::xpath_node_set &set) {
     for (auto xpath_node: set) {
         if (xpath_node.node() == nullptr) continue;
         auto attr = xpath_node.node().attribute("key");
-        if (attr.empty()){
+        if (attr.empty()) {
             continue;
         }
-        const char * name = attr.value();
+        const char *name = attr.value();
         if (strcmp(name, "sourcecodelang") == 0) {
             d->source_code_lang = xpath_node.node().text().get();
         } else if (strcmp(name, "programfile") == 0) {
@@ -95,7 +95,7 @@ shared_ptr<Data> parseData(const pugi::xpath_node_set &set) {
     return d;
 }
 
-Edge getDefaultEdge(const shared_ptr<DefaultKeyValues>& def_values) {
+Edge getDefaultEdge(const shared_ptr<DefaultKeyValues> &def_values) {
     auto e = Edge();
 
     // strings
@@ -159,7 +159,7 @@ void parseEdgeProperties(const pugi::xml_node &node, Edge &edge) {
     }
 }
 
-vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues>& defaultKeyValues) {
+vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues) {
     vector<Edge> edges = vector<Edge>();
     edges.reserve(set.size());
 
@@ -190,9 +190,8 @@ void parseNodeProperties(const pugi::xml_node &node, Node &n) {
     }
 }
 
-vector<Node> parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues>& defaultKeyValues) {
-    vector<Node> nodes = vector<Node>();
-    nodes.reserve(set.size());
+map<string, Node> parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues) {
+    auto nodes = map<string, Node>();
 
     for (auto xpathNode: set) {
         if (!xpathNode.node()) {
@@ -206,13 +205,13 @@ vector<Node> parseNodes(const pugi::xpath_node_set &set, const shared_ptr<Defaul
         }
         parseNodeProperties(node, n);
 
-        nodes.push_back(n);
+        nodes.emplace(n.id, n);
     }
 
     return nodes;
 }
 
-Node getDefaultNode(const shared_ptr<DefaultKeyValues>& def_values) {
+Node getDefaultNode(const shared_ptr<DefaultKeyValues> &def_values) {
     auto n = Node();
 
     // strings
@@ -314,14 +313,54 @@ void DefaultKeyValues::print() const {
     }
 }
 
-Automaton::Automaton(vector<Node> nodes, vector<Edge> edges, shared_ptr<Data>& data):
-        nodes(std::move(nodes)), edges(std::move(edges)), data(*data)
-{
+Automaton::Automaton(const map<string, Node>& nodes, const vector<Edge>& edges, shared_ptr<Data> &data) :
+        nodes((nodes)), edges((edges)), data(*data), successor_rel(), predecessor_rel() {
 
+    for (const auto &n: nodes) {
+        successor_rel.emplace(n.first, set<shared_ptr<Node>>());
+        predecessor_rel.emplace(n.first, set<shared_ptr<Node>>());
+    }
+    for (const auto &trans: edges) {
+        auto src = nodes.find(trans.source_id);
+        if (src == nodes.end()) {
+            fprintf(stderr, "WARN: Did not find source node '%s', skipping.", trans.source_id.c_str());
+            continue;
+        }
+        auto tar = nodes.find(trans.target_id);
+        if (tar == nodes.end()) {
+            fprintf(stderr, "WARN: Did not find target node '%s', skipping.", trans.source_id.c_str());
+            continue;
+        }
+
+        auto& node_successors = successor_rel.find(trans.source_id)->second;
+        node_successors.insert(make_shared<Node>(tar->second));
+        auto& node_predecessors = predecessor_rel.find(trans.target_id)->second;
+        node_predecessors.insert(make_shared<Node>(src->second));
+
+    }
 }
 
 void Automaton::printData() const {
     this->data.print();
+}
+
+void Automaton::printRelations() const {
+    printf("Successor relation (%lu):\n", successor_rel.size());
+    for (const auto& n: successor_rel){
+        printf("%s\t ----> ", n.first.c_str());
+        for (const auto& s: n.second){
+            printf("%s, ", s->id.c_str());
+        }
+        printf("\n");
+    }
+    printf("Predecessor relation (%lu):\n", predecessor_rel.size());
+    for (const auto& n: predecessor_rel){
+        printf("%s\t ----> ", n.first.c_str());
+        for (const auto& s: n.second){
+            printf("%s, ", s->id.c_str());
+        }
+        printf("\n");
+    }
 }
 
 void Node::print() const {
@@ -345,8 +384,8 @@ void Edge::print() const {
 
 void Data::print() const {
     printf("type: %s, src: %s, file: %s, arch: %s,\nhash: %s,\nspec: %s, prod: %s\n",
-        this->witness_type.c_str(), this->source_code_lang.c_str(), this->program_file.c_str(),
-        this->architecture.c_str(), this->program_hash.c_str(),
-        this->specification.c_str(), this->producer.c_str()
+           this->witness_type.c_str(), this->source_code_lang.c_str(), this->program_file.c_str(),
+           this->architecture.c_str(), this->program_hash.c_str(),
+           this->specification.c_str(), this->producer.c_str()
     );
 }

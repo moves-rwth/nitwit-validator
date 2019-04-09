@@ -35,6 +35,7 @@ int main(int argc, char **argv) {
 
     if (wit_aut) {
         wit_aut->printData();
+        wit_aut->printRelations();
     } else {
         printf("Reconstructing the witness automaton failed.\n");
     }
