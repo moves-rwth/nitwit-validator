@@ -10,12 +10,9 @@ extern "C" {
 #include "utils/files.hpp"
 #include "witness/witness.hpp"
 #include "witness/automaton.hpp"
+#include "program_state.hpp"
 
 using namespace std;
-
-void handleDebug(const struct ParseState* ps) {
-    printf("Line: %d, Pos: %d\n", ps->Line, ps->CharacterPos);
-}
 
 void tryOutDebug(const char * source_filename);
 
@@ -27,19 +24,20 @@ int main(int argc, char **argv) {
     }
 
 //    tryOutDebug(argv[1]);
-    auto *doc = parseGraphmlWitness(argv[1]);
+    auto doc = parseGraphmlWitness(argv[1]);
     if (doc == nullptr) {
         return 1;
     }
-    auto wit_aut = Automaton::automatonFromWitness(*doc);
+    auto wit_aut = Automaton::automatonFromWitness(doc);
 
-    if (wit_aut) {
+    if (wit_aut && !wit_aut->isInIllegalState()) {
         wit_aut->printData();
         wit_aut->printRelations();
     } else {
         printf("Reconstructing the witness automaton failed.\n");
+        return 1;
     }
-    delete doc;
+
     return 0;
 }
 

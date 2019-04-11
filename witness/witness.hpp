@@ -7,8 +7,12 @@
 
 #include <string>
 #include "../utils/pugixml/pugixml.hpp"
+#include <cstring>
+#include <memory>
+
 using namespace std;
-pugi::xml_document * parseGraphmlWitness(const string& filename);
+
+shared_ptr<pugi::xml_document> parseGraphmlWitness(const string &filename);
 
 
 #endif //CWVALIDATOR_WITNESS_HPP

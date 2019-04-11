@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include "../utils/pugixml/pugixml.hpp"
+#include "../program_state.hpp"
 #include <string>
 #include <deque>
 #include <vector>
@@ -57,7 +58,7 @@ public:
     size_t start_line;
     bool enterLoopHead;
 
-    void print() const ;
+    void print() const;
 };
 
 struct Key {
@@ -99,19 +100,28 @@ struct Data {
 };
 
 class Automaton {
-    map<string, Node> nodes;
+
+    map<string, shared_ptr<Node>> nodes;
     vector<Edge> edges;
     Data data;
+    shared_ptr<Node> current_state;
 
     map<string, set<shared_ptr<Node>>> successor_rel;
     map<string, set<shared_ptr<Node>>> predecessor_rel;
+    bool illegal_state = false;
 public:
-    Automaton(const map<string, Node>& nodes, const vector<Edge>& edges, shared_ptr<Data> &data);
+    Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<Edge> &edges, shared_ptr<Data> &data);
 
     void printData() const;
+
     void printRelations() const;
 
-    static shared_ptr<Automaton> automatonFromWitness(const pugi::xml_document &doc);
+    void consumeState(const ProgramState &state);
+
+    bool isInIllegalState() const;
+
+    static shared_ptr<Automaton> automatonFromWitness(const shared_ptr<pugi::xml_document> &doc);
+
 };
 
 

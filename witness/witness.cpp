@@ -2,15 +2,14 @@
 // Created by jan svejda on 3.4.19.
 //
 
-#include <cstring>
 #include "witness.hpp"
 
-pugi::xml_document * parseGraphmlWitness(const string &filename) {
+shared_ptr<pugi::xml_document> parseGraphmlWitness(const string &filename) {
     if (filename.empty()) {
         fprintf(stderr, "No witness file name provided.\n");
         return nullptr;
     }
-    auto * doc = new pugi::xml_document();
+    auto doc = make_shared<pugi::xml_document>();
     pugi::xml_node root;
 
     pugi::xml_parse_result parseResult = doc->load_file(filename.c_str());

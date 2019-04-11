@@ -13,24 +13,25 @@
 
 shared_ptr<DefaultKeyValues> parseKeys(const pugi::xpath_node_set &keyNodeSet);
 
-map<string, Node> parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues);
+map<string, shared_ptr<Node>>
+parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues);
 
-void setNodeAttributes(Node &node, const char *name, const char *value);
+void setNodeAttributes(const shared_ptr<Node> &node, const char *name, const char *value);
 
-Node getDefaultNode(const shared_ptr<DefaultKeyValues> &def_values);
+shared_ptr<Node> getDefaultNode(const shared_ptr<DefaultKeyValues> &def_values);
 
 vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues);
 
 shared_ptr<Data> parseData(const pugi::xpath_node_set &set);
 
-shared_ptr<Automaton> Automaton::automatonFromWitness(const pugi::xml_document &doc) {
-    pugi::xml_node root = doc.root().first_child();
+shared_ptr<Automaton> Automaton::automatonFromWitness(const shared_ptr<pugi::xml_document> &doc) {
+    pugi::xml_node root = doc->root().first_child();
     if (!root || strcmp(root.name(), "graphml") != 0) {
         fprintf(stderr, "No graphml root element.");
         return nullptr;
     }
     string xpath = "/graphml/key"; // TODO add attributes
-    auto key_result = doc.select_nodes(pugi::xpath_query(xpath.c_str()));
+    auto key_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
 
     if (key_result.empty()) {
         fprintf(stderr, "No graphml keys found!");
@@ -38,29 +39,29 @@ shared_ptr<Automaton> Automaton::automatonFromWitness(const pugi::xml_document &
     }
 
     xpath = "/graphml/graph/node[@id]";
-    auto node_result = doc.select_nodes(pugi::xpath_query(xpath.c_str()));
+    auto node_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
     if (node_result.empty()) {
         fprintf(stderr, "There should be at least 1 node!");
         return nullptr;
     }
 
     xpath = "/graphml/graph/edge[@source and @target]";
-    auto edge_result = doc.select_nodes(pugi::xpath_query(xpath.c_str()));
+    auto edge_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
     if (edge_result.empty()) {
         fprintf(stderr, "There are no edges!");
         return nullptr; // TODO Could there be witnesses with no edges?
     }
 
     xpath = "/graphml/graph/data[@key]";
-    auto graph_data_result = doc.select_nodes(pugi::xpath_query(xpath.c_str()));
+    auto graph_data_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
     if (graph_data_result.empty()) {
         fprintf(stderr, "There are no edges!");
         return nullptr; // TODO Could there be witnesses with no edges?
     }
 
-    shared_ptr<DefaultKeyValues> default_key_values = parseKeys(key_result);
-    map<string, Node> nodes = parseNodes(node_result, default_key_values);
-    vector<Edge> edges = parseEdges(edge_result, default_key_values);
+    auto default_key_values = parseKeys(key_result);
+    auto nodes = parseNodes(node_result, default_key_values);
+    auto edges = parseEdges(edge_result, default_key_values);
     auto data = parseData(graph_data_result);
     auto aut = make_shared<Automaton>(nodes, edges, data);
 
@@ -181,7 +182,7 @@ vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<Defaul
     return edges;
 }
 
-void parseNodeProperties(const pugi::xml_node &node, Node &n) {
+void parseNodeProperties(const pugi::xml_node &node, const shared_ptr<Node> &n) {
     for (auto child: node.children("data")) {
         auto key = child.attribute("key");
         if (!key.empty()) {
@@ -190,67 +191,68 @@ void parseNodeProperties(const pugi::xml_node &node, Node &n) {
     }
 }
 
-map<string, Node> parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues) {
-    auto nodes = map<string, Node>();
+map<string, shared_ptr<Node>>
+parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues) {
+    auto nodes = map<string, shared_ptr<Node>>();
 
     for (auto xpathNode: set) {
         if (!xpathNode.node()) {
             continue;
         }
 
-        Node n = getDefaultNode(defaultKeyValues);
+        auto n = getDefaultNode(defaultKeyValues);
         pugi::xml_node node = xpathNode.node();
         for (auto attr: node.attributes()) {
             setNodeAttributes(n, attr.name(), attr.value());
         }
         parseNodeProperties(node, n);
 
-        nodes.emplace(n.id, n);
+        nodes.emplace(n->id, n);
     }
 
     return nodes;
 }
 
-Node getDefaultNode(const shared_ptr<DefaultKeyValues> &def_values) {
-    auto n = Node();
+shared_ptr<Node> getDefaultNode(const shared_ptr<DefaultKeyValues> &def_values) {
+    auto n = make_shared<Node>();
 
     // strings
-    n.invariant = def_values->getDefault("invariant").default_val;
-    n.invariant_scope = def_values->getDefault("invariant.scope").default_val;
-    n.node_type = def_values->getDefault("nodetype").default_val;
+    n->invariant = def_values->getDefault("invariant").default_val;
+    n->invariant_scope = def_values->getDefault("invariant.scope").default_val;
+    n->node_type = def_values->getDefault("nodetype").default_val;
 
     // bools - default value for all is false, so only if default is "true", shall it be true
-    n.is_frontier = (def_values->getDefault("frontier").default_val == "true");
-    n.is_violation = (def_values->getDefault("violation").default_val == "true");
-    n.is_entry = (def_values->getDefault("entry").default_val == "true");
-    n.is_sink = (def_values->getDefault("sink").default_val == "true");
+    n->is_frontier = (def_values->getDefault("frontier").default_val == "true");
+    n->is_violation = (def_values->getDefault("violation").default_val == "true");
+    n->is_entry = (def_values->getDefault("entry").default_val == "true");
+    n->is_sink = (def_values->getDefault("sink").default_val == "true");
 
     // integers
     string val = def_values->getDefault("thread").default_val;
-    n.thread_number = atoi(val.c_str()); // todo thrd number isn't an int though, but size_t. Is that ok?
+    n->thread_number = atoi(val.c_str()); // todo thrd number isn't an int though, but size_t. Is that ok?
 
     return n;
 }
 
-void setNodeAttributes(Node &node, const char *name, const char *value) {
+void setNodeAttributes(const shared_ptr<Node> &node, const char *name, const char *value) {
     if (strcmp(name, "id") == 0) {
-        node.id = value;
+        node->id = value;
     } else if (strcmp(name, "entry") == 0) {
-        node.is_entry = (strcmp(value, "true") == 0);
+        node->is_entry = (strcmp(value, "true") == 0);
     } else if (strcmp(name, "sink") == 0) {
-        node.is_sink = (strcmp(value, "true") == 0);
+        node->is_sink = (strcmp(value, "true") == 0);
     } else if (strcmp(name, "frontier") == 0) {
-        node.is_frontier = (strcmp(value, "true") == 0);
+        node->is_frontier = (strcmp(value, "true") == 0);
     } else if (strcmp(name, "violation") == 0) {
-        node.is_violation = (strcmp(value, "true") == 0);
+        node->is_violation = (strcmp(value, "true") == 0);
     } else if (strcmp(name, "invariant") == 0) {
-        node.invariant = value;
+        node->invariant = value;
     } else if (strcmp(name, "invariant.scope") == 0) {
-        node.invariant_scope = value;
+        node->invariant_scope = value;
     } else if (strcmp(name, "nodetype") == 0) {
-        node.node_type = value;
+        node->node_type = value;
     } else if (strcmp(name, "thread") == 0) {
-        node.thread_number = atoi(value);
+        node->thread_number = atoi(value);
     } else {
         fprintf(stderr, "I am missing a node attribute definition: %s\n", name);
     }
@@ -313,12 +315,25 @@ void DefaultKeyValues::print() const {
     }
 }
 
-Automaton::Automaton(const map<string, Node>& nodes, const vector<Edge>& edges, shared_ptr<Data> &data) :
-        nodes((nodes)), edges((edges)), data(*data), successor_rel(), predecessor_rel() {
+Automaton::Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<Edge> &edges, shared_ptr<Data> &data) :
+        nodes((nodes)), edges((edges)), data(*data), current_state(nullptr), successor_rel(), predecessor_rel() {
 
     for (const auto &n: nodes) {
-        successor_rel.emplace(n.first, set<shared_ptr<Node>>());
-        predecessor_rel.emplace(n.first, set<shared_ptr<Node>>());
+        auto succ_set = set<shared_ptr<Node>>();
+//        succ_set.insert(make_shared<Node>(n.second));
+        successor_rel.emplace(n.first, succ_set);
+        auto pred_set = set<shared_ptr<Node>>();
+//        pred_set.insert(make_shared<Node>(n.second));
+        predecessor_rel.emplace(n.first, pred_set);
+
+        if (n.second->is_entry) {
+            current_state = n.second;
+        }
+    }
+    if (current_state == nullptr) {
+        fprintf(stderr, "There seems to be no entry state to the witness automaton! Aborting validation.");
+        this->illegal_state = true;
+        return;
     }
     for (const auto &trans: edges) {
         auto src = nodes.find(trans.source_id);
@@ -333,9 +348,10 @@ Automaton::Automaton(const map<string, Node>& nodes, const vector<Edge>& edges, 
         }
 
         auto& node_successors = successor_rel.find(trans.source_id)->second;
-        node_successors.insert(make_shared<Node>(tar->second));
+        node_successors.insert(tar->second);
         auto& node_predecessors = predecessor_rel.find(trans.target_id)->second;
-        node_predecessors.insert(make_shared<Node>(src->second));
+        node_predecessors.insert(src->second);
+
 
     }
 }
@@ -361,6 +377,10 @@ void Automaton::printRelations() const {
         }
         printf("\n");
     }
+}
+
+bool Automaton::isInIllegalState() const {
+    return this->illegal_state;
 }
 
 void Node::print() const {
