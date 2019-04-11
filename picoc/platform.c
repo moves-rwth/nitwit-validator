@@ -52,7 +52,7 @@ void PicocCleanup(Picoc *pc)
 #define CALL_MAIN_NO_ARGS_RETURN_INT "__exit_value = main();"
 #define CALL_MAIN_WITH_ARGS_RETURN_INT "__exit_value = main(__argc,__argv);"
 
-void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(const struct ParseState*), int argc, char **argv)
+void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(struct ParseState *), int argc, char **argv)
 {
     /* check if the program wants arguments */
     struct Value *FuncValue = NULL;

@@ -102,15 +102,16 @@ struct Data {
 class Automaton {
 
     map<string, shared_ptr<Node>> nodes;
-    vector<Edge> edges;
+    vector<shared_ptr<Edge>> edges;
     Data data;
     shared_ptr<Node> current_state;
 
-    map<string, set<shared_ptr<Node>>> successor_rel;
-    map<string, set<shared_ptr<Node>>> predecessor_rel;
+    map<string, set<shared_ptr<Edge>>> successor_rel;
+    map<string, set<shared_ptr<Edge>>> predecessor_rel;
     bool illegal_state = false;
 public:
-    Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<Edge> &edges, shared_ptr<Data> &data);
+    Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<shared_ptr<Edge>> &edges,
+              shared_ptr<Data> &data);
 
     void printData() const;
 
@@ -122,6 +123,9 @@ public:
 
     static shared_ptr<Automaton> automatonFromWitness(const shared_ptr<pugi::xml_document> &doc);
 
+    bool isInViolationState() const;
+
+    bool isInSinkState() const;
 };
 
 

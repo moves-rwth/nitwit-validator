@@ -933,7 +933,8 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
 }
 
 /* quick scan a source file for definitions */
-void PicocParse(Picoc *pc, const char *FileName, const char *Source, int SourceLen, int RunIt, int CleanupNow, int CleanupSource, int EnableDebugger, void (*DebuggerCallback)(const struct ParseState*))
+void PicocParse(Picoc *pc, const char *FileName, const char *Source, int SourceLen, int RunIt, int CleanupNow,
+                int CleanupSource, int EnableDebugger, void (*DebuggerCallback)(struct ParseState *))
 {
     struct ParseState Parser;
     enum ParseResult Ok;

@@ -608,7 +608,7 @@ void *LexAnalyse(Picoc *pc, const char *FileName, const char *Source, int Source
 
 /* prepare to parse a pre-tokenised buffer */
 void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText, void *TokenSource, char *FileName,
-                   int RunIt, int EnableDebugger, void (*DebuggerCallback)(const struct ParseState*))
+                   int RunIt, int EnableDebugger, void (*DebuggerCallback)(struct ParseState *))
 {
     Parser->pc = pc;
     Parser->Pos = TokenSource;

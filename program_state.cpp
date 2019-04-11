@@ -20,7 +20,3 @@ ProgramState::ProgramState(string originFile, string enterFunction, string retur
           enterLoopHead(enterLoopHead) {}
 
 ProgramState::ProgramState() = default;
-
-void handleDebug(const struct ParseState *ps) {
-    printf("Line: %d, Pos: %d\n", ps->Line, ps->CharacterPos);
-}

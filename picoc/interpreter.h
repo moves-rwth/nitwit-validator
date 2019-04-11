@@ -129,7 +129,7 @@ struct ParseState
     char DebugMode;             /* debugging mode */
     int ScopeID;                /* for keeping track of local variables (free them after they go out of scope) */
     // jsv:
-    void (*DebuggerCallback)(const struct ParseState*); /* calls a callback when breakpoint reached */
+    void (*DebuggerCallback)(struct ParseState *); /* calls a callback when breakpoint reached */
 };
 
 /* values */
@@ -486,7 +486,7 @@ void LexInit(Picoc *pc);
 void LexCleanup(Picoc *pc);
 void *LexAnalyse(Picoc *pc, const char *FileName, const char *Source, int SourceLen, int *TokenLen);
 void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText, void *TokenSource, char *FileName,
-                   int RunIt, int EnableDebugger, void (*DebuggerCallback)(const struct ParseState*));
+                   int RunIt, int EnableDebugger, void (*DebuggerCallback)(struct ParseState *));
 enum LexToken LexGetToken(struct ParseState *Parser, struct Value **Value, int IncPos);
 enum LexToken LexRawPeekToken(struct ParseState *Parser);
 void LexToEndOfLine(struct ParseState *Parser);

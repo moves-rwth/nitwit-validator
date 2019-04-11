@@ -20,7 +20,8 @@ void setNodeAttributes(const shared_ptr<Node> &node, const char *name, const cha
 
 shared_ptr<Node> getDefaultNode(const shared_ptr<DefaultKeyValues> &def_values);
 
-vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues);
+vector<shared_ptr<Edge>>
+parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues);
 
 shared_ptr<Data> parseData(const pugi::xpath_node_set &set);
 
@@ -96,62 +97,62 @@ shared_ptr<Data> parseData(const pugi::xpath_node_set &set) {
     return d;
 }
 
-Edge getDefaultEdge(const shared_ptr<DefaultKeyValues> &def_values) {
-    auto e = Edge();
+shared_ptr<Edge> getDefaultEdge(const shared_ptr<DefaultKeyValues> &def_values) {
+    auto e = make_shared<Edge>();
 
     // strings
-    e.assumption = def_values->getDefault("assumption").default_val;
-    e.assumption_scope = def_values->getDefault("assumption.scope").default_val;
-    e.assumption_result_function = def_values->getDefault("assumption.resultfunction").default_val;
-    e.origin_file = def_values->getDefault("originfile").default_val;
+    e->assumption = def_values->getDefault("assumption").default_val;
+    e->assumption_scope = def_values->getDefault("assumption.scope").default_val;
+    e->assumption_result_function = def_values->getDefault("assumption.resultfunction").default_val;
+    e->origin_file = def_values->getDefault("originfile").default_val;
 //    e.source_id = def_values->getDefault("nodetype").default_val;
 //    e.target_id = def_values->getDefault("nodetype").default_val;
-    e.control = def_values->getDefault("control").default_val;
-    e.enter_function = def_values->getDefault("enterFunction").default_val;
-    e.return_from_function = def_values->getDefault("returnFrom").default_val;
-    e.source_code = def_values->getDefault("sourcecode").default_val;
+    e->control = def_values->getDefault("control").default_val;
+    e->enter_function = def_values->getDefault("enterFunction").default_val;
+    e->return_from_function = def_values->getDefault("returnFrom").default_val;
+    e->source_code = def_values->getDefault("sourcecode").default_val;
 
     // bools - default value for all is false, so only if default is "true", shall it be true
-    e.enterLoopHead = (def_values->getDefault("enterLoopHead").default_val == "true");
+    e->enterLoopHead = (def_values->getDefault("enterLoopHead").default_val == "true");
 
     // integers
-    e.start_line = atoi(def_values->getDefault(
+    e->start_line = atoi(def_values->getDefault(
             "startline").default_val.c_str()); // todo startline isn't an int though, but size_t. Is that ok?
 
     return e;
 }
 
-void setEdgeAttributes(Edge &edge, const pugi::char_t *name, const pugi::char_t *value) {
+void setEdgeAttributes(shared_ptr<Edge> &edge, const pugi::char_t *name, const pugi::char_t *value) {
     if (strcmp(name, "source") == 0) {
-        edge.source_id = value;
+        edge->source_id = value;
     } else if (strcmp(name, "target") == 0) {
-        edge.target_id = value;
+        edge->target_id = value;
     } else if (strcmp(name, "assumption") == 0) {
-        edge.assumption = value;
+        edge->assumption = value;
     } else if (strcmp(name, "assumption.scope") == 0) {
-        edge.assumption_scope = value;
+        edge->assumption_scope = value;
     } else if (strcmp(name, "assumption.resultfunction") == 0) {
-        edge.assumption_result_function = value;
+        edge->assumption_result_function = value;
     } else if (strcmp(name, "originfile") == 0) {
-        edge.origin_file = value;
+        edge->origin_file = value;
     } else if (strcmp(name, "control") == 0) {
-        edge.control = value;
+        edge->control = value;
     } else if (strcmp(name, "enterFunction") == 0) {
-        edge.enter_function = value;
+        edge->enter_function = value;
     } else if (strcmp(name, "returnFrom") == 0) {
-        edge.return_from_function = value;
+        edge->return_from_function = value;
     } else if (strcmp(name, "sourcecode") == 0) {
-        edge.source_code = value;
+        edge->source_code = value;
     } else if (strcmp(name, "enterLoopHead") == 0) {
-        edge.enterLoopHead = strcmp(value, "true") == 0;
+        edge->enterLoopHead = strcmp(value, "true") == 0;
     } else if (strcmp(name, "startline") == 0) {
-        edge.start_line = atoi(value);
+        edge->start_line = atoi(value);
     } else {
         fprintf(stderr, "I am missing an edge attribute definition: %s\n", name);
     }
 }
 
-void parseEdgeProperties(const pugi::xml_node &node, Edge &edge) {
+void parseEdgeProperties(const pugi::xml_node &node, shared_ptr<Edge> &edge) {
     for (auto child: node.children("data")) {
         auto key = child.attribute("key");
         if (!key.empty()) {
@@ -160,8 +161,9 @@ void parseEdgeProperties(const pugi::xml_node &node, Edge &edge) {
     }
 }
 
-vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues) {
-    vector<Edge> edges = vector<Edge>();
+vector<shared_ptr<Edge>>
+parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues) {
+    auto edges = vector<shared_ptr<Edge>>();
     edges.reserve(set.size());
 
     for (auto xpathNode: set) {
@@ -169,7 +171,7 @@ vector<Edge> parseEdges(const pugi::xpath_node_set &set, const shared_ptr<Defaul
             continue;
         }
 
-        Edge e = getDefaultEdge(defaultKeyValues);
+        auto e = getDefaultEdge(defaultKeyValues);
         pugi::xml_node node = xpathNode.node();
         for (auto attr: node.attributes()) {
             setEdgeAttributes(e, attr.name(), attr.value());
@@ -315,14 +317,15 @@ void DefaultKeyValues::print() const {
     }
 }
 
-Automaton::Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<Edge> &edges, shared_ptr<Data> &data) :
+Automaton::Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<shared_ptr<Edge>> &edges,
+                     shared_ptr<Data> &data) :
         nodes((nodes)), edges((edges)), data(*data), current_state(nullptr), successor_rel(), predecessor_rel() {
 
     for (const auto &n: nodes) {
-        auto succ_set = set<shared_ptr<Node>>();
+        auto succ_set = set<shared_ptr<Edge>>();
 //        succ_set.insert(make_shared<Node>(n.second));
         successor_rel.emplace(n.first, succ_set);
-        auto pred_set = set<shared_ptr<Node>>();
+        auto pred_set = set<shared_ptr<Edge>>();
 //        pred_set.insert(make_shared<Node>(n.second));
         predecessor_rel.emplace(n.first, pred_set);
 
@@ -336,21 +339,21 @@ Automaton::Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<Ed
         return;
     }
     for (const auto &trans: edges) {
-        auto src = nodes.find(trans.source_id);
+        auto src = nodes.find(trans->source_id);
         if (src == nodes.end()) {
-            fprintf(stderr, "WARN: Did not find source node '%s', skipping.", trans.source_id.c_str());
+            fprintf(stderr, "WARN: Did not find source node '%s', skipping.", trans->source_id.c_str());
             continue;
         }
-        auto tar = nodes.find(trans.target_id);
+        auto tar = nodes.find(trans->target_id);
         if (tar == nodes.end()) {
-            fprintf(stderr, "WARN: Did not find target node '%s', skipping.", trans.source_id.c_str());
+            fprintf(stderr, "WARN: Did not find target node '%s', skipping.", trans->source_id.c_str());
             continue;
         }
 
-        auto& node_successors = successor_rel.find(trans.source_id)->second;
-        node_successors.insert(tar->second);
-        auto& node_predecessors = predecessor_rel.find(trans.target_id)->second;
-        node_predecessors.insert(src->second);
+        auto &node_successors = successor_rel.find(trans->source_id)->second;
+        node_successors.insert(trans);
+        auto &node_predecessors = predecessor_rel.find(trans->target_id)->second;
+        node_predecessors.insert(trans);
 
 
     }
@@ -365,7 +368,7 @@ void Automaton::printRelations() const {
     for (const auto& n: successor_rel){
         printf("%s\t ----> ", n.first.c_str());
         for (const auto& s: n.second){
-            printf("%s, ", s->id.c_str());
+            printf("%s, ", s->target_id.c_str());
         }
         printf("\n");
     }
@@ -373,7 +376,7 @@ void Automaton::printRelations() const {
     for (const auto& n: predecessor_rel){
         printf("%s\t ----> ", n.first.c_str());
         for (const auto& s: n.second){
-            printf("%s, ", s->id.c_str());
+            printf("%s, ", s->target_id.c_str());
         }
         printf("\n");
     }
@@ -382,6 +385,15 @@ void Automaton::printRelations() const {
 bool Automaton::isInIllegalState() const {
     return this->illegal_state;
 }
+
+bool Automaton::isInViolationState() const {
+    return current_state != nullptr && current_state->is_violation;
+}
+
+bool Automaton::isInSinkState() const {
+    return current_state != nullptr && current_state->is_sink;
+}
+
 
 void Node::print() const {
     printf("id %s: %s, th: %zu, f: %d, v: %d, s: %d, e: %d\n", this->id.c_str(), this->node_type.c_str(),

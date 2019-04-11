@@ -34,11 +34,12 @@ extern int PicocExitBuf[];
 #endif
 
 /* parse.c */
-void PicocParse(Picoc *pc, const char *FileName, const char *Source, int SourceLen, int RunIt, int CleanupNow, int CleanupSource, int EnableDebugger, void (*DebuggerCallback)(const struct ParseState*));
+void PicocParse(Picoc *pc, const char *FileName, const char *Source, int SourceLen, int RunIt, int CleanupNow,
+                int CleanupSource, int EnableDebugger, void (*DebuggerCallback)(struct ParseState *));
 void PicocParseInteractive(Picoc *pc);
 
 /* platform.c */
-void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(const struct ParseState*),int argc, char **argv);
+void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(struct ParseState *), int argc, char **argv);
 void PicocInitialise(Picoc *pc, int StackSize);
 void PicocCleanup(Picoc *pc);
 void PicocPlatformScanFile(Picoc *pc, const char *FileName);
