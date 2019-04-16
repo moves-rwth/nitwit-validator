@@ -1,4 +1,4 @@
-//extern void __VERIFIER_error();
+extern void __VERIFIER_error();
 
 int one(int foo) {
     return foo;
@@ -14,7 +14,7 @@ int main() {
     while (1) {
         step();
         if (x == 1) {
-            printf("__VERIFIER_error();\n");
+            __VERIFIER_error();
             return 1;
         }
     }
