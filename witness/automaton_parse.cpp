@@ -394,6 +394,10 @@ bool Automaton::isInSinkState() const {
     return current_state != nullptr && current_state->is_sink;
 }
 
+const shared_ptr<Node> &Automaton::getCurrentState() const {
+    return this->current_state;
+}
+
 
 void Node::print() const {
     printf("id %s: %s, th: %zu, f: %d, v: %d, s: %d, e: %d\n", this->id.c_str(), this->node_type.c_str(),

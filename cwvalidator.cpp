@@ -16,13 +16,7 @@ extern "C" {
 using namespace std;
 shared_ptr<Automaton> wit_aut;
 
-void tryOutDebug(const char *source_filename);
 
-
-string baseFileName(const char *path) {
-    string s(path);
-    return s.substr(s.find_last_of("/\\") + 1);
-}
 
 void handleDebug(struct ParseState *ps) {
     printf("File: %s ----- Line: %d, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
@@ -35,34 +29,43 @@ void handleDebug(struct ParseState *ps) {
         return;
     }
 
-    ProgramState program_state(baseFileName(ps->FileName), "", "", "", "", ps->Line, false);
-    wit_aut->consumeState(program_state);
+    auto *program_state = new ProgramState(ps->FileName, "", "", "", "", ps->Line, false);
+    wit_aut->consumeState(*program_state);
+    delete program_state;
 
     if (wit_aut.get()->isInViolationState()) {
         printf("Violation reached!\n");
-        ProgramFail(ps, "Property has been violated! Ending validation, witness is correct.\n");
+        PlatformExit(ps->pc, 1);
         return;
     }
 }
 
-void tryOutDebug(const char *source_filename) {
+bool validate(const char *source_filename) {
 
     Picoc pc;
     PicocInitialise(&pc, 8388608); // stack size of 8 MiB
 
     PicocIncludeAllSystemHeaders(&pc);
-    // also include extern functions used by verifiers like error, assume, nondet...
-//    PicocParse(&pc, EXTERN_C_DEFS_FILENAME, EXTERN_C_DEFS_FOR_VERIFIERS, strlen(EXTERN_C_DEFS_FOR_VERIFIERS),
-//               TRUE, FALSE, TRUE, TRUE, handleDebug);
+
+    // the interpreter will jump here after finding a violation
+    if (PicocPlatformSetExitPoint(&pc)) {
+        printf("Stopping the interpreter.\n");
+        PicocCleanup(&pc);
+
+        return false;
+    }
     char *source = readFile(source_filename);
     printf("Analyzing:\n%s", source);
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebug);
+    // also include extern functions used by verifiers like error, assume, nondet...
+    PicocParse(&pc, EXTERN_C_DEFS_FILENAME, EXTERN_C_DEFS_FOR_VERIFIERS, strlen(EXTERN_C_DEFS_FOR_VERIFIERS),
+               TRUE, FALSE, FALSE, TRUE, handleDebug);
 
     if (!VariableDefined(&pc, TableStrRegister(&pc, "main")))
         printf("Sorry, not sorry. No main function...");
 
-    Value *MainFuncValue = nullptr;
+    struct Value *MainFuncValue = nullptr;
     VariableGet(&pc, nullptr, TableStrRegister(&pc, "main"), &MainFuncValue);
 
     if (MainFuncValue->Typ->Base != TypeFunction)
@@ -70,7 +73,9 @@ void tryOutDebug(const char *source_filename) {
 
     auto *ps = new ParseState();
     ParserCopy(ps, &MainFuncValue->Val->FuncDef.Body);
+    ps->ScopeID = MainFuncValue->ScopeID;
     DebugSetBreakpoint(ps);
+    delete ps;
 
     printf("================================\nStart simulation:\n\n");
 
@@ -79,6 +84,7 @@ void tryOutDebug(const char *source_filename) {
     printf("Exit value of program: %d\n", pc.PicocExitValue);
 
     PicocCleanup(&pc);
+    return true;
 }
 
 int main(int argc, char **argv) {
@@ -100,7 +106,11 @@ int main(int argc, char **argv) {
         printf("Reconstructing the witness automaton failed.\n");
         return 1;
     }
-    tryOutDebug(argv[2]);
+    if (validate(argv[2])) {
+        printf("Wasn't able to validate the witness. Violation not reached.");
+        return 1;
+    }
+    printf("Automaton finished in state: %s\n", wit_aut->getCurrentState()->id.c_str());
 
     return 0;
 }

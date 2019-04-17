@@ -5,6 +5,10 @@
 #include "automaton.hpp"
 #include <functional>
 
+string baseFileName(const string &s) {
+    return s.substr(s.find_last_of("/\\") + 1);
+}
+
 void Automaton::consumeState(const ProgramState &state) {
     if (current_state == nullptr || this->isInIllegalState()) {
         this->illegal_state = true;
@@ -22,7 +26,8 @@ void Automaton::consumeState(const ProgramState &state) {
     }
 
     for (const auto &edge: succs->second) {
-        if (edge->origin_file == state.origin_file && edge->start_line == state.start_line) {
+        if (baseFileName(edge->origin_file) == baseFileName(state.origin_file) &&
+            edge->start_line == state.start_line) {
             current_state = nodes.find(edge->target_id)->second;
             printf("Taking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
             return;

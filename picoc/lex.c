@@ -622,6 +622,7 @@ void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText,
     Parser->SourceText = SourceText;
     Parser->DebugMode = EnableDebugger;
     // jsv
+    Parser->ScopeID = 0; // getting uninit errors from valgrind :/
     Parser->DebuggerCallback = DebuggerCallback;
 }
 

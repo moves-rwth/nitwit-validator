@@ -126,6 +126,8 @@ public:
     bool isInViolationState() const;
 
     bool isInSinkState() const;
+
+    const shared_ptr<Node> &getCurrentState() const;
 };
 
 

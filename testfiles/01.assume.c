@@ -1,5 +1,4 @@
 extern void __VERIFIER_error();
-
 extern void __VERIFIER_assume(int);
 
 int one(int foo) {

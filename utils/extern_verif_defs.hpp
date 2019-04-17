@@ -9,6 +9,10 @@ static const char *EXTERN_C_DEFS_FILENAME = "externY3X0yQpLcB.c";
 static const char *EXTERN_C_DEFS_FOR_VERIFIERS =
         "void __VERIFIER_error(){\n"
         "   // nothing here\n"
-        "}\n";
+        "}\n"
+        ""
+        "void __VERIFIER_assume(int a){\n"
+        "   // nothing here\n"
+        "}";
 
 #endif //CWVALIDATOR_EXTERN_VERIF_DEFS_HPP

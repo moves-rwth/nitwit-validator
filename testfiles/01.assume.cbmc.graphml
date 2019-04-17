@@ -48,7 +48,7 @@
       <data key="entry">true</data>
     </node>
     <edge source="21.23" target="3.29">
-      <data key="originfile">01.assume.c</data>
+      <data key="originfile">testfiles/01.assume.c</data>
       <data key="startline">11</data>
       <data key="assumption">foo = 1;</data>
       <data key="assumption.scope">step</data>
@@ -57,7 +57,7 @@
       <data key="violation">true</data>
     </node>
     <edge source="3.29" target="sink">
-      <data key="originfile">01.assume.c</data>
+      <data key="originfile">testfiles/01.assume.c</data>
       <data key="startline">18</data>
     </edge>
   </graph>
