@@ -18,8 +18,8 @@ shared_ptr<Automaton> wit_aut;
 
 
 
-void handleDebug(struct ParseState *ps) {
-    printf("File: %s ----- Line: %d, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
+void handleDebugBreakpoint(struct ParseState *ps) {
+//    printf("File: %s ----- Line: %d, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
     if (wit_aut == nullptr) {
         ProgramFail(ps, "No witness automaton to validate against.\n");
         return;
@@ -57,10 +57,10 @@ bool validate(const char *source_filename) {
     char *source = readFile(source_filename);
     printf("Analyzing:\n%s", source);
     PicocParse(&pc, source_filename, source, strlen(source),
-               TRUE, FALSE, TRUE, TRUE, handleDebug);
+               TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
     // also include extern functions used by verifiers like error, assume, nondet...
     PicocParse(&pc, EXTERN_C_DEFS_FILENAME, EXTERN_C_DEFS_FOR_VERIFIERS, strlen(EXTERN_C_DEFS_FOR_VERIFIERS),
-               TRUE, FALSE, FALSE, TRUE, handleDebug);
+               TRUE, FALSE, FALSE, TRUE, handleDebugBreakpoint);
 
     if (!VariableDefined(&pc, TableStrRegister(&pc, "main")))
         printf("Sorry, not sorry. No main function...");
@@ -77,11 +77,12 @@ bool validate(const char *source_filename) {
     DebugSetBreakpoint(ps);
     delete ps;
 
-    printf("================================\nStart simulation:\n\n");
 
+    printf("============Start simulation============\n");
     PicocCallMain(&pc, nullptr, 1, nullptr);
+    printf("===============Finished=================\n\n");
 
-    printf("Exit value of program: %d\n", pc.PicocExitValue);
+    printf("Exit value of the program: %d\n", pc.PicocExitValue);
 
     PicocCleanup(&pc);
     return true;
@@ -107,10 +108,11 @@ int main(int argc, char **argv) {
         return 1;
     }
     if (validate(argv[2])) {
-        printf("Wasn't able to validate the witness. Violation not reached.");
+        printf("FAILED: Wasn't able to validate the witness. Violation NOT reached.\n");
+        printf("Automaton finished in state: %s\n", wit_aut->getCurrentState()->id.c_str());
         return 1;
     }
-    printf("Automaton finished in state: %s\n", wit_aut->getCurrentState()->id.c_str());
+    printf("VALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
 
     return 0;
 }

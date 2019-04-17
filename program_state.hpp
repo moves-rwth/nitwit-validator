@@ -29,6 +29,6 @@ public:
     ProgramState();
 };
 
-//void handleDebug(const struct ParseState *ps);
+//void handleDebugBreakpoint(const struct ParseState *ps);
 
 #endif //CWVALIDATOR_STATE_HPP

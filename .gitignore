@@ -54,3 +54,6 @@ dkms.conf
 # CLion
 cmake-build-debug
 .idea
+
+# Verifiers
+testfiles/output
