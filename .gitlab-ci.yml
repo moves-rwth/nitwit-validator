@@ -1,0 +1,37 @@
+image: whatthefuckisadockerid666/cpp-image:latest
+
+stages:
+  - build
+
+build:gcc:
+  stage: build
+  tags:
+    - gcc
+  before_script:
+    - export CXX=g++
+    - export CC=gcc
+  script:
+    - mkdir build_gcc
+    - cd build_gcc
+    - cmake -DCMAKE_BUILD_TYPE=Release ..
+    - make -j8
+  artifacts:
+    paths:
+      - build_gcc/
+
+build:clang:
+  stage: build
+  tags:
+    - clang
+  before_script:
+    - export CXX=clang++
+    - export CC=clang
+  script:
+    - mkdir build_clang
+    - cd build_clang
+    - cmake -DCMAKE_BUILD_TYPE=Release ..
+    - make -j8
+  artifacts:
+    paths:
+      - build_clang/
+
