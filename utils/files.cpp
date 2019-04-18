@@ -2,9 +2,7 @@
 // Created by jan on 3.4.19.
 //
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/stat.h>
+#include "files.hpp"
 
 char *readFile(const char *FileName)
 {

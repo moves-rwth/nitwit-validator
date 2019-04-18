@@ -3,5 +3,4 @@
 - GCC and build tools
 - libraries:
     - readline
-    - pugixml
     

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 project(cwvalidator C CXX)
 
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "-Wall -pedantic -g") # xml2 fails to link w/o -I
+set(CMAKE_CXX_FLAGS "-Wall -pedantic -g")
 
 file(GLOB P_C_FILES picoc/**/*.c)
 file(GLOB P_H_FILES picoc/**/*.h)
@@ -19,5 +19,4 @@ add_executable(cwvalidator cwvalidator.cpp ${P_SOURCE_FILES} ${P_H_FILES}
         ${W_SOURCE_FILES} ${U_SOURCE_FILES} ${R_SOURCE_FILES})
 target_link_libraries(cwvalidator m)
 target_link_libraries(cwvalidator readline)
-target_link_libraries(cwvalidator xml2)
 
