@@ -108,6 +108,7 @@ shared_ptr<Edge> getDefaultEdge(const shared_ptr<DefaultKeyValues> &def_values) 
 //    e.source_id = def_values->getDefault("nodetype").default_val;
 //    e.target_id = def_values->getDefault("nodetype").default_val;
     e->control = def_values->getDefault("control").default_val;
+    e->controlCondition = ConditionUndefined;
     e->enter_function = def_values->getDefault("enterFunction").default_val;
     e->return_from_function = def_values->getDefault("returnFrom").default_val;
     e->source_code = def_values->getDefault("sourcecode").default_val;
@@ -137,6 +138,13 @@ void setEdgeAttributes(shared_ptr<Edge> &edge, const pugi::char_t *name, const p
         edge->origin_file = value;
     } else if (strcmp(name, "control") == 0) {
         edge->control = value;
+        if (strcmp(value, "condition-true") == 0) {
+            edge->controlCondition = ConditionTrue;
+        } else if (strcmp(value, "condition-false") == 0) {
+            edge->controlCondition = ConditionFalse;
+        } else {
+            edge->controlCondition = ConditionUndefined;
+        }
     } else if (strcmp(name, "enterFunction") == 0) {
         edge->enter_function = value;
     } else if (strcmp(name, "returnFrom") == 0) {
@@ -365,17 +373,17 @@ void Automaton::printData() const {
 
 void Automaton::printRelations() const {
     printf("Successor relation (%lu):\n", successor_rel.size());
-    for (const auto& n: successor_rel){
+    for (const auto &n: successor_rel) {
         printf("%s\t ----> \t", n.first.c_str());
-        for (const auto& s: n.second){
+        for (const auto &s: n.second) {
             printf("%s, ", s->target_id.c_str());
         }
         printf("\n");
     }
     printf("Predecessor relation (%lu):\n", predecessor_rel.size());
-    for (const auto& n: predecessor_rel){
+    for (const auto &n: predecessor_rel) {
         printf("%s\t <---- \t", n.first.c_str());
-        for (const auto& s: n.second){
+        for (const auto &s: n.second) {
             printf("%s, ", s->source_id.c_str());
         }
         printf("\n");
@@ -425,3 +433,13 @@ void Data::print() const {
            this->specification.c_str(), this->producer.c_str()
     );
 }
+
+
+ProgramState::ProgramState(string originFile, string enterFunction, string returnFromFunction,
+                           string sourceCode, EdgeControl control, size_t startLine, bool enterLoopHead)
+        : origin_file(std::move(originFile)), enter_function(std::move(enterFunction)),
+          return_from_function(std::move(returnFromFunction)),
+          source_code(std::move(sourceCode)), control(std::move(control)), start_line(startLine),
+          enterLoopHead(enterLoopHead) {}
+
+ProgramState::ProgramState() = default;

@@ -19,7 +19,7 @@ shared_ptr<Automaton> wit_aut;
 
 
 void handleDebugBreakpoint(struct ParseState *ps) {
-//    printf("File: %s ----- Line: %d, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
+    printf("File: %s ----- Line: %d, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
     if (wit_aut == nullptr) {
         ProgramFail(ps, "No witness automaton to validate against.\n");
         return;
@@ -29,7 +29,12 @@ void handleDebugBreakpoint(struct ParseState *ps) {
         return;
     }
 
-    auto *program_state = new ProgramState(ps->FileName, "", "", "", "", ps->Line, false);
+    if (wit_aut->isInSinkState()) {
+        ProgramFail(ps, "Witness automaton reached sink state without a violation.\n");
+        return;
+    }
+
+    auto *program_state = new ProgramState(ps->FileName, "", "", "", ConditionUndefined, ps->Line, false);
     wit_aut->consumeState(*program_state);
     delete program_state;
 
@@ -50,6 +55,7 @@ bool validate(const char *source_filename) {
     // the interpreter will jump here after finding a violation
     if (PicocPlatformSetExitPoint(&pc)) {
         printf("Stopping the interpreter.\n");
+        printf("===============Finished=================\n\n");
         PicocCleanup(&pc);
 
         return false;

@@ -7,7 +7,6 @@
 
 #include <cstddef>
 #include "../utils/pugixml/pugixml.hpp"
-#include "../program_state.hpp"
 #include <string>
 #include <deque>
 #include <vector>
@@ -28,6 +27,8 @@ class DefaultKeyValues;
 
 struct Data;
 
+class ProgramState;
+
 class Node {
 public:
     string id;
@@ -43,6 +44,10 @@ public:
     void print() const;
 };
 
+enum EdgeControl {
+    ConditionTrue, ConditionFalse, ConditionUndefined
+};
+
 class Edge {
 public:
     string source_id;
@@ -55,6 +60,7 @@ public:
     string return_from_function;
     string source_code;
     string control;
+    EdgeControl controlCondition;
     size_t start_line;
     bool enterLoopHead;
 
@@ -130,5 +136,21 @@ public:
     const shared_ptr<Node> &getCurrentState() const;
 };
 
+
+class ProgramState {
+public:
+    string origin_file;
+    string enter_function;
+    string return_from_function;
+    string source_code;
+    EdgeControl control;
+    size_t start_line{};
+    bool enterLoopHead{};
+
+    ProgramState(string originFile, string enterFunction, string returnFromFunction,
+                 string sourceCode, EdgeControl control, size_t startLine, bool enterLoopHead);
+
+    ProgramState();
+};
 
 #endif //CWVALIDATOR_AUTOMATON_HPP

@@ -10,24 +10,15 @@
 #include <string>
 #include <cstring>
 #include <memory>
+#include "witness/automaton.hpp"
+#include "witness/witness.hpp"
+#include "utils/files.hpp"
+#include <cstdlib>
+#include <cstdio>
+#include <utility>
 
 using namespace std;
 
-class ProgramState {
-public:
-    string origin_file;
-    string enter_function;
-    string return_from_function;
-    string source_code;
-    string control;
-    size_t start_line{};
-    bool enterLoopHead{};
-
-    ProgramState(string originFile, string enterFunction, string returnFromFunction,
-                 string sourceCode, string control, size_t startLine, bool enterLoopHead);
-
-    ProgramState();
-};
 
 //void handleDebugBreakpoint(const struct ParseState *ps);
 
