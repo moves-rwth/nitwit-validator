@@ -98,33 +98,33 @@ int DebugClearBreakpoint(struct ParseState *Parser)
 /* before we run a statement, check if there's anything we have to do with the debugger here */
 void DebugCheckStatement(struct ParseState *Parser)
 {
-    int DoBreak = FALSE;
-    int AddAt;
-    Picoc *pc = Parser->pc;
+//    int DoBreak = FALSE;
+//    int AddAt;
+//    Picoc *pc = Parser->pc;
     
     /* has the user manually pressed break? */
-    if (pc->DebugManualBreak)
-    {
-        PlatformPrintf(pc->CStdOut, "break\n");
-        DoBreak = TRUE;
-        pc->DebugManualBreak = FALSE;
-    }
+//    if (pc->DebugManualBreak)
+//    {
+//        PlatformPrintf(pc->CStdOut, "break\n");
+//        DoBreak = TRUE;
+//        pc->DebugManualBreak = FALSE;
+//    }
     
     /* is this a breakpoint location? */
-    if (Parser->pc->BreakpointCount != 0 && DebugTableSearchBreakpoint(Parser, &AddAt) != NULL)
-        DoBreak = TRUE;
+//    if (Parser->pc->BreakpointCount != 0 && DebugTableSearchBreakpoint(Parser, &AddAt) != NULL)
+//        DoBreak = TRUE;
     
     /* handle a break */
-    if (TRUE)
+//    if (TRUE)
 //    if (DoBreak)
-    {
+//    {
 //        PlatformPrintf(pc->CStdOut, "Handling a break\n");
 //        PicocParseInteractiveNoStartPrompt(pc, FALSE);
-        if (Parser->DebuggerCallback != NULL)
-        {
-            Parser->DebuggerCallback(Parser);
-        }
+    if (Parser->DebuggerCallback != NULL)
+    {
+        Parser->DebuggerCallback(Parser);
     }
+//    }
 }
 
 void DebugStep()
