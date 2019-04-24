@@ -39,7 +39,7 @@ void handleDebugBreakpoint(struct ParseState *ps) {
     delete program_state;
 
     if (wit_aut.get()->isInViolationState()) {
-        printf("Violation reached!\n");
+        printf("\nVALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
         PlatformExit(ps->pc, 1);
         return;
     }
@@ -113,15 +113,11 @@ int main(int argc, char **argv) {
         printf("Reconstructing the witness automaton failed.\n");
         return 1;
     }
-    if (validate(argv[2])) {
+    if (!validate(argv[2]) && !wit_aut->isInViolationState()) {
         printf("FAILED: Wasn't able to validate the witness. Violation NOT reached.\n");
         printf("Automaton finished in state: %s\n", wit_aut->getCurrentState()->id.c_str());
         return 1;
     }
-    if (wit_aut->isInViolationState())
-        printf("VALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
-    else
-        printf("ERROR: An error occured.\n");
     return 0;
 }
 
