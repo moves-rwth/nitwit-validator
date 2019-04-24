@@ -99,12 +99,12 @@ bool validate(const char *source_filename) {
 int main(int argc, char **argv) {
     if (argc < 2) {
         printf("Usage: <cwvalidator> witness.graphml source-file.c");
-        return 1;
+        return 3;
     }
 
     auto doc = parseGraphmlWitness(argv[1]);
     if (doc == nullptr) {
-        return 1;
+        return 2;
     }
     wit_aut = Automaton::automatonFromWitness(doc);
 

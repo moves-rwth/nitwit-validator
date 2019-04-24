@@ -173,6 +173,8 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     return FuncValue;
 }
 
+void ConditionCallback(struct ParseState *Parser, int Condition);
+
 /* parse an array initialiser and assign to a variable */
 int ParseArrayInitialiser(struct ParseState *Parser, struct Value *NewVariable, int DoAssignment)
 {
@@ -471,9 +473,7 @@ void ParseFor(struct ParseState *Parser)
     else
         Condition = ExpressionParseInt(Parser);
 
-    Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
-    Parser->DebuggerCallback(Parser);
-    Parser->LastConditionBranch = ConditionUndefined;
+    ConditionCallback(Parser, Condition);
 
     if (LexGetToken(Parser, NULL, TRUE) != TokenSemicolon)
         ProgramFail(Parser, "';' expected");
@@ -495,27 +495,18 @@ void ParseFor(struct ParseState *Parser)
         
     while (Condition && Parser->Mode == RunModeRun)
     {
-        printf("Next iter\n");
-
         ParserCopyPos(Parser, &PreIncrement);
-        printf("Increment\n");
         ParseStatement(Parser, FALSE);
-        Parser->DebuggerCallback(Parser);
 
-        printf("Condition: ");
         ParserCopyPos(Parser, &PreConditional);
         if (LexGetToken(Parser, NULL, FALSE) == TokenSemicolon)
             Condition = TRUE;
         else
             Condition = ExpressionParseInt(Parser);
-        printf("%d\n", Condition);
-
 
         if (Condition)
         {
-            Parser->LastConditionBranch = ConditionTrue;
-            Parser->DebuggerCallback(Parser);
-            Parser->LastConditionBranch = ConditionUndefined;
+            ConditionCallback(Parser, Condition);
 
             ParserCopyPos(Parser, &PreStatement);
             ParseStatement(Parser, TRUE);
@@ -525,11 +516,7 @@ void ParseFor(struct ParseState *Parser)
         }
     }
 
-    Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
-    printf("Right after for's end:\n");
-    Parser->DebuggerCallback(Parser);
-    Parser->LastConditionBranch = ConditionUndefined;
-
+    ConditionCallback(Parser, Condition);
 
     if (Parser->Mode == RunModeBreak && OldMode == RunModeRun)
         Parser->Mode = RunModeRun;
@@ -537,6 +524,12 @@ void ParseFor(struct ParseState *Parser)
     VariableScopeEnd(Parser, ScopeID, PrevScopeID);
 
     ParserCopyPos(Parser, &After);
+}
+
+void ConditionCallback(struct ParseState *Parser, int Condition) {
+    Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
+    Parser->DebuggerCallback(Parser);
+    Parser->LastConditionBranch = ConditionUndefined;
 }
 
 /* parse a block of code and return what mode it returned in */
@@ -692,9 +685,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 
             Condition = ExpressionParseInt(Parser);
 
-            Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
-            Parser->DebuggerCallback(Parser);
-            Parser->LastConditionBranch = ConditionUndefined;
+            ConditionCallback(Parser, Condition);
 
             if (LexGetToken(Parser, NULL, TRUE) != TokenCloseBracket)
                 ProgramFail(Parser, "')' expected");
