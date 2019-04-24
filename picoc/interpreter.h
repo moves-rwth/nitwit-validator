@@ -112,6 +112,11 @@ enum RunMode
     RunModeGoto                 /* searching for a goto label */
 };
 
+/* how a condition was evaluated */
+enum ConditionControl {
+    ConditionTrue, ConditionFalse, ConditionUndefined
+};
+
 /* parser state - has all this detail so we can parse nested files */
 struct ParseState
 {
@@ -126,11 +131,13 @@ struct ParseState
     const char *SourceText;     /* the entire source text */
     short int HashIfLevel;      /* how many "if"s we're nested down */
     short int HashIfEvaluateToLevel;    /* if we're not evaluating an if branch, what the last evaluated level was */
+    enum ConditionControl LastConditionBranch;
     char DebugMode;             /* debugging mode */
     int ScopeID;                /* for keeping track of local variables (free them after they go out of scope) */
     // jsv:
     void (*DebuggerCallback)(struct ParseState *); /* calls a callback when breakpoint reached */
 };
+
 
 /* values */
 enum BaseType

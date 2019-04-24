@@ -617,6 +617,7 @@ void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText,
     Parser->SearchLabel = 0;
     Parser->HashIfLevel = 0;
     Parser->HashIfEvaluateToLevel = 0;
+    Parser->LastConditionBranch = ConditionUndefined;
     Parser->CharacterPos = 0;
     Parser->SourceText = SourceText;
     Parser->DebugMode = EnableDebugger;

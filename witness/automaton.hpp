@@ -5,6 +5,10 @@
 #ifndef CWVALIDATOR_AUTOMATON_HPP
 #define CWVALIDATOR_AUTOMATON_HPP
 
+extern "C" {
+#include "../picoc/picoc.h"
+}
+#undef min
 #include <cstddef>
 #include "../utils/pugixml/pugixml.hpp"
 #include <string>
@@ -44,9 +48,7 @@ public:
     void print() const;
 };
 
-enum EdgeControl {
-    ConditionTrue, ConditionFalse, ConditionUndefined
-};
+
 
 class Edge {
 public:
@@ -60,7 +62,7 @@ public:
     string return_from_function;
     string source_code;
     string control;
-    EdgeControl controlCondition;
+    ConditionControl controlCondition;
     size_t start_line;
     size_t end_line;
     size_t start_offset;
@@ -146,12 +148,12 @@ public:
     string enter_function;
     string return_from_function;
     string source_code;
-    EdgeControl control;
+    ConditionControl control;
     size_t start_line{};
     bool enterLoopHead{};
 
     ProgramState(string originFile, string enterFunction, string returnFromFunction,
-                 string sourceCode, EdgeControl control, size_t startLine, bool enterLoopHead);
+                 string sourceCode, ConditionControl control, size_t startLine, bool enterLoopHead);
 
     ProgramState();
 };

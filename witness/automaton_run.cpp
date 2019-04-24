@@ -28,9 +28,18 @@ void Automaton::consumeState(const ProgramState &state) {
     for (const auto &edge: succs->second) {
         if (baseFileName(edge->origin_file) == baseFileName(state.origin_file) &&
             edge->start_line == state.start_line) {
-
+            // check control branch
+            if (edge->controlCondition != ConditionUndefined || state.control != ConditionUndefined) {
+                if (edge->controlCondition == state.control) {
+                    current_state = nodes.find(edge->target_id)->second;
+                    printf("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
+                    return;
+                } else {
+                    continue;
+                }
+            }
             current_state = nodes.find(edge->target_id)->second;
-            printf("Taking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
+            printf("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
             return;
         }
     }

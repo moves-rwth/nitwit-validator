@@ -445,7 +445,7 @@ void Data::print() const {
 
 
 ProgramState::ProgramState(string originFile, string enterFunction, string returnFromFunction,
-                           string sourceCode, EdgeControl control, size_t startLine, bool enterLoopHead)
+                           string sourceCode, ConditionControl control, size_t startLine, bool enterLoopHead)
         : origin_file(std::move(originFile)), enter_function(std::move(enterFunction)),
           return_from_function(std::move(returnFromFunction)),
           source_code(std::move(sourceCode)), control(std::move(control)), start_line(startLine),

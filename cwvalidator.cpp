@@ -19,7 +19,9 @@ shared_ptr<Automaton> wit_aut;
 
 
 void handleDebugBreakpoint(struct ParseState *ps) {
-    printf("File: %s ----- Line: %d, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
+    if (ps->LastConditionBranch == ConditionUndefined) printf("%s --- Line: %d, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
+    else printf("%s --- Line: %d, Pos: %d, Control: %d\n", ps->FileName, ps->Line, ps->CharacterPos, ps->LastConditionBranch == ConditionTrue);
+
     if (wit_aut == nullptr) {
         ProgramFail(ps, "No witness automaton to validate against.\n");
         return;
@@ -34,7 +36,7 @@ void handleDebugBreakpoint(struct ParseState *ps) {
         return;
     }
 
-    auto *program_state = new ProgramState(ps->FileName, "", "", "", ConditionUndefined, ps->Line, false);
+    auto *program_state = new ProgramState(ps->FileName, "", "", "", ps->LastConditionBranch, ps->Line, false);
     wit_aut->consumeState(*program_state);
     delete program_state;
 
@@ -88,7 +90,7 @@ bool validate(const char *source_filename) {
     PicocCallMain(&pc, nullptr, 1, nullptr);
     printf("===============Finished=================\n\n");
 
-    printf("Exit value of the program: %d\n", pc.PicocExitValue);
+    printf("Program finished. Exit value: %d\n", pc.PicocExitValue);
 
     PicocCleanup(&pc);
     return true;
@@ -113,7 +115,8 @@ int main(int argc, char **argv) {
         printf("Reconstructing the witness automaton failed.\n");
         return 1;
     }
-    if (!validate(argv[2]) && !wit_aut->isInViolationState()) {
+    validate(argv[2]);
+    if (!wit_aut->isInViolationState()) {
         printf("FAILED: Wasn't able to validate the witness. Violation NOT reached.\n");
         printf("Automaton finished in state: %s\n", wit_aut->getCurrentState()->id.c_str());
         return 1;

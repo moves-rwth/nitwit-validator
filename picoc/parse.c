@@ -31,8 +31,13 @@ enum ParseResult ParseStatementMaybeRun(struct ParseState *Parser, int Condition
         Parser->Mode = OldMode;
         return Result;
     }
-    else
-        return ParseStatement(Parser, CheckTrailingSemicolon);
+    else {
+        // save condition branch
+        enum ConditionControl OldConditionBranch = Parser->LastConditionBranch;
+        enum ParseResult result = ParseStatement(Parser, CheckTrailingSemicolon);
+        Parser->LastConditionBranch = OldConditionBranch;
+        return result;
+    }
 }
 
 /* count the number of parameters to a function or macro */
@@ -465,7 +470,11 @@ void ParseFor(struct ParseState *Parser)
         Condition = TRUE;
     else
         Condition = ExpressionParseInt(Parser);
-    
+
+    Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
+    Parser->DebuggerCallback(Parser);
+    Parser->LastConditionBranch = ConditionUndefined;
+
     if (LexGetToken(Parser, NULL, TRUE) != TokenSemicolon)
         ProgramFail(Parser, "';' expected");
     
@@ -486,17 +495,28 @@ void ParseFor(struct ParseState *Parser)
         
     while (Condition && Parser->Mode == RunModeRun)
     {
+        printf("Next iter\n");
+
         ParserCopyPos(Parser, &PreIncrement);
+        printf("Increment\n");
         ParseStatement(Parser, FALSE);
-                        
+        Parser->DebuggerCallback(Parser);
+
+        printf("Condition: ");
         ParserCopyPos(Parser, &PreConditional);
         if (LexGetToken(Parser, NULL, FALSE) == TokenSemicolon)
             Condition = TRUE;
         else
             Condition = ExpressionParseInt(Parser);
-        
+        printf("%d\n", Condition);
+
+
         if (Condition)
         {
+            Parser->LastConditionBranch = ConditionTrue;
+            Parser->DebuggerCallback(Parser);
+            Parser->LastConditionBranch = ConditionUndefined;
+
             ParserCopyPos(Parser, &PreStatement);
             ParseStatement(Parser, TRUE);
             
@@ -504,7 +524,13 @@ void ParseFor(struct ParseState *Parser)
                 Parser->Mode = RunModeRun;                
         }
     }
-    
+
+    Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
+    printf("Right after for's end:\n");
+    Parser->DebuggerCallback(Parser);
+    Parser->LastConditionBranch = ConditionUndefined;
+
+
     if (Parser->Mode == RunModeBreak && OldMode == RunModeRun)
         Parser->Mode = RunModeRun;
 
@@ -665,7 +691,11 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 ProgramFail(Parser, "'(' expected");
                 
             Condition = ExpressionParseInt(Parser);
-            
+
+            Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
+            Parser->DebuggerCallback(Parser);
+            Parser->LastConditionBranch = ConditionUndefined;
+
             if (LexGetToken(Parser, NULL, TRUE) != TokenCloseBracket)
                 ProgramFail(Parser, "')' expected");
 
