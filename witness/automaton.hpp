@@ -62,6 +62,9 @@ public:
     string control;
     EdgeControl controlCondition;
     size_t start_line;
+    size_t end_line;
+    size_t start_offset;
+    size_t end_offset;
     bool enterLoopHead;
 
     void print() const;

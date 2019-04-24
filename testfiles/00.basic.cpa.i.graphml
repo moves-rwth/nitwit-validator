@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+  <default>false</default>
+ </key>
+ <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+  <default>false</default>
+ </key>
+ <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+  <default>false</default>
+ </key>
+ <key attr.name="enterLoopHead" attr.type="boolean" for="edge" id="enterLoopHead">
+  <default>false</default>
+ </key>
+ <key attr.name="violatedProperty" attr.type="string" for="node" id="violatedProperty"/>
+ <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+ <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+ <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+ <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+ <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+ <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+ <key attr.name="creationTime" attr.type="string" for="graph" id="creationtime"/>
+ <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+ <key attr.name="endline" attr.type="int" for="edge" id="endline"/>
+ <key attr.name="startoffset" attr.type="int" for="edge" id="startoffset"/>
+ <key attr.name="endoffset" attr.type="int" for="edge" id="endoffset"/>
+ <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+  <default>./00.basic.i</default>
+ </key>
+ <key attr.name="control" attr.type="string" for="edge" id="control"/>
+ <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+ <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+ <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+ <key attr.name="returnFromFunction" attr.type="string" for="edge" id="returnFrom"/>
+ <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+ <key attr.name="inputWitnessHash" attr.type="string" for="graph" id="inputwitnesshash"/>
+ <graph edgedefault="directed">
+  <data key="witness-type">violation_witness</data>
+  <data key="sourcecodelang">C</data>
+  <data key="producer">CPAchecker 1.8-svn / kInduction</data>
+  <data key="specification">CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )</data>
+  <data key="programfile">./00.basic.i</data>
+  <data key="programhash">5d1d2b7b04adafd5cb16652672b55abcaf52b1b49c41d4b15dc9136e19018778</data>
+  <data key="architecture">32bit</data>
+  <data key="creationtime">2019-04-24T08:15:25+02:00</data>
+  <node id="A80">
+   <data key="entry">true</data>
+  </node>
+  <node id="A87"/>
+  <edge source="A80" target="A87">
+   <data key="enterLoopHead">true</data>
+   <data key="startline">20</data>
+   <data key="endline">20</data>
+   <data key="startoffset">273</data>
+   <data key="endoffset">283</data>
+   <data key="enterFunction">main</data>
+  </edge>
+  <node id="A90"/>
+  <edge source="A87" target="A90">
+   <data key="startline">22</data>
+   <data key="endline">22</data>
+   <data key="startoffset">310</data>
+   <data key="endoffset">313</data>
+   <data key="enterFunction">step</data>
+  </edge>
+  <node id="A92"/>
+  <edge source="A90" target="A92">
+   <data key="startline">17</data>
+   <data key="endline">17</data>
+   <data key="startoffset">262</data>
+   <data key="endoffset">267</data>
+   <data key="enterFunction">one</data>
+  </edge>
+  <node id="A94"/>
+  <edge source="A92" target="A94">
+   <data key="startline">11</data>
+   <data key="endline">11</data>
+   <data key="startoffset">213</data>
+   <data key="endoffset">222</data>
+   <data key="assumption">foo == (1);</data>
+   <data key="assumption.scope">one</data>
+   <data key="returnFrom">one</data>
+  </edge>
+  <node id="A97"/>
+  <edge source="A94" target="A97">
+   <data key="startline">22</data>
+   <data key="endline">22</data>
+   <data key="startoffset">310</data>
+   <data key="endoffset">316</data>
+   <data key="returnFrom">step</data>
+  </edge>
+  <node id="A98">
+   <data key="violation">true</data>
+   <data key="violatedProperty">__VERIFIER_error(); called in line 24</data>
+  </node>
+  <edge source="A97" target="A98">
+   <data key="startline">23</data>
+   <data key="endline">23</data>
+   <data key="startoffset">330</data>
+   <data key="endoffset">335</data>
+   <data key="control">condition-true</data>
+   <data key="assumption">x == (1);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="sink">
+   <data key="sink">true</data>
+  </node>
+  <edge source="A97" target="sink">
+   <data key="enterLoopHead">true</data>
+   <data key="startline">23</data>
+   <data key="endline">23</data>
+   <data key="startoffset">330</data>
+   <data key="endoffset">335</data>
+   <data key="control">condition-false</data>
+  </edge>
+ </graph>
+</graphml>

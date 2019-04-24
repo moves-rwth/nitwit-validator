@@ -117,8 +117,11 @@ shared_ptr<Edge> getDefaultEdge(const shared_ptr<DefaultKeyValues> &def_values) 
     e->enterLoopHead = (def_values->getDefault("enterLoopHead").default_val == "true");
 
     // integers
-    e->start_line = atoi(def_values->getDefault(
-            "startline").default_val.c_str()); // todo startline isn't an int though, but size_t. Is that ok?
+    // todo startline isn't an int though, but size_t. Is that ok?
+    e->start_line = atoi(def_values->getDefault("startline").default_val.c_str());
+    e->start_line = atoi(def_values->getDefault("endline").default_val.c_str());
+    e->start_offset = atoi(def_values->getDefault("startoffset").default_val.c_str());
+    e->end_offset = atoi(def_values->getDefault("endoffset").default_val.c_str());
 
     return e;
 }
@@ -145,6 +148,14 @@ void setEdgeAttributes(shared_ptr<Edge> &edge, const pugi::char_t *name, const p
         } else {
             edge->controlCondition = ConditionUndefined;
         }
+    } else if (strcmp(name, "startoffset") == 0) {
+        edge->start_offset = atoi(value);
+    } else if (strcmp(name, "endoffset") == 0) {
+        edge->end_offset = atoi(value);
+    } else if (strcmp(name, "startline") == 0) {
+        edge->start_line = atoi(value);
+    } else if (strcmp(name, "endline") == 0) {
+        edge->end_line = atoi(value);
     } else if (strcmp(name, "enterFunction") == 0) {
         edge->enter_function = value;
     } else if (strcmp(name, "returnFrom") == 0) {
@@ -153,8 +164,6 @@ void setEdgeAttributes(shared_ptr<Edge> &edge, const pugi::char_t *name, const p
         edge->source_code = value;
     } else if (strcmp(name, "enterLoopHead") == 0) {
         edge->enterLoopHead = strcmp(value, "true") == 0;
-    } else if (strcmp(name, "startline") == 0) {
-        edge->start_line = atoi(value);
     } else {
         fprintf(stderr, "I am missing an edge attribute definition: %s\n", name);
     }

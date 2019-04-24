@@ -118,8 +118,10 @@ int main(int argc, char **argv) {
         printf("Automaton finished in state: %s\n", wit_aut->getCurrentState()->id.c_str());
         return 1;
     }
-    printf("VALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
-
+    if (wit_aut->isInViolationState())
+        printf("VALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
+    else
+        printf("ERROR: An error occured.\n");
     return 0;
 }
 
