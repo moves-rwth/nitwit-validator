@@ -61,7 +61,7 @@ bool validate(const char *source_filename) {
         return false;
     }
     char *source = readFile(source_filename);
-    printf("Analyzing:\n%s", source);
+//    printf("Analyzing:\n%s", source);
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
     // also include extern functions used by verifiers like error, assume, nondet...
@@ -107,8 +107,8 @@ int main(int argc, char **argv) {
     wit_aut = Automaton::automatonFromWitness(doc);
 
     if (wit_aut && !wit_aut->isInIllegalState()) {
-        wit_aut->printData();
-        wit_aut->printRelations();
+//        wit_aut->printData();
+//        wit_aut->printRelations();
     } else {
         printf("Reconstructing the witness automaton failed.\n");
         return 1;
