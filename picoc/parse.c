@@ -3,6 +3,8 @@
 #include "picoc.h"
 #include "interpreter.h"
 
+void ConditionCallback(struct ParseState *Parser, int Condition);
+
 /* deallocate any memory */
 void ParseCleanup(Picoc *pc)
 {
@@ -173,7 +175,6 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     return FuncValue;
 }
 
-void ConditionCallback(struct ParseState *Parser, int Condition);
 
 /* parse an array initialiser and assign to a variable */
 int ParseArrayInitialiser(struct ParseState *Parser, struct Value *NewVariable, int DoAssignment)
@@ -594,8 +595,8 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     enum LexToken Token;
     
     /* if we're debugging, check for a breakpoint */
-    if (Parser->DebugMode && Parser->Mode == RunModeRun)
-        DebugCheckStatement(Parser);
+//    if (Parser->DebugMode && Parser->Mode == RunModeRun)
+//        DebugCheckStatement(Parser);
     
     /* take note of where we are and then grab a token to see what statement we have */   
     ParserCopy(&PreState, Parser);
