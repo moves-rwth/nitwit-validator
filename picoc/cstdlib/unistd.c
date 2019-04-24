@@ -387,13 +387,13 @@ void UnistdWrite(struct ParseState *Parser, struct Value *ReturnValue, struct Va
 
 /* handy structure definitions */
 const char UnistdDefs[] = "\
-typedef int uid_t; \
-typedef int gid_t; \
+typedef unsigned int uid_t; \
+typedef unsigned int gid_t; \
 typedef int pid_t; \
 typedef int off_t; \
-typedef int size_t; \
+typedef unsigned int size_t; \
 typedef int ssize_t; \
-typedef int useconds_t;\
+typedef unsigned int useconds_t;\
 typedef int intptr_t;\
 ";
 
