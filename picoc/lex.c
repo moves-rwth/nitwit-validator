@@ -464,15 +464,13 @@ enum LexToken LexScanGetToken(Picoc *pc, struct LexState *Lexer, struct Value **
 
 
         ThisChar = *Lexer->Pos;
-        // jsv: moved NextChar here from before switch to check for '# ' in preprocessed files
-        NextChar = (Lexer->Pos + 1 != Lexer->End) ? *(Lexer->Pos + 1) : 0;
-        if (isalpha(ThisChar) || ThisChar == '_' ||
-            (ThisChar == '#' && NextChar != ' ')) // jsv: unrolled macro isCident
+        if (isCidstart((int)ThisChar))
             return LexGetWord(pc, Lexer, *Value);
 
         if (isdigit((int)ThisChar))
             return LexGetNumber(pc, Lexer, *Value);
 
+        NextChar = (Lexer->Pos + 1 != Lexer->End) ? *(Lexer->Pos + 1) : 0;
         LEXER_INC(Lexer);
         switch (ThisChar)
         {
@@ -485,11 +483,6 @@ enum LexToken LexScanGetToken(Picoc *pc, struct LexState *Lexer, struct Value **
             case '-': NEXTIS4('=', TokenSubtractAssign, '>', TokenArrow, '-', TokenDecrement, TokenMinus); break;
             case '*': NEXTIS('=', TokenMultiplyAssign, TokenAsterisk); break;
             case '/': if (NextChar == '/' || NextChar == '*') { LEXER_INC(Lexer); LexSkipComment(Lexer, NextChar, &GotToken); } else NEXTIS('=', TokenDivideAssign, TokenSlash); break;
-                // jsv: if it is a #, it is guaranteed to be a preprocess comment
-            case '#':
-                LEXER_INC(Lexer);
-                LexSkipComment(Lexer, NextChar, &GotToken);
-                break;
             case '%': NEXTIS('=', TokenModulusAssign, TokenModulus); break;
             case '<':
                 if (Lexer->Mode == LexModeHashInclude) GotToken = LexGetStringConstant(pc, Lexer, *Value, '>');
