@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+  <default>false</default>
+ </key>
+ <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+  <default>false</default>
+ </key>
+ <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+  <default>false</default>
+ </key>
+ <key attr.name="violatedProperty" attr.type="string" for="node" id="violatedProperty"/>
+ <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+ <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+ <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+ <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+ <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+ <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+ <key attr.name="creationTime" attr.type="string" for="graph" id="creationtime"/>
+ <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+ <key attr.name="endline" attr.type="int" for="edge" id="endline"/>
+ <key attr.name="startoffset" attr.type="int" for="edge" id="startoffset"/>
+ <key attr.name="endoffset" attr.type="int" for="edge" id="endoffset"/>
+ <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+  <default>./03.typedef.i</default>
+ </key>
+ <key attr.name="control" attr.type="string" for="edge" id="control"/>
+ <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+ <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+ <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+ <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+ <key attr.name="inputWitnessHash" attr.type="string" for="graph" id="inputwitnesshash"/>
+ <graph edgedefault="directed">
+  <data key="witness-type">violation_witness</data>
+  <data key="sourcecodelang">C</data>
+  <data key="producer">CPAchecker 1.8-svn / kInduction</data>
+  <data key="specification">CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )</data>
+  <data key="programfile">./03.typedef.i</data>
+  <data key="programhash">442b290fa534c2aed5748e00f5d3ab24a134ea962e4337081654ea7d71663e1e</data>
+  <data key="architecture">32bit</data>
+  <data key="creationtime">2019-04-24T09:50:42+02:00</data>
+  <node id="A28">
+   <data key="entry">true</data>
+  </node>
+  <node id="A50"/>
+  <edge source="A28" target="A50">
+   <data key="startline">12</data>
+   <data key="endline">12</data>
+   <data key="startoffset">229</data>
+   <data key="endoffset">239</data>
+   <data key="enterFunction">main</data>
+  </edge>
+  <node id="A51"/>
+  <edge source="A50" target="A51">
+   <data key="startline">13</data>
+   <data key="endline">13</data>
+   <data key="startoffset">246</data>
+   <data key="endoffset">272</data>
+   <data key="assumption">t == (35UL);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A52">
+   <data key="violation">true</data>
+   <data key="violatedProperty">__VERIFIER_error(); called in line 15</data>
+  </node>
+  <edge source="A51" target="A52">
+   <data key="startline">14</data>
+   <data key="endline">14</data>
+   <data key="startoffset">283</data>
+   <data key="endoffset">289</data>
+   <data key="control">condition-true</data>
+   <data key="assumption">t == (35UL);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="sink">
+   <data key="sink">true</data>
+  </node>
+  <edge source="A51" target="sink">
+   <data key="startline">14</data>
+   <data key="endline">14</data>
+   <data key="startoffset">283</data>
+   <data key="endoffset">289</data>
+   <data key="control">condition-false</data>
+  </edge>
+ </graph>
+</graphml>
