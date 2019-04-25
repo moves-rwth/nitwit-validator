@@ -25,7 +25,7 @@ test:gcc:
   tags:
     - gcc
   script:
-    - test-gitlab.sh build_clang/cwvalidator
+    - ./test-gitlab.sh build_clang/cwvalidator
 
 build:clang:
   stage: build
@@ -48,4 +48,4 @@ test:clang:
   tags:
     - clang
   script:
-    - test-gitlab.sh build_clang/cwvalidator
+    - ./test-gitlab.sh build_clang/cwvalidator
