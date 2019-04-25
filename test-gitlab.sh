@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 
-if [[ -d "cmake-build-debug" ]]
+if [[ -x $1 ]]
 then
-    cd cmake-build-debug && make
-    cd ..
+    echo "Nice, file exists and is executable."
 else
-    echo "Error: build path non-existent"
+    echo "Bad executable"
 fi
 
 n_tests=0
 n_nonvalidated=0
 for C_FILE in testfiles/*.c ; do
-    [[ ! -f $C_FILE ]] && continue
+    if [[ ! -f $C_FILE ]]
+    then
+        continue
+    fi
 
     filename=$(basename -- "$C_FILE")
     extension="${filename##*.}"
@@ -20,7 +22,7 @@ for C_FILE in testfiles/*.c ; do
     for WITNESS in testfiles/$filename.*.c.graphml ; do
         [[ -f "$WITNESS" ]] || break
         let "n_tests=n_tests+1"
-        cmake-build-debug/cwvalidator $WITNESS $C_FILE > /dev/null
+        $1 $WITNESS $C_FILE > /dev/null
 
         exit_val=$?
         if [[ ${exit_val} -eq 0 ]]
@@ -45,4 +47,7 @@ done
 
 echo "Tests done: $n_tests, non-validated: $n_nonvalidated"
 
-
+if [[ $n_nonvalidated -gt 0 ]]
+then
+    exit 1
+fi
