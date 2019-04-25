@@ -24,7 +24,6 @@ test:gcc:
   stage: test
   tags:
     - gcc
-    - test
   script:
     - cd build_gcc
     - ls -alt
@@ -48,8 +47,7 @@ build:clang:
 test:clang:
   stage: test
   tags:
-    - gcc
-    - test
+    - clang
   script:
     - cd build_clang
     - ls -alt
