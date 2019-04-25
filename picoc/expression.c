@@ -1092,13 +1092,16 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
         struct ParseState PreState;
         enum LexToken Token;
 
-        /* if we're debugging, check for a breakpoint */
-        if (Parser->DebugMode && Parser->Mode == RunModeRun)
-            DebugCheckStatement(Parser);
-
         ParserCopy(&PreState, Parser);
         Token = LexGetToken(Parser, &LexValue, TRUE);
-        if ( ( ( (int)Token > TokenComma && (int)Token <= (int)TokenOpenBracket) || 
+
+        /* if we're debugging, check for a breakpoint */
+        if (Parser->DebugMode && Parser->Mode == RunModeRun) {
+            printf("Expre: ");
+            DebugCheckStatement(Parser);
+        }
+
+        if ( ( ( (int)Token > TokenComma && (int)Token <= (int)TokenOpenBracket) ||
                (Token == TokenCloseBracket && BracketPrecedence != 0)) && 
                (Token != TokenColon || TernaryDepth > 0) )
         { 

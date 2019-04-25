@@ -530,7 +530,8 @@ void ParseFor(struct ParseState *Parser)
 void ConditionCallback(struct ParseState *Parser, int Condition) {
     if (Parser->DebugMode && Parser->Mode == RunModeRun) {
         Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
-        Parser->DebuggerCallback(Parser);
+        printf("Condi: ");
+        DebugCheckStatement(Parser);
         Parser->LastConditionBranch = ConditionUndefined;
     }
 }
@@ -628,6 +629,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenAutoType:
             case TokenRegisterType:
             case TokenExternType:
+                printf("Parse: ");
                 DebugCheckStatement(Parser);
                 break;
             default:
