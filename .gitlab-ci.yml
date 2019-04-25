@@ -2,6 +2,7 @@ image: whatthefuckisadockerid666/cpp-image:latest
 
 stages:
   - build
+  - test
 
 build:gcc:
   stage: build
@@ -19,6 +20,15 @@ build:gcc:
     paths:
       - build_gcc/
 
+test:gcc:
+  stage: test
+  tags:
+    - gcc
+    - test
+  script:
+    - cd build_gcc
+    - ls -alt
+
 build:clang:
   stage: build
   tags:
@@ -35,3 +45,11 @@ build:clang:
     paths:
       - build_clang/
 
+test:clang:
+  stage: test
+  tags:
+    - gcc
+    - test
+  script:
+    - cd build_clang
+    - ls -alt
