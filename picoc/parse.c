@@ -611,7 +611,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenBreak:
             case TokenReturn:
             case TokenTypedef:
-            case TokenIdentifier:
+//            case TokenIdentifier:
             case TokenIntType:
             case TokenShortType:
             case TokenCharType:
