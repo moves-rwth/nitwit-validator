@@ -68,7 +68,7 @@ bool validate(const char *source_filename) {
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
     // also include extern functions used by verifiers like error, assume, nondet...
     PicocParse(&pc, EXTERN_C_DEFS_FILENAME, EXTERN_C_DEFS_FOR_VERIFIERS, strlen(EXTERN_C_DEFS_FOR_VERIFIERS),
-               TRUE, FALSE, FALSE, TRUE, handleDebugBreakpoint);
+               TRUE, FALSE, FALSE, FALSE, handleDebugBreakpoint);
 
     if (!VariableDefined(&pc, TableStrRegister(&pc, "main")))
         printf("Sorry, not sorry. No main function...");
@@ -78,16 +78,16 @@ bool validate(const char *source_filename) {
 
     if (MainFuncValue->Typ->Base != TypeFunction)
         ProgramFailNoParser(&pc, "main is not a function - can't call it");
-
-    auto *ps = new ParseState();
-    ParserCopy(ps, &MainFuncValue->Val->FuncDef.Body);
-    ps->ScopeID = MainFuncValue->ScopeID;
-    DebugSetBreakpoint(ps);
-    delete ps;
+//
+//    auto *ps = new ParseState();
+//    ParserCopy(ps, &MainFuncValue->Val->FuncDef.Body);
+//    ps->ScopeID = MainFuncValue->ScopeID;
+//    DebugSetBreakpoint(ps);
+//    delete ps;
 
 
     printf("============Start simulation============\n");
-    PicocCallMain(&pc, nullptr, 1, nullptr);
+    PicocCallMain(&pc, nullptr, 0, nullptr);
     printf("===============Finished=================\n\n");
 
     printf("Program finished. Exit value: %d\n", pc.PicocExitValue);

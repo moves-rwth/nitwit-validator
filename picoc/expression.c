@@ -1249,7 +1249,7 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
             /* it's a variable, function or a macro */
             if (!PrefixState)
                 ProgramFail(Parser, "identifier not expected here");
-                
+
             if (LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket)
             {
                 ExpressionParseFunctionCall(Parser, &StackTop, LexValue->Val->Identifier, Parser->Mode == RunModeRun && Precedence < IgnorePrecedence);

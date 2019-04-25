@@ -528,9 +528,11 @@ void ParseFor(struct ParseState *Parser)
 }
 
 void ConditionCallback(struct ParseState *Parser, int Condition) {
-    Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
-    Parser->DebuggerCallback(Parser);
-    Parser->LastConditionBranch = ConditionUndefined;
+    if (Parser->DebugMode && Parser->Mode == RunModeRun) {
+        Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
+        Parser->DebuggerCallback(Parser);
+        Parser->LastConditionBranch = ConditionUndefined;
+    }
 }
 
 /* parse a block of code and return what mode it returned in */
@@ -594,34 +596,43 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     struct ParseState PreState;
     enum LexToken Token;
 
-
     /* take note of where we are and then grab a token to see what statement we have */
     ParserCopy(&PreState, Parser);
     Token = LexGetToken(Parser, &LexerValue, TRUE);
 
     /* if we're debugging, check for a breakpoint */
     if (Parser->DebugMode && Parser->Mode == RunModeRun){
-//        switch (Token)
-//        {
-//            case TokenIf:
-//            case TokenElse:
-//            case TokenWhile:
-//            case TokenFor:
-//            case TokenSwitch:
-//            case TokenCase:
-//            case TokenDefault:
-//            case TokenContinue:
-//            case TokenBreak:
-//            case TokenReturn:
-//            case TokenDo:
-//            case TokenTypedef:
-//            case TokenIdentifier:
-//                DebugCheckStatement(Parser);
-//                break;
-//            default:
-        DebugCheckStatement(Parser);
-//                break;
-//        }
+        switch (Token)
+        {
+            case TokenSwitch:
+            case TokenCase:
+            case TokenDefault:
+            case TokenContinue:
+            case TokenBreak:
+            case TokenReturn:
+            case TokenTypedef:
+            case TokenIdentifier:
+            case TokenIntType:
+            case TokenShortType:
+            case TokenCharType:
+            case TokenLongType:
+            case TokenFloatType:
+            case TokenDoubleType:
+            case TokenVoidType:
+            case TokenStructType:
+            case TokenUnionType:
+            case TokenEnumType:
+            case TokenSignedType:
+            case TokenUnsignedType:
+            case TokenStaticType:
+            case TokenAutoType:
+            case TokenRegisterType:
+            case TokenExternType:
+                DebugCheckStatement(Parser);
+                break;
+            default:
+                break;
+        }
     }
 
     switch (Token)
@@ -738,6 +749,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 {
                     ParserCopyPos(Parser, &PreConditional);
                     Condition = ExpressionParseInt(Parser);
+                    ConditionCallback(Parser, Condition);
                     if (LexGetToken(Parser, NULL, TRUE) != TokenCloseBracket)
                         ProgramFail(Parser, "')' expected");
 
@@ -777,6 +789,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                         ProgramFail(Parser, "'(' expected");
 
                     Condition = ExpressionParseInt(Parser);
+                    ConditionCallback(Parser, Condition);
                     if (LexGetToken(Parser, NULL, TRUE) != TokenCloseBracket)
                         ProgramFail(Parser, "')' expected");
 
