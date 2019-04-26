@@ -1097,7 +1097,7 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
 
         /* if we're debugging, check for a breakpoint */
         if (Parser->DebugMode && Parser->Mode == RunModeRun) {
-            printf("Expre: ");
+//            printf("Expre: ");
             DebugCheckStatement(Parser);
         }
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Usage: ./test-gitlab.sh <executable>
+
 if [[ -x $1 ]]
 then
     echo "Nice, file exists and is executable."

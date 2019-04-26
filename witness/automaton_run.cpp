@@ -32,14 +32,14 @@ void Automaton::consumeState(const ProgramState &state) {
             if (edge->controlCondition != ConditionUndefined || state.control != ConditionUndefined) {
                 if (edge->controlCondition == state.control) {
                     current_state = nodes.find(edge->target_id)->second;
-                    printf("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
+//                    printf("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
                     return;
                 } else {
                     continue;
                 }
             }
             current_state = nodes.find(edge->target_id)->second;
-            printf("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
+//            printf("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
             return;
         }
     }

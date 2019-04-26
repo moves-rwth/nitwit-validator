@@ -19,8 +19,8 @@ shared_ptr<Automaton> wit_aut;
 
 
 void handleDebugBreakpoint(struct ParseState *ps) {
-    if (ps->LastConditionBranch == ConditionUndefined) printf("%s --- Line: %d, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
-    else printf("%s --- Line: %d, Pos: %d, Control: %d\n", ps->FileName, ps->Line, ps->CharacterPos, ps->LastConditionBranch == ConditionTrue);
+//    if (ps->LastConditionBranch == ConditionUndefined) printf("%s --- Line: %d, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
+//    else printf("%s --- Line: %d, Pos: %d, Control: %d\n", ps->FileName, ps->Line, ps->CharacterPos, ps->LastConditionBranch == ConditionTrue);
 
     if (wit_aut == nullptr) {
         ProgramFail(ps, "No witness automaton to validate against.\n");

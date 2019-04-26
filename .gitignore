@@ -52,7 +52,7 @@ Mkfile.old
 dkms.conf
 
 # CLion
-cmake-build-debug
+cmake-build-*
 .idea
 
 # Verifiers

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
-if [[ -d "cmake-build-debug" ]]
+# Usage: ./test.sh <build-dir>
+
+if [[ -d $1 ]]
 then
-    cd cmake-build-debug && make
+    cd $1 && make
     cd ..
 else
     echo "Error: build path non-existent"
