@@ -22,7 +22,7 @@ for C_FILE in testfiles/*.c ; do
     for WITNESS in testfiles/$filename.*.c.graphml ; do
         [[ -f "$WITNESS" ]] || break
         let "n_tests=n_tests+1"
-        cmake-build-debug/cwvalidator $WITNESS $C_FILE > /dev/null
+        $1/cwvalidator $WITNESS $C_FILE > /dev/null
 
         exit_val=$?
         if [[ ${exit_val} -eq 0 ]]

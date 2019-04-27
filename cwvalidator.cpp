@@ -17,9 +17,12 @@ using namespace std;
 shared_ptr<Automaton> wit_aut;
 
 // the values shouldn't conflict with any real program exit value as validation ends before returning for these error codes
+// Only if program finishes with value PROGRAM_FINISHED, then it still doesn't matter, because this would mean
+// that it did not get validated
 int NO_WITNESS_CODE = 0xadf0;
 int WITNESS_IN_ILLEGAL_STATE = 0xadf1;
 int WITNESS_IN_SINK = 0xadf2;
+int PROGRAM_FINISHED = 0xadf3;
 
 void handleDebugBreakpoint(struct ParseState *ps) {
 //    if (ps->LastConditionBranch == ConditionUndefined) printf("%s --- Line: %d, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
@@ -89,7 +92,7 @@ int validate(const char *source_filename) {
     printf("Program finished. Exit value: %d\n", pc.PicocExitValue);
 
     PicocCleanup(&pc);
-    return true;
+    return PROGRAM_FINISHED;
 }
 
 int main(int argc, char **argv) {
@@ -113,7 +116,7 @@ int main(int argc, char **argv) {
     }
     int exit_value = validate(argv[2]);
     if (!wit_aut->isInViolationState() &&
-        (exit_value == NO_WITNESS_CODE || exit_value == WITNESS_IN_ILLEGAL_STATE || exit_value == WITNESS_IN_SINK)) {
+        (exit_value == PROGRAM_FINISHED || exit_value == NO_WITNESS_CODE || exit_value == WITNESS_IN_ILLEGAL_STATE || exit_value == WITNESS_IN_SINK)) {
         printf("FAILED: Wasn't able to validate the witness. Violation NOT reached.\n");
         printf("Automaton finished in state %s, with error code %d\n", wit_aut->getCurrentState()->id.c_str(), exit_value);
         return 1;
