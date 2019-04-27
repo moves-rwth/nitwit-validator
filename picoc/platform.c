@@ -143,6 +143,19 @@ void ProgramFail(struct ParseState *Parser, const char *Message, ...)
     PlatformExit(Parser->pc, 1);
 }
 
+/* exit with a message and exit code */
+void ProgramFailWithExitCode(struct ParseState *Parser, int exitCode, const char *Message, ...)
+{
+    va_list Args;
+
+    PrintSourceTextErrorLine(Parser->pc->CStdOut, Parser->FileName, Parser->SourceText, Parser->Line, Parser->CharacterPos);
+    va_start(Args, Message);
+    PlatformVPrintf(Parser->pc->CStdOut, Message, Args);
+    va_end(Args);
+    PlatformPrintf(Parser->pc->CStdOut, "\n");
+    PlatformExit(Parser->pc, exitCode);
+}
+
 /* exit with a message, when we're not parsing a program */
 void ProgramFailNoParser(Picoc *pc, const char *Message, ...)
 {
