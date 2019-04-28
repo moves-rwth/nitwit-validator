@@ -128,7 +128,7 @@ public:
 
     void printRelations() const;
 
-    void consumeState(const ProgramState &state);
+    void consumeState(ParseState *state);
 
     bool isInIllegalState() const;
 

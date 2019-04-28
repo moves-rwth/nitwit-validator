@@ -71,21 +71,22 @@ void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(struct ParseState *), int
         VariableDefinePlatformVar(pc, NULL, "__argv", pc->CharPtrPtrType, (union AnyValue *)&argv, FALSE);
     }
 
+    // changed CleanUpNow to False as this caused a mem-leak for Tokens
     if (FuncValue->Val->FuncDef.ReturnType == &pc->VoidType)
     {
         if (FuncValue->Val->FuncDef.NumParams == 0)
-            PicocParse(pc, "startup", CALL_MAIN_NO_ARGS_RETURN_VOID, strlen(CALL_MAIN_NO_ARGS_RETURN_VOID), TRUE, TRUE, FALSE, TRUE, DebuggerCallback);
+            PicocParse(pc, "startup", CALL_MAIN_NO_ARGS_RETURN_VOID, strlen(CALL_MAIN_NO_ARGS_RETURN_VOID), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
         else
-            PicocParse(pc, "startup", CALL_MAIN_WITH_ARGS_RETURN_VOID, strlen(CALL_MAIN_WITH_ARGS_RETURN_VOID), TRUE, TRUE, FALSE, TRUE, DebuggerCallback);
+            PicocParse(pc, "startup", CALL_MAIN_WITH_ARGS_RETURN_VOID, strlen(CALL_MAIN_WITH_ARGS_RETURN_VOID), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
     }
     else
     {
         VariableDefinePlatformVar(pc, NULL, "__exit_value", &pc->IntType, (union AnyValue *)&pc->PicocExitValue, TRUE);
-    
+
         if (FuncValue->Val->FuncDef.NumParams == 0)
-            PicocParse(pc, "startup", CALL_MAIN_NO_ARGS_RETURN_INT, strlen(CALL_MAIN_NO_ARGS_RETURN_INT), TRUE, TRUE, FALSE, TRUE, DebuggerCallback);
+            PicocParse(pc, "startup", CALL_MAIN_NO_ARGS_RETURN_INT, strlen(CALL_MAIN_NO_ARGS_RETURN_INT), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
         else
-            PicocParse(pc, "startup", CALL_MAIN_WITH_ARGS_RETURN_INT, strlen(CALL_MAIN_WITH_ARGS_RETURN_INT), TRUE, TRUE, FALSE, TRUE, DebuggerCallback);
+            PicocParse(pc, "startup", CALL_MAIN_WITH_ARGS_RETURN_INT, strlen(CALL_MAIN_WITH_ARGS_RETURN_INT), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
     }
 }
 #endif

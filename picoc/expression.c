@@ -1094,10 +1094,8 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
 
         ParserCopy(&PreState, Parser);
         Token = LexGetToken(Parser, &LexValue, TRUE);
-
         /* if we're debugging, check for a breakpoint */
         if (Parser->DebugMode && Parser->Mode == RunModeRun) {
-//            printf("Expre: ");
             DebugCheckStatement(Parser);
         }
 

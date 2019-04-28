@@ -123,7 +123,7 @@ struct ParseState
     Picoc *pc;                  /* the picoc instance this parser is a part of */
     const unsigned char *Pos;   /* the character position in the source text */
     char *FileName;             /* what file we're executing (registered string) */
-    short int Line;             /* line number we're executing */
+    size_t Line;             /* line number we're executing */
     short int CharacterPos;     /* character/column in the line we're executing */
     enum RunMode Mode;          /* whether to skip or run code */
     int SearchLabel;            /* what case label we're searching for */

@@ -25,8 +25,8 @@ int WITNESS_IN_SINK = 0xadf2;
 int PROGRAM_FINISHED = 0xadf3;
 
 void handleDebugBreakpoint(struct ParseState *ps) {
-//    if (ps->LastConditionBranch == ConditionUndefined) printf("%s --- Line: %d, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
-//    else printf("%s --- Line: %d, Pos: %d, Control: %d\n", ps->FileName, ps->Line, ps->CharacterPos, ps->LastConditionBranch == ConditionTrue);
+    if (ps->LastConditionBranch == ConditionUndefined) printf("%s --- Line: %zu, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
+    else printf("%s --- Line: %zu, Pos: %d, Control: %d\n", ps->FileName, ps->Line, ps->CharacterPos, ps->LastConditionBranch == ConditionTrue);
 
     if (wit_aut == nullptr) {
         ProgramFailWithExitCode(ps, NO_WITNESS_CODE, "No witness automaton to validate against.\n");
@@ -41,12 +41,9 @@ void handleDebugBreakpoint(struct ParseState *ps) {
         return;
     }
 
-    auto *program_state = new ProgramState(ps->FileName, "", "", "", ps->LastConditionBranch, ps->Line, false);
-    wit_aut->consumeState(*program_state);
-    delete program_state;
+    wit_aut->consumeState(ps);
 
     if (wit_aut.get()->isInViolationState()) {
-        printf("\nVALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
         PlatformExit(ps->pc, 0);
         return;
     }
@@ -61,15 +58,15 @@ int validate(const char *source_filename) {
 
     // the interpreter will jump here after finding a violation
     if (PicocPlatformSetExitPoint(&pc)) {
+        printf("===============Finished=================\n");
         printf("Stopping the interpreter.\n");
-        printf("===============Finished=================\n\n");
         int ret = pc.PicocExitValue;
         PicocCleanup(&pc);
 
         return ret;
     }
+    printf("============Start simulation============\n");
     char *source = readFile(source_filename);
-//    printf("Analyzing:\n%s", source);
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
     // also include extern functions used by verifiers like error, assume, nondet...
@@ -85,7 +82,6 @@ int validate(const char *source_filename) {
     if (MainFuncValue->Typ->Base != TypeFunction)
         ProgramFailNoParser(&pc, "main is not a function - can't call it");
 
-    printf("============Start simulation============\n");
     PicocCallMain(&pc, nullptr, 0, nullptr);
     printf("===============Finished=================\n\n");
 
@@ -124,6 +120,7 @@ int main(int argc, char **argv) {
         printf("A different error occurred, probably a parsing error.\n");
         return 4;
     }
+    printf("\nVALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
     return 0;
 }
 
