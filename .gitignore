@@ -57,3 +57,6 @@ cmake-build-*
 
 # Verifiers
 testfiles/output
+
+# test bench
+venv
