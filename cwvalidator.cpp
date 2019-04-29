@@ -41,6 +41,19 @@ void handleDebugBreakpoint(struct ParseState *ps) {
         return;
     }
 
+    if (VariableDefined(ps->pc, "main")) {
+        printf("main defined\n");
+    }
+    if (VariableDefined(ps->pc, "foo")) {
+        printf("Foo defined\n");
+    }
+    if (VariableDefined(ps->pc, "one")) {
+        printf("One defined\n");
+    }
+    if (VariableDefined(ps->pc, "x")) {
+        printf("X defined\n");
+    }
+
     wit_aut->consumeState(ps);
 
     if (wit_aut.get()->isInViolationState()) {

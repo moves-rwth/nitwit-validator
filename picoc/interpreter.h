@@ -30,6 +30,7 @@
 #define PRINT_SOURCE_POS ({ PrintSourceTextErrorLine(Parser->pc->CStdOut, Parser->FileName, Parser->SourceText, Parser->Line, Parser->CharacterPos); PlatformPrintf(Parser->pc->CStdOut, "\n"); })
 #define PRINT_TYPE(typ) PlatformPrintf(Parser->pc->CStdOut, "%t\n", typ);
 
+
 /* small processors use a simplified FILE * for stdio, otherwise use the system FILE * */
 #ifdef BUILTIN_MINI_STDLIB
 typedef struct OutputStream IOFILE;
@@ -521,6 +522,16 @@ long ExpressionCoerceInteger(struct Value *Val);
 unsigned long ExpressionCoerceUnsignedInteger(struct Value *Val);
 #ifndef NO_FP
 double ExpressionCoerceFP(struct Value *Val);
+#endif
+
+/* assumption_expr.c */
+int AssumptionExpressionParse(struct ParseState *Parser, struct Value **Result);
+long AssumptionExpressionParseInt(struct ParseState *Parser);
+void AssumptionExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct Value *SourceValue, int Force, const char *FuncName, int ParamNo, int AllowPointerCoercion);
+long AssumptionExpressionCoerceInteger(struct Value *Val);
+unsigned long AssumptionExpressionCoerceUnsignedInteger(struct Value *Val);
+#ifndef NO_FP
+double AssumptionExpressionCoerceFP(struct Value *Val);
 #endif
 
 /* type.c */

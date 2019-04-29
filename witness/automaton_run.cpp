@@ -26,18 +26,84 @@ vector<string> split(string str, char delimiter) {
     return result;
 }
 
+
+int PicocParseAssumption(Picoc *pc, const char *FileName, const char *Source, int SourceLen, int RunIt,
+                         int CleanupSource, int EnableDebugger, ParseState *main_state) {
+    struct ParseState Parser{};
+    struct CleanupTokenNode *NewCleanupNode;
+    char *RegFileName = TableStrRegister(pc, FileName);
+
+    void *Tokens = LexAnalyse(pc, RegFileName, Source, SourceLen, nullptr);
+
+    /* allocate a cleanup node so we can clean up the tokens later */
+    {
+        NewCleanupNode = static_cast<CleanupTokenNode *>(HeapAllocMem(pc, sizeof(struct CleanupTokenNode)));
+        if (NewCleanupNode == nullptr) {
+            ProgramFailNoParser(pc, "out of memory");
+            return 0;
+        }
+        NewCleanupNode->Tokens = Tokens;
+        if (CleanupSource)
+            NewCleanupNode->SourceText = Source;
+        else
+            NewCleanupNode->SourceText = nullptr;
+
+        NewCleanupNode->Next = pc->CleanupTokenList;
+        pc->CleanupTokenList = NewCleanupNode;
+    }
+
+    /* do the parsing */
+    LexInitParser(&Parser, pc, Source, Tokens, RegFileName, RunIt, EnableDebugger, nullptr);
+//
+//    // select the same scope
+//    Parser.ScopeID = main_state->ScopeID;
+//    pc->GlobalTable = main_state->pc->GlobalTable;
+//    memcpy(pc->GlobalHashTable, main_state->pc->GlobalHashTable, GLOBAL_TABLE_SIZE * sizeof(TableEntry));
+//    pc->StringLiteralTable = main_state->pc->StringLiteralTable;
+//    memcpy(pc->StringLiteralHashTable, main_state->pc->StringLiteralHashTable,
+//           STRING_LITERAL_TABLE_SIZE * sizeof(TableEntry));
+//    pc->TopStackFrame = main_state->pc->TopStackFrame;
+//    pc->HeapMemory = main_state->pc->HeapMemory;
+//    pc->HeapBottom = main_state->pc->HeapBottom;
+//    pc->StackFrame = main_state->pc->StackFrame;
+//    pc->HeapStackTop = main_state->pc->HeapStackTop;
+//    pc->StringTable = main_state->pc->StringTable;
+//    memcpy(pc->StringHashTable, main_state->pc->StringHashTable, STRING_TABLE_SIZE * sizeof(TableEntry));
+
+    if (VariableDefined(pc, TableStrRegister(pc, "foo"))) {
+        printf("Foo defined\n");
+        return true;
+    }
+    if (VariableDefined(pc, TableStrRegister(pc, "x"))) {
+        printf("X defined\n");
+        return true;
+    }
+    int ret = AssumptionExpressionParseInt(&Parser);
+    return ret;
+}
+
 bool satisfiesAssumptions(ParseState *state, const shared_ptr<Edge> &edge) {
     auto assumptions = split(edge->assumption, ';');
-
+//    edge->print();
     for (const auto &ass: assumptions) {
+        Picoc pc;
+        PicocInitialise(&pc, 8388608); // stack size of 8 MiB
 
-        long res = ExpressionParseInt(state);
+        if (PicocPlatformSetExitPoint(&pc)) {
+            printf("Stopping assumption checker.\n");
+            PicocCleanup(&pc);
+            return false;
+        }
+        int res = PicocParseAssumption(&pc, "assumption-1243asdfeqv45q", ass.c_str(), ass.length(),
+                                       TRUE, FALSE, FALSE, state);
+        PicocCleanup(&pc);
         if (!res) {
             return false;
         }
+
     }
 
-    return true;
+    return assumptions.empty();
 }
 
 void Automaton::consumeState(ParseState *state) {
