@@ -27,6 +27,53 @@ vector<string> split(string str, char delimiter) {
 }
 
 
+bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
+    if (to->StringTable.Size != from->StringTable.Size) {
+        printf("String tables have different size.\n");
+        return false;
+    }
+
+    if (to->TopStackFrame == nullptr) {
+        VariableStackFrameAdd(state, "blah", 0);
+    }
+    if (to->TopStackFrame->LocalTable.Size != from->TopStackFrame->LocalTable.Size) {
+        printf("Local stack frame tables have different size.\n");
+        return false;
+    }
+
+    // copy defined strings
+    for (short s = 0; s < to->StringTable.Size; ++s) {
+        if (from->StringTable.HashTable[s] == nullptr) continue;
+        for (TableEntry *e = from->StringTable.HashTable[s]; e != nullptr; e = e->Next) {
+            TableStrRegister(to, e->p.Key);
+        }
+    }
+
+    // copy defined local variables and values
+    for (short s = 0; s < to->TopStackFrame->LocalTable.Size; ++s) {
+        if (from->TopStackFrame->LocalTable.HashTable[s] == nullptr) continue;
+        for (TableEntry *e = from->TopStackFrame->LocalTable.HashTable[s]; e != nullptr; e = e->Next) {
+            Value *val = VariableAllocValueAndCopy(to, state, e->p.v.Val, e->p.v.Val->ValOnHeap);
+            TableSet(to, &to->TopStackFrame->LocalTable,
+                     TableStrRegister(to, e->p.v.Key), val, state->FileName,
+                     0, 0); // doesn't matter
+        }
+    }
+
+    // copy defined global variables and values
+    for (short s = 0; s < to->GlobalTable.Size; ++s) {
+        if (from->GlobalTable.HashTable[s] == nullptr) continue;
+        for (TableEntry *e = from->GlobalTable.HashTable[s]; e != nullptr; e = e->Next) {
+            Value *val = VariableAllocValueAndCopy(to, state, e->p.v.Val, e->p.v.Val->ValOnHeap);
+            TableSet(to, &to->GlobalTable,
+                     TableStrRegister(to, e->p.v.Key), val, state->FileName,
+                     0, 0); // doesn't matter
+        }
+    }
+
+    return true;
+}
+
 int PicocParseAssumption(Picoc *pc, const char *FileName, const char *Source, int SourceLen, int RunIt,
                          int CleanupSource, int EnableDebugger, ParseState *main_state) {
     struct ParseState Parser{};
@@ -54,31 +101,11 @@ int PicocParseAssumption(Picoc *pc, const char *FileName, const char *Source, in
 
     /* do the parsing */
     LexInitParser(&Parser, pc, Source, Tokens, RegFileName, RunIt, EnableDebugger, nullptr);
-//
-//    // select the same scope
-//    Parser.ScopeID = main_state->ScopeID;
-//    pc->GlobalTable = main_state->pc->GlobalTable;
-//    memcpy(pc->GlobalHashTable, main_state->pc->GlobalHashTable, GLOBAL_TABLE_SIZE * sizeof(TableEntry));
-//    pc->StringLiteralTable = main_state->pc->StringLiteralTable;
-//    memcpy(pc->StringLiteralHashTable, main_state->pc->StringLiteralHashTable,
-//           STRING_LITERAL_TABLE_SIZE * sizeof(TableEntry));
-//    pc->TopStackFrame = main_state->pc->TopStackFrame;
-//    pc->HeapMemory = main_state->pc->HeapMemory;
-//    pc->HeapBottom = main_state->pc->HeapBottom;
-//    pc->StackFrame = main_state->pc->StackFrame;
-//    pc->HeapStackTop = main_state->pc->HeapStackTop;
-//    pc->StringTable = main_state->pc->StringTable;
-//    memcpy(pc->StringHashTable, main_state->pc->StringHashTable, STRING_TABLE_SIZE * sizeof(TableEntry));
 
-    if (VariableDefined(pc, TableStrRegister(pc, "foo"))) {
-        printf("Foo defined\n");
-        return true;
-    }
-    if (VariableDefined(pc, TableStrRegister(pc, "x"))) {
-        printf("X defined\n");
-        return true;
-    }
+    copyStringTable(&Parser, pc, main_state->pc);
+
     int ret = AssumptionExpressionParseInt(&Parser);
+//  fixme:   VariableStackPop(Parser, );
     return ret;
 }
 
@@ -103,7 +130,7 @@ bool satisfiesAssumptions(ParseState *state, const shared_ptr<Edge> &edge) {
 
     }
 
-    return assumptions.empty();
+    return true;
 }
 
 void Automaton::consumeState(ParseState *state) {
