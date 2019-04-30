@@ -27,14 +27,21 @@ def setup_dirs(dir: str) -> bool:
 	return True
 
 
-def analyze_bench_output_validated(validated: str):
-	if not (os.path.exists(validated) and os.path.isfile(validated)):
+def analyze_bench_output(results: str, name: str, search_string: str):
+	'''
+	Analyzes the producers and wrong results of the C Witness Validator
+	:param results: Path to the file with a json list of witness info files.
+	:param name: Type of output.
+	:param search_string: The string that has to occur in programfile field of the info file
+	:return:
+	'''
+	if not (os.path.exists(results) and os.path.isfile(results)):
 		print("Cannot load output file with info about witnesses.")
 		return
 	prod_map = {}
 	unknown = 0
 	false_positives = 0
-	with open(validated, 'r') as fp:
+	with open(results, 'r') as fp:
 		valid_jObj = json.load(fp)
 
 	for w in valid_jObj:
@@ -50,25 +57,39 @@ def analyze_bench_output_validated(validated: str):
 				unknown = unknown + 1
 
 			pf = str(info_jObj['programfile'])
-			if pf.find('_false-unreach-call') == -1:
+			if pf.find(search_string) == -1:
 				false_positives = false_positives + 1
+
 	print(prod_map)
-	print(f"Unknown producers at {unknown} witnesses.")
-	print(f"False positives: {false_positives}, i.e. {false_positives/len(valid_jObj)}%")
-	print(f"In total validated {len(valid_jObj)}.")
+	print('-' * 40)
+	print(f"Unknown producers for {unknown} witnesses.")
+	print(f"Wrong results for {name}: {false_positives}, i.e. {false_positives / len(valid_jObj) * 100}%.")
+	print(f"In total {name} {len(valid_jObj)}.")
+
 
 def main():
 	parser = argparse.ArgumentParser(description="Runs the CWValidator on SV-Benchmark")
 	parser.add_argument("-w", "--witnesses", required=True, type=str, help="The directory with unzipped witnesses.")
-	parser.add_argument("-v", "--validated", required=True, type=str, default=None,
+	parser.add_argument("-v", "--validated", required=False, type=str, default=None,
 	                    help="The file with info about validated witnesses.")
+	parser.add_argument("-nv", "--nonvalidated", required=False, type=str, default=None,
+	                    help="The file with info about non-validated witnesses.")
+	parser.add_argument("-bp", "--badlyparsed", required=False, type=str, default=None,
+	                    help="The file with info about badly parsed witnesses.")
 	# parser.add_argument("-c", "--config", required=True, type=str, help="The verifier configuration file.")
 
 	args = parser.parse_args()
 	if not setup_dirs(args.witnesses):
 		return 1
 
-	analyze_bench_output_validated(args.validated)
+	if args.validated:
+		analyze_bench_output(args.validated, 'validated', '_false-unreach-call')
+
+	if args.nonvalidated:
+		analyze_bench_output(args.nonvalidated, 'non-validated', '_true-unreach-call')
+
+	if args.badlyparsed:
+		analyze_bench_output(args.badlyparsed, 'badly parsed', '')
 
 
 if __name__ == "__main__":
