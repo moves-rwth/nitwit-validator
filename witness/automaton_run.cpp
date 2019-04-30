@@ -53,6 +53,9 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
         for (short s = 0; s < to->TopStackFrame->LocalTable.Size; ++s) {
             if (from->TopStackFrame->LocalTable.HashTable[s] == nullptr) continue;
             for (TableEntry *e = from->TopStackFrame->LocalTable.HashTable[s]; e != nullptr; e = e->Next) {
+                if (e->p.v.Val->ValOnHeap){
+                    printf("\t%s is on the heap!", e->p.v.Key);
+                }
                 Value *val = VariableAllocValueAndCopy(to, state, e->p.v.Val, e->p.v.Val->ValOnHeap);
                 TableSet(to, &to->TopStackFrame->LocalTable,
                          TableStrRegister(to, e->p.v.Key), val, state->FileName,
@@ -105,6 +108,7 @@ int PicocParseAssumption(Picoc *pc, const char *FileName, const char *Source, in
     copyStringTable(&Parser, pc, main_state->pc);
 
     int ret = AssumptionExpressionParseInt(&Parser);
+
 //  fixme:   VariableStackPop(Parser, );
     return ret;
 }
@@ -133,6 +137,7 @@ bool satisfiesAssumptions(ParseState *state, const shared_ptr<Edge> &edge) {
 }
 
 void Automaton::consumeState(ParseState *state) {
+    Value * dummyval;
     if (current_state == nullptr || this->isInIllegalState()) {
         this->illegal_state = true;
         return;
@@ -146,6 +151,9 @@ void Automaton::consumeState(ParseState *state) {
     if (succs == successor_rel.end()) { // state isn't sink
         this->illegal_state = true;
         return;
+    }
+    if (state->Line == 9 && state->CharacterPos == 0) {
+        printf("Debug\n");
     }
 
     for (const auto &edge: succs->second) {

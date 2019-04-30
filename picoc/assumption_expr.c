@@ -1574,7 +1574,7 @@ long AssumptionExpressionParseInt(struct ParseState *Parser)
     struct Value *Val;
     long Result = 0;
     
-    if (!ExpressionParse(Parser, &Val))
+    if (!AssumptionExpressionParse(Parser, &Val))
         ProgramFail(Parser, "expression expected");
     
     if (Parser->Mode == RunModeRun)

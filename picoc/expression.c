@@ -1,6 +1,6 @@
 /* picoc expression evaluator - a stack-based expression evaluation system
  * which handles operator precedence */
- 
+
 #include "interpreter.h"
 
 /* whether evaluation is left to right for a given precedence level */
@@ -53,9 +53,9 @@ static struct OpPrecedence OperatorPrecedence[] =
 {
     /* TokenNone, */ { 0, 0, 0, "none" },
     /* TokenComma, */ { 0, 0, 0, "," },
-    /* TokenAssign, */ { 0, 0, 2, "=" }, /* TokenAddAssign, */ { 0, 0, 2, "+=" }, /* TokenSubtractAssign, */ { 0, 0, 2, "-=" }, 
+    /* TokenAssign, */ { 0, 0, 2, "=" }, /* TokenAddAssign, */ { 0, 0, 2, "+=" }, /* TokenSubtractAssign, */ { 0, 0, 2, "-=" },
     /* TokenMultiplyAssign, */ { 0, 0, 2, "*=" }, /* TokenDivideAssign, */ { 0, 0, 2, "/=" }, /* TokenModulusAssign, */ { 0, 0, 2, "%=" },
-    /* TokenShiftLeftAssign, */ { 0, 0, 2, "<<=" }, /* TokenShiftRightAssign, */ { 0, 0, 2, ">>=" }, /* TokenArithmeticAndAssign, */ { 0, 0, 2, "&=" }, 
+    /* TokenShiftLeftAssign, */ { 0, 0, 2, "<<=" }, /* TokenShiftRightAssign, */ { 0, 0, 2, ">>=" }, /* TokenArithmeticAndAssign, */ { 0, 0, 2, "&=" },
     /* TokenArithmeticOrAssign, */ { 0, 0, 2, "|=" }, /* TokenArithmeticExorAssign, */ { 0, 0, 2, "^=" },
     /* TokenQuestionMark, */ { 0, 0, 3, "?" }, /* TokenColon, */ { 0, 0, 3, ":" },
     /* TokenLogicalOr, */ { 0, 0, 4, "||" },
@@ -143,7 +143,7 @@ int IsTypeToken(struct ParseState *Parser, enum LexToken t, struct Value *LexVal
 {
     if (t >= TokenIntType && t <= TokenUnsignedType)
         return 1; /* base type */
-    
+
     /* typedef'ed type? */
     if (t == TokenIdentifier) /* see TypeParseFront, case TokenIdentifier and ParseTypedef */
     {
@@ -155,7 +155,7 @@ int IsTypeToken(struct ParseState *Parser, enum LexToken t, struct Value *LexVal
                 return 1;
         }
     }
-    
+
     return 0;
 }
 
@@ -205,7 +205,7 @@ double ExpressionCoerceFP(struct Value *Val)
 #ifndef BROKEN_FLOAT_CASTS
     int IntVal;
     unsigned UnsignedVal;
-    
+
     switch (Val->Typ->Base)
     {
         case TypeInt:             IntVal = Val->Val->Integer; return (double)IntVal;
@@ -241,10 +241,10 @@ double ExpressionCoerceFP(struct Value *Val)
 long ExpressionAssignInt(struct ParseState *Parser, struct Value *DestValue, long FromInt, int After)
 {
     long Result;
-    
-    if (!DestValue->IsLValue) 
-        ProgramFail(Parser, "can't assign to this"); 
-    
+
+    if (!DestValue->IsLValue)
+        ProgramFail(Parser, "can't assign to this");
+
     if (After)
         Result = ExpressionCoerceInteger(DestValue);
     else
@@ -269,9 +269,9 @@ long ExpressionAssignInt(struct ParseState *Parser, struct Value *DestValue, lon
 /* assign a floating point value */
 double ExpressionAssignFP(struct ParseState *Parser, struct Value *DestValue, double FromFP)
 {
-    if (!DestValue->IsLValue) 
-        ProgramFail(Parser, "can't assign to this"); 
-    
+    if (!DestValue->IsLValue)
+        ProgramFail(Parser, "can't assign to this");
+
     DestValue->Val->FP = FromFP;
     return FromFP;
 }
@@ -1092,6 +1092,7 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
 
         ParserCopy(&PreState, Parser);
         Token = LexGetToken(Parser, &LexValue, TRUE);
+
         /* if we're debugging, check for a breakpoint */
         if (Parser->DebugMode && Parser->Mode == RunModeRun) {
             DebugCheckStatement(Parser);
@@ -1350,6 +1351,11 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
             HeapPopStack(Parser->pc, StackTop->Val, sizeof(struct ExpressionStack) + sizeof(struct Value) + TypeStackSizeValue(StackTop->Val));
     }
 
+    /* After parsing an expression, now all of the assignments would be finished -> important for assumptions. */
+    if (Parser->DebugMode && Parser->Mode == RunModeRun) {
+        DebugCheckStatement(Parser);
+    }
+
     debugf("ExpressionParse() done\n\n");
 #ifdef DEBUG_EXPRESSIONS
     ExpressionStackShow(Parser->pc, StackTop);
@@ -1478,17 +1484,17 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
         ExpressionPushInt(Parser, StackTop, 0);
         Parser->Mode = RunModeSkip;
     }
-        
+
     /* parse arguments */
     ArgCount = 0;
     do {
         if (RunIt && ArgCount < FuncValue->Val->FuncDef.NumParams)
             ParamArray[ArgCount] = VariableAllocValueFromType(Parser->pc, Parser, FuncValue->Val->FuncDef.ParamType[ArgCount], FALSE, NULL, FALSE);
-        
+
         if (ExpressionParse(Parser, &Param))
         {
             if (RunIt)
-            { 
+            {
                 if (ArgCount < FuncValue->Val->FuncDef.NumParams)
                 {
                     ExpressionAssign(Parser, ParamArray[ArgCount], Param, TRUE, FuncName, ArgCount+1, FALSE);
@@ -1500,38 +1506,38 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
                         ProgramFail(Parser, "too many arguments to %s()", FuncName);
                 }
             }
-            
+
             ArgCount++;
             Token = LexGetToken(Parser, NULL, TRUE);
             if (Token != TokenComma && Token != TokenCloseBracket)
                 ProgramFail(Parser, "comma expected");
         }
         else
-        { 
+        {
             /* end of argument list? */
             Token = LexGetToken(Parser, NULL, TRUE);
             if (!TokenCloseBracket)
                 ProgramFail(Parser, "bad argument");
         }
-        
+
     } while (Token != TokenCloseBracket);
-    
-    if (RunIt) 
-    { 
+
+    if (RunIt)
+    {
         /* run the function */
         if (ArgCount < FuncValue->Val->FuncDef.NumParams)
             ProgramFail(Parser, "not enough arguments to '%s'", FuncName);
-        
+
         if (FuncValue->Val->FuncDef.Intrinsic == NULL)
-        { 
+        {
             /* run a user-defined function */
             struct ParseState FuncParser;
             int Count;
             int OldScopeID = Parser->ScopeID;
-            
+
             if (FuncValue->Val->FuncDef.Body.Pos == NULL)
                 ProgramFail(Parser, "'%s' is undefined", FuncName);
-            
+
             ParserCopy(&FuncParser, &FuncValue->Val->FuncDef.Body);
             VariableStackFrameAdd(Parser, FuncName, FuncValue->Val->FuncDef.Intrinsic ? FuncValue->Val->FuncDef.NumParams : 0);
             Parser->pc->TopStackFrame->NumParams = ArgCount;
@@ -1544,10 +1550,10 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
                 VariableDefine(Parser->pc, Parser, FuncValue->Val->FuncDef.ParamName[Count], ParamArray[Count], NULL, TRUE);
 
             Parser->ScopeID = OldScopeID;
-                
+
             if (ParseStatement(&FuncParser, TRUE) != ParseResultOk)
                 ProgramFail(&FuncParser, "function body expected");
-            
+
             if (RunIt)
             {
                 if (FuncParser.Mode == RunModeRun && FuncValue->Val->FuncDef.ReturnType != &Parser->pc->VoidType)
@@ -1556,7 +1562,7 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
                 else if (FuncParser.Mode == RunModeGoto)
                     ProgramFail(&FuncParser, "couldn't find goto label '%s'", FuncParser.SearchGotoLabel);
             }
-            
+
             VariableStackFramePop(Parser);
         }
         else
@@ -1573,19 +1579,19 @@ long ExpressionParseInt(struct ParseState *Parser)
 {
     struct Value *Val;
     long Result = 0;
-    
+
     if (!ExpressionParse(Parser, &Val))
         ProgramFail(Parser, "expression expected");
-    
+
     if (Parser->Mode == RunModeRun)
-    { 
+    {
         if (!IS_NUMERIC_COERCIBLE(Val))
             ProgramFail(Parser, "integer value expected instead of %t", Val->Typ);
-    
+
         Result = ExpressionCoerceInteger(Val);
         VariableStackPop(Parser, Val);
     }
-    
+
     return Result;
 }
 
