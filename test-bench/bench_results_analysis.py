@@ -63,7 +63,7 @@ def analyze_bench_output(results: str, name: str, search_string: str):
 	print(prod_map)
 	print('-' * 40)
 	print(f"Unknown producers for {unknown} witnesses.")
-	print(f"Wrong results for {name}: {false_positives}, i.e. {false_positives / len(valid_jObj) * 100}%.")
+	print(f"Incorrect results for {name}: {false_positives}, i.e. {false_positives / len(valid_jObj) * 100}%.")
 	print(f"In total {name} {len(valid_jObj)}.")
 
 
