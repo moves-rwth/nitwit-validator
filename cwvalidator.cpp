@@ -24,10 +24,16 @@ int WITNESS_IN_ILLEGAL_STATE = 0xadf1;
 int WITNESS_IN_SINK = 0xadf2;
 int PROGRAM_FINISHED = 0xadf3;
 
-void handleDebugBreakpoint(struct ParseState *ps) {
-    if (ps->LastConditionBranch == ConditionUndefined) printf("%s --- Line: %zu, Pos: %d\n", ps->FileName, ps->Line, ps->CharacterPos);
-    else printf("%s --- Line: %zu, Pos: %d, Control: %d\n", ps->FileName, ps->Line, ps->CharacterPos, ps->LastConditionBranch == ConditionTrue);
+void printProgramState(ParseState *ps){
+    printf("%s --- Line: %zu, Pos: %d", ps->FileName, ps->Line, ps->CharacterPos);
+    if (ps->LastConditionBranch != ConditionUndefined)
+        printf(", Control: %d", ps->LastConditionBranch == ConditionTrue);
 
+    printf("\n");
+}
+
+void handleDebugBreakpoint(struct ParseState *ps) {
+    printProgramState(ps);
     if (wit_aut == nullptr) {
         ProgramFailWithExitCode(ps, NO_WITNESS_CODE, "No witness automaton to validate against.\n");
         return;

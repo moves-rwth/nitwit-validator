@@ -111,7 +111,6 @@ int PicocParseAssumption(Picoc *pc, const char *FileName, const char *Source, in
 
 bool satisfiesAssumptions(ParseState *state, const shared_ptr<Edge> &edge) {
     auto assumptions = split(edge->assumption, ';');
-//    edge->print();
     for (const auto &ass: assumptions) {
         Picoc pc;
         PicocInitialise(&pc, 8388608); // stack size of 8 MiB
@@ -165,6 +164,9 @@ void Automaton::consumeState(ParseState *state) {
             // check assumption
             if (takesEdge && !edge->assumption.empty() && !satisfiesAssumptions(state, edge)) {
                 takesEdge = false;
+                printf("Unmet assumption %s.\n", edge->assumption.c_str());
+            } else if (!edge->assumption.empty()) {
+                printf("Assumption %s satisfied.\n", edge->assumption.c_str());
             }
 
             if (takesEdge) {
