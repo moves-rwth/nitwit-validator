@@ -12,7 +12,7 @@ static const char *EXTERN_C_DEFS_FOR_VERIFIERS =
         "}\n"
         ""
         "void __VERIFIER_assume(int a){\n"
-        "   // nothing here\n"
+        "  if (!a) exit(1); // nothing here\n"
         "}";
 
 #endif //CWVALIDATOR_EXTERN_VERIF_DEFS_HPP

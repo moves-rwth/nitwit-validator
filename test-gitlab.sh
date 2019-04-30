@@ -45,6 +45,21 @@ for C_FILE in testfiles/*.c ; do
         fi
     done
 
+
+    for WITNESS in testfiles/$filename.*.c.graphml.invalid ; do
+        [[ -f "$WITNESS" ]] || break
+        let "n_tests=n_tests+1"
+        $1 $WITNESS $C_FILE > /dev/null
+
+        exit_val=$?
+        if [[ ${exit_val} -ne 0 ]]
+        then
+            echo "Correctly denied witness: $WITNESS"
+        else
+            let "n_nonvalidated=n_nonvalidated+1"
+            echo -e "\e[31mIncorrectly validated: $WITNESS, exit value: $exit_val\e[0m"
+        fi
+    done
 done
 
 echo "Tests done: $n_tests, non-validated: $n_nonvalidated"
