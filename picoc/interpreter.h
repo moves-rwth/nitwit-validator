@@ -137,6 +137,9 @@ struct ParseState
     int ScopeID;                /* for keeping track of local variables (free them after they go out of scope) */
     // jsv:
     void (*DebuggerCallback)(struct ParseState *); /* calls a callback when breakpoint reached */
+    const char * EnterFunction;
+    const char * ReturnFromFunction;
+
 };
 
 

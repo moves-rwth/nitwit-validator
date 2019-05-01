@@ -601,41 +601,8 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     ParserCopy(&PreState, Parser);
     Token = LexGetToken(Parser, &LexerValue, TRUE);
 
-    /* if we're debugging, check for a breakpoint */
-    if (Parser->DebugMode && Parser->Mode == RunModeRun){
-        switch (Token)
-        {
-            case TokenSwitch:
-            case TokenCase:
-            case TokenDefault:
-            case TokenContinue:
-            case TokenBreak:
-            case TokenReturn:
-            case TokenTypedef:
-//            case TokenIdentifier:
-            case TokenIntType:
-            case TokenShortType:
-            case TokenCharType:
-            case TokenLongType:
-            case TokenFloatType:
-            case TokenDoubleType:
-            case TokenVoidType:
-            case TokenStructType:
-            case TokenUnionType:
-            case TokenEnumType:
-            case TokenSignedType:
-            case TokenUnsignedType:
-            case TokenStaticType:
-            case TokenAutoType:
-            case TokenRegisterType:
-            case TokenExternType:
-//                printf("Parse: ");
-                DebugCheckStatement(Parser);
-                break;
-            default:
-                break;
-        }
-    }
+    struct ParseState ParserPrePosition;
+    ParserCopyPos(&ParserPrePosition, Parser);
 
     switch (Token)
     {
@@ -920,14 +887,19 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             {
                 if (!Parser->pc->TopStackFrame || Parser->pc->TopStackFrame->ReturnValue->Typ->Base != TypeVoid)
                 {
+                    // returning from this function;
+                    printf("Set ret function %s\n", Parser->ReturnFromFunction);
+                    const char *RetBeforeName = Parser->ReturnFromFunction;
+                    Parser->ReturnFromFunction = Parser->pc->TopStackFrame->FuncName;
                     if (!ExpressionParse(Parser, &CValue))
                         ProgramFail(Parser, "value required in return");
+                    Parser->ReturnFromFunction = RetBeforeName;
+
 
                     if (!Parser->pc->TopStackFrame) /* return from top-level program? */
                         PlatformExit(Parser->pc, ExpressionCoerceInteger(CValue));
                     else
                         ExpressionAssign(Parser, Parser->pc->TopStackFrame->ReturnValue, CValue, TRUE, NULL, 0, FALSE);
-
                     VariableStackPop(Parser, CValue);
                 }
                 else
@@ -987,6 +959,47 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         if (LexGetToken(Parser, NULL, TRUE) != TokenSemicolon)
             ProgramFail(Parser, "';' expected");
     }
+
+    struct ParseState NowPosition;
+    ParserCopyPos(&NowPosition, Parser);
+    ParserCopyPos(Parser, &ParserPrePosition);
+    /* if we're debugging, check for a breakpoint */
+    if (Parser->DebugMode && Parser->Mode == RunModeRun){
+        switch (Token)
+        {
+            case TokenSwitch:
+            case TokenCase:
+            case TokenDefault:
+            case TokenContinue:
+            case TokenBreak:
+            case TokenReturn:
+            case TokenTypedef:
+//            case TokenIdentifier:
+            case TokenIntType:
+            case TokenShortType:
+            case TokenCharType:
+            case TokenLongType:
+            case TokenFloatType:
+            case TokenDoubleType:
+            case TokenVoidType:
+            case TokenStructType:
+            case TokenUnionType:
+            case TokenEnumType:
+            case TokenSignedType:
+            case TokenUnsignedType:
+            case TokenStaticType:
+            case TokenAutoType:
+            case TokenRegisterType:
+            case TokenExternType:
+//                printf("Parse: ");
+                DebugCheckStatement(Parser);
+                break;
+            default:
+                break;
+        }
+    }
+
+    ParserCopyPos(Parser, &NowPosition);
 
     return ParseResultOk;
 }

@@ -1093,10 +1093,9 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
         ParserCopy(&PreState, Parser);
         Token = LexGetToken(Parser, &LexValue, TRUE);
 
-        /* if we're debugging, check for a breakpoint */
-        if (Parser->DebugMode && Parser->Mode == RunModeRun) {
-            DebugCheckStatement(Parser);
-        }
+        // save the expression's position
+        struct ParseState ParserPrePosition;
+        ParserCopyPos(&ParserPrePosition, Parser);
 
         if ( ( ( (int)Token > TokenComma && (int)Token <= (int)TokenOpenBracket) ||
                (Token == TokenCloseBracket && BracketPrecedence != 0)) &&
@@ -1252,7 +1251,18 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
 
             if (LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket)
             {
+                char *FuncName = LexValue->Val->Identifier;
+                const char *RetBeforeName = Parser->ReturnFromFunction;
+                if (Parser->DebugMode && Parser->Mode == RunModeRun) {
+                    Parser->EnterFunction = FuncName;
+                    DebugCheckStatement(Parser);
+                    Parser->EnterFunction = NULL;
+                }
                 ExpressionParseFunctionCall(Parser, &StackTop, LexValue->Val->Identifier, Parser->Mode == RunModeRun && Precedence < IgnorePrecedence);
+                if (Parser->DebugMode && Parser->Mode == RunModeRun) {
+                    DebugCheckStatement(Parser);
+                    Parser->ReturnFromFunction = RetBeforeName;
+                }
             }
             else
             {
@@ -1325,6 +1335,15 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
             ParserCopy(Parser, &PreState);
             Done = TRUE;
         }
+
+        // call back after parsing the expression, but with the position of before parsing it
+        struct ParseState NowPosition;
+        ParserCopyPos(&NowPosition, Parser);
+        ParserCopyPos(Parser, &ParserPrePosition);
+        if (Parser->DebugMode && Parser->Mode == RunModeRun) {
+            DebugCheckStatement(Parser);
+        }
+        ParserCopyPos(Parser, &NowPosition);
 
     } while (!Done);
 
@@ -1524,6 +1543,8 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
 
     if (RunIt)
     {
+        printf("Run function: %s.\n", FuncName);
+
         /* run the function */
         if (ArgCount < FuncValue->Val->FuncDef.NumParams)
             ProgramFail(Parser, "not enough arguments to '%s'", FuncName);
@@ -1569,8 +1590,8 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
             FuncValue->Val->FuncDef.Intrinsic(Parser, ReturnValue, ParamArray, ArgCount);
 
         HeapPopStackFrame(Parser->pc);
+        Parser->ReturnFromFunction = FuncName;
     }
-
     Parser->Mode = OldMode;
 }
 

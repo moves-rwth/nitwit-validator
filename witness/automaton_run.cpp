@@ -53,7 +53,7 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
         for (short s = 0; s < to->TopStackFrame->LocalTable.Size; ++s) {
             if (from->TopStackFrame->LocalTable.HashTable[s] == nullptr) continue;
             for (TableEntry *e = from->TopStackFrame->LocalTable.HashTable[s]; e != nullptr; e = e->Next) {
-                if (e->p.v.Val->ValOnHeap){
+                if (e->p.v.Val->ValOnHeap) {
                     printf("\t%s is on the heap!", e->p.v.Key);
                 }
                 Value *val = VariableAllocValueAndCopy(to, state, e->p.v.Val, e->p.v.Val->ValOnHeap);
@@ -137,7 +137,6 @@ bool satisfiesAssumptions(ParseState *state, const shared_ptr<Edge> &edge) {
 }
 
 void Automaton::consumeState(ParseState *state) {
-    Value * dummyval;
     if (current_state == nullptr || this->isInIllegalState()) {
         this->illegal_state = true;
         return;
@@ -152,36 +151,52 @@ void Automaton::consumeState(ParseState *state) {
         this->illegal_state = true;
         return;
     }
-    if (state->Line == 9 && state->CharacterPos == 0) {
-        printf("Debug\n");
-    }
 
     for (const auto &edge: succs->second) {
+        // fixme check endline and whether even the properties were defined
         if (baseFileName(edge->origin_file) == baseFileName(string(state->FileName)) &&
             edge->start_line == state->Line) {
-            bool takesEdge = true;
             // check control branch
             if (edge->controlCondition != ConditionUndefined || state->LastConditionBranch != ConditionUndefined) {
-                if (edge->controlCondition == state->LastConditionBranch) {
-                    takesEdge = true;
-                } else {
+                if (edge->controlCondition != state->LastConditionBranch) {
+                    continue;
+                }
+            }
+
+            if (!edge->enter_function.empty() && edge->enter_function != "main") {
+                if (state->EnterFunction == nullptr) {
+                    printf("Wrong function. Expected to enter %s, but program did not enter it.\n",
+                           edge->enter_function.c_str());
+                    continue;
+                } else if (strcmp(state->EnterFunction, edge->enter_function.c_str()) != 0) {
+                    printf("Wrong function. Expected enter into %s, got %s.\n", edge->enter_function.c_str(),
+                           state->EnterFunction);
+                    continue;
+                }
+            }
+            if (!edge->return_from_function.empty() && edge->return_from_function != "main") {
+                if (state->ReturnFromFunction == nullptr) {
+                    printf("Wrong function. Expected to return from %s, but program did not.\n",
+                           edge->return_from_function.c_str());
+                    continue;
+                } else if (strcmp(state->ReturnFromFunction, edge->return_from_function.c_str()) != 0) {
+                    printf("Wrong function. Expected return from %s, got %s.\n", edge->return_from_function.c_str(),
+                           state->ReturnFromFunction);
                     continue;
                 }
             }
 
             // check assumption
-            if (takesEdge && !edge->assumption.empty() && !satisfiesAssumptions(state, edge)) {
-                takesEdge = false;
+            if (!edge->assumption.empty() && !satisfiesAssumptions(state, edge)) {
                 printf("Unmet assumption %s.\n", edge->assumption.c_str());
+                continue;
             } else if (!edge->assumption.empty()) {
                 printf("Assumption %s satisfied.\n", edge->assumption.c_str());
             }
 
-            if (takesEdge) {
-                current_state = nodes.find(edge->target_id)->second;
-                printf("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
-                return;
-            }
+            current_state = nodes.find(edge->target_id)->second;
+            printf("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
+            return;
         }
     }
 }

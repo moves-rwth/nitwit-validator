@@ -28,7 +28,10 @@ void printProgramState(ParseState *ps){
     printf("%s --- Line: %zu, Pos: %d", ps->FileName, ps->Line, ps->CharacterPos);
     if (ps->LastConditionBranch != ConditionUndefined)
         printf(", Control: %d", ps->LastConditionBranch == ConditionTrue);
-
+    if (ps->EnterFunction != nullptr)
+        printf(", Enter: %s", ps->EnterFunction);
+    if (ps->ReturnFromFunction != nullptr)
+        printf(", Return: %s", ps->ReturnFromFunction);
     printf("\n");
 }
 

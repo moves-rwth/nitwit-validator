@@ -624,6 +624,8 @@ void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText,
     // jsv
     Parser->ScopeID = 0; // getting uninit errors from valgrind :/
     Parser->DebuggerCallback = DebuggerCallback;
+    Parser->EnterFunction = NULL;
+    Parser->ReturnFromFunction = NULL;
 }
 
 /* get the next token, without pre-processing */
