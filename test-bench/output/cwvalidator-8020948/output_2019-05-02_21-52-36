@@ -2,7 +2,7 @@ Directories found!
 Found 2382 erroneous files. 49564 witness files existed.
 Prepared 16522 SV-COMP files with safety properties checking. Not found 0.
 -------------------------------------------------------------------
-^[[5~^?^?Witness parse error: d8ceb9293fd6a2fa181beba0026a00fdd80fd78400e7e96456d67bc6704764b1.json
+Witness parse error: d8ceb9293fd6a2fa181beba0026a00fdd80fd78400e7e96456d67bc6704764b1.json
 Witness parse error: 635074d1d80e94ba37ec3a2f61665deeaf295330806dc1c693e46f803ecdbf64.json
 Witness parse error: e62df929d133447bab6eea2527f117770b291e8cbbbc2625d500cd91b89b9d4d.json
 Witness parse error: 1c2655264ff4bed334702967762e37909f9f07a3dd374b3e209f0c5553785ec5.json
