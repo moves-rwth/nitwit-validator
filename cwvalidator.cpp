@@ -132,16 +132,15 @@ int main(int argc, char **argv) {
                wit_aut->getCurrentState()->id.c_str(),
                exit_value);
         return exit_value;
-    } else if (!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) {
-        if (!wit_aut->wasVerifierErrorCalled()) {
-            printf("__VERIFIER_error was never called.\n");
-            return 5;
-        } else {
-            printf("A different error occurred, probably a parsing error or __VERIFIER_error was never called.\n");
-            return 4;
-        }
+    } else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
+        printf("__VERIFIER_error was never called.\n");
+        return 5;
+    } else if (wit_aut->isInViolationState() && wit_aut->wasVerifierErrorCalled()) {
+        printf("\nVALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
+        return 0;
+    } else {
+        printf("A different error occurred, probably a parsing error.\n");
+        return 4;
     }
-    printf("\nVALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
-    return 0;
 }
 
