@@ -37,6 +37,9 @@ void printProgramState(ParseState *ps){
 
 void handleDebugBreakpoint(struct ParseState *ps) {
     printProgramState(ps);
+    if (ps->Line == 7 && ps->CharacterPos == 8) {
+        printf("debug\n");
+    }
     if (wit_aut == nullptr) {
         ProgramFailWithExitCode(ps, NO_WITNESS_CODE, "No witness automaton to validate against.\n");
         return;
@@ -48,19 +51,6 @@ void handleDebugBreakpoint(struct ParseState *ps) {
     if (wit_aut->isInSinkState()) {
         ProgramFailWithExitCode(ps, WITNESS_IN_SINK, "Witness automaton reached sink state without a violation.\n");
         return;
-    }
-
-    if (VariableDefined(ps->pc, "main")) {
-        printf("main defined\n");
-    }
-    if (VariableDefined(ps->pc, "foo")) {
-        printf("Foo defined\n");
-    }
-    if (VariableDefined(ps->pc, "one")) {
-        printf("One defined\n");
-    }
-    if (VariableDefined(ps->pc, "x")) {
-        printf("X defined\n");
     }
 
     wit_aut->consumeState(ps);

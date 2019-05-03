@@ -885,16 +885,14 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         case TokenReturn:
             if (Parser->Mode == RunModeRun)
             {
+                // returning from this function;
+                printf("Set ret function %s\n", Parser->ReturnFromFunction);
+                const char *RetBeforeName = Parser->ReturnFromFunction;
+                Parser->ReturnFromFunction = Parser->pc->TopStackFrame->FuncName;
                 if (!Parser->pc->TopStackFrame || Parser->pc->TopStackFrame->ReturnValue->Typ->Base != TypeVoid)
                 {
-                    // returning from this function;
-                    printf("Set ret function %s\n", Parser->ReturnFromFunction);
-                    const char *RetBeforeName = Parser->ReturnFromFunction;
-                    Parser->ReturnFromFunction = Parser->pc->TopStackFrame->FuncName;
                     if (!ExpressionParse(Parser, &CValue))
                         ProgramFail(Parser, "value required in return");
-                    Parser->ReturnFromFunction = RetBeforeName;
-
 
                     if (!Parser->pc->TopStackFrame) /* return from top-level program? */
                         PlatformExit(Parser->pc, ExpressionCoerceInteger(CValue));
@@ -907,6 +905,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                     if (ExpressionParse(Parser, &CValue))
                         ProgramFail(Parser, "value in return from a void function");
                 }
+                Parser->ReturnFromFunction = RetBeforeName;
 
                 Parser->Mode = RunModeReturn;
             }
