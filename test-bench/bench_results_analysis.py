@@ -80,6 +80,18 @@ def get_differences(a: List[str], b: List[str]) -> Tuple[List[str], List[str]]:
 	return list(sa.difference(sb)), list(sb.difference(sa))
 
 
+def get_info_files_for_producer(results: List[str], producer: str) -> List[str]:
+	if results is None:
+		return []
+
+	info_files = []
+	for w in results:
+		with open(os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, w), 'r') as fp:
+			info_jObj = json.load(fp)
+			if 'producer' in info_jObj and info_jObj['producer'] == producer:
+				info_files.append(w)
+	return info_files
+
 def main():
 	parser = argparse.ArgumentParser(description="Runs the CWValidator on SV-Benchmark")
 	parser.add_argument("-w", "--witnesses", required=True, type=str, help="The directory with unzipped witnesses.")
@@ -117,6 +129,7 @@ def main():
 			print(f"Witnesses not in {args.dvalidated}: {len(not_in_d)}")
 			analyze_bench_output(not_in_d, 'validated by first, but not by second', '_false-unreach-call')
 			print('='*80)
+			# print(get_info_files_for_producer(not_in_d, 'CPAchecker 1.7-svn b8d6131600+'))
 
 		# if args.nonvalidated:
 		# 	analyze_bench_output(args.nonvalidated, 'non-validated', '_true-unreach-call')
