@@ -22,10 +22,10 @@ shared_ptr<Automaton> wit_aut;
 int NO_WITNESS_CODE = 240;
 int WITNESS_IN_SINK = 241;
 int PROGRAM_FINISHED = 242;
-int IDENTIFIER_UNDEFINED = 243;
-int BAD_FUNCTION_DEF = 244;
-int ALREADY_DEFINED = 245;
-int WITNESS_IN_ILLEGAL_STATE = 246;
+int WITNESS_IN_ILLEGAL_STATE = 243;
+int IDENTIFIER_UNDEFINED = 244;
+int BAD_FUNCTION_DEF = 245;
+int ALREADY_DEFINED = 246;
 
 void printProgramState(ParseState *ps) {
     printf("%s --- Line: %zu, Pos: %d", ps->FileName, ps->Line, ps->CharacterPos);

@@ -28,14 +28,16 @@ def process_results(results: List[Tuple[int, str]], executable: str, out: bool):
 	for ret_code, info_file in results:
 		if ret_code == 0:
 			validated.append((ret_code, os.path.basename(info_file)))
-		elif ret_code >= 240 and ret_code <= 250:
+		elif ret_code >= 240 and ret_code <= 243:
 			non_validated.append((ret_code, os.path.basename(info_file)))
+		elif ret_code >= 244 and ret_code <= 246:
+			badly_parsed.append((ret_code, os.path.basename(info_file)))
 		elif ret_code == 2:
 			print(f"Witness parse error: {info_file}")
 		elif ret_code == 3:
 			print(f"Bad usage: {info_file}")
-		elif ret_code == 4:
-			badly_parsed.append((ret_code, os.path.basename(info_file)))
+		elif ret_code == 4 or ret_code == 5:
+			non_validated.append((ret_code, os.path.basename(info_file)))
 		else:
 			print(f"Other error: {ret_code}, {info_file}")
 

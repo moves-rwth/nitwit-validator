@@ -147,7 +147,7 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     {
         /* it's a full function definition with a body */
         if (Token != TokenLeftBrace)
-            ProgramFailWithExitCode(Parser, 244, "bad function definition");
+            ProgramFailWithExitCode(Parser, 245, "bad function definition");
 
         ParserCopy(&FuncBody, Parser);
         if (ParseStatementMaybeRun(Parser, FALSE, TRUE) != ParseResultOk)
@@ -939,7 +939,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 CValue = TableDelete(Parser->pc, &Parser->pc->GlobalTable, LexerValue->Val->Identifier);
 
                 if (CValue == NULL)
-                    ProgramFailWithExitCode(Parser, 243, "'%s' is not defined", LexerValue->Val->Identifier);
+                    ProgramFailWithExitCode(Parser, 244, "'%s' is not defined", LexerValue->Val->Identifier);
 
                 VariableFree(Parser->pc, CValue);
             }
