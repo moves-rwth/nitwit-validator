@@ -24,7 +24,7 @@ int WITNESS_IN_ILLEGAL_STATE = 0xadf1;
 int WITNESS_IN_SINK = 0xadf2;
 int PROGRAM_FINISHED = 0xadf3;
 
-void printProgramState(ParseState *ps){
+void printProgramState(ParseState *ps) {
     printf("%s --- Line: %zu, Pos: %d", ps->FileName, ps->Line, ps->CharacterPos);
     if (ps->LastConditionBranch != ConditionUndefined)
         printf(", Control: %d", ps->LastConditionBranch == ConditionTrue);
@@ -37,9 +37,6 @@ void printProgramState(ParseState *ps){
 
 void handleDebugBreakpoint(struct ParseState *ps) {
     printProgramState(ps);
-    if (ps->Line == 7 && ps->CharacterPos == 8) {
-        printf("debug\n");
-    }
     if (wit_aut == nullptr) {
         ProgramFailWithExitCode(ps, NO_WITNESS_CODE, "No witness automaton to validate against.\n");
         return;
@@ -55,7 +52,7 @@ void handleDebugBreakpoint(struct ParseState *ps) {
 
     wit_aut->consumeState(ps);
 
-    if (wit_aut.get()->isInViolationState()) {
+    if (wit_aut->isInViolationState() && wit_aut->wasVerifierErrorCalled()) {
         PlatformExit(ps->pc, 0);
         return;
     }
@@ -123,14 +120,23 @@ int main(int argc, char **argv) {
         return 2;
     }
     int exit_value = validate(argv[2]);
-    if (!wit_aut->isInViolationState() &&
-        (exit_value == PROGRAM_FINISHED || exit_value == NO_WITNESS_CODE || exit_value == WITNESS_IN_ILLEGAL_STATE || exit_value == WITNESS_IN_SINK)) {
+    if ((!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) &&
+        (exit_value == PROGRAM_FINISHED || exit_value == NO_WITNESS_CODE || exit_value == WITNESS_IN_ILLEGAL_STATE ||
+         exit_value == WITNESS_IN_SINK)) {
+        if (!wit_aut->wasVerifierErrorCalled())
+            printf("__VERIFIER_error was never called.\n");
         printf("FAILED: Wasn't able to validate the witness. Violation NOT reached.\n");
-        printf("Automaton finished in state %s, with error code %d\n", wit_aut->getCurrentState()->id.c_str(), exit_value);
+        printf("Automaton finished in state %s, with error code %d\n", wit_aut->getCurrentState()->id.c_str(),
+               exit_value);
         return 1;
-    } else if (!wit_aut->isInViolationState()) {
-        printf("A different error occurred, probably a parsing error.\n");
-        return 4;
+    } else if (!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) {
+        if (!wit_aut->wasVerifierErrorCalled()) {
+            printf("__VERIFIER_error was never called.\n");
+            return 5;
+        } else {
+            printf("A different error occurred, probably a parsing error or __VERIFIER_error was never called.\n");
+            return 4;
+        }
     }
     printf("\nVALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
     return 0;

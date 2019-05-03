@@ -415,6 +415,9 @@ const shared_ptr<Node> &Automaton::getCurrentState() const {
     return this->current_state;
 }
 
+bool Automaton::wasVerifierErrorCalled() const {
+    return this->verifier_error_called;
+}
 
 void Node::print() const {
     printf("id %s: %s, th: %zu, f: %d, v: %d, s: %d, e: %d\n", this->id.c_str(), this->node_type.c_str(),

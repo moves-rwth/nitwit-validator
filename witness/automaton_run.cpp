@@ -142,6 +142,11 @@ void Automaton::consumeState(ParseState *state) {
         return;
     }
 
+    if (state->EnterFunction != nullptr && strcmp(state->EnterFunction, "__VERIFIER_error") == 0) {
+        this->verifier_error_called = true;
+        printf("__VERIFIER_error has been called!\n");
+    }
+
     if (current_state->is_violation || current_state->is_sink) {
         // don't do anything once we have reached violation or sink
         return;
@@ -163,6 +168,7 @@ void Automaton::consumeState(ParseState *state) {
                 }
             }
 
+            // check enter function
             if (!edge->enter_function.empty() && edge->enter_function != "main") {
                 if (state->EnterFunction == nullptr) {
                     printf("Wrong function. Expected to enter %s, but program did not enter it.\n",
@@ -174,6 +180,8 @@ void Automaton::consumeState(ParseState *state) {
                     continue;
                 }
             }
+
+            // check return function
             if (!edge->return_from_function.empty() && edge->return_from_function != "main") {
                 if (state->ReturnFromFunction == nullptr) {
                     printf("Wrong function. Expected to return from %s, but program did not.\n",
@@ -193,6 +201,7 @@ void Automaton::consumeState(ParseState *state) {
             } else if (!edge->assumption.empty()) {
                 printf("Assumption %s satisfied.\n", edge->assumption.c_str());
             }
+
 
             current_state = nodes.find(edge->target_id)->second;
             printf("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());

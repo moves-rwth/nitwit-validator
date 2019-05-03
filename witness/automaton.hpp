@@ -120,6 +120,7 @@ class Automaton {
     map<string, set<shared_ptr<Edge>>> successor_rel;
     map<string, set<shared_ptr<Edge>>> predecessor_rel;
     bool illegal_state = false;
+    bool verifier_error_called = false;
 public:
     Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<shared_ptr<Edge>> &edges,
               shared_ptr<Data> &data);
@@ -137,6 +138,8 @@ public:
     bool isInViolationState() const;
 
     bool isInSinkState() const;
+
+    bool wasVerifierErrorCalled() const;
 
     const shared_ptr<Node> &getCurrentState() const;
 };
