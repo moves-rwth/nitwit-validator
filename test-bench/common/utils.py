@@ -28,7 +28,7 @@ def process_results(results: List[Tuple[int, str]], executable: str, out: bool):
 	for ret_code, info_file in results:
 		if ret_code == 0:
 			validated.append((ret_code, os.path.basename(info_file)))
-		elif ret_code == 1:
+		elif ret_code >= 240 and ret_code <= 250:
 			non_validated.append((ret_code, os.path.basename(info_file)))
 		elif ret_code == 2:
 			print(f"Witness parse error: {info_file}")

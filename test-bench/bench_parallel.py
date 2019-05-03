@@ -141,7 +141,7 @@ def main():
 
 	configs = get_bench_params(args.limit)
 	results = run_bench_parallel(configs)
-	process_results(results, True)
+	process_results(results, VALIDATOR_EXECUTABLE, True)
 
 
 if __name__ == "__main__":

@@ -379,7 +379,7 @@ void VariableDefinePlatformVar(Picoc *pc, struct ParseState *Parser, char *Ident
     SomeValue->Val = FromValue;
     
     if (!TableSet(pc, (pc->TopStackFrame == NULL) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable, TableStrRegister(pc, Ident), SomeValue, Parser ? Parser->FileName : NULL, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
-        ProgramFail(Parser, 245, "'%s' is already defined", Ident);
+        ProgramFailWithExitCode(Parser, 245, "'%s' is already defined", Ident);
 }
 
 /* free and/or pop the top value off the stack. Var must be the top value on the stack! */
