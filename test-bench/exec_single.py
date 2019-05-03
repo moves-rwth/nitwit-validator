@@ -68,6 +68,7 @@ def run_single_config(witness_info_file: str) -> Tuple[int, str]:
 		raise FileNotFoundError(witness_info_file)
 	with open(witness_info_file) as f:
 		jObj = json.load(f)
+		print(jObj)
 		if 'witness-sha256' in jObj:
 			# check if file in witnessFileByHash exists
 			path_to_witness_file = \
@@ -112,7 +113,7 @@ def main():
 		return 1
 
 	results = run_single_config(args.filename)
-	common.utils.process_results([results], False)
+	common.utils.process_results([results], VALIDATOR_EXECUTABLE, False)
 
 
 if __name__ == "__main__":
