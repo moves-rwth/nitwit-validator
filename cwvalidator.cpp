@@ -124,7 +124,7 @@ int main(int argc, char **argv) {
     }
     int exit_value = validate(argv[2]);
     if ((!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) &&
-        (exit_value >= NO_WITNESS_CODE && exit_value <= WITNESS_IN_ILLEGAL_STATE)) {
+        (exit_value >= NO_WITNESS_CODE && exit_value <= ALREADY_DEFINED)) {
         if (!wit_aut->wasVerifierErrorCalled())
             printf("__VERIFIER_error was never called.\n");
         printf("FAILED: Wasn't able to validate the witness. Violation NOT reached.\n");
