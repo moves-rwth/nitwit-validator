@@ -114,8 +114,18 @@ int PicocParseAssumption(Picoc *pc, const char *FileName, const char *Source, in
 }
 
 bool satisfiesAssumptions(ParseState *state, const shared_ptr<Edge> &edge) {
+    // check scope
+    if (!edge->assumption_scope.empty()) {
+        if (state->pc->TopStackFrame == nullptr) { // not in a function at all
+            return false;
+        }
+        if (strcmp(state->pc->TopStackFrame->FuncName, edge->assumption_scope.c_str()) != 0) { // not in scope
+            return false;
+        }
+    }
     auto assumptions = split(edge->assumption, ';');
     for (const auto &ass: assumptions) {
+
         Picoc pc;
         PicocInitialise(&pc, 8388608); // stack size of 8 MiB
 
