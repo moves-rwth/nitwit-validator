@@ -1543,8 +1543,6 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
 
     if (RunIt)
     {
-        printf("Run function: %s.\n", FuncName);
-
         /* run the function */
         if (ArgCount < FuncValue->Val->FuncDef.NumParams)
             ProgramFail(Parser, "not enough arguments to '%s'", FuncName);

@@ -22,13 +22,17 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
 		try:
 			outs, errs = process.communicate(timeout=EXECUTION_TIMEOUT)
 
-			print(f"{'-'*20}Stdout{'-'*20}\n{outs}\n{'='*46}")
-			print(f"{'-'*20}Stderr{'-'*20}\n{errs}")
+			print(f"{'-' * 20}Stdout{'-' * 20}")
+			print(outs.decode("utf-8"))
+			print('=' * 46)
+			print(f"{'-' * 20}Stderr{'-' * 20}")
+			print(errs.decode("utf-8"))
 		except subprocess.TimeoutExpired:
 			process.kill()
-		# outs, errs = process.communicate()
+	# outs, errs = process.communicate()
 
-		return process.returncode, info_file
+	return process.returncode, info_file
+
 
 def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 	if not os.path.exists(dir) or not os.path.isdir(dir):
@@ -56,6 +60,7 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 		return False
 	print("Directories found!")
 	return True
+
 
 def run_single_config(witness_info_file: str) -> Tuple[int, str]:
 	witness_info_file = os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, witness_info_file)

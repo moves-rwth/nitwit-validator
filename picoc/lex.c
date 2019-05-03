@@ -790,7 +790,7 @@ void LexHashIf(struct ParseState *Parser)
     {
         /* look up a value from a macro definition */
         if (!TableGet(&Parser->pc->GlobalTable, IdentValue->Val->Identifier, &SavedValue, NULL, NULL, NULL))
-            ProgramFail(Parser, "'%s' is undefined", IdentValue->Val->Identifier);
+            ProgramFailWithExitCode(Parser, 243, "'%s' is undefined", IdentValue->Val->Identifier);
 
         if (SavedValue->Typ->Base != TypeMacro)
             ProgramFail(Parser, "value expected");

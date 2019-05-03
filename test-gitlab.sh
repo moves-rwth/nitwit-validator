@@ -30,7 +30,7 @@ for C_FILE in testfiles/*.c ; do
         if [[ ${exit_val} -eq 0 ]]
         then
             echo "Validated witness: $WITNESS"
-        elif [[ ${exit_val} -eq 1 ]]
+        elif [[ ${exit_val} -ge 240 && ${exit_val} -le 250 ]]
         then
             let "n_nonvalidated=n_nonvalidated+1"
             echo -e "\e[31mNon-validated witness: $WITNESS\e[0m"

@@ -276,7 +276,7 @@ struct Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, 
     AssignValue->OutOfScope = FALSE;
 
     if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : NULL, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
-        ProgramFail(Parser, "'%s' is already defined", Ident);
+        ProgramFailWithExitCode(Parser, 245, "'%s' is already defined", Ident);
     
     return AssignValue;
 }
@@ -292,7 +292,7 @@ struct Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *
     
     /* is the type a forward declaration? */
     if (TypeIsForwardDeclared(Parser, Typ))
-        ProgramFail(Parser, "type '%t' isn't defined", Typ);
+        ProgramFailWithExitCode(Parser, 243,"type '%t' isn't defined", Typ);
 
     if (IsStatic)
     {
@@ -366,7 +366,7 @@ void VariableGet(Picoc *pc, struct ParseState *Parser, const char *Ident, struct
             if (VariableDefinedAndOutOfScope(pc, Ident))
                 ProgramFail(Parser, "'%s' is out of scope", Ident);
             else
-                ProgramFail(Parser, "'%s' is undefined", Ident);
+                ProgramFailWithExitCode(Parser, 243,"'%s' is undefined", Ident);
         }
     }
 }
@@ -379,7 +379,7 @@ void VariableDefinePlatformVar(Picoc *pc, struct ParseState *Parser, char *Ident
     SomeValue->Val = FromValue;
     
     if (!TableSet(pc, (pc->TopStackFrame == NULL) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable, TableStrRegister(pc, Ident), SomeValue, Parser ? Parser->FileName : NULL, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
-        ProgramFail(Parser, "'%s' is already defined", Ident);
+        ProgramFail(Parser, 245, "'%s' is already defined", Ident);
 }
 
 /* free and/or pop the top value off the stack. Var must be the top value on the stack! */

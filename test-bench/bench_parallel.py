@@ -16,19 +16,6 @@ VALIDATOR_EXECUTABLE = ""
 EXECUTION_TIMEOUT = 0
 
 
-def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
-	witness, source, info_file = config
-	with subprocess.Popen(f"{VALIDATOR_EXECUTABLE} {witness} {source}", shell=True,
-	                      stdout=subprocess.DEVNULL,
-	                      stderr=subprocess.DEVNULL) as process:
-		try:
-			process.communicate(timeout=EXECUTION_TIMEOUT)
-		except subprocess.TimeoutExpired:
-			process.kill()
-		# outs, errs = process.communicate()
-
-		return process.returncode, info_file
-
 def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 	if not os.path.exists(dir) or not os.path.isdir(dir):
 		print(f"The directory {dir} doesn't exist or is not a directory.", file=sys.stderr)
@@ -55,6 +42,20 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 		return False
 	print("Directories found!")
 	return True
+
+
+def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
+	witness, source, info_file = config
+	with subprocess.Popen(f"{VALIDATOR_EXECUTABLE} {witness} {source}", shell=True,
+	                      stdout=subprocess.DEVNULL,
+	                      stderr=subprocess.DEVNULL) as process:
+		try:
+			process.communicate(timeout=EXECUTION_TIMEOUT)
+		except subprocess.TimeoutExpired:
+			process.kill()
+		# outs, errs = process.communicate()
+
+		return process.returncode, info_file
 
 
 def run_bench_parallel(configs: List[Tuple[str, str, str]]) -> List[Tuple[int, str]]:
@@ -140,7 +141,7 @@ def main():
 
 	configs = get_bench_params(args.limit)
 	results = run_bench_parallel(configs)
-	process_results(results)
+	process_results(results, True)
 
 
 if __name__ == "__main__":

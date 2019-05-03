@@ -19,10 +19,13 @@ shared_ptr<Automaton> wit_aut;
 // the values shouldn't conflict with any real program exit value as validation ends before returning for these error codes
 // Only if program finishes with value PROGRAM_FINISHED, then it still doesn't matter, because this would mean
 // that it did not get validated
-int NO_WITNESS_CODE = 0xadf0;
-int WITNESS_IN_ILLEGAL_STATE = 0xadf1;
-int WITNESS_IN_SINK = 0xadf2;
-int PROGRAM_FINISHED = 0xadf3;
+int NO_WITNESS_CODE = 240;
+int WITNESS_IN_SINK = 241;
+int PROGRAM_FINISHED = 242;
+int IDENTIFIER_UNDEFINED = 243;
+int BAD_FUNCTION_DEF = 244;
+int ALREADY_DEFINED = 245;
+int WITNESS_IN_ILLEGAL_STATE = 246;
 
 void printProgramState(ParseState *ps) {
     printf("%s --- Line: %zu, Pos: %d", ps->FileName, ps->Line, ps->CharacterPos);
@@ -121,14 +124,14 @@ int main(int argc, char **argv) {
     }
     int exit_value = validate(argv[2]);
     if ((!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) &&
-        (exit_value == PROGRAM_FINISHED || exit_value == NO_WITNESS_CODE || exit_value == WITNESS_IN_ILLEGAL_STATE ||
-         exit_value == WITNESS_IN_SINK)) {
+        (exit_value >= NO_WITNESS_CODE && exit_value <= WITNESS_IN_ILLEGAL_STATE)) {
         if (!wit_aut->wasVerifierErrorCalled())
             printf("__VERIFIER_error was never called.\n");
         printf("FAILED: Wasn't able to validate the witness. Violation NOT reached.\n");
-        printf("Automaton finished in state %s, with error code %d\n", wit_aut->getCurrentState()->id.c_str(),
+        printf("Automaton finished in state %s, with error code %d.\n",
+               wit_aut->getCurrentState()->id.c_str(),
                exit_value);
-        return 1;
+        return exit_value;
     } else if (!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) {
         if (!wit_aut->wasVerifierErrorCalled()) {
             printf("__VERIFIER_error was never called.\n");

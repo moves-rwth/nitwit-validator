@@ -53,9 +53,6 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
         for (short s = 0; s < to->TopStackFrame->LocalTable.Size; ++s) {
             if (from->TopStackFrame->LocalTable.HashTable[s] == nullptr) continue;
             for (TableEntry *e = from->TopStackFrame->LocalTable.HashTable[s]; e != nullptr; e = e->Next) {
-                if (e->p.v.Val->ValOnHeap) {
-                    printf("\t%s is on the heap!", e->p.v.Key);
-                }
                 Value *val = VariableAllocValueAndCopy(to, state, e->p.v.Val, e->p.v.Val->ValOnHeap);
                 TableSet(to, &to->TopStackFrame->LocalTable,
                          TableStrRegister(to, e->p.v.Key), val, state->FileName,
@@ -130,7 +127,7 @@ bool satisfiesAssumptions(ParseState *state, const shared_ptr<Edge> &edge) {
         PicocInitialise(&pc, 8388608); // stack size of 8 MiB
 
         if (PicocPlatformSetExitPoint(&pc)) {
-            printf("Stopping assumption checker.\n");
+//            printf("Stopping assumption checker.\n");
             PicocCleanup(&pc);
             return false;
         }
@@ -180,26 +177,18 @@ void Automaton::consumeState(ParseState *state) {
 
             // check enter function
             if (!edge->enter_function.empty() && edge->enter_function != "main") {
-                if (state->EnterFunction == nullptr) {
-                    printf("Wrong function. Expected to enter %s, but program did not enter it.\n",
-                           edge->enter_function.c_str());
-                    continue;
-                } else if (strcmp(state->EnterFunction, edge->enter_function.c_str()) != 0) {
-                    printf("Wrong function. Expected enter into %s, got %s.\n", edge->enter_function.c_str(),
-                           state->EnterFunction);
+                if (state->EnterFunction == nullptr || strcmp(state->EnterFunction, edge->enter_function.c_str()) != 0) {
+//                    printf("Wrong function. Expected enter into %s, got %s.\n", edge->enter_function.c_str(),
+//                           state->EnterFunction);
                     continue;
                 }
             }
 
             // check return function
             if (!edge->return_from_function.empty() && edge->return_from_function != "main") {
-                if (state->ReturnFromFunction == nullptr) {
-                    printf("Wrong function. Expected to return from %s, but program did not.\n",
-                           edge->return_from_function.c_str());
-                    continue;
-                } else if (strcmp(state->ReturnFromFunction, edge->return_from_function.c_str()) != 0) {
-                    printf("Wrong function. Expected return from %s, got %s.\n", edge->return_from_function.c_str(),
-                           state->ReturnFromFunction);
+                if (state->ReturnFromFunction == nullptr || strcmp(state->ReturnFromFunction, edge->return_from_function.c_str()) != 0) {
+//                    printf("Wrong function. Expected return from %s, got %s.\n", edge->return_from_function.c_str(),
+//                           state->ReturnFromFunction);
                     continue;
                 }
             }
@@ -211,8 +200,7 @@ void Automaton::consumeState(ParseState *state) {
             } else if (!edge->assumption.empty()) {
                 printf("Assumption %s satisfied.\n", edge->assumption.c_str());
             }
-
-
+            
             current_state = nodes.find(edge->target_id)->second;
             printf("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
             return;

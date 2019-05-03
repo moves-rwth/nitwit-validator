@@ -147,7 +147,7 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     {
         /* it's a full function definition with a body */
         if (Token != TokenLeftBrace)
-            ProgramFail(Parser, "bad function definition");
+            ProgramFailWithExitCode(Parser, 244, "bad function definition");
 
         ParserCopy(&FuncBody, Parser);
         if (ParseStatementMaybeRun(Parser, FALSE, TRUE) != ParseResultOk)
@@ -530,7 +530,6 @@ void ParseFor(struct ParseState *Parser)
 void ConditionCallback(struct ParseState *Parser, int Condition) {
     if (Parser->DebugMode && Parser->Mode == RunModeRun) {
         Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
-//        printf("Condi: ");
         DebugCheckStatement(Parser);
         Parser->LastConditionBranch = ConditionUndefined;
     }
@@ -886,7 +885,6 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             if (Parser->Mode == RunModeRun)
             {
                 // returning from this function;
-                printf("Set ret function %s\n", Parser->ReturnFromFunction);
                 const char *RetBeforeName = Parser->ReturnFromFunction;
                 Parser->ReturnFromFunction = Parser->pc->TopStackFrame->FuncName;
                 if (!Parser->pc->TopStackFrame || Parser->pc->TopStackFrame->ReturnValue->Typ->Base != TypeVoid)
@@ -941,7 +939,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 CValue = TableDelete(Parser->pc, &Parser->pc->GlobalTable, LexerValue->Val->Identifier);
 
                 if (CValue == NULL)
-                    ProgramFail(Parser, "'%s' is not defined", LexerValue->Val->Identifier);
+                    ProgramFailWithExitCode(Parser, 243, "'%s' is not defined", LexerValue->Val->Identifier);
 
                 VariableFree(Parser->pc, CValue);
             }
@@ -990,7 +988,6 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenAutoType:
             case TokenRegisterType:
             case TokenExternType:
-//                printf("Parse: ");
                 DebugCheckStatement(Parser);
                 break;
             default:
