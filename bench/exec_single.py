@@ -29,7 +29,7 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
 			print(errs.decode("utf-8"))
 		except subprocess.TimeoutExpired:
 			process.kill()
-	# outs, errs = process.communicate()
+		# outs, errs = process.communicate()
 
 	return process.returncode, info_file
 

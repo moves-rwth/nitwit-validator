@@ -65,6 +65,8 @@ int validate(const char *source_filename) {
 
     Picoc pc;
     PicocInitialise(&pc, 8388608); // stack size of 8 MiB
+    // include standard functions
+//    PicocIncludeAllSystemHeaders(&pc);
 
     // the interpreter will jump here after finding a violation
     if (PicocPlatformSetExitPoint(&pc)) {
@@ -79,8 +81,6 @@ int validate(const char *source_filename) {
     char *source = readFile(source_filename);
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
-    // include standard functions
-    PicocIncludeAllSystemHeaders(&pc);
     // also include extern functions used by verifiers like error, assume, nondet...
     PicocParse(&pc, EXTERN_C_DEFS_FILENAME, EXTERN_C_DEFS_FOR_VERIFIERS, strlen(EXTERN_C_DEFS_FOR_VERIFIERS),
                TRUE, FALSE, FALSE, FALSE, handleDebugBreakpoint);
