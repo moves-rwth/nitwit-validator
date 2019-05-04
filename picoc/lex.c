@@ -9,7 +9,7 @@
 #define isspace(c) ((c) == ' ' || (c) == '\t' || (c) == '\r' || (c) == '\n')
 #endif
 #define isCidstart(c) (isalpha(c) || (c)=='_' || (c)=='#')
-#define isCident(c) (isalnum(c) || (c)=='_')
+#define isCident(c) (isalnum(c) || (c)=='_' || (c) == '$') // allow dollar sign in identifier
 
 #define IS_HEX_ALPHA_DIGIT(c) (((c) >= 'a' && (c) <= 'f') || ((c) >= 'A' && (c) <= 'F'))
 #define IS_BASE_DIGIT(c,b) (((c) >= '0' && (c) < '0' + (((b)<10)?(b):10)) || (((b) > 10) ? IS_HEX_ALPHA_DIGIT(c) : FALSE))
@@ -78,7 +78,9 @@ static struct ReservedWord ReservedWords[] =
     { "union", TokenUnionType },
     { "unsigned", TokenUnsignedType },
     { "void", TokenVoidType },
-    { "while", TokenWhile }
+    { "while", TokenWhile },
+    { "__attribute__", TokenAttribute },
+    { "__noreturn__", TokenNoReturn }
 };
 
 

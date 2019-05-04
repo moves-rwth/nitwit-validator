@@ -164,7 +164,7 @@ void setEdgeAttributes(shared_ptr<Edge> &edge, const pugi::char_t *name, const p
         edge->source_code = value;
     } else if (strcmp(name, "enterLoopHead") == 0) {
         edge->enterLoopHead = strcmp(value, "true") == 0;
-    } else {
+    } else if (strcmp(name, "threadId") != 0 && strcmp(name, "id") != 0) {
         fprintf(stderr, "I am missing an edge attribute definition: %s\n", name);
     }
 }

@@ -91,7 +91,8 @@ enum LexToken
     /* 0x52 */ TokenHashDefine, TokenHashInclude, TokenHashIf, TokenHashIfdef, TokenHashIfndef, TokenHashElse, TokenHashEndif,
     /* 0x59 */ TokenNew, TokenDelete,
     /* 0x5b */ TokenOpenMacroBracket,
-    /* 0x5c */ TokenEOF, TokenEndOfLine, TokenEndOfFunction
+    /* 0x5c */ TokenAttribute, TokenNoReturn,
+    /* 0x5e */ TokenEOF, TokenEndOfLine, TokenEndOfFunction,
 };
 
 /* used in dynamic memory allocation */

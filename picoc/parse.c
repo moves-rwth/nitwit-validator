@@ -143,6 +143,11 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     Token = LexGetToken(Parser, NULL, FALSE);
     if (Token == TokenSemicolon)
         LexGetToken(Parser, NULL, TRUE);    /* it's a prototype, absorb the trailing semicolon */
+    else if (Token == TokenAttribute){ // it's a GCC attribute property
+            do {
+                Token = LexGetToken(Parser, NULL, TRUE);
+            } while (Token != TokenSemicolon);
+        }
     else
     {
         /* it's a full function definition with a body */
