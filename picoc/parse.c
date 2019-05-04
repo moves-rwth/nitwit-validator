@@ -161,19 +161,17 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
         FuncValue->Val->FuncDef.Body = FuncBody;
         FuncValue->Val->FuncDef.Body.Pos = LexCopyTokens(&FuncBody, Parser);
 
-        /* is this function already in the global table? */
-        if (TableGet(&pc->GlobalTable, Identifier, &OldFuncValue, NULL, NULL, NULL))
-        {
-            if (OldFuncValue->Val->FuncDef.Body.Pos == NULL)
-            {
-                /* override an old function prototype */
-                VariableFree(pc, TableDelete(pc, &pc->GlobalTable, Identifier));
-            }
-            else
-                ProgramFail(Parser, "'%s' is already defined", Identifier);
-        }
     }
 
+    /* is this function already in the global table? */
+    if (TableGet(&pc->GlobalTable, Identifier, &OldFuncValue, NULL, NULL, NULL))
+    {
+        if (OldFuncValue->Val->FuncDef.Body.Pos != NULL)
+            ProgramFail(Parser, "'%s' is already defined", Identifier);
+
+        /* override an old function prototype */
+        VariableFree(pc, TableDelete(pc, &pc->GlobalTable, Identifier));
+    }
     if (!TableSet(pc, &pc->GlobalTable, Identifier, FuncValue, (char *)Parser->FileName, Parser->Line, Parser->CharacterPos))
         ProgramFail(Parser, "'%s' is already defined", Identifier);
 

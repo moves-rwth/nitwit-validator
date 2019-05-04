@@ -66,8 +66,6 @@ int validate(const char *source_filename) {
     Picoc pc;
     PicocInitialise(&pc, 8388608); // stack size of 8 MiB
 
-    PicocIncludeAllSystemHeaders(&pc);
-
     // the interpreter will jump here after finding a violation
     if (PicocPlatformSetExitPoint(&pc)) {
         printf("===============Finished=================\n");
@@ -81,6 +79,8 @@ int validate(const char *source_filename) {
     char *source = readFile(source_filename);
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
+    // include standard functions
+    PicocIncludeAllSystemHeaders(&pc);
     // also include extern functions used by verifiers like error, assume, nondet...
     PicocParse(&pc, EXTERN_C_DEFS_FILENAME, EXTERN_C_DEFS_FOR_VERIFIERS, strlen(EXTERN_C_DEFS_FOR_VERIFIERS),
                TRUE, FALSE, FALSE, FALSE, handleDebugBreakpoint);
@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
         printf("\nVALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
         return 0;
     } else {
-        printf("A different error occurred, probably a parsing error.\n");
+        printf("A different error occurred, probably a parsing error or program exited.\n");
         return 4;
     }
 }
