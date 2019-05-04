@@ -14,6 +14,7 @@ EXIT_CODE_DICT = {
 	3: 'usage error',
 	4: 'unspecified error, probably parsing C',
 	5: '__VERIFIER_error not called',
+	9: 'killed',
 	240: 'no witness code',
 	241: 'witness got to sink',
 	242: 'program finished before violation node reached',
