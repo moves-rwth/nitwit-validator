@@ -48,4 +48,4 @@ test:clang:
   tags:
     - clang
   script:
-    - ./test-gitlab.sh build_clang/cwvalidator
+    - ./run-tests-gitlab.sh build_clang/cwvalidator
