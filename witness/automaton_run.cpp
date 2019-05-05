@@ -3,9 +3,9 @@
 //
 
 #include "automaton.hpp"
-#include <functional>
-#include <algorithm>
-#include <iostream>
+#ifndef VERBOSE
+void cw_verbose(const string& Format, ...){}
+#endif
 
 string baseFileName(const string &s) {
     return s.substr(s.find_last_of("/\\") + 1);
@@ -152,7 +152,7 @@ void Automaton::consumeState(ParseState *state) {
 
     if (state->VerifierErrorCalled && !this->verifier_error_called) {
         this->verifier_error_called = true;
-        verbose("__VERIFIER_error has been called!\n");
+        cw_verbose("__VERIFIER_error has been called!\n");
     }
 
     if (current_state->is_violation || current_state->is_sink) {
@@ -195,14 +195,14 @@ void Automaton::consumeState(ParseState *state) {
 
             // check assumption
             if (!edge->assumption.empty() && !satisfiesAssumptions(state, edge)) {
-                verbose("Unmet assumption %s.\n", edge->assumption.c_str());
+                cw_verbose("Unmet assumption %s.\n", edge->assumption.c_str());
                 continue;
             } else if (!edge->assumption.empty()) {
-                verbose("Assumption %s satisfied.\n", edge->assumption.c_str());
+                cw_verbose("Assumption %s satisfied.\n", edge->assumption.c_str());
             }
             
             current_state = nodes.find(edge->target_id)->second;
-            verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
+            cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
             return;
         }
     }

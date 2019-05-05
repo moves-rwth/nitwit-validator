@@ -10,7 +10,6 @@ extern "C" {
 #include "utils/files.hpp"
 #include "witness/witness.hpp"
 #include "witness/automaton.hpp"
-#include "program_state.hpp"
 
 using namespace std;
 shared_ptr<Automaton> wit_aut;

@@ -19,14 +19,15 @@ extern "C" {
 #include <set>
 #include <functional>
 #include <memory>
+#include <algorithm>
+#include <iostream>
 
 using namespace std;
 #ifdef VERBOSE
-#define verbose printf
+#define cw_verbose printf
 #else
 
-void verbose(const string& Format, ...) {}
-
+void cw_verbose(const string& Format, ...);
 #endif
 
 

@@ -1,13 +1,8 @@
-#include <utility>
-
-#include <utility>
 
 //
 // Created by jan svejda on 3.4.19.
 //
 
-#include <cassert>
-#include <cstring>
 #include "automaton.hpp"
 
 
