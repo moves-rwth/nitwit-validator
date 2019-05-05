@@ -960,11 +960,11 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             ProgramFail(Parser, "';' expected");
     }
 
-    struct ParseState NowPosition;
-    ParserCopyPos(&NowPosition, Parser);
-    ParserCopyPos(Parser, &ParserPrePosition);
     /* if we're debugging, check for a breakpoint */
     if (Parser->DebugMode && Parser->Mode == RunModeRun){
+        struct ParseState NowPosition;
+        ParserCopyPos(&NowPosition, Parser);
+        ParserCopyPos(Parser, &ParserPrePosition);
         switch (Token)
         {
             case TokenSwitch:
@@ -996,9 +996,9 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             default:
                 break;
         }
+        ParserCopyPos(Parser, &NowPosition);
     }
 
-    ParserCopyPos(Parser, &NowPosition);
 
     return ParseResultOk;
 }

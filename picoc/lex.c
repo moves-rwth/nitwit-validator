@@ -628,6 +628,8 @@ void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText,
     Parser->DebuggerCallback = DebuggerCallback;
     Parser->EnterFunction = NULL;
     Parser->ReturnFromFunction = NULL;
+    Parser->VerifierErrorCalled = FALSE;
+    // todo : what about copying these parser properties?
 }
 
 /* get the next token, without pre-processing */

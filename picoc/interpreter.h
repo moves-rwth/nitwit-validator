@@ -140,6 +140,7 @@ struct ParseState
     void (*DebuggerCallback)(struct ParseState *); /* calls a callback when breakpoint reached */
     const char * EnterFunction;
     const char * ReturnFromFunction;
+    int VerifierErrorCalled;
 
 };
 
@@ -678,5 +679,10 @@ void StdboolSetupFunc(Picoc *pc);
 extern const char UnistdDefs[];
 extern struct LibraryFunction UnistdFunctions[];
 void UnistdSetupFunc(Picoc *pc);
+
+// verif.c
+extern const char VerifDefs[];
+extern struct LibraryFunction VerifFunctions[];
+void VerifSetupFunc(Picoc *pc);
 
 #endif /* INTERPRETER_H */

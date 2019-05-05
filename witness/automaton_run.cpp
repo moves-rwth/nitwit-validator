@@ -54,9 +54,10 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
             if (from->TopStackFrame->LocalTable.HashTable[s] == nullptr) continue;
             for (TableEntry *e = from->TopStackFrame->LocalTable.HashTable[s]; e != nullptr; e = e->Next) {
                 Value *val = VariableAllocValueAndCopy(to, state, e->p.v.Val, e->p.v.Val->ValOnHeap);
-                TableSet(to, &to->TopStackFrame->LocalTable,
+                if (!TableSet(to, &to->TopStackFrame->LocalTable,
                          TableStrRegister(to, e->p.v.Key), val, state->FileName,
-                         0, 0); // doesn't matter
+                         0, 0)) // doesn't matter
+                    VariableFree(to, val);
             }
         }
     }
@@ -65,9 +66,10 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
         if (from->GlobalTable.HashTable[s] == nullptr) continue;
         for (TableEntry *e = from->GlobalTable.HashTable[s]; e != nullptr; e = e->Next) {
             Value *val = VariableAllocValueAndCopy(to, state, e->p.v.Val, e->p.v.Val->ValOnHeap);
-            TableSet(to, &to->GlobalTable,
+            if (!TableSet(to, &to->GlobalTable,
                      TableStrRegister(to, e->p.v.Key), val, state->FileName,
-                     0, 0); // doesn't matter
+                     0, 0)) // doesn't matter
+                VariableFree(to, val);
         }
     }
 
@@ -149,7 +151,7 @@ void Automaton::consumeState(ParseState *state) {
         return;
     }
 
-    if (state->EnterFunction != nullptr && strcmp(state->EnterFunction, "__VERIFIER_error") == 0) {
+    if (state->VerifierErrorCalled && !this->verifier_error_called) {
         this->verifier_error_called = true;
         printf("__VERIFIER_error has been called!\n");
     }

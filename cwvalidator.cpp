@@ -82,9 +82,10 @@ int validate(const char *source_filename) {
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
     // also include extern functions used by verifiers like error, assume, nondet...
-    PicocParse(&pc, EXTERN_C_DEFS_FILENAME, EXTERN_C_DEFS_FOR_VERIFIERS, strlen(EXTERN_C_DEFS_FOR_VERIFIERS),
-               TRUE, FALSE, FALSE, FALSE, handleDebugBreakpoint);
-
+//    PicocParse(&pc, EXTERN_C_DEFS_FILENAME, EXTERN_C_DEFS_FOR_VERIFIERS, strlen(EXTERN_C_DEFS_FOR_VERIFIERS),
+//               TRUE, FALSE, FALSE, FALSE, handleDebugBreakpoint);
+    char fn[] = "verif.h";
+    IncludeFile(&pc, fn);
     if (!VariableDefined(&pc, TableStrRegister(&pc, "main")))
         printf("Sorry, not sorry. No main function...");
 

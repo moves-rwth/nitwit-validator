@@ -24,6 +24,9 @@ void IncludeInit(Picoc *pc)
 # ifndef WIN32
     IncludeRegister(pc, "unistd.h", &UnistdSetupFunc, &UnistdFunctions[0], UnistdDefs);
 # endif
+
+    // verification library
+    IncludeRegister(pc, "verif.h", &VerifSetupFunc, &VerifFunctions[0], NULL);
 #endif
 }
 
