@@ -21,15 +21,15 @@ void main() {
     double a9 = __VERIFIER_nondet_double();
 
 
-    if (a1 == 0 &&
-        a2 == 0 &&
-        a3 == 0 &&
-        a4 == 0 &&
-        a5 == 0 &&
-        a6 == 0 &&
-        a7 == (char)0 &&
-        a8 == (unsigned char)0 &&
-        a9 == 0.0
+    if (a1 == 1 &&
+        a2 == 1 &&
+        a3 == 1 &&
+        a4 == 1 &&
+        a5 == 1 &&
+        a6 == 1 &&
+        a7 == (char)1 &&
+        a8 == (unsigned char)1 &&
+        a9 == 1.0
     ) {
         __VERIFIER_error();
     }

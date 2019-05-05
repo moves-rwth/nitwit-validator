@@ -50,70 +50,70 @@
     <edge source="1.19" target="3.21">
       <data key="originfile">06.nondet.c</data>
       <data key="startline">13</data>
-      <data key="assumption">a1 == 0;</data>
+      <data key="assumption">a1 == 1;</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="3.21"/>
     <edge source="3.21" target="5.23">
       <data key="originfile">06.nondet.c</data>
       <data key="startline">14</data>
-      <data key="assumption">a2 == 0u;</data>
+      <data key="assumption">a2 == 1u;</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="5.23"/>
     <edge source="5.23" target="7.25">
       <data key="originfile">06.nondet.c</data>
       <data key="startline">15</data>
-      <data key="assumption">a3 == 0;</data>
+      <data key="assumption">a3 == 1;</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="7.25"/>
     <edge source="7.25" target="9.27">
       <data key="originfile">06.nondet.c</data>
       <data key="startline">16</data>
-      <data key="assumption">a4 == 0;</data>
+      <data key="assumption">a4 == 1;</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="9.27"/>
     <edge source="9.27" target="11.29">
       <data key="originfile">06.nondet.c</data>
       <data key="startline">17</data>
-      <data key="assumption">a5 == 0;</data>
+      <data key="assumption">a5 == 1;</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="11.29"/>
     <edge source="11.29" target="13.31">
       <data key="originfile">06.nondet.c</data>
       <data key="startline">18</data>
-      <data key="assumption">a6 == 0u;</data>
+      <data key="assumption">a6 == 1u;</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="13.31"/>
     <edge source="13.31" target="15.33">
       <data key="originfile">06.nondet.c</data>
       <data key="startline">19</data>
-      <data key="assumption">a7 == 0;</data>
+      <data key="assumption">a7 == 1;</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="15.33"/>
     <edge source="15.33" target="17.35">
       <data key="originfile">06.nondet.c</data>
       <data key="startline">20</data>
-      <data key="assumption">a8 == 0;</data>
+      <data key="assumption">a8 == 1;</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="17.35"/>
     <edge source="17.35" target="18.36">
       <data key="originfile">06.nondet.c</data>
       <data key="startline">21</data>
-      <data key="assumption">a9 == -0.0;</data>
+      <data key="assumption">a9 == 1.0;</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="18.36"/>
     <edge source="18.36" target="19.37">
       <data key="originfile">06.nondet.c</data>
       <data key="startline">24</data>
-      <data key="sourcecode">[!(!(a1!0@1#2 == 0) || !(a5!0@1#2 == 0) || !(a7!0@1#2 == 0) || !(a2!0@1#2 == 0u) || !(a6!0@1#2 == 0u) || !(a8!0@1#2 == 0) || !((signed int)a4!0@1#2 == 0) || !((signed int)a3!0@1#2 == 0) || !IEEE_FLOAT_EQUAL(a9!0@1#2, 0.0))]</data>
+      <data key="sourcecode">[!(!(a1!0@1#2 == 1) || !(a5!0@1#2 == 1) || !(a7!0@1#2 == 1) || !(a2!0@1#2 == 1u) || !(a6!0@1#2 == 1u) || !(a8!0@1#2 == 1) || !((signed int)a4!0@1#2 == 1) || !((signed int)a3!0@1#2 == 1) || !IEEE_FLOAT_EQUAL(a9!0@1#2, 1.0))]</data>
     </edge>
     <node id="19.37">
       <data key="violation">true</data>
