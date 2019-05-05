@@ -9,6 +9,7 @@ extern "C" {
 #include "../picoc/picoc.h"
 }
 #undef min
+
 #include <cstddef>
 #include "../utils/pugixml/pugixml.hpp"
 #include <string>
@@ -20,6 +21,14 @@ extern "C" {
 #include <memory>
 
 using namespace std;
+#ifdef VERBOSE
+#define verbose printf
+#else
+
+void verbose(const string& Format, ...) {}
+
+#endif
+
 
 class Node;
 
@@ -47,7 +56,6 @@ public:
 
     void print() const;
 };
-
 
 
 class Edge {

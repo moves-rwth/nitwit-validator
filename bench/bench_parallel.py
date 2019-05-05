@@ -46,7 +46,7 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 
 def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
 	witness, source, info_file = config
-	with subprocess.Popen([VALIDATOR_EXECUTABLE, os.path.abspath(witness), os.path.abspath(source)], shell=False,
+	with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
 	                      stdout=subprocess.DEVNULL,
 	                      stderr=subprocess.DEVNULL) as process:
 		try:

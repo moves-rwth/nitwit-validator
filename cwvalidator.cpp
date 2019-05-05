@@ -11,7 +11,6 @@ extern "C" {
 #include "witness/witness.hpp"
 #include "witness/automaton.hpp"
 #include "program_state.hpp"
-#include "utils/extern_verif_defs.hpp"
 
 using namespace std;
 shared_ptr<Automaton> wit_aut;
@@ -39,7 +38,9 @@ void printProgramState(ParseState *ps) {
 }
 
 void handleDebugBreakpoint(struct ParseState *ps) {
+#ifdef VERBOSE
     printProgramState(ps);
+#endif
     if (wit_aut == nullptr) {
         ProgramFailWithExitCode(ps, NO_WITNESS_CODE, "No witness automaton to validate against.\n");
         return;

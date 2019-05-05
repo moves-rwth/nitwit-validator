@@ -28,7 +28,7 @@ vector<string> split(string str, char delimiter) {
 
 bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
     if (to->StringTable.Size != from->StringTable.Size) {
-        printf("String tables have different size.\n");
+        fprintf(stderr, "String tables have different size.\n");
         return false;
     }
     // copy defined strings
@@ -44,7 +44,7 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
             VariableStackFrameAdd(state, from->TopStackFrame->FuncName, from->TopStackFrame->NumParams);
         }
         if (to->TopStackFrame->LocalTable.Size != from->TopStackFrame->LocalTable.Size) {
-            printf("Local stack frame tables have different size.\n");
+            fprintf(stderr, "Local stack frame tables have different size.\n");
             return false;
         }
 
@@ -108,7 +108,6 @@ int PicocParseAssumption(Picoc *pc, const char *FileName, const char *Source, in
 
     int ret = AssumptionExpressionParseInt(&Parser);
 
-//  fixme:   VariableStackPop(Parser, );
     return ret;
 }
 
@@ -153,7 +152,7 @@ void Automaton::consumeState(ParseState *state) {
 
     if (state->VerifierErrorCalled && !this->verifier_error_called) {
         this->verifier_error_called = true;
-        printf("__VERIFIER_error has been called!\n");
+        verbose("__VERIFIER_error has been called!\n");
     }
 
     if (current_state->is_violation || current_state->is_sink) {
@@ -196,14 +195,14 @@ void Automaton::consumeState(ParseState *state) {
 
             // check assumption
             if (!edge->assumption.empty() && !satisfiesAssumptions(state, edge)) {
-                printf("Unmet assumption %s.\n", edge->assumption.c_str());
+                verbose("Unmet assumption %s.\n", edge->assumption.c_str());
                 continue;
             } else if (!edge->assumption.empty()) {
-                printf("Assumption %s satisfied.\n", edge->assumption.c_str());
+                verbose("Assumption %s satisfied.\n", edge->assumption.c_str());
             }
             
             current_state = nodes.find(edge->target_id)->second;
-            printf("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
+            verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
             return;
         }
     }
