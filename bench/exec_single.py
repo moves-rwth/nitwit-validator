@@ -16,8 +16,8 @@ EXECUTION_TIMEOUT = 0
 
 def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
 	witness, source, info_file = config
-	print(f"{VALIDATOR_EXECUTABLE} {witness} {source}")
-	with subprocess.Popen(f"{VALIDATOR_EXECUTABLE} {witness} {source}", shell=True,
+	print([VALIDATOR_EXECUTABLE, witness, source])
+	with subprocess.Popen(f"{VALIDATOR_EXECUTABLE} {witness} {source}", shell=False,
 	                      stdout=subprocess.PIPE,
 	                      stderr=subprocess.PIPE) as process:
 		try:
@@ -30,7 +30,13 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
 			print(errs.decode("utf-8"))
 		except subprocess.TimeoutExpired:
 			process.kill()
-		# outs, errs = process.communicate()
+
+		res = process.poll()
+		if res is None:
+			print(f"Process {process.pid} still running!")
+			process.kill()
+
+	# outs, errs = process.communicate()
 
 	return process.returncode, info_file
 

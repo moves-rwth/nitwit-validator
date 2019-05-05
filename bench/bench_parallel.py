@@ -26,7 +26,7 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 	WITNESSES_BY_PROGRAM_HASH_DIR = os.path.join(dir, WITNESSES_BY_PROGRAM_HASH_DIR)
 	WITNESS_FILE_BY_HASH_DIR = os.path.join(dir, WITNESS_FILE_BY_HASH_DIR)
 	SV_BENCHMARK_DIR = os.path.join(sv_dir, 'c')
-	VALIDATOR_EXECUTABLE = executable
+	VALIDATOR_EXECUTABLE = os.path.abspath(executable)
 	EXECUTION_TIMEOUT = timeout
 
 	if not (os.path.exists(WITNESS_INFO_BY_WITNESS_HASH_DIR) and os.path.isdir(WITNESS_INFO_BY_WITNESS_HASH_DIR) and
@@ -46,14 +46,17 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 
 def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
 	witness, source, info_file = config
-	with subprocess.Popen(f"{VALIDATOR_EXECUTABLE} {witness} {source}", shell=True,
+	with subprocess.Popen([VALIDATOR_EXECUTABLE, os.path.abspath(witness), os.path.abspath(source)], shell=False,
 	                      stdout=subprocess.DEVNULL,
 	                      stderr=subprocess.DEVNULL) as process:
 		try:
 			process.communicate(timeout=EXECUTION_TIMEOUT)
 		except subprocess.TimeoutExpired:
 			process.kill()
-		# outs, errs = process.communicate()
+		res = process.poll()
+		if res is None:
+			print(f"Process {process.pid} still running!")
+			process.kill()
 
 		return process.returncode, info_file
 
