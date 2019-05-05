@@ -240,6 +240,8 @@ struct Value
     char IsLValue;                  /* is modifiable and is allocated somewhere we can usefully modify it */
     int ScopeID;                    /* to know when it goes out of scope */
     char OutOfScope;
+    // jsv
+    char IsNonDet;                 /* flag for when the variable is non-deterministic */
 };
 
 /* hash table data structure */
@@ -571,10 +573,14 @@ void VariableFree(Picoc *pc, struct Value *Val);
 void VariableTableCleanup(Picoc *pc, struct Table *HashTable);
 void *VariableAlloc(Picoc *pc, struct ParseState *Parser, int Size, int OnHeap);
 void VariableStackPop(struct ParseState *Parser, struct Value *Var);
-struct Value *VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, int IsLValue, struct Value *LValueFrom, int OnHeap);
+struct Value *
+VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, int IsLValue, struct Value *LValueFrom,
+                          int OnHeap, char i);
 struct Value *VariableAllocValueAndCopy(Picoc *pc, struct ParseState *Parser, struct Value *FromValue, int OnHeap);
 struct Value *VariableAllocValueFromType(Picoc *pc, struct ParseState *Parser, struct ValueType *Typ, int IsLValue, struct Value *LValueFrom, int OnHeap);
-struct Value *VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *Typ, union AnyValue *FromValue, int IsLValue, struct Value *LValueFrom);
+struct Value *
+VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *Typ, union AnyValue *FromValue,
+                                   int IsLValue, struct Value *LValueFrom, char IsNonDet);
 struct Value *VariableAllocValueShared(struct ParseState *Parser, struct Value *FromValue);
 struct Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, struct Value *InitValue, struct ValueType *Typ, int MakeWritable);
 struct Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *Ident, struct ValueType *Typ, int IsStatic, int *FirstVisit);

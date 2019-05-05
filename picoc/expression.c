@@ -327,7 +327,8 @@ void ExpressionStackPushDereference(struct ParseState *Parser, struct Expression
     if (DerefDataLoc == NULL)
         ProgramFail(Parser, "NULL pointer dereference");
 
-    ValueLoc = VariableAllocValueFromExistingData(Parser, DerefType, (union AnyValue *)DerefDataLoc, DerefIsLValue, DerefVal);
+    ValueLoc = VariableAllocValueFromExistingData(Parser, DerefType, (union AnyValue *) DerefDataLoc, DerefIsLValue,
+                                                  DerefVal, 0);
     ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
 
@@ -394,6 +395,8 @@ void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct
     if (IS_NUMERIC_COERCIBLE(DestValue) && !IS_NUMERIC_COERCIBLE_PLUS_POINTERS(SourceValue, AllowPointerCoercion))
         AssignFail(Parser, "%t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
 
+    // if Source is NonDet, so should the assigned value
+    DestValue->IsNonDet = SourceValue->IsNonDet;
     switch (DestValue->Typ->Base)
     {
         case TypeInt:           DestValue->Val->Integer = ExpressionCoerceInteger(SourceValue); break;
@@ -700,8 +703,20 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         /* make the array element result */
         switch (BottomValue->Typ->Base)
         {
-            case TypeArray:   Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType, (union AnyValue *)(&BottomValue->Val->ArrayMem[0] + TypeSize(BottomValue->Typ, ArrayIndex, TRUE)), BottomValue->IsLValue, BottomValue->LValueFrom); break;
-            case TypePointer: Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType, (union AnyValue *)((char *)BottomValue->Val->Pointer + TypeSize(BottomValue->Typ->FromType, 0, TRUE) * ArrayIndex), BottomValue->IsLValue, BottomValue->LValueFrom); break;
+            case TypeArray:   Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType,
+                                                                          (union AnyValue *) (
+                                                                                  &BottomValue->Val->ArrayMem[0] +
+                                                                                  TypeSize(BottomValue->Typ, ArrayIndex,
+                                                                                           TRUE)),
+                                                                          BottomValue->IsLValue,
+                                                                          BottomValue->LValueFrom, 0); break;
+            case TypePointer: Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType,
+                                                                          (union AnyValue *) (
+                                                                                  (char *) BottomValue->Val->Pointer +
+                                                                                  TypeSize(BottomValue->Typ->FromType,
+                                                                                           0, TRUE) * ArrayIndex),
+                                                                          BottomValue->IsLValue,
+                                                                          BottomValue->LValueFrom, 0); break;
             default:          ProgramFail(Parser, "this %t is not an array", BottomValue->Typ);
         }
 
@@ -1066,7 +1081,9 @@ void ExpressionGetStructElement(struct ParseState *Parser, struct ExpressionStac
         *StackTop = (*StackTop)->Next;
 
         /* make the result value for this member only */
-        Result = VariableAllocValueFromExistingData(Parser, MemberValue->Typ, (void *)(DerefDataLoc + MemberValue->Val->Integer), TRUE, (StructVal != NULL) ? StructVal->LValueFrom : NULL);
+        Result = VariableAllocValueFromExistingData(Parser, MemberValue->Typ,
+                                                    (void *) (DerefDataLoc + MemberValue->Val->Integer), TRUE,
+                                                    (StructVal != NULL) ? StructVal->LValueFrom : NULL, 0);
         ExpressionStackPushValueNode(Parser, StackTop, Result);
     }
 }

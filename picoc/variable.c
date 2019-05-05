@@ -86,7 +86,9 @@ void *VariableAlloc(Picoc *pc, struct ParseState *Parser, int Size, int OnHeap)
 }
 
 /* allocate a value either on the heap or the stack using space dependent on what type we want */
-struct Value *VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, int IsLValue, struct Value *LValueFrom, int OnHeap)
+struct Value *
+VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, int IsLValue, struct Value *LValueFrom,
+                          int OnHeap, char IsNonDet)
 {
     struct Value *NewValue = VariableAlloc(pc, Parser, MEM_ALIGN(sizeof(struct Value)) + DataSize, OnHeap);
     NewValue->Val = (union AnyValue *)((char *)NewValue + MEM_ALIGN(sizeof(struct Value)));
@@ -99,6 +101,7 @@ struct Value *VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, in
         NewValue->ScopeID = Parser->ScopeID;
 
     NewValue->OutOfScope = 0;
+    NewValue->IsNonDet = IsNonDet;
     
     return NewValue;
 }
@@ -107,7 +110,8 @@ struct Value *VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, in
 struct Value *VariableAllocValueFromType(Picoc *pc, struct ParseState *Parser, struct ValueType *Typ, int IsLValue, struct Value *LValueFrom, int OnHeap)
 {
     int Size = TypeSize(Typ, Typ->ArraySize, FALSE);
-    struct Value *NewValue = VariableAllocValueAndData(pc, Parser, Size, IsLValue, LValueFrom, OnHeap);
+    // TODO is nondet=false OK here?
+    struct Value *NewValue = VariableAllocValueAndData(pc, Parser, Size, IsLValue, LValueFrom, OnHeap, FALSE);
     assert(Size >= 0 || Typ == &pc->VoidType);
     NewValue->Typ = Typ;
     
@@ -124,7 +128,8 @@ struct Value *VariableAllocValueAndCopy(Picoc *pc, struct ParseState *Parser, st
 
     assert(CopySize <= MAX_TMP_COPY_BUF);
     memcpy((void *)&TmpBuf[0], (void *)FromValue->Val, CopySize);
-    NewValue = VariableAllocValueAndData(pc, Parser, CopySize, FromValue->IsLValue, FromValue->LValueFrom, OnHeap);
+    NewValue = VariableAllocValueAndData(pc, Parser, CopySize, FromValue->IsLValue, FromValue->LValueFrom, OnHeap,
+                                         FromValue->IsNonDet);
     NewValue->Typ = DType;
     memcpy((void *)NewValue->Val, (void *)&TmpBuf[0], CopySize);
     
@@ -132,7 +137,9 @@ struct Value *VariableAllocValueAndCopy(Picoc *pc, struct ParseState *Parser, st
 }
 
 /* allocate a value either on the heap or the stack from an existing AnyValue and type */
-struct Value *VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *Typ, union AnyValue *FromValue, int IsLValue, struct Value *LValueFrom)
+struct Value *
+VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *Typ, union AnyValue *FromValue,
+                                   int IsLValue, struct Value *LValueFrom, char IsNonDet)
 {
     struct Value *NewValue = VariableAlloc(Parser->pc, Parser, sizeof(struct Value), FALSE);
     NewValue->Typ = Typ;
@@ -142,6 +149,7 @@ struct Value *VariableAllocValueFromExistingData(struct ParseState *Parser, stru
     NewValue->ValOnStack = FALSE;
     NewValue->IsLValue = IsLValue;
     NewValue->LValueFrom = LValueFrom;
+    NewValue->IsNonDet = IsNonDet;
     
     return NewValue;
 }
@@ -149,7 +157,8 @@ struct Value *VariableAllocValueFromExistingData(struct ParseState *Parser, stru
 /* allocate a value either on the heap or the stack from an existing Value, sharing the value */
 struct Value *VariableAllocValueShared(struct ParseState *Parser, struct Value *FromValue)
 {
-    return VariableAllocValueFromExistingData(Parser, FromValue->Typ, FromValue->Val, FromValue->IsLValue, FromValue->IsLValue ? FromValue : NULL);
+    return VariableAllocValueFromExistingData(Parser, FromValue->Typ, FromValue->Val, FromValue->IsLValue,
+                                              FromValue->IsLValue ? FromValue : NULL, FromValue->IsNonDet);
 }
 
 /* reallocate a variable so its data has a new size */
@@ -274,6 +283,8 @@ struct Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, 
     AssignValue->IsLValue = MakeWritable;
     AssignValue->ScopeID = ScopeID;
     AssignValue->OutOfScope = FALSE;
+    // non-det for uninit variables
+    AssignValue->IsNonDet = InitValue == NULL ? TRUE : FALSE;
 
     if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : NULL, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
         ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
@@ -322,6 +333,7 @@ struct Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *
         /* is this static already defined? */
         if (!TableGet(&pc->GlobalTable, RegisteredMangledName, &ExistingValue, &DeclFileName, &DeclLine, &DeclColumn))
         {
+            // todo : what about non-det for static values from type?
             /* define the mangled-named static variable store in the global scope */
             ExistingValue = VariableAllocValueFromType(Parser->pc, Parser, Typ, TRUE, NULL, TRUE);
             TableSet(pc, &pc->GlobalTable, (char *)RegisteredMangledName, ExistingValue, (char *)Parser->FileName, Parser->Line, Parser->CharacterPos);
@@ -374,7 +386,7 @@ void VariableGet(Picoc *pc, struct ParseState *Parser, const char *Ident, struct
 /* define a global variable shared with a platform global. Ident will be registered */
 void VariableDefinePlatformVar(Picoc *pc, struct ParseState *Parser, char *Ident, struct ValueType *Typ, union AnyValue *FromValue, int IsWritable)
 {
-    struct Value *SomeValue = VariableAllocValueAndData(pc, NULL, 0, IsWritable, NULL, TRUE);
+    struct Value *SomeValue = VariableAllocValueAndData(pc, NULL, 0, IsWritable, NULL, TRUE, 0);
     SomeValue->Typ = Typ;
     SomeValue->Val = FromValue;
     

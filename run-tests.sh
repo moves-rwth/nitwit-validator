@@ -8,6 +8,7 @@ then
     cd ..
 else
     echo "Error: build path non-existent"
+    exit 1
 fi
 
 n_tests=0
@@ -34,11 +35,14 @@ for C_FILE in testfiles/*.c ; do
             echo -e "\e[31mNon-validated witness: $WITNESS ($exit_val)\e[0m"
         elif [[ $exit_val -eq 2 ]]
         then
+            let "n_nonvalidated=n_nonvalidated+1"
             echo -e "\e[31mWitness parse error: $WITNESS\e[0m"
         elif [[ $exit_val -eq 3 ]]
         then
+            let "n_nonvalidated=n_nonvalidated+1"
             echo "Warning: Bad usage: $WITNESS"
         else
+            let "n_nonvalidated=n_nonvalidated+1"
             echo -e "\e[31mOther error: $WITNESS, exit value: $exit_val\e[0m"
         fi
     done
@@ -61,5 +65,10 @@ for C_FILE in testfiles/*.c ; do
 done
 
 echo "Tests done: $n_tests, non-validated: $n_nonvalidated"
+
+if [[ $n_nonvalidated -gt 0 ]]
+then
+    exit 1
+fi
 
 

@@ -167,9 +167,8 @@ void Automaton::consumeState(ParseState *state) {
     }
 
     for (const auto &edge: succs->second) {
-        // fixme check endline and whether even the properties were defined
         if (baseFileName(edge->origin_file) == baseFileName(string(state->FileName)) &&
-            edge->start_line == state->Line) {
+            edge->start_line <= state->Line && state->Line <= edge->end_line) {
             // check control branch
             if (edge->controlCondition != ConditionUndefined || state->LastConditionBranch != ConditionUndefined) {
                 if (edge->controlCondition != state->LastConditionBranch) {

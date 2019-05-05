@@ -367,12 +367,15 @@ Automaton::Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<sh
             continue;
         }
 
+        // fix startline, endline
+        if (trans->end_line == 0){
+            trans->end_line = trans->start_line;
+        }
+
         auto &node_successors = successor_rel.find(trans->source_id)->second;
         node_successors.insert(trans);
         auto &node_predecessors = predecessor_rel.find(trans->target_id)->second;
         node_predecessors.insert(trans);
-
-
     }
 }
 

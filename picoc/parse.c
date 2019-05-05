@@ -84,7 +84,8 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     if (ParamCount > PARAMETER_MAX)
         ProgramFail(Parser, "too many parameters (%d allowed)", PARAMETER_MAX);
 
-    FuncValue = VariableAllocValueAndData(pc, Parser, sizeof(struct FuncDef) + sizeof(struct ValueType *) * ParamCount + sizeof(const char *) * ParamCount, FALSE, NULL, TRUE);
+    FuncValue = VariableAllocValueAndData(pc, Parser, sizeof(struct FuncDef) + sizeof(struct ValueType *) * ParamCount +
+                                                      sizeof(const char *) * ParamCount, FALSE, NULL, TRUE, 0);
     FuncValue->Typ = &pc->FunctionType;
     FuncValue->Val->FuncDef.ReturnType = ReturnType;
     FuncValue->Val->FuncDef.NumParams = ParamCount;
@@ -221,7 +222,10 @@ int ParseArrayInitialiser(struct ParseState *Parser, struct Value *NewVariable, 
             if (Parser->Mode == RunModeRun && DoAssignment)
             {
                 SubArraySize = TypeSize(NewVariable->Typ->FromType, NewVariable->Typ->FromType->ArraySize, TRUE);
-                SubArray = VariableAllocValueFromExistingData(Parser, NewVariable->Typ->FromType, (union AnyValue *)(&NewVariable->Val->ArrayMem[0] + SubArraySize * ArrayIndex), TRUE, NewVariable);
+                SubArray = VariableAllocValueFromExistingData(Parser, NewVariable->Typ->FromType,
+                                                              (union AnyValue *) (&NewVariable->Val->ArrayMem[0] +
+                                                                                  SubArraySize * ArrayIndex), TRUE,
+                                                              NewVariable, 0);
                 #ifdef DEBUG_ARRAY_INITIALIZER
                 int FullArraySize = TypeSize(NewVariable->Typ, NewVariable->Typ->ArraySize, TRUE);
                 PRINT_SOURCE_POS;
@@ -261,7 +265,10 @@ int ParseArrayInitialiser(struct ParseState *Parser, struct Value *NewVariable, 
                 #endif
                 if (ArrayIndex >= TotalSize)
                     ProgramFail(Parser, "too many array elements");
-                ArrayElement = VariableAllocValueFromExistingData(Parser, ElementType, (union AnyValue *)(&NewVariable->Val->ArrayMem[0] + ElementSize * ArrayIndex), TRUE, NewVariable);
+                ArrayElement = VariableAllocValueFromExistingData(Parser, ElementType,
+                                                                  (union AnyValue *) (&NewVariable->Val->ArrayMem[0] +
+                                                                                      ElementSize * ArrayIndex), TRUE,
+                                                                  NewVariable, 0);
             }
 
             /* this is a normal expression initialiser */
@@ -396,7 +403,9 @@ void ParseMacroDefinition(struct ParseState *Parser)
 
         ParserCopy(&ParamParser, Parser);
         NumParams = ParseCountParams(&ParamParser);
-        MacroValue = VariableAllocValueAndData(Parser->pc, Parser, sizeof(struct MacroDef) + sizeof(const char *) * NumParams, FALSE, NULL, TRUE);
+        MacroValue = VariableAllocValueAndData(Parser->pc, Parser,
+                                               sizeof(struct MacroDef) + sizeof(const char *) * NumParams, FALSE, NULL,
+                                               TRUE, 0);
         MacroValue->Val->MacroDef.NumParams = NumParams;
         MacroValue->Val->MacroDef.ParamName = (char **)((char *)MacroValue->Val + sizeof(struct MacroDef));
 
@@ -422,7 +431,7 @@ void ParseMacroDefinition(struct ParseState *Parser)
     else
     {
         /* allocate a simple unparameterised macro */
-        MacroValue = VariableAllocValueAndData(Parser->pc, Parser, sizeof(struct MacroDef), FALSE, NULL, TRUE);
+        MacroValue = VariableAllocValueAndData(Parser->pc, Parser, sizeof(struct MacroDef), FALSE, NULL, TRUE, 0);
         MacroValue->Val->MacroDef.NumParams = 0;
     }
 

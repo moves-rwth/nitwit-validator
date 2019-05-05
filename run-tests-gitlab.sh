@@ -7,6 +7,7 @@ then
     echo "Nice, file exists and is executable."
 else
     echo "Bad executable"
+    exit 1
 fi
 
 n_tests=0
@@ -36,11 +37,14 @@ for C_FILE in testfiles/*.c ; do
             echo -e "\e[31mNon-validated witness: $WITNESS\e[0m"
         elif [[ $exit_val -eq 2 ]]
         then
+            let "n_nonvalidated=n_nonvalidated+1"
             echo -e "\e[31mWitness parse error: $WITNESS\e[0m"
         elif [[ $exit_val -eq 3 ]]
         then
+            let "n_nonvalidated=n_nonvalidated+1"
             echo "Warning: Bad usage: $WITNESS"
         else
+            let "n_nonvalidated=n_nonvalidated+1"
             echo -e "\e[31mOther error: $WITNESS, exit value: $exit_val\e[0m"
         fi
     done
