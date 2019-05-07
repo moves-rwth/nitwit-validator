@@ -119,6 +119,11 @@ enum ConditionControl {
     ConditionTrue, ConditionFalse, ConditionUndefined
 };
 
+struct ValueList {
+    struct ValueList * Next;
+    const char * Identifier;
+};
+
 /* parser state - has all this detail so we can parse nested files */
 struct ParseState
 {
@@ -141,7 +146,7 @@ struct ParseState
     const char * EnterFunction;
     const char * ReturnFromFunction;
     int VerifierErrorCalled;
-
+    struct ValueList * ResolvedNonDetVars;
 };
 
 
@@ -242,6 +247,7 @@ struct Value
     char OutOfScope;
     // jsv
     char IsNonDet;                 /* flag for when the variable is non-deterministic */
+    char * VarIdentifier;           /* keeps track of the name of the variable this value belongs to */
 };
 
 /* hash table data structure */
@@ -495,6 +501,8 @@ int TableGet(struct Table *Tbl, const char *Key, struct Value **Val, const char 
 struct Value *TableDelete(Picoc *pc, struct Table *Tbl, const char *Key);
 char *TableSetIdentifier(Picoc *pc, struct Table *Tbl, const char *Ident, int IdentLen);
 void TableStrFree(Picoc *pc);
+struct TableEntry *TableSearch(struct Table *Tbl, const char *Key, int *AddAt);
+
 
 /* lex.c */
 void LexInit(Picoc *pc);
@@ -575,12 +583,12 @@ void *VariableAlloc(Picoc *pc, struct ParseState *Parser, int Size, int OnHeap);
 void VariableStackPop(struct ParseState *Parser, struct Value *Var);
 struct Value *
 VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, int IsLValue, struct Value *LValueFrom,
-                          int OnHeap, char i);
+                          int OnHeap, char IsNonDet, char *VarIdentifier);
 struct Value *VariableAllocValueAndCopy(Picoc *pc, struct ParseState *Parser, struct Value *FromValue, int OnHeap);
 struct Value *VariableAllocValueFromType(Picoc *pc, struct ParseState *Parser, struct ValueType *Typ, int IsLValue, struct Value *LValueFrom, int OnHeap);
 struct Value *
 VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *Typ, union AnyValue *FromValue,
-                                   int IsLValue, struct Value *LValueFrom, char IsNonDet);
+                                   int IsLValue, struct Value *LValueFrom, char IsNonDet, char *VarIdentifier);
 struct Value *VariableAllocValueShared(struct ParseState *Parser, struct Value *FromValue);
 struct Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, struct Value *InitValue, struct ValueType *Typ, int MakeWritable);
 struct Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *Ident, struct ValueType *Typ, int IsStatic, int *FirstVisit);
