@@ -286,8 +286,8 @@ struct Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, 
     AssignValue->IsLValue = MakeWritable;
     AssignValue->ScopeID = ScopeID;
     AssignValue->OutOfScope = FALSE;
-    // non-det for uninit variables
-    AssignValue->IsNonDet = InitValue == NULL ? TRUE : FALSE;
+    // todo non-det for uninit variables
+    AssignValue->IsNonDet =  FALSE;
 
     if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : NULL, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
         ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
