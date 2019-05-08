@@ -4,7 +4,7 @@ extern void exit(int);
 int f(int n) {
     if (n < 3) return n;
     else __VERIFIER_error();
-    exit(1);
+    return (1);
 }
 
 int main() {

@@ -1102,6 +1102,10 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
     int TernaryDepth = 0;
 
     debugf("ExpressionParse():\n");
+    // save the ret function
+    const char *RetBeforeName = Parser->ReturnFromFunction;
+    Parser->ReturnFromFunction = NULL;
+
     do
     {
         struct ParseState PreState;
@@ -1269,7 +1273,7 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
             if (LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket)
             {
                 char *FuncName = LexValue->Val->Identifier;
-                const char *RetBeforeName = Parser->ReturnFromFunction;
+//                const char *RetBeforeName = Parser->ReturnFromFunction;
                 if (Parser->DebugMode && Parser->Mode == RunModeRun) {
                     Parser->EnterFunction = FuncName;
                     DebugCheckStatement(Parser);
@@ -1278,7 +1282,7 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
                 ExpressionParseFunctionCall(Parser, &StackTop, LexValue->Val->Identifier, Parser->Mode == RunModeRun && Precedence < IgnorePrecedence);
                 if (Parser->DebugMode && Parser->Mode == RunModeRun) {
                     DebugCheckStatement(Parser);
-                    Parser->ReturnFromFunction = RetBeforeName;
+                    Parser->ReturnFromFunction = NULL;
                 }
             }
             else
@@ -1387,10 +1391,12 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
             HeapPopStack(Parser->pc, StackTop->Val, sizeof(struct ExpressionStack) + sizeof(struct Value) + TypeStackSizeValue(StackTop->Val));
     }
 
+    Parser->ReturnFromFunction = RetBeforeName;
     /* After parsing an expression, now all of the assignments would be finished -> important for assumptions. */
     if (Parser->DebugMode && Parser->Mode == RunModeRun) {
         DebugCheckStatement(Parser);
     }
+    Parser->ReturnFromFunction = NULL;
 
     debugf("ExpressionParse() done\n\n");
 #ifdef DEBUG_EXPRESSIONS
@@ -1601,11 +1607,12 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
 
             VariableStackFramePop(Parser);
         }
-        else
+        else {
             FuncValue->Val->FuncDef.Intrinsic(Parser, ReturnValue, ParamArray, ArgCount);
+        }
+        Parser->ReturnFromFunction = FuncName;
 
         HeapPopStackFrame(Parser->pc);
-        Parser->ReturnFromFunction = FuncName;
     }
     Parser->Mode = OldMode;
 }

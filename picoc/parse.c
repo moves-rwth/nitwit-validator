@@ -167,11 +167,6 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     /* is this function already in the global table? */
     if (TableGet(&pc->GlobalTable, Identifier, &OldFuncValue, NULL, NULL, NULL))
     {
-//        if (Token != TokenLeftBrace){
-//            if (LexGetToken(Parser, NULL, FALSE) != TokenSemicolon){
-//                ProgramFail(Parser, "'%s' missing semicolon", Identifier);
-//            }
-//        }
 
         if (OldFuncValue->Val->FuncDef.Body.Pos != NULL)
             ProgramFail(Parser, "'%s' is already defined", Identifier);
