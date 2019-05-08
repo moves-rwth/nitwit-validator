@@ -371,7 +371,7 @@ enum LexToken LexGetStringConstant(Picoc *pc, struct LexState *Lexer, struct Val
     if (ArrayValue == NULL)
     {
         /* create and store this string literal */
-        ArrayValue = VariableAllocValueAndData(pc, NULL, 0, FALSE, NULL, TRUE, 0);
+        ArrayValue = VariableAllocValueAndData(pc, NULL, 0, FALSE, NULL, TRUE, 0, NULL);
         ArrayValue->Typ = pc->CharArrayType;
         ArrayValue->Val = (union AnyValue *)RegString;
         VariableStringLiteralDefine(pc, RegString, ArrayValue);
@@ -629,6 +629,7 @@ void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText,
     Parser->EnterFunction = NULL;
     Parser->ReturnFromFunction = NULL;
     Parser->VerifierErrorCalled = FALSE;
+    Parser->ResolvedNonDetVars = NULL;
     // todo : what about copying these parser properties?
 }
 

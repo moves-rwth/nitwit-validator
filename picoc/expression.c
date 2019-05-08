@@ -328,7 +328,7 @@ void ExpressionStackPushDereference(struct ParseState *Parser, struct Expression
         ProgramFail(Parser, "NULL pointer dereference");
 
     ValueLoc = VariableAllocValueFromExistingData(Parser, DerefType, (union AnyValue *) DerefDataLoc, DerefIsLValue,
-                                                  DerefVal, 0);
+                                                  DerefVal, 0, NULL);
     ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
 
@@ -709,14 +709,14 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
                                                                                   TypeSize(BottomValue->Typ, ArrayIndex,
                                                                                            TRUE)),
                                                                           BottomValue->IsLValue,
-                                                                          BottomValue->LValueFrom, 0); break;
+                                                                          BottomValue->LValueFrom, 0, NULL); break;
             case TypePointer: Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType,
                                                                           (union AnyValue *) (
                                                                                   (char *) BottomValue->Val->Pointer +
                                                                                   TypeSize(BottomValue->Typ->FromType,
                                                                                            0, TRUE) * ArrayIndex),
                                                                           BottomValue->IsLValue,
-                                                                          BottomValue->LValueFrom, 0); break;
+                                                                          BottomValue->LValueFrom, 0, NULL); break;
             default:          ProgramFail(Parser, "this %t is not an array", BottomValue->Typ);
         }
 
@@ -1083,7 +1083,7 @@ void ExpressionGetStructElement(struct ParseState *Parser, struct ExpressionStac
         /* make the result value for this member only */
         Result = VariableAllocValueFromExistingData(Parser, MemberValue->Typ,
                                                     (void *) (DerefDataLoc + MemberValue->Val->Integer), TRUE,
-                                                    (StructVal != NULL) ? StructVal->LValueFrom : NULL, 0);
+                                                    (StructVal != NULL) ? StructVal->LValueFrom : NULL, 0, NULL);
         ExpressionStackPushValueNode(Parser, StackTop, Result);
     }
 }

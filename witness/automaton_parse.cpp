@@ -121,13 +121,19 @@ shared_ptr<Edge> getDefaultEdge(const shared_ptr<DefaultKeyValues> &def_values) 
     return e;
 }
 
+string replace_equals(const pugi::char_t *value) {
+    string s(value);
+    s.replace(s.begin(), s.end(), "==", "= ");
+    return s;
+}
+
 void setEdgeAttributes(shared_ptr<Edge> &edge, const pugi::char_t *name, const pugi::char_t *value) {
     if (strcmp(name, "source") == 0) {
         edge->source_id = value;
     } else if (strcmp(name, "target") == 0) {
         edge->target_id = value;
     } else if (strcmp(name, "assumption") == 0) {
-        edge->assumption = value;
+        edge->assumption = (value);
     } else if (strcmp(name, "assumption.scope") == 0) {
         edge->assumption_scope = value;
     } else if (strcmp(name, "assumption.resultfunction") == 0) {
@@ -163,6 +169,7 @@ void setEdgeAttributes(shared_ptr<Edge> &edge, const pugi::char_t *name, const p
         fprintf(stderr, "I am missing an edge attribute definition: %s\n", name);
     }
 }
+
 
 void parseEdgeProperties(const pugi::xml_node &node, shared_ptr<Edge> &edge) {
     for (auto child: node.children("data")) {
@@ -363,7 +370,7 @@ Automaton::Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<sh
         }
 
         // fix startline, endline
-        if (trans->end_line == 0){
+        if (trans->end_line == 0) {
             trans->end_line = trans->start_line;
         }
 

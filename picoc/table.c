@@ -38,7 +38,7 @@ void TableInitTable(struct Table *Tbl, struct TableEntry **HashTable, int Size, 
 }
 
 /* check a hash table entry for a key */
-static struct TableEntry *TableSearch(struct Table *Tbl, const char *Key, int *AddAt)
+struct TableEntry *TableSearch(struct Table *Tbl, const char *Key, int *AddAt)
 {
     struct TableEntry *Entry;
     int HashValue = ((unsigned long)Key) % Tbl->Size;   /* shared strings have unique addresses so we don't need to hash them */

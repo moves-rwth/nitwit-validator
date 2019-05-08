@@ -85,7 +85,7 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
         ProgramFail(Parser, "too many parameters (%d allowed)", PARAMETER_MAX);
 
     FuncValue = VariableAllocValueAndData(pc, Parser, sizeof(struct FuncDef) + sizeof(struct ValueType *) * ParamCount +
-                                                      sizeof(const char *) * ParamCount, FALSE, NULL, TRUE, 0);
+                                                      sizeof(const char *) * ParamCount, FALSE, NULL, TRUE, 0, NULL);
     FuncValue->Typ = &pc->FunctionType;
     FuncValue->Val->FuncDef.ReturnType = ReturnType;
     FuncValue->Val->FuncDef.NumParams = ParamCount;
@@ -167,6 +167,12 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     /* is this function already in the global table? */
     if (TableGet(&pc->GlobalTable, Identifier, &OldFuncValue, NULL, NULL, NULL))
     {
+//        if (Token != TokenLeftBrace){
+//            if (LexGetToken(Parser, NULL, FALSE) != TokenSemicolon){
+//                ProgramFail(Parser, "'%s' missing semicolon", Identifier);
+//            }
+//        }
+
         if (OldFuncValue->Val->FuncDef.Body.Pos != NULL)
             ProgramFail(Parser, "'%s' is already defined", Identifier);
 
@@ -225,7 +231,7 @@ int ParseArrayInitialiser(struct ParseState *Parser, struct Value *NewVariable, 
                 SubArray = VariableAllocValueFromExistingData(Parser, NewVariable->Typ->FromType,
                                                               (union AnyValue *) (&NewVariable->Val->ArrayMem[0] +
                                                                                   SubArraySize * ArrayIndex), TRUE,
-                                                              NewVariable, 0);
+                                                              NewVariable, 0, NULL);
                 #ifdef DEBUG_ARRAY_INITIALIZER
                 int FullArraySize = TypeSize(NewVariable->Typ, NewVariable->Typ->ArraySize, TRUE);
                 PRINT_SOURCE_POS;
@@ -268,7 +274,7 @@ int ParseArrayInitialiser(struct ParseState *Parser, struct Value *NewVariable, 
                 ArrayElement = VariableAllocValueFromExistingData(Parser, ElementType,
                                                                   (union AnyValue *) (&NewVariable->Val->ArrayMem[0] +
                                                                                       ElementSize * ArrayIndex), TRUE,
-                                                                  NewVariable, 0);
+                                                                  NewVariable, 0, NULL);
             }
 
             /* this is a normal expression initialiser */
@@ -405,7 +411,7 @@ void ParseMacroDefinition(struct ParseState *Parser)
         NumParams = ParseCountParams(&ParamParser);
         MacroValue = VariableAllocValueAndData(Parser->pc, Parser,
                                                sizeof(struct MacroDef) + sizeof(const char *) * NumParams, FALSE, NULL,
-                                               TRUE, 0);
+                                               TRUE, 0, NULL);
         MacroValue->Val->MacroDef.NumParams = NumParams;
         MacroValue->Val->MacroDef.ParamName = (char **)((char *)MacroValue->Val + sizeof(struct MacroDef));
 
@@ -431,7 +437,7 @@ void ParseMacroDefinition(struct ParseState *Parser)
     else
     {
         /* allocate a simple unparameterised macro */
-        MacroValue = VariableAllocValueAndData(Parser->pc, Parser, sizeof(struct MacroDef), FALSE, NULL, TRUE, 0);
+        MacroValue = VariableAllocValueAndData(Parser->pc, Parser, sizeof(struct MacroDef), FALSE, NULL, TRUE, 0, NULL);
         MacroValue->Val->MacroDef.NumParams = 0;
     }
 
@@ -628,7 +634,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 if (VarValue->Typ->Base == Type_Type)
                 {
                     *Parser = PreState;
-                    ParseDeclaration(Parser, Token);
+                    CheckTrailingSemicolon = ParseDeclaration(Parser, Token);
                     break;
                 }
             }

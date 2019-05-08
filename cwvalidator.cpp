@@ -24,6 +24,7 @@ int WITNESS_IN_ILLEGAL_STATE = 243;
 int IDENTIFIER_UNDEFINED = 244;
 int BAD_FUNCTION_DEF = 245;
 int ALREADY_DEFINED = 246;
+int UNSUPPORTED_NONDET_RESOLUTION_OP = 247;
 
 void printProgramState(ParseState *ps) {
     printf("%s --- Line: %zu, Pos: %d", ps->FileName, ps->Line, ps->CharacterPos);
@@ -78,6 +79,8 @@ int validate(const char *source_filename) {
         return ret;
     }
     printf("============Start simulation============\n");
+    char defs[] = "_Bool.h";
+    IncludeFile(&pc, defs);
     char *source = readFile(source_filename);
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
