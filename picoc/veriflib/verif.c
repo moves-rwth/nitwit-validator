@@ -17,7 +17,8 @@ void VerifierNonDet(struct ParseState *Parser, struct Value *ReturnValue, struct
     ReturnValue->IsNonDet = TRUE;
 }
 /* handy structure definitions */
-const char VerifDefs[] = "";
+const char VerifDefs[] = "typedef int _Bool;"
+                         ;
 
 /* all verif.h functions */
 struct LibraryFunction VerifFunctions[] =
@@ -34,7 +35,7 @@ struct LibraryFunction VerifFunctions[] =
                 {VerifierNonDet, "char __VERIFIER_nondet_char();"},
                 {VerifierNonDet, "unsigned char __VERIFIER_nondet_uchar();"},
                 {VerifierNonDet, "double __VERIFIER_nondet_double();"},
-//                {VerifierNonDet, "bool __VERIFIER_nondet_bool();"},
+                {VerifierNonDet, "_Bool __VERIFIER_nondet_bool();"},
                 {NULL, NULL}
         };
 

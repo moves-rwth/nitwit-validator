@@ -79,6 +79,8 @@ int validate(const char *source_filename) {
         return ret;
     }
     printf("============Start simulation============\n");
+    char defs[] = "_Bool.h";
+    IncludeFile(&pc, defs);
     char *source = readFile(source_filename);
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
