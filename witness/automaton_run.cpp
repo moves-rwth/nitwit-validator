@@ -186,7 +186,6 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         if (!res) {
             return false;
         }
-
     }
 
     return true;
@@ -229,13 +228,13 @@ bool Automaton::canTransitionFurther() {
 }
 
 void Automaton::consumeState(ParseState *state) {
-    if (!canTransitionFurther()) return;
-
     if (state->VerifierErrorCalled && !this->verifier_error_called) {
         this->verifier_error_called = true;
         cw_verbose("__VERIFIER_error has been called!\n");
     }
+    if (!canTransitionFurther()) return;
 
+    bool could_go_to_sink = false;
     for (const auto &edge: successor_rel.find(current_state->id)->second) {
         if (baseFileName(edge->origin_file) == baseFileName(string(state->FileName)) &&
             edge->start_line <= state->Line && state->Line <= edge->end_line) {
@@ -274,11 +273,20 @@ void Automaton::consumeState(ParseState *state) {
                 cw_verbose("Assumption %s satisfied.\n", edge->assumption.c_str());
             }
 
+            if (edge->target_id == "sink"){
+                could_go_to_sink = true;
+                continue;
+                // prefer to follow through to other edges than sink,
+                // but if nothing else is possible, take it
+            }
             current_state = nodes.find(edge->target_id)->second;
             cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
 
-            try_resolve_variables();
+            try_resolve_variables(state);
             return;
         }
+    }
+    if (could_go_to_sink) {
+        current_state = nodes.find("sink")->second;
     }
 }
