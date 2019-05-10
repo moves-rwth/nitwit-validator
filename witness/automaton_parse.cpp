@@ -372,6 +372,7 @@ Automaton::Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<sh
         // fix startline, endline
         if (trans->end_line == 0) {
             trans->end_line = trans->start_line;
+//            fprintf(stderr, "No endline definition for %s --> %s. Set to: %d\n", trans->source_id.c_str(), trans->target_id.c_str(), trans->start_line);
         }
 
         auto &node_successors = successor_rel.find(trans->source_id)->second;

@@ -192,10 +192,10 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
 }
 
 
-void Automaton::try_resolve_variables(ParseState * state) {
+void Automaton::try_resolve_variables(ParseState *state) {
     if (!canTransitionFurther()) return;
     vector<shared_ptr<Edge>> possible_edges;
-    for (const auto& edge: successor_rel.find(current_state->id)->second) {
+    for (const auto &edge: successor_rel.find(current_state->id)->second) {
         if (!edge->assumption.empty())
             possible_edges.push_back(edge);
     }
@@ -204,7 +204,7 @@ void Automaton::try_resolve_variables(ParseState * state) {
                    "forward assumption resolution.", current_state->id.c_str());
 
     } else {
-        for (const auto & edge: possible_edges) {
+        for (const auto &edge: possible_edges) {
             satisfiesAssumptionsAndResolve(state, edge);
         }
     }
@@ -236,56 +236,59 @@ void Automaton::consumeState(ParseState *state) {
 
     bool could_go_to_sink = false;
     for (const auto &edge: successor_rel.find(current_state->id)->second) {
-        if (baseFileName(edge->origin_file) == baseFileName(string(state->FileName)) &&
-            edge->start_line <= state->Line && state->Line <= edge->end_line) {
-            // check control branch
-            if (edge->controlCondition != ConditionUndefined || state->LastConditionBranch != ConditionUndefined) {
-                if (edge->controlCondition != state->LastConditionBranch) {
-                    continue;
-                }
+        if (!edge->origin_file.empty() && baseFileName(edge->origin_file) != baseFileName(string(state->FileName))) {
+            continue;
+        }
+        if (!(edge->start_line <= state->Line && state->Line <= edge->end_line)) {
+            if (!(edge->start_line == 0 && edge->end_line == 0)) continue;
+        }
+        // check control branch
+        if (edge->controlCondition != ConditionUndefined || state->LastConditionBranch != ConditionUndefined) {
+            if (edge->controlCondition != state->LastConditionBranch) {
+                continue;
             }
-
-            // check enter function
-            if (!edge->enter_function.empty() && edge->enter_function != "main") {
-                if (state->EnterFunction == nullptr ||
-                    strcmp(state->EnterFunction, edge->enter_function.c_str()) != 0) {
+        }
+        // check enter function
+        if (!edge->enter_function.empty() && edge->enter_function != "main") {
+            if (state->EnterFunction == nullptr ||
+                strcmp(state->EnterFunction, edge->enter_function.c_str()) != 0) {
 //                    printf("Wrong function. Expected enter into %s, got %s.\n", edge->enter_function.c_str(),
 //                           state->EnterFunction);
-                    continue;
-                }
+                continue;
             }
+        }
 
-            // check return function
-            if (!edge->return_from_function.empty() && edge->return_from_function != "main") {
-                if (state->ReturnFromFunction == nullptr ||
-                    strcmp(state->ReturnFromFunction, edge->return_from_function.c_str()) != 0) {
+        // check return function
+        if (!edge->return_from_function.empty() && edge->return_from_function != "main") {
+            if (state->ReturnFromFunction == nullptr ||
+                strcmp(state->ReturnFromFunction, edge->return_from_function.c_str()) != 0) {
 //                    printf("Wrong function. Expected return from %s, got %s.\n", edge->return_from_function.c_str(),
 //                           state->ReturnFromFunction);
-                    continue;
-                }
-            }
-
-            // check assumption
-            if (!edge->assumption.empty() && !satisfiesAssumptionsAndResolve(state, edge)) {
-                cw_verbose("Unmet assumption %s.\n", edge->assumption.c_str());
                 continue;
-            } else if (!edge->assumption.empty()) {
-                cw_verbose("Assumption %s satisfied.\n", edge->assumption.c_str());
             }
-
-            if (edge->target_id == "sink"){
-                could_go_to_sink = true;
-                continue;
-                // prefer to follow through to other edges than sink,
-                // but if nothing else is possible, take it
-            }
-            current_state = nodes.find(edge->target_id)->second;
-            cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
-
-            try_resolve_variables(state);
-            return;
         }
+
+        // check assumption
+        if (!edge->assumption.empty() && !satisfiesAssumptionsAndResolve(state, edge)) {
+            cw_verbose("Unmet assumption %s.\n", edge->assumption.c_str());
+            continue;
+        } else if (!edge->assumption.empty()) {
+            cw_verbose("Assumption %s satisfied.\n", edge->assumption.c_str());
+        }
+
+        if (edge->target_id == "sink") {
+            could_go_to_sink = true;
+            continue;
+            // prefer to follow through to other edges than sink,
+            // but if nothing else is possible, take it
+        }
+        current_state = nodes.find(edge->target_id)->second;
+        cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
+
+        try_resolve_variables(state);
+        return;
     }
+
     if (could_go_to_sink) {
         current_state = nodes.find("sink")->second;
     }
