@@ -151,6 +151,10 @@ public:
     bool wasVerifierErrorCalled() const;
 
     const shared_ptr<Node> &getCurrentState() const;
+
+    void try_resolve_variables(ParseState * state);
+
+    bool canTransitionFurther();
 };
 
 

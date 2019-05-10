@@ -95,9 +95,9 @@ void CopyValue(ParseState *ToState, Value *ToValue, Value *FromValue, ParseState
     copy->IsNonDet = false;
 }
 
-int PicocParseAssumption(Picoc *pc, const char *FileName, const char *Source,
-                         int SourceLen, int RunIt, int CleanupSource,
-                         int EnableDebugger, ParseState *main_state, bool IsGlobal) {
+int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *Source,
+                                   int SourceLen, int RunIt, int CleanupSource,
+                                   int EnableDebugger, ParseState *main_state, bool IsGlobal) {
     struct ParseState Parser{};
     struct CleanupTokenNode *NewCleanupNode;
     char *RegFileName = TableStrRegister(pc, FileName);
@@ -156,7 +156,7 @@ int PicocParseAssumption(Picoc *pc, const char *FileName, const char *Source,
     return ret;
 }
 
-bool satisfiesAssumptions(ParseState *state, const shared_ptr<Edge> &edge) {
+bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &edge) {
     // check scope
     bool IsGlobalScope = true;
     if (!edge->assumption_scope.empty()) {
@@ -180,8 +180,8 @@ bool satisfiesAssumptions(ParseState *state, const shared_ptr<Edge> &edge) {
             PicocCleanup(&pc);
             return false;
         }
-        int res = PicocParseAssumption(&pc, "assumption-1243asdfeqv45q", ass.c_str(), ass.length(),
-                                       TRUE, FALSE, FALSE, state, IsGlobalScope);
+        int res = PicocParseAssumptionAndResolve(&pc, "assumption-1243asdfeqv45q", ass.c_str(), ass.length(),
+                                                 TRUE, FALSE, FALSE, state, IsGlobalScope);
         PicocCleanup(&pc);
         if (!res) {
             return false;
@@ -192,32 +192,51 @@ bool satisfiesAssumptions(ParseState *state, const shared_ptr<Edge> &edge) {
     return true;
 }
 
-void Automaton::consumeState(ParseState *state) {
+
+void Automaton::try_resolve_variables(ParseState * state) {
+    if (!canTransitionFurther()) return;
+    vector<shared_ptr<Edge>> possible_edges;
+    for (const auto& edge: successor_rel.find(current_state->id)->second) {
+        if (!edge->assumption.empty())
+            possible_edges.push_back(edge);
+    }
+    if (possible_edges.size() > 1) {
+        cw_verbose("Non-deterministic choice encountered - there are more than 1 forward assumptions at %s. Skipping "
+                   "forward assumption resolution.", current_state->id.c_str());
+
+    } else {
+        for (const auto & edge: possible_edges) {
+            satisfiesAssumptionsAndResolve(state, edge);
+        }
+    }
+}
+
+bool Automaton::canTransitionFurther() {
     if (current_state == nullptr || this->isInIllegalState()) {
         this->illegal_state = true;
-        return;
+        return false;
     }
+    if (current_state->is_violation || current_state->is_sink) {
+        // don't do anything once we have reached violation or sink
+        return false;
+    }
+    const auto &succs = successor_rel.find(current_state->id);
+    if (succs == successor_rel.end()) { // state isn't sink
+        this->illegal_state = true;
+        return false;
+    }
+    return true;
+}
+
+void Automaton::consumeState(ParseState *state) {
+    if (!canTransitionFurther()) return;
 
     if (state->VerifierErrorCalled && !this->verifier_error_called) {
         this->verifier_error_called = true;
         cw_verbose("__VERIFIER_error has been called!\n");
     }
 
-    if (current_state->is_violation || current_state->is_sink) {
-        // don't do anything once we have reached violation or sink
-        return;
-    }
-    const auto &succs = successor_rel.find(current_state->id);
-    if (succs == successor_rel.end()) { // state isn't sink
-        this->illegal_state = true;
-        return;
-    }
-
-    if (state->Line == 33 && state->CharacterPos == 0) {//} && state->LastConditionBranch == ConditionTrue){
-        printf("Debug\n");
-    }
-
-    for (const auto &edge: succs->second) {
+    for (const auto &edge: successor_rel.find(current_state->id)->second) {
         if (baseFileName(edge->origin_file) == baseFileName(string(state->FileName)) &&
             edge->start_line <= state->Line && state->Line <= edge->end_line) {
             // check control branch
@@ -248,7 +267,7 @@ void Automaton::consumeState(ParseState *state) {
             }
 
             // check assumption
-            if (!edge->assumption.empty() && !satisfiesAssumptions(state, edge)) {
+            if (!edge->assumption.empty() && !satisfiesAssumptionsAndResolve(state, edge)) {
                 cw_verbose("Unmet assumption %s.\n", edge->assumption.c_str());
                 continue;
             } else if (!edge->assumption.empty()) {
@@ -257,6 +276,8 @@ void Automaton::consumeState(ParseState *state) {
 
             current_state = nodes.find(edge->target_id)->second;
             cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
+
+            try_resolve_variables();
             return;
         }
     }
