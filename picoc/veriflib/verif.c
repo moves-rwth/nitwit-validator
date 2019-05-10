@@ -17,7 +17,7 @@ void VerifierNonDet(struct ParseState *Parser, struct Value *ReturnValue, struct
     ReturnValue->IsNonDet = TRUE;
 }
 /* handy structure definitions */
-const char VerifDefs[] = "typedef int _Bool;"
+const char VerifDefs[] = "typedef unsigned short _Bool;"
                          ;
 
 /* all verif.h functions */
