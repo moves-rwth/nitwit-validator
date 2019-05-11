@@ -173,7 +173,7 @@ enum BaseType
     TypeUnion,                  /* merged type */
     TypeEnum,                   /* enumerated integer type */
     TypeGotoLabel,              /* a label we can "goto" */
-    Type_Type                   /* a type for storing types */
+    Type_Type,                   /* a type for storing types */
 };
 
 /* data type */
@@ -190,6 +190,8 @@ struct ValueType
     struct Table *Members;          /* members of a struct or union */
     int OnHeap;                     /* true if allocated on the heap */
     int StaticQualifier;            /* true if it's a static */
+    // jsv
+    char IsNonDet;                /* flag for when the variable is non-deterministic */
 };
 
 /* function definition */
@@ -246,8 +248,8 @@ struct Value
     int ScopeID;                    /* to know when it goes out of scope */
     char OutOfScope;
     // jsv
-    char * IsNonDet;                /* flag for when the variable is non-deterministic */
     char * VarIdentifier;           /* keeps track of the name of the variable this value belongs to */
+    struct ValueType ** OriginalTypePtr;
 };
 
 /* hash table data structure */
@@ -461,6 +463,18 @@ struct Picoc_Struct
     struct ValueType *CharArrayType;
     struct ValueType *VoidPtrType;
 
+    /* ND types */
+    struct ValueType IntNDType;
+    struct ValueType ShortNDType;
+    struct ValueType CharNDType;
+    struct ValueType LongNDType;
+    struct ValueType UnsignedIntNDType;
+    struct ValueType UnsignedShortNDType;
+    struct ValueType UnsignedCharNDType;
+    struct ValueType UnsignedLongNDType;
+#ifndef NO_FP
+    struct ValueType FPNDType;
+#endif
     /* debugger */
     struct Table BreakpointTable;
     struct TableEntry *BreakpointHashTable[BREAKPOINT_TABLE_SIZE];
@@ -562,6 +576,9 @@ void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identif
 struct ValueType *TypeGetMatching(Picoc *pc, struct ParseState *Parser, struct ValueType *ParentType, enum BaseType Base, int ArraySize, const char *Identifier, int AllowDuplicates);
 struct ValueType *TypeCreateOpaqueStruct(Picoc *pc, struct ParseState *Parser, const char *StructName, int Size);
 int TypeIsForwardDeclared(struct ParseState *Parser, struct ValueType *Typ);
+int TypeIsNonDeterministic(struct ValueType *Typ);
+struct ValueType* TypeGetDeterministic(struct ParseState * Parser, struct ValueType * Typ);
+struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct ValueType * Typ);
 
 /* heap.c */
 void HeapInit(Picoc *pc, int StackSize);
@@ -575,7 +592,6 @@ void *HeapAllocMem(Picoc *pc, int Size);
 void HeapFreeMem(Picoc *pc, void *Mem);
 
 /* variable.c */
-char VariableIsNonDet(struct Value *val);
 void VariableInit(Picoc *pc);
 void VariableCleanup(Picoc *pc);
 void VariableFree(Picoc *pc, struct Value *Val);
@@ -584,12 +600,12 @@ void *VariableAlloc(Picoc *pc, struct ParseState *Parser, int Size, int OnHeap);
 void VariableStackPop(struct ParseState *Parser, struct Value *Var);
 struct Value *
 VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, int IsLValue, struct Value *LValueFrom,
-                          int OnHeap, char IsNonDet, char *VarIdentifier);
+                          int OnHeap, char *VarIdentifier);
 struct Value *VariableAllocValueAndCopy(Picoc *pc, struct ParseState *Parser, struct Value *FromValue, int OnHeap);
 struct Value *VariableAllocValueFromType(Picoc *pc, struct ParseState *Parser, struct ValueType *Typ, int IsLValue, struct Value *LValueFrom, int OnHeap);
 struct Value *
 VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *Typ, union AnyValue *FromValue,
-                                   int IsLValue, struct Value *LValueFrom, char * IsNonDet, char *VarIdentifier);
+                                   int IsLValue, struct Value *LValueFrom, char *VarIdentifier);
 struct Value *VariableAllocValueShared(struct ParseState *Parser, struct Value *FromValue);
 struct Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, struct Value *InitValue, struct ValueType *Typ, int MakeWritable);
 struct Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *Ident, struct ValueType *Typ, int IsStatic, int *FirstVisit);

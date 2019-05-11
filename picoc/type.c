@@ -7,6 +7,61 @@
 static int PointerAlignBytes;
 static int IntAlignBytes;
 
+int TypeIsNonDeterministic(struct ValueType *Typ) {
+    return Typ->IsNonDet;
+}
+
+struct ValueType* TypeGetDeterministic(struct ParseState * Parser, struct ValueType * Typ) {
+    if (!TypeIsNonDeterministic(Typ))
+        return Typ;
+    else {
+        struct ValueType * Base;
+        switch (Typ->Base){
+            case TypeInt: Base = &Parser->pc->IntType; break;
+            case TypeShort: Base = &Parser->pc->ShortType; break;
+            case TypeChar: Base = &Parser->pc->CharType; break;
+            case TypeLong: Base = &Parser->pc->LongType; break;
+            case TypeUnsignedInt: Base = &Parser->pc->UnsignedIntType; break;
+            case TypeUnsignedShort: Base = &Parser->pc->UnsignedShortType; break;
+            case TypeUnsignedLong: Base = &Parser->pc->UnsignedLongType; break;
+            case TypeUnsignedChar: Base = &Parser->pc->UnsignedCharType; break;
+#ifndef NO_FP
+            case TypeFP: Base = &Parser->pc->FPType; break;
+#endif
+            default:
+                fprintf(stderr, "Unsupported non-deterministic type conversion.\n");
+                Base = Typ;
+        }
+        return Base;
+    }
+}
+
+struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct ValueType * Typ) {
+    if (TypeIsNonDeterministic(Typ))
+        return Typ;
+    else {
+        struct ValueType * Base;
+        switch (Typ->Base){
+            case TypeInt: Base = &Parser->pc->IntNDType; break;
+            case TypeShort: Base = &Parser->pc->ShortNDType; break;
+            case TypeChar: Base = &Parser->pc->CharNDType; break;
+            case TypeLong: Base = &Parser->pc->LongNDType; break;
+            case TypeUnsignedInt: Base = &Parser->pc->UnsignedIntNDType; break;
+            case TypeUnsignedShort: Base = &Parser->pc->UnsignedShortNDType; break;
+            case TypeUnsignedLong: Base = &Parser->pc->UnsignedLongNDType; break;
+            case TypeUnsignedChar: Base = &Parser->pc->UnsignedCharNDType; break;
+#ifndef NO_FP
+            case TypeFP: Base = &Parser->pc->FPNDType; break;
+#endif
+            default:
+                fprintf(stderr, "Unsupported non-deterministic type conversion.\n");
+                Base = Typ;
+        }
+        return Base;
+    }
+}
+
+
 
 /* add a new type to the set of types we know about */
 struct ValueType *TypeAdd(Picoc *pc, struct ParseState *Parser, struct ValueType *ParentType, enum BaseType Base, int ArraySize, const char *Identifier, int Sizeof, int AlignBytes)
@@ -88,7 +143,7 @@ int TypeSize(struct ValueType *Typ, int ArraySize, int Compact)
 }
 
 /* add a base type */
-void TypeAddBaseType(Picoc *pc, struct ValueType *TypeNode, enum BaseType Base, int Sizeof, int AlignBytes)
+void TypeAddBaseType(Picoc *pc, struct ValueType *TypeNode, enum BaseType Base, int Sizeof, int AlignBytes, int IsNonDet)
 {
     TypeNode->Base = Base;
     TypeNode->ArraySize = 0;
@@ -99,6 +154,7 @@ void TypeAddBaseType(Picoc *pc, struct ValueType *TypeNode, enum BaseType Base, 
     TypeNode->FromType = NULL;
     TypeNode->DerivedTypeList = NULL;
     TypeNode->OnHeap = FALSE;
+    TypeNode->IsNonDet = IsNonDet;
     TypeNode->Next = pc->UberType.DerivedTypeList;
     pc->UberType.DerivedTypeList = TypeNode;
 }
@@ -119,21 +175,36 @@ void TypeInit(Picoc *pc)
     PointerAlignBytes = (char *)&pa.y - &pa.x;
     
     pc->UberType.DerivedTypeList = NULL;
-    TypeAddBaseType(pc, &pc->IntType, TypeInt, sizeof(int), IntAlignBytes);
-    TypeAddBaseType(pc, &pc->ShortType, TypeShort, sizeof(short), (char *)&sa.y - &sa.x);
-    TypeAddBaseType(pc, &pc->CharType, TypeChar, sizeof(char), (char *)&ca.y - &ca.x);
-    TypeAddBaseType(pc, &pc->LongType, TypeLong, sizeof(long), (char *)&la.y - &la.x);
-    TypeAddBaseType(pc, &pc->UnsignedIntType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes);
-    TypeAddBaseType(pc, &pc->UnsignedShortType, TypeUnsignedShort, sizeof(unsigned short), (char *)&sa.y - &sa.x);
-    TypeAddBaseType(pc, &pc->UnsignedLongType, TypeUnsignedLong, sizeof(unsigned long), (char *)&la.y - &la.x);
-    TypeAddBaseType(pc, &pc->UnsignedCharType, TypeUnsignedChar, sizeof(unsigned char), (char *)&ca.y - &ca.x);
-    TypeAddBaseType(pc, &pc->VoidType, TypeVoid, 0, 1);
-    TypeAddBaseType(pc, &pc->FunctionType, TypeFunction, sizeof(int), IntAlignBytes);
-    TypeAddBaseType(pc, &pc->MacroType, TypeMacro, sizeof(int), IntAlignBytes);
-    TypeAddBaseType(pc, &pc->GotoLabelType, TypeGotoLabel, 0, 1);
+    TypeAddBaseType(pc, &pc->IntType, TypeInt, sizeof(int), IntAlignBytes, FALSE);
+    TypeAddBaseType(pc, &pc->ShortType, TypeShort, sizeof(short), (char *) &sa.y - &sa.x, FALSE);
+    TypeAddBaseType(pc, &pc->CharType, TypeChar, sizeof(char), (char *) &ca.y - &ca.x, FALSE);
+    TypeAddBaseType(pc, &pc->LongType, TypeLong, sizeof(long), (char *) &la.y - &la.x, FALSE);
+    TypeAddBaseType(pc, &pc->UnsignedIntType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, FALSE);
+    TypeAddBaseType(pc, &pc->UnsignedShortType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x, FALSE);
+    TypeAddBaseType(pc, &pc->UnsignedLongType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, FALSE);
+    TypeAddBaseType(pc, &pc->UnsignedCharType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, FALSE);
+    TypeAddBaseType(pc, &pc->VoidType, TypeVoid, 0, 1, FALSE);
+    TypeAddBaseType(pc, &pc->FunctionType, TypeFunction, sizeof(int), IntAlignBytes, FALSE);
+    TypeAddBaseType(pc, &pc->MacroType, TypeMacro, sizeof(int), IntAlignBytes, FALSE);
+    TypeAddBaseType(pc, &pc->GotoLabelType, TypeGotoLabel, 0, 1, FALSE);
+
+    // NDs
+    TypeAddBaseType(pc, &pc->IntNDType, TypeInt, sizeof(int), IntAlignBytes, TRUE);
+    TypeAddBaseType(pc, &pc->ShortNDType, TypeShort, sizeof(short), (char *) &sa.y - &sa.x, TRUE);
+    TypeAddBaseType(pc, &pc->CharNDType, TypeChar, sizeof(char), (char *) &ca.y - &ca.x, TRUE);
+    TypeAddBaseType(pc, &pc->LongNDType, TypeLong, sizeof(long), (char *) &la.y - &la.x, TRUE);
+    TypeAddBaseType(pc, &pc->UnsignedIntNDType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, TRUE);
+    TypeAddBaseType(pc, &pc->UnsignedShortNDType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x,
+                    TRUE);
+    TypeAddBaseType(pc, &pc->UnsignedCharNDType, TypeUnsignedChar, sizeof(unsigned long), (char *) &la.y - &la.x, TRUE);
+    TypeAddBaseType(pc, &pc->UnsignedLongNDType, TypeUnsignedLong, sizeof(unsigned char), (char *) &ca.y - &ca.x, TRUE);
+
 #ifndef NO_FP
-    TypeAddBaseType(pc, &pc->FPType, TypeFP, sizeof(double), (char *)&da.y - &da.x);
-    TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *)&da.y - &da.x);  /* must be large enough to cast to a double */
+    TypeAddBaseType(pc, &pc->FPType, TypeFP, sizeof(double), (char *) &da.y - &da.x, FALSE);
+    TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *) &da.y - &da.x, FALSE);  /* must be large enough to cast to a double */
+
+    // NDs
+    TypeAddBaseType(pc, &pc->FPNDType, TypeFP, sizeof(double), (char *) &da.y - &da.x, TRUE);
 #else
     TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(struct ValueType *), PointerAlignBytes);
 #endif
@@ -227,7 +298,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
         if (MemberType == NULL || MemberIdentifier == NULL)
             ProgramFail(Parser, "invalid type in struct");
         
-        MemberValue = VariableAllocValueAndData(pc, Parser, sizeof(int), FALSE, NULL, TRUE, 0, NULL);
+        MemberValue = VariableAllocValueAndData(pc, Parser, sizeof(int), FALSE, NULL, TRUE, NULL);
         MemberValue->Typ = MemberType;
         if (IsStruct)
         { 
