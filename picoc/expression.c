@@ -313,6 +313,7 @@ void ExpressionStackPushLValue(struct ParseState *Parser, struct ExpressionStack
 {
     struct Value *ValueLoc = VariableAllocValueShared(Parser, PushValue);
     ValueLoc->Val = (void *)((char *)ValueLoc->Val + Offset);
+    ValueLoc->OriginalTypePtr = &PushValue->Typ;
     ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
 
@@ -396,11 +397,9 @@ void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct
         AssignFail(Parser, "%t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
 
     // todo if Source is NonDet, so should the assigned value
-//    if (SourceValue->IsNonDet != NULL) {
-//        if (DestValue->IsNonDet == NULL)
-//            DestValue->IsNonDet = HeapAllocMem(Parser->pc, sizeof(char));
-//        *DestValue->IsNonDet = *SourceValue->IsNonDet;
-//    }
+    if (TypeIsNonDeterministic(SourceValue->Typ)) {
+        DestValue->Typ = SourceValue->Typ;
+    }
     switch (DestValue->Typ->Base)
     {
         case TypeInt:           DestValue->Val->Integer = ExpressionCoerceInteger(SourceValue); break;
@@ -741,7 +740,8 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         int ResultIsInt = FALSE;
         double ResultFP = 0.0;
         double TopFP = (TopValue->Typ == &Parser->pc->FPType) ? TopValue->Val->FP : (double)ExpressionCoerceInteger(TopValue);
-        double BottomFP = (BottomValue->Typ == &Parser->pc->FPType) ? BottomValue->Val->FP : (double)ExpressionCoerceInteger(BottomValue);
+        double BottomFP = (BottomValue->Typ == &Parser->pc->FPType || BottomValue->Typ == &Parser->pc->FPNDType)
+                ? BottomValue->Val->FP : (double)ExpressionCoerceInteger(BottomValue);
 
         // todo nondet
         switch (Op)
@@ -775,9 +775,9 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         /* integer operation */
         long TopInt = ExpressionCoerceInteger(TopValue);
         long BottomInt = ExpressionCoerceInteger(BottomValue);
-        if (TypeIsNonDeterministic(TopValue->Typ)) {
+        if (TypeIsNonDeterministic(TopValue->Typ) && BottomValue->OriginalTypePtr != NULL) {
             // todo
-//            *BottomValue->IsNonDet = *TopValue->IsNonDet;
+            *BottomValue->OriginalTypePtr = TypeGetNonDeterministic(Parser, BottomValue->Typ);
         }
         switch (Op)
         {

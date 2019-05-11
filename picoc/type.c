@@ -196,8 +196,8 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->UnsignedIntNDType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, TRUE);
     TypeAddBaseType(pc, &pc->UnsignedShortNDType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x,
                     TRUE);
-    TypeAddBaseType(pc, &pc->UnsignedCharNDType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, TRUE);
-    TypeAddBaseType(pc, &pc->UnsignedLongNDType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, TRUE);
+    TypeAddBaseType(pc, &pc->UnsignedCharNDType, TypeUnsignedChar, sizeof(unsigned long), (char *) &la.y - &la.x, TRUE);
+    TypeAddBaseType(pc, &pc->UnsignedLongNDType, TypeUnsignedLong, sizeof(unsigned char), (char *) &ca.y - &ca.x, TRUE);
 
 #ifndef NO_FP
     TypeAddBaseType(pc, &pc->FPType, TypeFP, sizeof(double), (char *) &da.y - &da.x, FALSE);

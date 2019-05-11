@@ -144,23 +144,17 @@ int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *
 
     ValueList *Next = Parser.ResolvedNonDetVars;
     for (ValueList *I = Next; I != nullptr; I = Next) {
-        Value *val, *val_old;
+        Value *val;
         VariableGet(pc, &Parser, I->Identifier, &val);
-        VariableGet(main_state->pc, main_state, TableStrRegister(main_state->pc, I->Identifier), &val_old);
         CopyValue(main_state, val, I->Identifier, IsGlobal);
 #ifdef VERBOSE
-        if (IS_FP(val_old)) {
-            double fp_old = AssumptionExpressionCoerceFP(val_old);
-            cw_verbose("Resolved var: %s: %f --> ", I->Identifier, fp_old);
-            VariableGet(main_state->pc, main_state, TableStrRegister(main_state->pc, I->Identifier), &val_old);
-            fp_old = AssumptionExpressionCoerceFP(val_old);
-            cw_verbose("%2.20f\n", fp_old);
+        VariableGet(main_state->pc, main_state, TableStrRegister(main_state->pc, I->Identifier), &val);
+        if (IS_FP(val)) {
+            double fp = AssumptionExpressionCoerceFP(val);
+            cw_verbose("Resolved var: %s: ---> %2.20f\n", I->Identifier, fp);
         } else {
-            int i_old = AssumptionExpressionCoerceInteger(val_old);
-            cw_verbose("Resolved var: %s: %d --> ", I->Identifier, i_old);
-            VariableGet(main_state->pc, main_state, TableStrRegister(main_state->pc, I->Identifier), &val_old);
-            i_old = AssumptionExpressionCoerceInteger(val_old);
-            cw_verbose("%d\n", i_old);
+            int i = AssumptionExpressionCoerceInteger(val);
+            cw_verbose("Resolved var: %s: ---> %d\n", I->Identifier, i);
         }
 #endif
         Next = Next->Next;

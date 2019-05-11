@@ -249,6 +249,7 @@ struct Value
     char OutOfScope;
     // jsv
     char * VarIdentifier;           /* keeps track of the name of the variable this value belongs to */
+    struct ValueType ** OriginalTypePtr;
 };
 
 /* hash table data structure */
