@@ -190,6 +190,8 @@ struct ValueType
     struct Table *Members;          /* members of a struct or union */
     int OnHeap;                     /* true if allocated on the heap */
     int StaticQualifier;            /* true if it's a static */
+    // jsv
+    char IsNonDet;                /* flag for when the variable is non-deterministic */
 };
 
 /* function definition */
@@ -246,7 +248,6 @@ struct Value
     int ScopeID;                    /* to know when it goes out of scope */
     char OutOfScope;
     // jsv
-    char * IsNonDet;                /* flag for when the variable is non-deterministic */
     char * VarIdentifier;           /* keeps track of the name of the variable this value belongs to */
 };
 
@@ -584,12 +585,12 @@ void *VariableAlloc(Picoc *pc, struct ParseState *Parser, int Size, int OnHeap);
 void VariableStackPop(struct ParseState *Parser, struct Value *Var);
 struct Value *
 VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, int IsLValue, struct Value *LValueFrom,
-                          int OnHeap, char IsNonDet, char *VarIdentifier);
+                          int OnHeap, char *VarIdentifier);
 struct Value *VariableAllocValueAndCopy(Picoc *pc, struct ParseState *Parser, struct Value *FromValue, int OnHeap);
 struct Value *VariableAllocValueFromType(Picoc *pc, struct ParseState *Parser, struct ValueType *Typ, int IsLValue, struct Value *LValueFrom, int OnHeap);
 struct Value *
 VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *Typ, union AnyValue *FromValue,
-                                   int IsLValue, struct Value *LValueFrom, char * IsNonDet, char *VarIdentifier);
+                                   int IsLValue, struct Value *LValueFrom, char *VarIdentifier);
 struct Value *VariableAllocValueShared(struct ParseState *Parser, struct Value *FromValue);
 struct Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, struct Value *InitValue, struct ValueType *Typ, int MakeWritable);
 struct Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *Ident, struct ValueType *Typ, int IsStatic, int *FirstVisit);

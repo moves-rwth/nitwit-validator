@@ -103,8 +103,9 @@ void CopyValue(ParseState *ToState, Value *FromValue, const char *Identifier, bo
 
     int addAt;
     TableEntry *entry = TableSearch(table, registeredIdent, &addAt);
-    if (entry->p.v.Val->IsNonDet != nullptr)
-        *entry->p.v.Val->IsNonDet = false;
+//todo
+//    if (entry->p.v.Val->IsNonDet != nullptr)
+//        *entry->p.v.Val->IsNonDet = false;
     assignValue(entry->p.v.Val, FromValue);
 }
 
@@ -189,32 +190,12 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
 
         if (PicocPlatformSetExitPoint(&pc)) {
             cw_verbose("Stopping assumption checker.\n");
-            if (pc.TopStackFrame != nullptr) {
-                for (int Count = 0; Count < pc.TopStackFrame->LocalTable.Size; Count++)
-                {
-                    for (TableEntry * Entry = pc.TopStackFrame->LocalTable.HashTable[Count]; Entry != nullptr; Entry = Entry->Next)
-                    {
-                        HeapFreeMem(&pc, Entry->p.v.Val->IsNonDet);
-                    }
-                }
-            }
-
             PicocCleanup(&pc);
             return false;
         }
         int res = PicocParseAssumptionAndResolve(&pc, "assumption-1243asdfeqv45q", ass.c_str(), ass.length(),
                                                  TRUE, FALSE, FALSE, state, IsGlobalScope);
-        if (pc.TopStackFrame != nullptr) {
-            for (int Count = 0; Count < pc.TopStackFrame->LocalTable.Size; Count++)
-            {
-                for (TableEntry * Entry = pc.TopStackFrame->LocalTable.HashTable[Count];
-                    Entry != nullptr;
-                    Entry = Entry->Next)
-                {
-                    HeapFreeMem(&pc, Entry->p.v.Val->IsNonDet);
-                }
-            }
-        }
+
         PicocCleanup(&pc);
         if (!res) {
             return false;

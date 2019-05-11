@@ -313,10 +313,6 @@ void ExpressionStackPushLValue(struct ParseState *Parser, struct ExpressionStack
 {
     struct Value *ValueLoc = VariableAllocValueShared(Parser, PushValue);
     ValueLoc->Val = (void *)((char *)ValueLoc->Val + Offset);
-    if (PushValue->IsNonDet == NULL) {
-        PushValue->IsNonDet = HeapAllocMem(Parser->pc, sizeof(char));
-        ValueLoc->IsNonDet = PushValue->IsNonDet;
-    }
     ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
 
@@ -332,7 +328,7 @@ void ExpressionStackPushDereference(struct ParseState *Parser, struct Expression
         ProgramFail(Parser, "NULL pointer dereference");
 
     ValueLoc = VariableAllocValueFromExistingData(Parser, DerefType, (union AnyValue *) DerefDataLoc, DerefIsLValue,
-                                                  DerefVal, 0, NULL);
+                                                  DerefVal, NULL);
     ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
 
@@ -399,12 +395,12 @@ void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct
     if (IS_NUMERIC_COERCIBLE(DestValue) && !IS_NUMERIC_COERCIBLE_PLUS_POINTERS(SourceValue, AllowPointerCoercion))
         AssignFail(Parser, "%t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
 
-    // if Source is NonDet, so should the assigned value
-    if (SourceValue->IsNonDet != NULL) {
-        if (DestValue->IsNonDet == NULL)
-            DestValue->IsNonDet = HeapAllocMem(Parser->pc, sizeof(char));
-        *DestValue->IsNonDet = *SourceValue->IsNonDet;
-    }
+    // todo if Source is NonDet, so should the assigned value
+//    if (SourceValue->IsNonDet != NULL) {
+//        if (DestValue->IsNonDet == NULL)
+//            DestValue->IsNonDet = HeapAllocMem(Parser->pc, sizeof(char));
+//        *DestValue->IsNonDet = *SourceValue->IsNonDet;
+//    }
     switch (DestValue->Typ->Base)
     {
         case TypeInt:           DestValue->Val->Integer = ExpressionCoerceInteger(SourceValue); break;
@@ -717,14 +713,14 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
                                                                                   TypeSize(BottomValue->Typ, ArrayIndex,
                                                                                            TRUE)),
                                                                           BottomValue->IsLValue,
-                                                                          BottomValue->LValueFrom, 0, NULL); break;
+                                                                          BottomValue->LValueFrom, NULL); break;
             case TypePointer: Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType,
                                                                           (union AnyValue *) (
                                                                                   (char *) BottomValue->Val->Pointer +
                                                                                   TypeSize(BottomValue->Typ->FromType,
                                                                                            0, TRUE) * ArrayIndex),
                                                                           BottomValue->IsLValue,
-                                                                          BottomValue->LValueFrom, 0, NULL); break;
+                                                                          BottomValue->LValueFrom, NULL); break;
             default:          ProgramFail(Parser, "this %t is not an array", BottomValue->Typ);
         }
 
@@ -780,7 +776,8 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         long TopInt = ExpressionCoerceInteger(TopValue);
         long BottomInt = ExpressionCoerceInteger(BottomValue);
         if (VariableIsNonDet(TopValue)) {
-            *BottomValue->IsNonDet = *TopValue->IsNonDet;
+            // todo
+//            *BottomValue->IsNonDet = *TopValue->IsNonDet;
         }
         switch (Op)
         {
@@ -1095,7 +1092,7 @@ void ExpressionGetStructElement(struct ParseState *Parser, struct ExpressionStac
         /* make the result value for this member only */
         Result = VariableAllocValueFromExistingData(Parser, MemberValue->Typ,
                                                     (void *) (DerefDataLoc + MemberValue->Val->Integer), TRUE,
-                                                    (StructVal != NULL) ? StructVal->LValueFrom : NULL, 0, NULL);
+                                                    (StructVal != NULL) ? StructVal->LValueFrom : NULL, NULL);
         ExpressionStackPushValueNode(Parser, StackTop, Result);
     }
 }
