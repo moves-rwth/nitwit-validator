@@ -741,12 +741,12 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
         /* floating point infix arithmetic */
         int ResultIsInt = FALSE;
         double ResultFP = 0.0;
-        if (VariableIsNonDet(TopValue) != VariableIsNonDet(BottomValue)) {
+        if (TypeIsNonDeterministic(TopValue->Typ) != TypeIsNonDeterministic(BottomValue->Typ)) {
             /* one of the values is nondet */
-            char * Identifier = VariableIsNonDet(TopValue) ? TopValue->VarIdentifier : BottomValue->VarIdentifier;
+            char * Identifier = TypeIsNonDeterministic(TopValue->Typ) ? TopValue->VarIdentifier : BottomValue->VarIdentifier;
 
             /* integer nondet resolution */
-            double AssignedDouble = VariableIsNonDet(TopValue) ? (BottomValue->Typ == &Parser->pc->FPType) ? BottomValue->Val->FP : (double)AssumptionExpressionCoerceInteger(BottomValue)
+            double AssignedDouble = TypeIsNonDeterministic(TopValue->Typ) ? (BottomValue->Typ == &Parser->pc->FPType) ? BottomValue->Val->FP : (double)AssumptionExpressionCoerceInteger(BottomValue)
                                                   : (TopValue->Typ == &Parser->pc->FPType) ? TopValue->Val->FP : (double)AssumptionExpressionCoerceInteger(TopValue);
 
             struct Value * NonDetValue;
@@ -801,12 +801,12 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
     else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_NUMERIC_COERCIBLE(BottomValue))
     {
         /* integer operation */
-        if (VariableIsNonDet(TopValue) != VariableIsNonDet(BottomValue)) {
+        if (TypeIsNonDeterministic(TopValue->Typ) != TypeIsNonDeterministic(BottomValue->Typ)) {
             /* one of the values is nondet */
-            char * Identifier = VariableIsNonDet(TopValue) ? TopValue->VarIdentifier : BottomValue->VarIdentifier;
+            char * Identifier = TypeIsNonDeterministic(TopValue->Typ) ? TopValue->VarIdentifier : BottomValue->VarIdentifier;
 
             /* integer nondet resolution */
-            long AssignedInt = VariableIsNonDet(TopValue) ? AssumptionExpressionCoerceInteger(BottomValue)
+            long AssignedInt = TypeIsNonDeterministic(TopValue->Typ) ? AssumptionExpressionCoerceInteger(BottomValue)
                     : AssumptionExpressionCoerceInteger(TopValue);
 
             struct Value * NonDetValue;

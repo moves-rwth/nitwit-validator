@@ -775,7 +775,7 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         /* integer operation */
         long TopInt = ExpressionCoerceInteger(TopValue);
         long BottomInt = ExpressionCoerceInteger(BottomValue);
-        if (VariableIsNonDet(TopValue)) {
+        if (TypeIsNonDeterministic(TopValue->Typ)) {
             // todo
 //            *BottomValue->IsNonDet = *TopValue->IsNonDet;
         }

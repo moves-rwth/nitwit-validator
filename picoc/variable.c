@@ -485,9 +485,3 @@ void *VariableDereferencePointer(struct ParseState *Parser, struct Value *Pointe
 
     return PointerValue->Val->Pointer;
 }
-
-
-char VariableIsNonDet(struct Value *val) {
-    return FALSE;
-//    return val->IsNonDet != NULL && *val->IsNonDet;
-}

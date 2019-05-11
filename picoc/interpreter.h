@@ -173,7 +173,22 @@ enum BaseType
     TypeUnion,                  /* merged type */
     TypeEnum,                   /* enumerated integer type */
     TypeGotoLabel,              /* a label we can "goto" */
-    Type_Type                   /* a type for storing types */
+    Type_Type,                   /* a type for storing types */
+
+    // jsv - Non-deterministic types
+    TypeNDStart,
+    TypeIntND,                    /* integer */
+    TypeShortND,                  /* short integer */
+    TypeCharND,                   /* a single character (signed) */
+    TypeLongND,                   /* long integer */
+    TypeUnsignedIntND,            /* unsigned integer */
+    TypeUnsignedShortND,          /* unsigned short integer */
+    TypeUnsignedCharND,           /* unsigned 8-bit number */ /* must be before unsigned long */
+    TypeUnsignedLongND,           /* unsigned long integer */
+#ifndef NO_FP
+    TypeFPND,                     /* floating point */
+#endif
+    TypeNDEnd
 };
 
 /* data type */
@@ -462,6 +477,18 @@ struct Picoc_Struct
     struct ValueType *CharArrayType;
     struct ValueType *VoidPtrType;
 
+    /* ND types */
+    struct ValueType IntNDType;
+    struct ValueType ShortNDType;
+    struct ValueType CharNDType;
+    struct ValueType LongNDType;
+    struct ValueType UnsignedIntNDType;
+    struct ValueType UnsignedShortNDType;
+    struct ValueType UnsignedCharNDType;
+    struct ValueType UnsignedLongNDType;
+#ifndef NO_FP
+    struct ValueType FPNDType;
+#endif
     /* debugger */
     struct Table BreakpointTable;
     struct TableEntry *BreakpointHashTable[BREAKPOINT_TABLE_SIZE];
@@ -563,6 +590,8 @@ void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identif
 struct ValueType *TypeGetMatching(Picoc *pc, struct ParseState *Parser, struct ValueType *ParentType, enum BaseType Base, int ArraySize, const char *Identifier, int AllowDuplicates);
 struct ValueType *TypeCreateOpaqueStruct(Picoc *pc, struct ParseState *Parser, const char *StructName, int Size);
 int TypeIsForwardDeclared(struct ParseState *Parser, struct ValueType *Typ);
+int TypeIsNonDeterministic(struct ValueType *Typ);
+
 
 /* heap.c */
 void HeapInit(Picoc *pc, int StackSize);
@@ -576,7 +605,6 @@ void *HeapAllocMem(Picoc *pc, int Size);
 void HeapFreeMem(Picoc *pc, void *Mem);
 
 /* variable.c */
-char VariableIsNonDet(struct Value *val);
 void VariableInit(Picoc *pc);
 void VariableCleanup(Picoc *pc);
 void VariableFree(Picoc *pc, struct Value *Val);
