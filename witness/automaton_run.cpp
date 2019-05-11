@@ -8,6 +8,27 @@
 void cw_verbose(const string& Format, ...){}
 #endif
 
+void assignValue(Value *DestValue, Value* FromValue) {
+
+    if (IS_FP(DestValue)) {
+        DestValue->Val->FP = ExpressionCoerceFP(FromValue);
+    } else {
+        long FromInt = ExpressionCoerceInteger(FromValue);
+        switch (DestValue->Typ->Base)
+        {
+            case TypeInt:           DestValue->Val->Integer = FromInt; break;
+            case TypeShort:         DestValue->Val->ShortInteger = (short)FromInt; break;
+            case TypeChar:          DestValue->Val->Character = (char)FromInt; break;
+            case TypeLong:          DestValue->Val->LongInteger = (long)FromInt; break;
+            case TypeUnsignedInt:   DestValue->Val->UnsignedInteger = (unsigned int)FromInt; break;
+            case TypeUnsignedShort: DestValue->Val->UnsignedShortInteger = (unsigned short)FromInt; break;
+            case TypeUnsignedLong:  DestValue->Val->UnsignedLongInteger = (unsigned long)FromInt; break;
+            case TypeUnsignedChar:  DestValue->Val->UnsignedCharacter = (unsigned char)FromInt; break;
+            default: break;
+        }
+    }
+}
+
 string baseFileName(const string &s) {
     return s.substr(s.find_last_of("/\\") + 1);
 }
@@ -79,20 +100,16 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
     return true;
 }
 
-void CopyValue(ParseState *ToState, Value *ToValue, Value *FromValue, ParseState *FromState,
-               const char *Identifier, bool IsGlobal) {
-    Value *copy = VariableAllocValueAndCopy(ToState->pc, ToState, FromValue, FromValue->ValOnHeap);
+void CopyValue(ParseState *ToState, Value *FromValue, const char *Identifier, bool IsGlobal) {
     char *registeredIdent = TableStrRegister(ToState->pc, Identifier);
     // todo could top stack be null?
     Table *table = IsGlobal ? &ToState->pc->GlobalTable : &ToState->pc->TopStackFrame->LocalTable;
 
     int addAt;
     TableEntry *entry = TableSearch(table, registeredIdent, &addAt);
-    VariableFree(ToState->pc, entry->p.v.Val);
-    entry->p.v.Val = copy;
-    entry->p.v.Val->Typ = entry->p.v.Val->Typ == &FromState->pc->FPType ?
-                          &ToState->pc->FPType : entry->p.v.Val->Typ;
-    copy->IsNonDet = false;
+    if (entry->p.v.Val->IsNonDet != nullptr)
+        *entry->p.v.Val->IsNonDet = false;
+    assignValue(entry->p.v.Val, FromValue);
 }
 
 int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *Source,
@@ -133,7 +150,7 @@ int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *
         Value *val, *val_old;
         VariableGet(pc, &Parser, I->Identifier, &val);
         VariableGet(main_state->pc, main_state, TableStrRegister(main_state->pc, I->Identifier), &val_old);
-        CopyValue(main_state, val_old, val, &Parser, I->Identifier, IsGlobal);
+        CopyValue(main_state, val, I->Identifier, IsGlobal);
 #ifdef VERBOSE
         if (IS_FP(val_old)) {
             double fp_old = AssumptionExpressionCoerceFP(val_old);
@@ -252,8 +269,6 @@ void Automaton::consumeState(ParseState *state) {
         if (!edge->enter_function.empty() && edge->enter_function != "main") {
             if (state->EnterFunction == nullptr ||
                 strcmp(state->EnterFunction, edge->enter_function.c_str()) != 0) {
-//                    printf("Wrong function. Expected enter into %s, got %s.\n", edge->enter_function.c_str(),
-//                           state->EnterFunction);
                 continue;
             }
         }
@@ -262,8 +277,6 @@ void Automaton::consumeState(ParseState *state) {
         if (!edge->return_from_function.empty() && edge->return_from_function != "main") {
             if (state->ReturnFromFunction == nullptr ||
                 strcmp(state->ReturnFromFunction, edge->return_from_function.c_str()) != 0) {
-//                    printf("Wrong function. Expected return from %s, got %s.\n", edge->return_from_function.c_str(),
-//                           state->ReturnFromFunction);
                 continue;
             }
         }
@@ -284,8 +297,8 @@ void Automaton::consumeState(ParseState *state) {
         }
         current_state = nodes.find(edge->target_id)->second;
         cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
-
         try_resolve_variables(state);
+
         return;
     }
 

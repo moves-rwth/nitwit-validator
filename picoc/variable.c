@@ -31,7 +31,12 @@ void VariableFree(Picoc *pc, struct Value *Val)
         /* free the AnyValue */
         if (Val->AnyValOnHeap)
             HeapFreeMem(pc, Val->Val);
+
     }
+
+    /* free nondet */
+    if (Val->IsNonDet)
+        HeapFreeMem(pc, Val->IsNonDet);
 
     /* free the value */
     if (Val->ValOnHeap)
@@ -101,7 +106,9 @@ VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, in
         NewValue->ScopeID = Parser->ScopeID;
 
     NewValue->OutOfScope = 0;
-    NewValue->IsNonDet = IsNonDet;
+    NewValue->IsNonDet = Parser != NULL ? HeapAllocMem(Parser->pc, sizeof(char)) : NULL;
+    if (NewValue->IsNonDet != NULL)
+        *NewValue->IsNonDet = IsNonDet;
     NewValue->VarIdentifier = VarIdentifier;
     
     return NewValue;
@@ -111,7 +118,7 @@ VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, in
 struct Value *VariableAllocValueFromType(Picoc *pc, struct ParseState *Parser, struct ValueType *Typ, int IsLValue, struct Value *LValueFrom, int OnHeap)
 {
     int Size = TypeSize(Typ, Typ->ArraySize, FALSE);
-    // TODO is nondet=false OK here?
+    // TODO is nondet=uninit OK here?
     struct Value *NewValue = VariableAllocValueAndData(pc, Parser, Size, IsLValue, LValueFrom, OnHeap, FALSE, NULL);
     assert(Size >= 0 || Typ == &pc->VoidType);
     NewValue->Typ = Typ;
@@ -130,7 +137,8 @@ struct Value *VariableAllocValueAndCopy(Picoc *pc, struct ParseState *Parser, st
     assert(CopySize <= MAX_TMP_COPY_BUF);
     memcpy((void *)&TmpBuf[0], (void *)FromValue->Val, CopySize);
     NewValue = VariableAllocValueAndData(pc, Parser, CopySize, FromValue->IsLValue, FromValue->LValueFrom, OnHeap,
-                                         FromValue->IsNonDet, FromValue->VarIdentifier);
+                                         FromValue->IsNonDet == NULL ? FALSE : *FromValue->IsNonDet,
+                                         FromValue->VarIdentifier);
     NewValue->Typ = DType;
     memcpy((void *)NewValue->Val, (void *)&TmpBuf[0], CopySize);
     
@@ -140,7 +148,7 @@ struct Value *VariableAllocValueAndCopy(Picoc *pc, struct ParseState *Parser, st
 /* allocate a value either on the heap or the stack from an existing AnyValue and type */
 struct Value *
 VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *Typ, union AnyValue *FromValue,
-                                   int IsLValue, struct Value *LValueFrom, char IsNonDet, char *VarIdentifier)
+                                   int IsLValue, struct Value *LValueFrom, char * IsNonDet, char *VarIdentifier)
 {
     struct Value *NewValue = VariableAlloc(Parser->pc, Parser, sizeof(struct Value), FALSE);
     NewValue->Typ = Typ;
@@ -287,7 +295,7 @@ struct Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, 
     AssignValue->ScopeID = ScopeID;
     AssignValue->OutOfScope = FALSE;
     // todo non-det for uninit variables
-    AssignValue->IsNonDet =  FALSE;
+    AssignValue->IsNonDet = AssignValue->IsLValue ? HeapAllocMem(pc, sizeof(char)) : NULL;
 
     if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : NULL, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
         ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
@@ -487,3 +495,7 @@ void *VariableDereferencePointer(struct ParseState *Parser, struct Value *Pointe
     return PointerValue->Val->Pointer;
 }
 
+
+char VariableIsNonDet(struct Value *val) {
+    return val->IsNonDet != NULL && *val->IsNonDet;
+}

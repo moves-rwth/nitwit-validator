@@ -4,6 +4,7 @@ project(cwvalidator C CXX)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS "-Wall -pedantic")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DVERBOSE")
+set(CMAKE_C_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 file(GLOB P_C_FILES picoc/**/*.c)

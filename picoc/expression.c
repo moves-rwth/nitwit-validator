@@ -739,6 +739,7 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         double TopFP = (TopValue->Typ == &Parser->pc->FPType) ? TopValue->Val->FP : (double)ExpressionCoerceInteger(TopValue);
         double BottomFP = (BottomValue->Typ == &Parser->pc->FPType) ? BottomValue->Val->FP : (double)ExpressionCoerceInteger(BottomValue);
 
+        // todo nondet
         switch (Op)
         {
             case TokenAssign:               ASSIGN_FP_OR_INT(TopFP); break;
@@ -770,6 +771,9 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         /* integer operation */
         long TopInt = ExpressionCoerceInteger(TopValue);
         long BottomInt = ExpressionCoerceInteger(BottomValue);
+        if (VariableIsNonDet(TopValue)) {
+            *BottomValue->IsNonDet = *TopValue->IsNonDet;
+        }
         switch (Op)
         {
             case TokenAssign:               ResultInt = ExpressionAssignInt(Parser, BottomValue, TopInt, FALSE); break;
