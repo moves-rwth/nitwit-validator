@@ -596,6 +596,7 @@ void ParseTypedef(struct ParseState *Parser)
         InitValue.Typ = &Parser->pc->TypeType;
         InitValue.Val = (union AnyValue *)TypPtr;
         InitValue.IsNonDet = NULL;
+        InitValue.IsLValue = FALSE;
         VariableDefine(Parser->pc, Parser, TypeName, &InitValue, NULL, FALSE);
     }
 }

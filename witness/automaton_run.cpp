@@ -75,13 +75,10 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
         for (short s = 0; s < to->TopStackFrame->LocalTable.Size; ++s) {
             if (from->TopStackFrame->LocalTable.HashTable[s] == nullptr) continue;
             for (TableEntry *e = from->TopStackFrame->LocalTable.HashTable[s]; e != nullptr; e = e->Next) {
-                Value *val = VariableAllocValueAndCopy(to, state, e->p.v.Val, e->p.v.Val->ValOnHeap);
-//                BottomValue->Typ == &Parser->pc->FPType)
-                val->Typ = val->Typ == &from->FPType ? &to->FPType : val->Typ;
-                if (!TableSet(to, &to->TopStackFrame->LocalTable,
-                              TableStrRegister(to, e->p.v.Key), val, state->FileName,
-                              0, 0)) // doesn't matter
-                    VariableFree(to, val);
+                if (!VariableDefined(to, TableStrRegister(to, e->p.v.Key))){
+                    VariableDefine(to, state, TableStrRegister(to, e->p.v.Key), e->p.v.Val,
+                        e->p.v.Val->Typ == &from->FPType ? &to->FPType : e->p.v.Val->Typ, e->p.v.Val->IsLValue);
+                }
             }
         }
     }
@@ -89,11 +86,10 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
     for (short s = 0; s < to->GlobalTable.Size; ++s) {
         if (from->GlobalTable.HashTable[s] == nullptr) continue;
         for (TableEntry *e = from->GlobalTable.HashTable[s]; e != nullptr; e = e->Next) {
-            Value *val = VariableAllocValueAndCopy(to, state, e->p.v.Val, e->p.v.Val->ValOnHeap);
-            if (!TableSet(to, &to->GlobalTable,
-                          TableStrRegister(to, e->p.v.Key), val, state->FileName,
-                          0, 0)) // doesn't matter
-                VariableFree(to, val);
+            if (!VariableDefined(to, TableStrRegister(to, e->p.v.Key))){
+                VariableDefine(to, state, TableStrRegister(to, e->p.v.Key), e->p.v.Val,
+                           e->p.v.Val->Typ == &from->FPType ? &to->FPType : e->p.v.Val->Typ, e->p.v.Val->IsLValue);
+            }
         }
     }
 
@@ -193,12 +189,32 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
 
         if (PicocPlatformSetExitPoint(&pc)) {
             cw_verbose("Stopping assumption checker.\n");
+            if (pc.TopStackFrame != nullptr) {
+                for (int Count = 0; Count < pc.TopStackFrame->LocalTable.Size; Count++)
+                {
+                    for (TableEntry * Entry = pc.TopStackFrame->LocalTable.HashTable[Count]; Entry != nullptr; Entry = Entry->Next)
+                    {
+                        HeapFreeMem(&pc, Entry->p.v.Val->IsNonDet);
+                    }
+                }
+            }
 
             PicocCleanup(&pc);
             return false;
         }
         int res = PicocParseAssumptionAndResolve(&pc, "assumption-1243asdfeqv45q", ass.c_str(), ass.length(),
                                                  TRUE, FALSE, FALSE, state, IsGlobalScope);
+        if (pc.TopStackFrame != nullptr) {
+            for (int Count = 0; Count < pc.TopStackFrame->LocalTable.Size; Count++)
+            {
+                for (TableEntry * Entry = pc.TopStackFrame->LocalTable.HashTable[Count];
+                    Entry != nullptr;
+                    Entry = Entry->Next)
+                {
+                    HeapFreeMem(&pc, Entry->p.v.Val->IsNonDet);
+                }
+            }
+        }
         PicocCleanup(&pc);
         if (!res) {
             return false;

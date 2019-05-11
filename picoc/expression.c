@@ -313,6 +313,10 @@ void ExpressionStackPushLValue(struct ParseState *Parser, struct ExpressionStack
 {
     struct Value *ValueLoc = VariableAllocValueShared(Parser, PushValue);
     ValueLoc->Val = (void *)((char *)ValueLoc->Val + Offset);
+    if (PushValue->IsNonDet == NULL) {
+        PushValue->IsNonDet = HeapAllocMem(Parser->pc, sizeof(char));
+        ValueLoc->IsNonDet = PushValue->IsNonDet;
+    }
     ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
 
@@ -396,7 +400,11 @@ void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct
         AssignFail(Parser, "%t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
 
     // if Source is NonDet, so should the assigned value
-    DestValue->IsNonDet = SourceValue->IsNonDet;
+    if (SourceValue->IsNonDet != NULL) {
+        if (DestValue->IsNonDet == NULL)
+            DestValue->IsNonDet = HeapAllocMem(Parser->pc, sizeof(char));
+        *DestValue->IsNonDet = *SourceValue->IsNonDet;
+    }
     switch (DestValue->Typ->Base)
     {
         case TypeInt:           DestValue->Val->Integer = ExpressionCoerceInteger(SourceValue); break;
@@ -1277,7 +1285,6 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
             if (LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket)
             {
                 char *FuncName = LexValue->Val->Identifier;
-//                const char *RetBeforeName = Parser->ReturnFromFunction;
                 if (Parser->DebugMode && Parser->Mode == RunModeRun) {
                     Parser->EnterFunction = FuncName;
                     DebugCheckStatement(Parser);

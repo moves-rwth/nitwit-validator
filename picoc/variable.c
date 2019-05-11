@@ -35,7 +35,7 @@ void VariableFree(Picoc *pc, struct Value *Val)
     }
 
     /* free nondet */
-    if (Val->IsNonDet)
+    if (Val->IsNonDet != NULL)
         HeapFreeMem(pc, Val->IsNonDet);
 
     /* free the value */
@@ -67,6 +67,8 @@ void VariableCleanup(Picoc *pc)
 {
     VariableTableCleanup(pc, &pc->GlobalTable);
     VariableTableCleanup(pc, &pc->StringLiteralTable);
+//    if (pc->TopStackFrame != NULL)
+//        VariableTableCleanup(pc, &pc->TopStackFrame->LocalTable);
 }
 
 /* allocate some memory, either on the heap or the stack and check if we've run out */
@@ -106,7 +108,7 @@ VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, in
         NewValue->ScopeID = Parser->ScopeID;
 
     NewValue->OutOfScope = 0;
-    NewValue->IsNonDet = Parser != NULL ? HeapAllocMem(Parser->pc, sizeof(char)) : NULL;
+    NewValue->IsNonDet = Parser != NULL && IsLValue ? HeapAllocMem(Parser->pc, sizeof(char)) : NULL;
     if (NewValue->IsNonDet != NULL)
         *NewValue->IsNonDet = IsNonDet;
     NewValue->VarIdentifier = VarIdentifier;
@@ -288,14 +290,14 @@ struct Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, 
     
     if (InitValue != NULL)
         AssignValue = VariableAllocValueAndCopy(pc, Parser, InitValue, pc->TopStackFrame == NULL);
-    else
+    else {
         AssignValue = VariableAllocValueFromType(pc, Parser, Typ, MakeWritable, NULL, pc->TopStackFrame == NULL);
+        // todo non-det for uninit variables
+    }
     
     AssignValue->IsLValue = MakeWritable;
     AssignValue->ScopeID = ScopeID;
     AssignValue->OutOfScope = FALSE;
-    // todo non-det for uninit variables
-    AssignValue->IsNonDet = AssignValue->IsLValue ? HeapAllocMem(pc, sizeof(char)) : NULL;
 
     if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : NULL, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
         ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
