@@ -174,21 +174,6 @@ enum BaseType
     TypeEnum,                   /* enumerated integer type */
     TypeGotoLabel,              /* a label we can "goto" */
     Type_Type,                   /* a type for storing types */
-
-    // jsv - Non-deterministic types
-    TypeNDStart,
-    TypeIntND,                    /* integer */
-    TypeShortND,                  /* short integer */
-    TypeCharND,                   /* a single character (signed) */
-    TypeLongND,                   /* long integer */
-    TypeUnsignedIntND,            /* unsigned integer */
-    TypeUnsignedShortND,          /* unsigned short integer */
-    TypeUnsignedCharND,           /* unsigned 8-bit number */ /* must be before unsigned long */
-    TypeUnsignedLongND,           /* unsigned long integer */
-#ifndef NO_FP
-    TypeFPND,                     /* floating point */
-#endif
-    TypeNDEnd
 };
 
 /* data type */
@@ -591,7 +576,8 @@ struct ValueType *TypeGetMatching(Picoc *pc, struct ParseState *Parser, struct V
 struct ValueType *TypeCreateOpaqueStruct(Picoc *pc, struct ParseState *Parser, const char *StructName, int Size);
 int TypeIsForwardDeclared(struct ParseState *Parser, struct ValueType *Typ);
 int TypeIsNonDeterministic(struct ValueType *Typ);
-
+struct ValueType* TypeGetDeterministic(struct ParseState * Parser, struct ValueType * Typ);
+struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct ValueType * Typ);
 
 /* heap.c */
 void HeapInit(Picoc *pc, int StackSize);
