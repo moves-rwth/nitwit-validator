@@ -76,8 +76,7 @@ def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str
 
 	with os.scandir(WITNESS_INFO_BY_WITNESS_HASH_DIR) as it:
 		for entry in it:
-			if entry.name.startswith('.') or not entry.is_file() or not should_include(entry.name):
-				print(f"{entry.name} is not a file.")
+			if entry.name.startswith('.') or not entry.is_file() or not should_include(os.path.basename(entry.name)):
 				continue
 			with open(entry.path) as f:
 				jObj = json.load(f)
@@ -144,7 +143,7 @@ def main():
 	parser.add_argument("-to", "--timeout", required=False, type=float, default=300, help="Timeout for a validation.")
 	parser.add_argument("-l", "--limit", required=False, type=int, default=None,
 	                    help="Limit of the number of executions")
-	parser.add_argument("-rc", "--restrict", required=False, type=str, help="Run only witnesses present in the provided "
+	parser.add_argument("-rs", "--restrict", required=False, type=str, help="Run only witnesses present in the provided "
 	                                                                        "JSON result from a previous run.")
 	# parser.add_argument("-c", "--config", required=True, type=str, help="The verifier configuration file.")
 

@@ -213,6 +213,7 @@ void Automaton::try_resolve_variables(ParseState *state) {
 
     } else {
         for (const auto &edge: possible_edges) {
+            cw_verbose("Forward resolving of %s.\n", edge->assumption.c_str());
             satisfiesAssumptionsAndResolve(state, edge);
         }
     }
@@ -250,12 +251,15 @@ void Automaton::consumeState(ParseState *state) {
         if (!(edge->start_line <= state->Line && state->Line <= edge->end_line)) {
             if (!(edge->start_line == 0 && edge->end_line == 0)) continue;
         }
-        // check control branch
-        if (edge->controlCondition != ConditionUndefined || state->LastConditionBranch != ConditionUndefined) {
-            if (edge->controlCondition != state->LastConditionBranch) {
-                continue;
-            }
+
+        // check assumption
+        if (!edge->assumption.empty() && !satisfiesAssumptionsAndResolve(state, edge)) {
+            cw_verbose("Unmet assumption %s.\n", edge->assumption.c_str());
+            continue;
+        } else if (!edge->assumption.empty()) {
+            cw_verbose("Assumption %s satisfied.\n", edge->assumption.c_str());
         }
+
         // check enter function
         if (!edge->enter_function.empty() && edge->enter_function != "main") {
             if (state->EnterFunction == nullptr ||
@@ -272,12 +276,11 @@ void Automaton::consumeState(ParseState *state) {
             }
         }
 
-        // check assumption
-        if (!edge->assumption.empty() && !satisfiesAssumptionsAndResolve(state, edge)) {
-            cw_verbose("Unmet assumption %s.\n", edge->assumption.c_str());
-            continue;
-        } else if (!edge->assumption.empty()) {
-            cw_verbose("Assumption %s satisfied.\n", edge->assumption.c_str());
+        // check control branch
+        if (edge->controlCondition != ConditionUndefined || state->LastConditionBranch != ConditionUndefined) {
+            if (edge->controlCondition != state->LastConditionBranch) {
+                continue;
+            }
         }
 
         if (edge->target_id == "sink") {
@@ -288,7 +291,6 @@ void Automaton::consumeState(ParseState *state) {
         }
         current_state = nodes.find(edge->target_id)->second;
         cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
-        try_resolve_variables(state);
 
         return;
     }
