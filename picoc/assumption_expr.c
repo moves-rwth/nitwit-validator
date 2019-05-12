@@ -826,7 +826,7 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
             long BottomInt = AssumptionExpressionCoerceInteger(BottomValue);
             switch (Op)
             {
-                case TokenAssign:               ResultInt = AssumptionExpressionAssignInt(Parser, BottomValue, TopInt, FALSE); break;
+                case TokenAssign:               ResultInt = BottomInt == TopInt; break;
                 case TokenAddAssign:            ResultInt = AssumptionExpressionAssignInt(Parser, BottomValue, BottomInt + TopInt, FALSE); break;
                 case TokenSubtractAssign:       ResultInt = AssumptionExpressionAssignInt(Parser, BottomValue, BottomInt - TopInt, FALSE); break;
                 case TokenMultiplyAssign:       ResultInt = AssumptionExpressionAssignInt(Parser, BottomValue, BottomInt * TopInt, FALSE); break;
