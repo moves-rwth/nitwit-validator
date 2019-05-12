@@ -24,6 +24,7 @@ void IncludeInit(Picoc *pc) {
     IncludeRegister(pc, "unistd.h", &UnistdSetupFunc, &UnistdFunctions[0], UnistdDefs);
 # endif
 
+    IncludeRegister(pc, "assert.h", NULL, &AssertFunctions[0], NULL);
     // verification library
     IncludeRegister(pc, "verif.h", &VerifSetupFunc, &VerifFunctions[0], NULL);
     IncludeRegister(pc, "_Bool.h", NULL, NULL, VerifDefs);
