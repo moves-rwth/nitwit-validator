@@ -135,6 +135,7 @@ def get_result_set(path: str) -> Set[str]:
 		exit(1)
 	with open(path) as rp:
 		jObj = json.load(rp)
+		# allowed_exit_codes = {241, 242, 5}
 		return set([result[1] for result in jObj])
 
 def main():

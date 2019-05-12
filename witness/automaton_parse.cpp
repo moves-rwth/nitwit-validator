@@ -387,7 +387,7 @@ void Automaton::printData() const {
 }
 
 void Automaton::printRelations() const {
-    printf("Successor relation (%lu):\n", successor_rel.size());
+    printf("Successor relation (%u):\n", successor_rel.size());
     for (const auto &n: successor_rel) {
         printf("%s\t ----> \t", n.first.c_str());
         for (const auto &s: n.second) {
@@ -395,7 +395,7 @@ void Automaton::printRelations() const {
         }
         printf("\n");
     }
-    printf("Predecessor relation (%lu):\n", predecessor_rel.size());
+    printf("Predecessor relation (%u):\n", predecessor_rel.size());
     for (const auto &n: predecessor_rel) {
         printf("%s\t <---- \t", n.first.c_str());
         for (const auto &s: n.second) {
