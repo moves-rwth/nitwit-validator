@@ -67,7 +67,7 @@ def run_bench_parallel(configs: List[Tuple[str, str, str]]) -> List[Tuple[int, s
 	return results
 
 
-def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str], bool]) -> List[Tuple[str, str, str]]:
+def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str], bool], should_exclude: Callable[[str], bool]) -> List[Tuple[str, str, str]]:
 	erroneous = 0
 	existent = 0
 	sv_bench_files = 0
@@ -76,7 +76,9 @@ def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str
 
 	with os.scandir(WITNESS_INFO_BY_WITNESS_HASH_DIR) as it:
 		for entry in it:
-			if entry.name.startswith('.') or not entry.is_file() or not should_include(os.path.basename(entry.name)):
+			if entry.name.startswith('.') or not entry.is_file()\
+					or not should_include(os.path.basename(entry.name))\
+					or should_exclude(os.path.basename(entry.name)):
 				continue
 			with open(entry.path) as f:
 				jObj = json.load(f)
@@ -127,7 +129,7 @@ def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str
 	return configs_to_run
 
 
-def get_restrict_dict(path: str) -> Set[str]:
+def get_result_set(path: str) -> Set[str]:
 	if not os.path.isfile(path):
 		print(f"Cannot load configuration from {path}")
 		exit(1)
@@ -145,19 +147,24 @@ def main():
 	                    help="Limit of the number of executions")
 	parser.add_argument("-rs", "--restrict", required=False, type=str, help="Run only witnesses present in the provided "
 	                                                                        "JSON result from a previous run.")
+	parser.add_argument("-ex", "--exclude", required=False, type=str, help="Exclude these previous results from the bench.")
 	# parser.add_argument("-c", "--config", required=True, type=str, help="The verifier configuration file.")
 
 	args = parser.parse_args()
 	if not setup_dirs(args.witnesses, args.sv_benchmark, args.exec, args.timeout):
 		return 1
 
+	should_include = lambda s: True
+	should_exclude = lambda s: False
 	configs = None
 	if args.restrict is not None:
-		restricted = get_restrict_dict(args.restrict)
-		configs = get_bench_params(args.limit, lambda s: s in restricted)
-	else:
-		configs = get_bench_params(args.limit, lambda s: True)
+		restricted = get_result_set(args.restrict)
+		should_include = lambda s: s in restricted
+	if args.exclude is not None:
+		excluded = get_result_set(args.exclude)
+		should_exclude = lambda s: s in excluded
 
+	configs = get_bench_params(args.limit, should_include, should_exclude)
 	results = run_bench_parallel(configs)
 	process_results(results, VALIDATOR_EXECUTABLE, True)
 
