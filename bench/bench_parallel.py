@@ -2,7 +2,7 @@ import argparse
 import os
 import sys
 import json
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Callable, Set
 import multiprocessing
 import subprocess
 
@@ -67,7 +67,7 @@ def run_bench_parallel(configs: List[Tuple[str, str, str]]) -> List[Tuple[int, s
 	return results
 
 
-def get_bench_params(exec_limit: Union[int, None]) -> List[Tuple[str, str, str]]:
+def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str], bool]) -> List[Tuple[str, str, str]]:
 	erroneous = 0
 	existent = 0
 	sv_bench_files = 0
@@ -76,7 +76,7 @@ def get_bench_params(exec_limit: Union[int, None]) -> List[Tuple[str, str, str]]
 
 	with os.scandir(WITNESS_INFO_BY_WITNESS_HASH_DIR) as it:
 		for entry in it:
-			if entry.name.startswith('.') or not entry.is_file():
+			if entry.name.startswith('.') or not entry.is_file() or not should_include(entry.name):
 				print(f"{entry.name} is not a file.")
 				continue
 			with open(entry.path) as f:
@@ -128,6 +128,14 @@ def get_bench_params(exec_limit: Union[int, None]) -> List[Tuple[str, str, str]]
 	return configs_to_run
 
 
+def get_restrict_dict(path: str) -> Set[str]:
+	if not os.path.isfile(path):
+		print(f"Cannot load configuration from {path}")
+		exit(1)
+	with open(path) as rp:
+		jObj = json.load(rp)
+		return set([result[1] for result in jObj])
+
 def main():
 	parser = argparse.ArgumentParser(description="Runs the CWValidator on SV-Benchmark")
 	parser.add_argument("-w", "--witnesses", required=True, type=str, help="The directory with unzipped witnesses.")
@@ -136,13 +144,21 @@ def main():
 	parser.add_argument("-to", "--timeout", required=False, type=float, default=300, help="Timeout for a validation.")
 	parser.add_argument("-l", "--limit", required=False, type=int, default=None,
 	                    help="Limit of the number of executions")
+	parser.add_argument("-rc", "--restrict", required=False, type=str, help="Run only witnesses present in the provided "
+	                                                                        "JSON result from a previous run.")
 	# parser.add_argument("-c", "--config", required=True, type=str, help="The verifier configuration file.")
 
 	args = parser.parse_args()
 	if not setup_dirs(args.witnesses, args.sv_benchmark, args.exec, args.timeout):
 		return 1
 
-	configs = get_bench_params(args.limit)
+	configs = None
+	if args.restrict is not None:
+		restricted = get_restrict_dict(args.restrict)
+		configs = get_bench_params(args.limit, lambda s: s in restricted)
+	else:
+		configs = get_bench_params(args.limit, lambda s: True)
+
 	results = run_bench_parallel(configs)
 	process_results(results, VALIDATOR_EXECUTABLE, True)
 
