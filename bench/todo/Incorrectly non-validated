@@ -1,7 +1,3 @@
 Info files:
 
 72294c05d4350de6f5d89ee4f596001d22578a847fc46dd3fe2d807863b0a572.json -- NaN double for nondet. Parsing of nondet vars
-0a70b51937fcb27e9542e72f0e2ddf1b4278de0e76eaa08dd88bd91e99683364.json -- forward nondet assumptions
-
-Make forward assumptions on the right line
-/home/jan/Documents/thesis/cwvalidator/cmake-build-debug/cwvalidator ../data/sv-witnesses/witnessFileByHash/0a70b51937fcb27e9542e72f0e2ddf1b4278de0e76eaa08dd88bd91e99683364.graphml ../data/sv-benchmarks/c/eca-rers2012/Problem10_label46_false-unreach-call.c
