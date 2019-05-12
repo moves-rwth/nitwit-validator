@@ -12,6 +12,7 @@ extern "C" {
 #include "witness/automaton.hpp"
 
 using namespace std;
+
 shared_ptr<Automaton> wit_aut;
 
 // the values shouldn't conflict with any real program exit value as validation ends before returning for these error codes
@@ -25,6 +26,7 @@ int IDENTIFIER_UNDEFINED = 244;
 int BAD_FUNCTION_DEF = 245;
 int ALREADY_DEFINED = 246;
 int UNSUPPORTED_NONDET_RESOLUTION_OP = 247;
+int ASSERTION_FAILED = 248;
 
 void printProgramState(ParseState *ps) {
     printf("%s --- Line: %zu, Pos: %d", ps->FileName, ps->Line, ps->CharacterPos);

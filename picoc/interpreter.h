@@ -716,4 +716,7 @@ extern const char VerifDefs[];
 extern struct LibraryFunction VerifFunctions[];
 void VerifSetupFunc(Picoc *pc);
 
+// assert.c
+extern struct LibraryFunction AssertFunctions[];
+
 #endif /* INTERPRETER_H */

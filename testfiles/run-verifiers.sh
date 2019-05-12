@@ -12,9 +12,9 @@ cpa -config ../../cpa/CPAchecker-1.8-unix/config/kInduction.properties -spec rea
 
 if [[ $? -eq 0 ]]
 then
-    cd output
-    gunzip Counterexample.1.graphml.gz
-    mv Counterexample.1.graphml ../$1pa.c.graphml
-    cd ..
+    cd output && \
+    gunzip Counterexample.1.graphml.gz && \
+    mv Counterexample.1.graphml ../$1pa.c.graphml && \
+    cd .. && \
     rm -rf output
 fi
