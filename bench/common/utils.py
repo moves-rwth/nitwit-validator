@@ -5,9 +5,9 @@ from typing import Tuple, List
 
 
 def output(output_path: str,
-           validated: List[Tuple[int, str]],
-           non_validated: List[Tuple[int, str]],
-           badly_parsed: List[Tuple[int, str]]):
+           validated: List[Tuple[int, str, str]],
+           non_validated: List[Tuple[int, str, str]],
+           badly_parsed: List[Tuple[int, str, str]]):
 	if not os.path.exists(output_path):
 		os.makedirs(output_path)
 
@@ -21,25 +21,25 @@ def output(output_path: str,
 		json.dump(badly_parsed, badly_parsed_fp)
 
 
-def process_results(results: List[Tuple[int, str]], executable: str, out: bool):
+def process_results(results: List[Tuple[int, str, str]], executable: str, out: bool):
 	validated = []
 	non_validated = []
 	badly_parsed = []
-	for ret_code, info_file in results:
+	for ret_code, info_file, err_msg in results:
 		if ret_code is None:
-			non_validated.append((9, os.path.basename(info_file)))
+			non_validated.append((9, os.path.basename(info_file), err_msg))
 		elif ret_code == 0:
-			validated.append((ret_code, os.path.basename(info_file)))
+			validated.append((ret_code, os.path.basename(info_file), err_msg))
 		elif ret_code >= 240 and ret_code <= 243:
-			non_validated.append((ret_code, os.path.basename(info_file)))
+			non_validated.append((ret_code, os.path.basename(info_file), err_msg))
 		elif ret_code >= 244 and ret_code <= 246:
-			badly_parsed.append((ret_code, os.path.basename(info_file)))
+			badly_parsed.append((ret_code, os.path.basename(info_file), err_msg))
 		elif ret_code == 2:
 			print(f"Witness parse error: {info_file}")
 		elif ret_code == 3:
 			print(f"Bad usage: {info_file}")
 		elif ret_code == 4 or ret_code == 5:
-			non_validated.append((ret_code, os.path.basename(info_file)))
+			non_validated.append((ret_code, os.path.basename(info_file), err_msg))
 		else:
 			print(f"Other error: {ret_code}, {info_file}")
 

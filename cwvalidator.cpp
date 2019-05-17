@@ -73,14 +73,14 @@ int validate(const char *source_filename) {
 
     // the interpreter will jump here after finding a violation
     if (PicocPlatformSetExitPoint(&pc)) {
-        printf("===============Finished=================\n");
-        printf("Stopping the interpreter.\n");
+        cw_verbose("===============Finished=================\n");
+        cw_verbose("Stopping the interpreter.\n");
         int ret = pc.PicocExitValue;
         PicocCleanup(&pc);
 
         return ret;
     }
-    printf("============Start simulation============\n");
+    cw_verbose("============Start simulation============\n");
     char defs[] = "_Bool.h";
     IncludeFile(&pc, defs);
     char *source = readFile(source_filename);
@@ -100,9 +100,9 @@ int validate(const char *source_filename) {
         ProgramFailNoParser(&pc, "main is not a function - can't call it");
 
     PicocCallMain(&pc, nullptr, 0, nullptr);
-    printf("===============Finished=================\n\n");
+    cw_verbose("===============Finished=================\n\n");
 
-    printf("Program finished. Exit value: %d\n", pc.PicocExitValue);
+    cw_verbose("Program finished. Exit value: %d\n", pc.PicocExitValue);
 
     PicocCleanup(&pc);
     return PROGRAM_FINISHED;
@@ -110,7 +110,7 @@ int validate(const char *source_filename) {
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        printf("Usage: <cwvalidator> witness.graphml source-file.c");
+        printf("Usage: <cwvalidator> witness.graphml source-file.c\n");
         return 3;
     }
 
@@ -131,20 +131,20 @@ int main(int argc, char **argv) {
     if ((!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) &&
         (exit_value >= NO_WITNESS_CODE && exit_value <= ALREADY_DEFINED)) {
         if (!wit_aut->wasVerifierErrorCalled())
-            printf("__VERIFIER_error was never called.\n");
-        printf("FAILED: Wasn't able to validate the witness. Violation NOT reached.\n");
-        printf("Automaton finished in state %s, with error code %d.\n",
+            cw_verbose("__VERIFIER_error was never called.\n");
+        cw_verbose("FAILED: Wasn't able to validate the witness. Violation NOT reached.\n");
+        cw_verbose("Automaton finished in state %s, with error code %d.\n",
                wit_aut->getCurrentState()->id.c_str(),
                exit_value);
         return exit_value;
     } else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
-        printf("__VERIFIER_error was never called.\n");
+        cw_verbose("__VERIFIER_error was never called.\n");
         return 5;
     } else if (wit_aut->isInViolationState() && wit_aut->wasVerifierErrorCalled()) {
         printf("\nVALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
         return 0;
     } else {
-        printf("A different error occurred, probably a parsing error or program exited.\n");
+        cw_verbose("A different error occurred, probably a parsing error or program exited.\n");
         return 4;
     }
 }

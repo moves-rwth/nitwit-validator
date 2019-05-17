@@ -21,7 +21,8 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 		print(f"The directory {dir} doesn't exist or is not a directory.", file=sys.stderr)
 		return False
 
-	global WITNESS_INFO_BY_WITNESS_HASH_DIR, WITNESSES_BY_PROGRAM_HASH_DIR, WITNESS_FILE_BY_HASH_DIR, SV_BENCHMARK_DIR, VALIDATOR_EXECUTABLE, EXECUTION_TIMEOUT
+	global WITNESS_INFO_BY_WITNESS_HASH_DIR, WITNESSES_BY_PROGRAM_HASH_DIR, WITNESS_FILE_BY_HASH_DIR, SV_BENCHMARK_DIR,\
+		VALIDATOR_EXECUTABLE, EXECUTION_TIMEOUT
 	WITNESS_INFO_BY_WITNESS_HASH_DIR = os.path.join(dir, WITNESS_INFO_BY_WITNESS_HASH_DIR)
 	WITNESSES_BY_PROGRAM_HASH_DIR = os.path.join(dir, WITNESSES_BY_PROGRAM_HASH_DIR)
 	WITNESS_FILE_BY_HASH_DIR = os.path.join(dir, WITNESS_FILE_BY_HASH_DIR)
@@ -44,13 +45,20 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 	return True
 
 
-def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
+def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str]:
 	witness, source, info_file = config
-	with subprocess.Popen(['srun', VALIDATOR_EXECUTABLE, witness, source], shell=False,
-	                      stdout=subprocess.DEVNULL,
+	with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
+	                      stdout=subprocess.PIPE,
 	                      stderr=subprocess.DEVNULL) as process:
+		errmsg = ''
 		try:
-			process.communicate(timeout=EXECUTION_TIMEOUT)
+			out, _ = process.communicate(timeout=EXECUTION_TIMEOUT)
+			if process.returncode != 0 and out is not None:
+				errmsg = str(out.decode('ascii')).splitlines()
+				errmsg = '' if len(errmsg) < 3 else errmsg[-1]
+				pos = errmsg.find('#')
+				if pos != -1:
+					errmsg = errmsg[pos + 1:]
 		except subprocess.TimeoutExpired:
 			process.kill()
 		res = process.poll()
@@ -58,10 +66,10 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
 			print(f"Process {process.pid} still running!")
 			process.kill()
 
-		return process.returncode, info_file
+		return process.returncode, info_file, errmsg
 
 
-def run_bench_parallel(configs: List[Tuple[str, str, str]]) -> List[Tuple[int, str]]:
+def run_bench_parallel(configs: List[Tuple[str, str, str]]) -> List[Tuple[int, str, str]]:
 	with multiprocessing.Pool(48) as pool:
 		results = pool.map(run_validator, configs)
 	return results
@@ -113,8 +121,8 @@ def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str
 			if exec_limit is not None and len(configs_to_run) >= exec_limit:
 				break
 
-		print(
-			f"Prepared {len(configs_to_run)} SV-COMP files with safety properties checking. Not found {sv_bench_not_found}.")
+		print(f"Prepared {len(configs_to_run)} SV-COMP files with safety "
+		      f"properties checking. Not found {sv_bench_not_found}.")
 		print("-------------------------------------------------------------------")
 	return configs_to_run
 
