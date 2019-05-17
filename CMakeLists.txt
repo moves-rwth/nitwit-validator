@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.10)
 project(cwvalidator C CXX)
 
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "-Wall -pedantic -m32")
-set(CMAKE_C_FLAGS "-Wall -pedantic -m32")
+set(CMAKE_CXX_FLAGS "-Wall -pedantic -m32 -DUNIX_HOST")
+set(CMAKE_C_FLAGS "-Wall -pedantic -m32 -DUNIX_HOST")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DVERBOSE")
 set(CMAKE_C_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
@@ -21,9 +21,6 @@ set(W_SOURCE_FILES witness/witness.hpp witness/witness.cpp witness/witness.cpp w
         witness/automaton_parse.cpp)
 set(U_SOURCE_FILES utils/files.hpp utils/files.cpp utils/pugixml/pugiconfig.hpp utils/pugixml/pugixml.cpp
         utils/pugixml/pugixml.hpp witness/automaton_run.cpp)
-
-add_compile_definitions(VER="2.1")
-add_compile_definitions(UNIX_HOST)
 
 add_executable(cwvalidator cwvalidator.cpp ${P_SOURCE_FILES} ${P_H_FILES}
         ${W_SOURCE_FILES} ${U_SOURCE_FILES})
