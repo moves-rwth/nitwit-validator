@@ -25,5 +25,4 @@ set(U_SOURCE_FILES utils/files.hpp utils/files.cpp utils/pugixml/pugiconfig.hpp 
 add_executable(cwvalidator cwvalidator.cpp ${P_SOURCE_FILES} ${P_H_FILES}
         ${W_SOURCE_FILES} ${U_SOURCE_FILES})
 target_link_libraries(cwvalidator m)
-target_link_libraries(cwvalidator readline)
 
