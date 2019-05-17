@@ -62,16 +62,13 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
 
 
 def run_bench_parallel(configs: List[Tuple[str, str, str]]) -> List[Tuple[int, str]]:
-	with multiprocessing.Pool(24) as pool:
+	with multiprocessing.Pool(48) as pool:
 		results = pool.map(run_validator, configs)
 	return results
 
 
 def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str], bool],
                      should_exclude: Callable[[str], bool]) -> List[Tuple[str, str, str]]:
-	erroneous = 0
-	existent = 0
-	sv_bench_files = 0
 	sv_bench_not_found = 0
 	configs_to_run = []
 
@@ -84,49 +81,40 @@ def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str
 			with open(entry.path) as f:
 				jObj = json.load(f)
 				try:
-					if 'witness-sha256' in jObj:
-						# check if file in witnessFileByHash exists
-						path_to_witness_file = \
-							os.path.join(WITNESS_FILE_BY_HASH_DIR, f'{jObj["witness-sha256"]}.graphml')
-						if not os.path.isfile(path_to_witness_file):
-							print(f"{path_to_witness_file} did not exist")
-							continue
-						existent = existent + 1
+					if 'programfile' in jObj and 'programhash' in jObj:
+						programfile = str(jObj['programfile'])
+						if not programfile.endswith(".c") \
+								or not str(jObj['specification']) == \
+								       "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )" or \
+								('witness-type' in jObj and not jObj['witness-type'] == 'violation_witness'):
+							continue  # not a reachability C verification file
+						sv_regexp_location = programfile.find("sv-benchmarks/c/")
+						if not sv_regexp_location == -1:
+							path_to_source_code = os.path.join(SV_BENCHMARK_DIR, programfile[
+							                                                     sv_regexp_location + len(
+								                                                     "sv-benchmarks/c/"):])
+							if 'witness-sha256' in jObj:
+								# check if file in witnessFileByHash exists
+								path_to_witness_file = \
+									os.path.join(WITNESS_FILE_BY_HASH_DIR, f'{jObj["witness-sha256"]}.graphml')
+								if not os.path.isfile(path_to_witness_file):
+									print(f"{path_to_witness_file} did not exist")
+									continue
 
-						if 'programfile' in jObj and 'programhash' in jObj:
-							programfile = str(jObj['programfile'])
-							if not programfile.endswith(".c") \
-									or not str(jObj['specification']) == \
-									       "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )" or \
-									('witness-type' in jObj and not jObj['witness-type'] == 'violation_witness'):
-								continue  # not a reachability C verification file
-
-							sv_regexp_location = programfile.find("sv-benchmarks/c/")
-							if not sv_regexp_location == -1:
-								path_to_source_code = os.path.join(SV_BENCHMARK_DIR, programfile[
-								                                                     sv_regexp_location + len(
-									                                                     "sv-benchmarks/c/"):])
 								if os.path.isfile(path_to_source_code):
-									sv_bench_files = sv_bench_files + 1
-
 									# run the validator with the found witness and source code
 									configs_to_run.append((path_to_witness_file, path_to_source_code, entry.name))
 								else:
 									print(f"SV-COMP file {path_to_source_code} not found!")
 									sv_bench_not_found = sv_bench_not_found + 1
-							else:
-								erroneous = erroneous + 1
 
-					else:
-						erroneous = erroneous + 1
 				except Exception as e:
 					print(f"Error while processing {entry.name}: {e}")
-			if exec_limit is not None and sv_bench_files >= exec_limit:
+			if exec_limit is not None and len(configs_to_run) >= exec_limit:
 				break
 
-		print(f"Found {erroneous} erroneous files. {existent} witness files existed.")
 		print(
-			f"Prepared {sv_bench_files} SV-COMP files with safety properties checking. Not found {sv_bench_not_found}.")
+			f"Prepared {len(configs_to_run)} SV-COMP files with safety properties checking. Not found {sv_bench_not_found}.")
 		print("-------------------------------------------------------------------")
 	return configs_to_run
 
