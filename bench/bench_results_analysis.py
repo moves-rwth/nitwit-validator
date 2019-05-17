@@ -62,6 +62,18 @@ def print_result_map(m: Dict[int, int]):
 		print(f"\t{EXIT_CODE_DICT[k]}: {v}")
 
 
+def emplace_in_dict(m: Dict[str, int], el: str):
+	if el in m:
+		m[el] = m[el] + 1
+	elif el is not None:
+		m[el] = 1
+
+
+def print_error_msgs(m: Dict[str, int]):
+	for k, v in m.items():
+		print(f"\t{k}: {v}")
+
+
 def analyze_bench_output(results: list, name: str, search_string: str):
 	'''
 	Analyzes the producers and wrong results of the C Witness Validator
@@ -76,33 +88,30 @@ def analyze_bench_output(results: list, name: str, search_string: str):
 
 	prod_map = {}
 	result_map = {}
+	err_msg_map = {}
 	unknown = 0
 	false_positives = 0
 
 	for witness in results:
-		if witness[0] in result_map:
-			result_map[witness[0]] = result_map[witness[0]] + 1
-		else:
-			result_map[witness[0]] = 1
+		emplace_in_dict(result_map, witness[0])
 		with open(os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, witness[1]), 'r') as fp:
 			info_jObj = json.load(fp)
 			if 'producer' in info_jObj:
-				producer = info_jObj['producer']
-				if producer in prod_map:
-					prod_map[producer] = prod_map[producer] + 1
-				else:
-					prod_map[producer] = 1
+				emplace_in_dict(prod_map, info_jObj['producer'])
 			else:
 				unknown = unknown + 1
 
 			pf = str(info_jObj['programfile'])
 			if pf.find(search_string) == -1:
 				false_positives = false_positives + 1
+		emplace_in_dict(err_msg_map, witness[2])
 
 	print('-' * 20 + ' ', name.capitalize(), ' ' + '-' * 20)
 	print(f"Producer summary: {prod_map}")
 	print(f"Result summary:")
 	print_result_map(result_map)
+	print(f"Details:")
+	print_error_msgs(err_msg_map)
 	if unknown > 0:
 		print(f"Unknown producers for {unknown} witnesses.")
 	fp_rate = 0 if len(results) == 0 else false_positives / len(results) * 100
