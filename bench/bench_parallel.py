@@ -46,7 +46,7 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 
 def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
 	witness, source, info_file = config
-	with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
+	with subprocess.Popen(['srun', VALIDATOR_EXECUTABLE, witness, source], shell=False,
 	                      stdout=subprocess.DEVNULL,
 	                      stderr=subprocess.DEVNULL) as process:
 		try:
@@ -62,12 +62,13 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
 
 
 def run_bench_parallel(configs: List[Tuple[str, str, str]]) -> List[Tuple[int, str]]:
-	with multiprocessing.Pool() as pool:
+	with multiprocessing.Pool(24) as pool:
 		results = pool.map(run_validator, configs)
 	return results
 
 
-def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str], bool], should_exclude: Callable[[str], bool]) -> List[Tuple[str, str, str]]:
+def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str], bool],
+                     should_exclude: Callable[[str], bool]) -> List[Tuple[str, str, str]]:
 	erroneous = 0
 	existent = 0
 	sv_bench_files = 0
@@ -76,8 +77,8 @@ def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str
 
 	with os.scandir(WITNESS_INFO_BY_WITNESS_HASH_DIR) as it:
 		for entry in it:
-			if entry.name.startswith('.') or not entry.is_file()\
-					or not should_include(os.path.basename(entry.name))\
+			if entry.name.startswith('.') or not entry.is_file() \
+					or not should_include(os.path.basename(entry.name)) \
 					or should_exclude(os.path.basename(entry.name)):
 				continue
 			with open(entry.path) as f:
@@ -95,8 +96,9 @@ def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str
 						if 'programfile' in jObj and 'programhash' in jObj:
 							programfile = str(jObj['programfile'])
 							if not programfile.endswith(".c") \
-									or not str(
-								jObj['specification']) == "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )":
+									or not str(jObj['specification']) == \
+									       "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )" or \
+									('witness-type' in jObj and not jObj['witness-type'] == 'violation_witness'):
 								continue  # not a reachability C verification file
 
 							sv_regexp_location = programfile.find("sv-benchmarks/c/")
@@ -138,6 +140,7 @@ def get_result_set(path: str) -> Set[str]:
 		# allowed_exit_codes = {241, 242, 5}
 		return set([result[1] for result in jObj])
 
+
 def main():
 	parser = argparse.ArgumentParser(description="Runs the CWValidator on SV-Benchmark")
 	parser.add_argument("-w", "--witnesses", required=True, type=str, help="The directory with unzipped witnesses.")
@@ -146,9 +149,11 @@ def main():
 	parser.add_argument("-to", "--timeout", required=False, type=float, default=300, help="Timeout for a validation.")
 	parser.add_argument("-l", "--limit", required=False, type=int, default=None,
 	                    help="Limit of the number of executions")
-	parser.add_argument("-rs", "--restrict", required=False, type=str, help="Run only witnesses present in the provided "
-	                                                                        "JSON result from a previous run.")
-	parser.add_argument("-ex", "--exclude", required=False, type=str, help="Exclude these previous results from the bench.")
+	parser.add_argument("-rs", "--restrict", required=False, type=str,
+	                    help="Run only witnesses present in the provided "
+	                         "JSON result from a previous run.")
+	parser.add_argument("-ex", "--exclude", required=False, type=str,
+	                    help="Exclude these previous results from the bench.")
 	# parser.add_argument("-c", "--config", required=True, type=str, help="The verifier configuration file.")
 
 	args = parser.parse_args()
