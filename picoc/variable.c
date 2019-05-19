@@ -20,7 +20,7 @@ void VariableFree(Picoc *pc, struct Value *Val)
 {
     if (Val->ValOnHeap || Val->AnyValOnHeap)
     {
-        /* free function bodies */
+        /* free function bodies, careful with  */
         if (Val->Typ == &pc->FunctionType && Val->Val->FuncDef.Intrinsic == NULL && Val->Val->FuncDef.Body.Pos != NULL)
             HeapFreeMem(pc, (void *)Val->Val->FuncDef.Body.Pos);
 
