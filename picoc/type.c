@@ -187,6 +187,7 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->FunctionType, TypeFunction, sizeof(int), IntAlignBytes, FALSE);
     TypeAddBaseType(pc, &pc->MacroType, TypeMacro, sizeof(int), IntAlignBytes, FALSE);
     TypeAddBaseType(pc, &pc->GotoLabelType, TypeGotoLabel, 0, 1, FALSE);
+    TypeAddBaseType(pc, &pc->FunctionPtrType, TypeFunctionPtr, sizeof(void *), PointerAlignBytes, FALSE);
 
     // NDs
     TypeAddBaseType(pc, &pc->IntNDType, TypeInt, sizeof(int), IntAlignBytes, TRUE);
@@ -204,7 +205,6 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *) &da.y - &da.x, FALSE);  /* must be large enough to cast to a double */
 
     // NDs
-    TypeAddBaseType(pc, &pc->FPNDType, TypeFP, sizeof(double), (char *) &da.y - &da.x, TRUE);
 #else
     TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(struct ValueType *), PointerAlignBytes);
 #endif
@@ -212,7 +212,6 @@ void TypeInit(Picoc *pc)
     pc->CharPtrType = TypeAdd(pc, NULL, &pc->CharType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
     pc->CharPtrPtrType = TypeAdd(pc, NULL, pc->CharPtrType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
     pc->VoidPtrType = TypeAdd(pc, NULL, &pc->VoidType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
-    pc->FunctionPtrType = TypeAdd(pc, NULL, &pc->FunctionType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
 }
 
 /* deallocate heap-allocated types */
@@ -571,7 +570,7 @@ int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicT
     if (Token != TokenIdentifier) goto ERROR;
 
     *Identifier = LexValue->Val->Identifier;
-    *Type = Parser->pc->FunctionPtrType;
+    *Type = &Parser->pc->FunctionPtrType;
     *Type = TypeParseBack(Parser, *Type);
 
     Token = LexGetToken(Parser, &LexValue, TRUE);

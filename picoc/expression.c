@@ -355,7 +355,9 @@ void ExpressionAssignToPointer(struct ParseState *Parser, struct Value *ToValue,
     struct ValueType *PointedToType = ToValue->Typ->FromType;
 
     if (FromValue->Typ == ToValue->Typ || FromValue->Typ == Parser->pc->VoidPtrType || (ToValue->Typ == Parser->pc->VoidPtrType && FromValue->Typ->Base == TypePointer))
+    {
         ToValue->Val->Pointer = FromValue->Val->Pointer;      /* plain old pointer assignment */
+    }
 
     else if (FromValue->Typ->Base == TypeArray && (PointedToType == FromValue->Typ->FromType || ToValue->Typ == Parser->pc->VoidPtrType))
     {
@@ -477,7 +479,12 @@ void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct
 
             memcpy((void *)DestValue->Val, (void *)SourceValue->Val, TypeSizeValue(SourceValue, FALSE));
             break;
+        case TypeFunctionPtr:
+            if (DestValue->Typ != SourceValue->Typ)
+                AssignFail(Parser, "%t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
 
+            DestValue->Val->Identifier = SourceValue->Val->Identifier;
+            break;
         default:
             AssignFail(Parser, "%t", DestValue->Typ, NULL, 0, 0, FuncName, ParamNo);
             break;
@@ -530,9 +537,17 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
             if (!TopValue->IsLValue)
                 ProgramFail(Parser, "can't get the address of this");
 
-	        ValPtr = TopValue->Val;
-            Result = VariableAllocValueFromType(Parser->pc, Parser, TypeGetMatching(Parser->pc, Parser, TopValue->Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE), FALSE, NULL, FALSE);
-            Result->Val->Pointer = (void *)ValPtr;
+            if (TopValue->Typ->Base == TypeFunctionPtr) {
+                char * id = TopValue->Val->Identifier;
+                Result = VariableAllocValueFromType(Parser->pc, Parser, TopValue->Typ, FALSE, NULL, FALSE);
+                Result->Val->Identifier = id;
+                if (TopValue->ValOnHeap)
+                    VariableFree(Parser->pc, TopValue);
+            } else {
+                ValPtr = TopValue->Val;
+                Result = VariableAllocValueFromType(Parser->pc, Parser, TypeGetMatching(Parser->pc, Parser, TopValue->Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE), FALSE, NULL, FALSE);
+                Result->Val->Pointer = (void *)ValPtr;
+            }
             ExpressionStackPushValueNode(Parser, StackTop, Result);
             break;
 
@@ -1097,6 +1112,20 @@ void ExpressionGetStructElement(struct ParseState *Parser, struct ExpressionStac
     }
 }
 
+char * ExpressionResolveFunctionName(struct ParseState * Parser, struct Value * LexValue) {
+    struct Value * DefinedVal;
+
+    VariableGet(Parser->pc, Parser, LexValue->Val->Identifier, &DefinedVal);
+
+    if (DefinedVal->Typ == &Parser->pc->FunctionPtrType){
+        if (DefinedVal->Val->Identifier == NULL)
+            ProgramFail(Parser, "trying to call NULL function pointer");
+        return DefinedVal->Val->Identifier;
+    } else {
+        return LexValue->Val->Identifier;
+    }
+}
+
 /* parse an expression with operator precedence */
 int ExpressionParse(struct ParseState *Parser, struct Value **Result)
 {
@@ -1281,13 +1310,14 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
 
             if (LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket)
             {
-                char *FuncName = LexValue->Val->Identifier;
+                char RunIt = Parser->Mode == RunModeRun && Precedence < IgnorePrecedence;
+                char *FuncName = RunIt ? ExpressionResolveFunctionName(Parser, LexValue) : LexValue->Val->Identifier;
                 if (Parser->DebugMode && Parser->Mode == RunModeRun) {
                     Parser->EnterFunction = FuncName;
                     DebugCheckStatement(Parser);
                     Parser->EnterFunction = NULL;
                 }
-                ExpressionParseFunctionCall(Parser, &StackTop, LexValue->Val->Identifier, Parser->Mode == RunModeRun && Precedence < IgnorePrecedence);
+                ExpressionParseFunctionCall(Parser, &StackTop, FuncName, RunIt);
                 if (Parser->DebugMode && Parser->Mode == RunModeRun) {
                     DebugCheckStatement(Parser);
                     Parser->ReturnFromFunction = NULL;
@@ -1318,6 +1348,12 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
                     }
                     else if (VariableValue->Typ == &Parser->pc->VoidType)
                         ProgramFail(Parser, "a void value isn't much use here");
+                    else if (VariableValue->Typ == &Parser->pc->FunctionType){ // it's a func ptr identifier
+                        struct Value * FPtr = VariableAllocValueFromType(Parser->pc, Parser, &Parser->pc->FunctionPtrType, TRUE, FALSE, TRUE);
+                        FPtr->Val->Identifier = LexValue->Val->Identifier;
+                        ExpressionStackPushValue(Parser, &StackTop, FPtr);
+                        VariableFree(Parser->pc, FPtr);
+                    }
                     else
                         ExpressionStackPushLValue(Parser, &StackTop, VariableValue, 0); /* it's a value variable */
                 }
