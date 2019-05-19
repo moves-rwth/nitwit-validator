@@ -85,7 +85,7 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
         ProgramFail(Parser, "too many parameters (%d allowed)", PARAMETER_MAX);
 
     FuncValue = VariableAllocValueAndData(pc, Parser, sizeof(struct FuncDef) + sizeof(struct ValueType *) * ParamCount +
-                                                      sizeof(const char *) * ParamCount, FALSE, NULL, TRUE, NULL);
+                                                      sizeof(const char *) * ParamCount, IsPtrDecl, NULL, TRUE, NULL);
     FuncValue->Typ = &pc->FunctionType;
     FuncValue->Val->FuncDef.ReturnType = ReturnType;
     FuncValue->Val->FuncDef.NumParams = ParamCount;
@@ -354,7 +354,7 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
         if (Identifier != pc->StrEmpty)
         {
             /* handle function definitions */
-            if (Typ != pc->FunctionPtrType && LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket)
+            if (Typ != &pc->FunctionPtrType && LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket)
             {
                 ParseFunctionDefinition(Parser, Typ, Identifier, FALSE);
                 return FALSE;
@@ -364,19 +364,14 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
                 if (Typ == &pc->VoidType && Identifier != pc->StrEmpty)
                     ProgramFail(Parser, "can't define a void variable");
 
-                if (Typ == pc->FunctionPtrType) {
+                if (Typ == &pc->FunctionPtrType) {
                     FuncValue = ParseFunctionDefinition(Parser, BasicType, Identifier, TRUE);
                 }
 
                 if (Parser->Mode == RunModeRun || Parser->Mode == RunModeGoto){
                     NewVariable = VariableDefineButIgnoreIdentical(Parser, Identifier, Typ, IsStatic, &FirstVisit);
-                    if (Typ == pc->FunctionPtrType) {
-                        NewVariable->Val = FuncValue->Val;
-                        FuncValue->Val = NULL;
-                        FuncValue->AnyValOnHeap = FALSE;
-                    }
                 }
-                HeapFreeMem(Parser->pc, FuncValue);
+                if (FuncValue != NULL) VariableFree(pc, FuncValue);
 
                 if (LexGetToken(Parser, NULL, FALSE) == TokenAssign)
                 {

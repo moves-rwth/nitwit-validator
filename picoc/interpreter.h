@@ -166,6 +166,7 @@ enum BaseType
     TypeFP,                     /* floating point */
 #endif
     TypeFunction,               /* a function */
+    TypeFunctionPtr,               /* a function pointer*/
     TypeMacro,                  /* a macro */
     TypePointer,                /* a pointer */
     TypeArray,                  /* an array of a sub-type */
@@ -458,11 +459,11 @@ struct Picoc_Struct
     struct ValueType MacroType;
     struct ValueType EnumType;
     struct ValueType GotoLabelType;
+    struct ValueType FunctionPtrType;
     struct ValueType *CharPtrType;
     struct ValueType *CharPtrPtrType;
     struct ValueType *CharArrayType;
     struct ValueType *VoidPtrType;
-    struct ValueType *FunctionPtrType;
 
     /* ND types */
     struct ValueType IntNDType;
