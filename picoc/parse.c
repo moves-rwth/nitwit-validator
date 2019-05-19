@@ -63,7 +63,7 @@ int ParseCountParams(struct ParseState *Parser)
 }
 
 /* parse a function definition and store it for later */
-struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *ReturnType, char *Identifier)
+struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *ReturnType, char *Identifier, int IsPtrDecl)
 {
     struct ValueType *ParamType;
     char *ParamIdentifier;
@@ -75,7 +75,7 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     int ParamCount = 0;
     Picoc *pc = Parser->pc;
 
-    if (pc->TopStackFrame != NULL)
+    if (pc->TopStackFrame != NULL && !IsPtrDecl)
         ProgramFail(Parser, "nested function definitions are not allowed");
 
     LexGetToken(Parser, NULL, TRUE);  /* open bracket */
@@ -128,7 +128,7 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     if (FuncValue->Val->FuncDef.NumParams != 0 && Token != TokenCloseBracket && Token != TokenComma && Token != TokenEllipsis)
         ProgramFail(&ParamParser, "bad parameter");
 
-    if (strcmp(Identifier, "main") == 0)
+    if (!IsPtrDecl && strcmp(Identifier, "main") == 0)
     {
         /* make sure it's int main() */
         if ( FuncValue->Val->FuncDef.ReturnType != &pc->IntType &&
@@ -143,13 +143,13 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     /* look for a function body */
     Token = LexGetToken(Parser, NULL, FALSE);
     if (Token == TokenSemicolon)
-        LexGetToken(Parser, NULL, TRUE);    /* it's a prototype, absorb the trailing semicolon */
+        LexGetToken(Parser, NULL, !IsPtrDecl);    /* it's a prototype or func ptr, absorb the trailing semicolon */
     else if (Token == TokenAttribute){ // it's a GCC attribute property
             do {
                 Token = LexGetToken(Parser, NULL, TRUE);
             } while (Token != TokenSemicolon);
         }
-    else
+    else if (!IsPtrDecl)
     {
         /* it's a full function definition with a body */
         if (Token != TokenLeftBrace)
@@ -165,18 +165,19 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     }
 
     /* is this function already in the global table? */
-    if (TableGet(&pc->GlobalTable, Identifier, &OldFuncValue, NULL, NULL, NULL))
-    {
+    if (!IsPtrDecl) {
+        if (TableGet(&pc->GlobalTable, Identifier, &OldFuncValue, NULL, NULL, NULL)) {
 
-        if (OldFuncValue->Val->FuncDef.Body.Pos != NULL)
+            if (OldFuncValue->Val->FuncDef.Body.Pos != NULL)
+                ProgramFail(Parser, "'%s' is already defined", Identifier);
+
+            /* override an old function prototype */
+            VariableFree(pc, TableDelete(pc, &pc->GlobalTable, Identifier));
+        }
+        if (!TableSet(pc, &pc->GlobalTable, Identifier, FuncValue, (char *) Parser->FileName, Parser->Line,
+                      Parser->CharacterPos))
             ProgramFail(Parser, "'%s' is already defined", Identifier);
-
-        /* override an old function prototype */
-        VariableFree(pc, TableDelete(pc, &pc->GlobalTable, Identifier));
     }
-    if (!TableSet(pc, &pc->GlobalTable, Identifier, FuncValue, (char *)Parser->FileName, Parser->Line, Parser->CharacterPos))
-        ProgramFail(Parser, "'%s' is already defined", Identifier);
-
     return FuncValue;
 }
 
@@ -335,7 +336,7 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
     char *Identifier;
     struct ValueType *BasicType;
     struct ValueType *Typ;
-    struct Value *NewVariable = NULL;
+    struct Value *NewVariable = NULL, * FuncValue = NULL;
     int IsStatic = FALSE;
     int FirstVisit = FALSE;
     Picoc *pc = Parser->pc;
@@ -343,16 +344,19 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
     TypeParseFront(Parser, &BasicType, &IsStatic);
     do
     {
-        TypeParseIdentPart(Parser, BasicType, &Typ, &Identifier);
-        if ((Token != TokenVoidType && Token != TokenStructType && Token != TokenUnionType && Token != TokenEnumType) && Identifier == pc->StrEmpty)
-            ProgramFail(Parser, "identifier expected");
+        // try parsing a function pointer
+        if (!TypeParseFunctionPointer(Parser, BasicType, &Typ, &Identifier)){
+            TypeParseIdentPart(Parser, BasicType, &Typ, &Identifier);
+            if ((Token != TokenVoidType && Token != TokenStructType && Token != TokenUnionType && Token != TokenEnumType) && Identifier == pc->StrEmpty)
+                ProgramFail(Parser, "identifier expected");
+        }
 
         if (Identifier != pc->StrEmpty)
         {
             /* handle function definitions */
-            if (LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket)
+            if (Typ != pc->FunctionPtrType && LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket)
             {
-                ParseFunctionDefinition(Parser, Typ, Identifier);
+                ParseFunctionDefinition(Parser, Typ, Identifier, FALSE);
                 return FALSE;
             }
             else
@@ -360,8 +364,19 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
                 if (Typ == &pc->VoidType && Identifier != pc->StrEmpty)
                     ProgramFail(Parser, "can't define a void variable");
 
-                if (Parser->Mode == RunModeRun || Parser->Mode == RunModeGoto)
+                if (Typ == pc->FunctionPtrType) {
+                    FuncValue = ParseFunctionDefinition(Parser, BasicType, Identifier, TRUE);
+                }
+
+                if (Parser->Mode == RunModeRun || Parser->Mode == RunModeGoto){
                     NewVariable = VariableDefineButIgnoreIdentical(Parser, Identifier, Typ, IsStatic, &FirstVisit);
+                    if (Typ == pc->FunctionPtrType) {
+                        NewVariable->Val = FuncValue->Val;
+                        FuncValue->Val = NULL;
+                        FuncValue->AnyValOnHeap = FALSE;
+                    }
+                }
+                HeapFreeMem(Parser->pc, FuncValue);
 
                 if (LexGetToken(Parser, NULL, FALSE) == TokenAssign)
                 {

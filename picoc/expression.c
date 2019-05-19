@@ -530,7 +530,7 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
             if (!TopValue->IsLValue)
                 ProgramFail(Parser, "can't get the address of this");
 
-	    ValPtr = TopValue->Val;
+	        ValPtr = TopValue->Val;
             Result = VariableAllocValueFromType(Parser->pc, Parser, TypeGetMatching(Parser->pc, Parser, TopValue->Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE), FALSE, NULL, FALSE);
             Result->Val->Pointer = (void *)ValPtr;
             ExpressionStackPushValueNode(Parser, StackTop, Result);
