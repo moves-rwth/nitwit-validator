@@ -4,6 +4,8 @@ import sys
 import json
 from typing import Tuple, List, Optional, Dict
 
+from common.utils import emplace_in_dict, load_result_files
+
 WITNESSES_BY_PROGRAM_HASH_DIR = "witnessListByProgramHashJSON"
 WITNESS_INFO_BY_WITNESS_HASH_DIR = "witnessInfoByHash"
 WITNESS_FILE_BY_HASH_DIR = "witnessFileByHash"
@@ -44,29 +46,9 @@ def setup_dirs(dir: str) -> bool:
 	return True
 
 
-def load_result_files(results: str) -> Optional[Tuple[list, ...]]:
-	if not (os.path.exists(results) and os.path.isdir(results)):
-		print("Cannot load output directory with info about witnesses.")
-		return None
-	out = []
-	file_names = ['validated_witnesses.json', 'non_validated_witnesses.json', 'badly_parsed_witnesses.json']
-	for i, fn in enumerate(file_names):
-		with open(os.path.join(results, fn), 'r') as fp:
-			valid_jObj = json.load(fp)
-		out.append(list(valid_jObj))
-	return tuple(out)
-
-
 def print_result_map(m: Dict[int, int]):
 	for k, v in m.items():
 		print(f"\t{EXIT_CODE_DICT[k]}: {v}")
-
-
-def emplace_in_dict(m: Dict[str, int], el: str):
-	if el in m:
-		m[el] = m[el] + 1
-	elif el is not None:
-		m[el] = 1
 
 
 def print_error_msgs(m: Dict[str, int]):
