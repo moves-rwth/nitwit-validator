@@ -1,7 +1,7 @@
 import datetime
 import json
 import os
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Optional
 
 
 def output(output_path: str,
@@ -50,3 +50,34 @@ def process_results(results: List[Tuple[int, str, str]], executable: str, out: b
 		print(f"Validated: {validated}")
 		print(f"Non-validated: {non_validated}")
 		print(f"Badly parsed: {badly_parsed}")
+
+
+def emplace_in_dict(m: Dict[str, int], el: str):
+	if el in m:
+		m[el] = m[el] + 1
+	elif el is not None:
+		m[el] = 1
+
+
+def load_result_files(results: str) -> Optional[Tuple[list, ...]]:
+	if not (os.path.exists(results) and os.path.isdir(results)):
+		print("Cannot load output directory with info about witnesses.")
+		return None
+	out = []
+	file_names = ['validated_witnesses.json', 'non_validated_witnesses.json', 'badly_parsed_witnesses.json']
+	for i, fn in enumerate(file_names):
+		with open(os.path.join(results, fn), 'r') as fp:
+			valid_jObj = json.load(fp)
+		out.append(list(valid_jObj))
+	return tuple(out)
+
+
+def load_validators_result_file(validators: str) -> Optional[dict]:
+	if not (os.path.exists(validators) and os.path.isfile(validators)):
+		print("Cannot load output file with info about validators.")
+		return None
+
+	with open(validators, 'r') as fp:
+		return json.load(fp)
+
+
