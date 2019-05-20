@@ -354,7 +354,8 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
         if (Identifier != pc->StrEmpty)
         {
             /* handle function definitions */
-            if (Typ != &pc->FunctionPtrType && LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket)
+            if (!(Typ == &pc->FunctionPtrType || (Typ->Base == TypeArray && Typ->FromType->Base == TypeFunctionPtr))
+                && LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket)
             {
                 ParseFunctionDefinition(Parser, Typ, Identifier, FALSE);
                 return FALSE;
@@ -364,7 +365,7 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
                 if (Typ == &pc->VoidType && Identifier != pc->StrEmpty)
                     ProgramFail(Parser, "can't define a void variable");
 
-                if (Typ == &pc->FunctionPtrType) {
+                if (Typ == &pc->FunctionPtrType || (Typ->Base == TypeArray && Typ->FromType->Base == TypeFunctionPtr)) {
                     FuncValue = ParseFunctionDefinition(Parser, BasicType, Identifier, TRUE);
                 }
 

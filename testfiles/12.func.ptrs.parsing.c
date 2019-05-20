@@ -21,11 +21,6 @@ int main()
     x('1');
     x = &func2;
     x('2');
-//    (*x)('f');
-//    x = NULL;
-//    x = func1;
-//    x('F');
-
 
     int (*arr[3])(char) = {&func1, &func2, &func2};
 

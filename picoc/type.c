@@ -203,8 +203,8 @@ void TypeInit(Picoc *pc)
 #ifndef NO_FP
     TypeAddBaseType(pc, &pc->FPType, TypeFP, sizeof(double), (char *) &da.y - &da.x, FALSE);
     TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *) &da.y - &da.x, FALSE);  /* must be large enough to cast to a double */
-
     // NDs
+    TypeAddBaseType(pc, &pc->FPNDType, TypeFP, sizeof(double), (char *) &da.y - &da.x, TRUE);
 #else
     TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(struct ValueType *), PointerAlignBytes);
 #endif
