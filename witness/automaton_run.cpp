@@ -103,9 +103,13 @@ void CopyValue(ParseState *ToState, Value *FromValue, const char *Identifier, bo
 
     int addAt;
     TableEntry *entry = TableSearch(table, registeredIdent, &addAt);
-//todo
-//    if (entry->p.v.Val->IsNonDet != nullptr)
-//        *entry->p.v.Val->IsNonDet = false;
+    if (entry == nullptr){
+        entry = TableSearch(&ToState->pc->GlobalTable, registeredIdent, &addAt);
+        if (entry == nullptr){
+            assert(entry == nullptr); // the variable should really exist in the original variable space
+            return;
+        }
+    }
     assignValue(entry->p.v.Val, FromValue);
 }
 

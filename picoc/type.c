@@ -1,6 +1,6 @@
 /* picoc data type module. This manages a tree of data types and has facilities
  * for parsing data types. */
- 
+
 #include "interpreter.h"
 
 /* some basic types */
@@ -187,6 +187,7 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->FunctionType, TypeFunction, sizeof(int), IntAlignBytes, FALSE);
     TypeAddBaseType(pc, &pc->MacroType, TypeMacro, sizeof(int), IntAlignBytes, FALSE);
     TypeAddBaseType(pc, &pc->GotoLabelType, TypeGotoLabel, 0, 1, FALSE);
+    TypeAddBaseType(pc, &pc->FunctionPtrType, TypeFunctionPtr, sizeof(void *), PointerAlignBytes, FALSE);
 
     // NDs
     TypeAddBaseType(pc, &pc->IntNDType, TypeInt, sizeof(int), IntAlignBytes, TRUE);
@@ -202,7 +203,6 @@ void TypeInit(Picoc *pc)
 #ifndef NO_FP
     TypeAddBaseType(pc, &pc->FPType, TypeFP, sizeof(double), (char *) &da.y - &da.x, FALSE);
     TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *) &da.y - &da.x, FALSE);  /* must be large enough to cast to a double */
-
     // NDs
     TypeAddBaseType(pc, &pc->FPNDType, TypeFP, sizeof(double), (char *) &da.y - &da.x, TRUE);
 #else
@@ -539,6 +539,51 @@ struct ValueType *TypeParseBack(struct ParseState *Parser, struct ValueType *Fro
     }
 }
 
+struct ValueType *TypeParseFunctionPointerArguments(struct ParseState *Parser, struct ValueType *Type) {
+    enum LexToken Token = LexGetToken(Parser, NULL, TRUE);
+    if (Token != TokenOpenBracket)
+        ProgramFail(Parser, "( expected here");
+    do {
+        int IsStatic;
+        struct ValueType * ArgType;
+        TypeParseFront(Parser, &ArgType, &IsStatic);
+    } while (Token == TokenComma);
+
+    if (Token != TokenCloseBracket)
+        ProgramFail(Parser, ") expected here");
+    return Type;
+}
+
+int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicType, struct ValueType **Type,
+                             char **Identifier) {
+    struct Value *LexValue;
+    struct ParseState Before;
+    *Identifier = Parser->pc->StrEmpty;
+    *Type = BasicType;
+    ParserCopy(&Before, Parser);
+
+    enum LexToken Token = LexGetToken(Parser, NULL, TRUE);
+    if (Token != TokenOpenBracket) goto ERROR;
+    Token = LexGetToken(Parser, NULL, TRUE);
+    if (Token != TokenAsterisk) goto ERROR;
+    Token = LexGetToken(Parser, &LexValue, TRUE);
+    if (Token != TokenIdentifier) goto ERROR;
+
+    *Identifier = LexValue->Val->Identifier;
+    *Type = &Parser->pc->FunctionPtrType;
+    *Type = TypeParseBack(Parser, *Type);
+
+    Token = LexGetToken(Parser, &LexValue, TRUE);
+    if (Token != TokenCloseBracket)
+        ProgramFail(Parser, ") expected after function pointer identifier");
+
+    return TRUE;
+
+    ERROR:
+        ParserCopy(Parser, &Before);
+        return FALSE;
+}
+
 /* parse a type - the part which is repeated with each identifier in a declaration list */
 void TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct ValueType **Typ, char **Identifier)
 {
@@ -558,12 +603,11 @@ void TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, s
             case TokenOpenBracket:
                 if (*Typ != NULL)
                     ProgramFail(Parser, "bad type declaration");
-                
+
                 TypeParse(Parser, Typ, Identifier, NULL);
                 if (LexGetToken(Parser, NULL, TRUE) != TokenCloseBracket)
                     ProgramFail(Parser, "')' expected");
                 break;
-                
             case TokenAsterisk:
                 if (*Typ == NULL)
                     ProgramFail(Parser, "bad type declaration");
@@ -599,6 +643,12 @@ void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identif
     struct ValueType *BasicType;
     
     TypeParseFront(Parser, &BasicType, IsStatic);
+
+    if (LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket){
+        if (TypeParseFunctionPointer(Parser, BasicType, Typ, Identifier))
+            return;
+    }
+
     TypeParseIdentPart(Parser, BasicType, Typ, Identifier);
 }
 

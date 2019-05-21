@@ -55,11 +55,13 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str]:
 		try:
 			out, _ = process.communicate(timeout=EXECUTION_TIMEOUT)
 			if process.returncode != 0 and out is not None:
-				errmsg = str(out.decode('ascii')).splitlines()
-				errmsg = '' if len(errmsg) < 3 else errmsg[-1]
+				errmsg = out.splitlines()
+				errmsg = '' if len(errmsg) < 3 else str(errmsg[-1])
 				pos = errmsg.find('#')
 				if pos != -1:
 					errmsg = errmsg[pos + 1:]
+				else:
+					errmsg = str(out).strip()
 		except subprocess.TimeoutExpired:
 			process.kill()
 		res = process.poll()
@@ -71,7 +73,7 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str]:
 
 
 def run_bench_parallel(configs: List[Tuple[str, str, str]]) -> List[Tuple[int, str, str]]:
-	with multiprocessing.Pool(48) as pool:
+	with multiprocessing.Pool(16) as pool:
 		results = pool.map(run_validator, configs)
 	return results
 
