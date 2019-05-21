@@ -12,6 +12,15 @@ int func2(char y) {
 
 int main()
 {
+    int b[2];
+    b[1] = 2;
+    int (*arr[3])(char) = {&func1, &func2, &func2};
+
+    arr[0]('1');
+    arr[1]('2');
+    arr[2]('2');
+
+
     int n = 1;
     int *p = &n;
     int (*y)(char) = &func2;
@@ -25,13 +34,6 @@ int main()
 //    x = NULL;
 //    x = func1;
 //    x('F');
-
-
-    int (*arr[3])(char) = {&func1, &func2, &func2};
-
-    arr[0]('1');
-    arr[1]('2');
-    arr[2]('2');
     return 0;
 }
 
