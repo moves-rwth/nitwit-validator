@@ -24,7 +24,7 @@ void ParseCleanup(Picoc *pc)
 /* parse a statement, but only run it if Condition is TRUE */
 enum ParseResult ParseStatementMaybeRun(struct ParseState *Parser, int Condition, int CheckTrailingSemicolon)
 {
-    if (Parser->Mode != RunModeSkip && !Condition)
+    if (Parser->Mode != RunModeSkip && Parser->Mode != RunModeGoto && !Condition)
     {
         enum RunMode OldMode = Parser->Mode;
         int Result;
