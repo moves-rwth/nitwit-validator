@@ -16,11 +16,16 @@ int main()
     int *p = &n;
     int (*y)(char) = &func2;
     int (*x)(char);
+
     y('2');
     x = &func1;
     x('1');
     x = &func2;
     x('2');
+    (*x)('2');
+    x = 0;
+    x = &func1;
+    x('1');
 
     int (*arr[3])(char) = {&func1, &func2, &func2};
 
