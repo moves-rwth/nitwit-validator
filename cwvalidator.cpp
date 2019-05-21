@@ -44,15 +44,15 @@ void handleDebugBreakpoint(struct ParseState *ps) {
     printProgramState(ps);
 #endif
     if (wit_aut == nullptr) {
-        ProgramFailWithExitCode(ps, NO_WITNESS_CODE, "No witness automaton to validate against.\n");
+        ProgramFailWithExitCode(ps, NO_WITNESS_CODE, "No witness automaton to validate against.");
         return;
     }
     if (wit_aut->isInIllegalState()) {
-        ProgramFailWithExitCode(ps, WITNESS_IN_ILLEGAL_STATE, "Witness automaton is in an illegal state.\n");
+        ProgramFailWithExitCode(ps, WITNESS_IN_ILLEGAL_STATE, "Witness automaton is in an illegal state.");
         return;
     }
     if (wit_aut->isInSinkState()) {
-        ProgramFailWithExitCode(ps, WITNESS_IN_SINK, "Witness automaton reached sink state without a violation.\n");
+        ProgramFailWithExitCode(ps, WITNESS_IN_SINK, "Witness automaton reached sink state without a violation.");
         return;
     }
 

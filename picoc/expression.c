@@ -480,6 +480,10 @@ void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct
             memcpy((void *)DestValue->Val, (void *)SourceValue->Val, TypeSizeValue(SourceValue, FALSE));
             break;
         case TypeFunctionPtr:
+            if (IS_NUMERIC_COERCIBLE(SourceValue)){
+                DestValue->Val->Identifier = (char *) ExpressionCoerceInteger(SourceValue); // todo: this might backfire in unreasonable programs
+                break;
+            }
             if (DestValue->Typ != SourceValue->Typ)
                 AssignFail(Parser, "%t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
 

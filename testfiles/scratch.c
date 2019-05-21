@@ -30,10 +30,10 @@ int main()
     x('1');
     x = &func2;
     x('2');
-//    (*x)('f');
-//    x = NULL;
-//    x = func1;
-//    x('F');
+    (*x)('2');
+    x = 0;
+    x = &func1;
+    x('1');
     return 0;
 }
 
