@@ -48,7 +48,7 @@ def setup_dirs(dir: str) -> bool:
 
 def print_result_map(m: Dict[int, int]):
 	for k, v in m.items():
-		print(f"\t{EXIT_CODE_DICT[k]}: {v}")
+		print(f"\t({k}) {EXIT_CODE_DICT[k]}: {v}")
 
 
 def print_error_msgs(m: Dict[str, int]):
@@ -86,7 +86,7 @@ def analyze_bench_output(results: list, name: str, search_string: str):
 			pf = str(info_jObj['programfile'])
 			if pf.find(search_string) == -1:
 				false_positives = false_positives + 1
-		emplace_in_dict(err_msg_map, witness[2])
+		emplace_in_dict(err_msg_map, f"({witness[0]}) {witness[2]}")
 
 	print('-' * 20 + ' ', name.capitalize(), ' ' + '-' * 20)
 	print(f"Producer summary: {prod_map}")
