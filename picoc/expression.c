@@ -552,6 +552,11 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
             break;
 
         case TokenAsterisk:
+            if (TopValue->Typ->Base == TypeFunctionPtr || (TopValue->Typ->Base = TypeArray
+                    && TopValue->Typ->FromType->Base == TypeFunctionPtr)) {
+                ExpressionStackPushValue(Parser, StackTop, TopValue);
+                break;
+            }
             ExpressionStackPushDereference(Parser, StackTop, TopValue);
             break;
 
@@ -945,9 +950,8 @@ void ExpressionStackCollapse(struct ParseState *Parser, struct ExpressionStack *
     while (TopStackNode != NULL && TopStackNode->Next != NULL && FoundPrecedence >= Precedence)
     {
         /* find the top operator on the stack */
-        if (TopStackNode->Order == OrderNone){
+        if (TopStackNode->Order == OrderNone)
             TopOperatorNode = TopStackNode->Next;
-        }
         else
             TopOperatorNode = TopStackNode;
 
@@ -1151,9 +1155,6 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
 
     do
     {
-//        if (Parser->Line == 19) {
-//            printf("debug\n"); // todo rm
-//        }
         struct ParseState PreState;
         enum LexToken Token;
 
@@ -1310,18 +1311,7 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
                         char RunIt = Parser->Mode == RunModeRun && Precedence < IgnorePrecedence;
                         ExpressionParseFunctionCall(Parser, &StackTop,
                             RunIt ? StackTop->Next->Val->Val->Identifier : Parser->pc->StrEmpty, RunIt);
-
                     }
-                }
-                else if (Token == TokenOpenBracket)
-                { // an array of func ptr call?
-//                    char RunIt = Parser->Mode == RunModeRun && Precedence < IgnorePrecedence;
-//
-//                    ExpressionStackPushOperator(Parser, &StackTop, OrderPostfix, Token,
-//                            BracketPrecedence + OperatorPrecedence[(int)Token].InfixPrecedence);
-//                    ExpressionParseFunctionCall(Parser, &StackTop,
-//                            RunIt ? StackTop->Val->Val->Identifier : Parser->pc->StrEmpty, RunIt);
-
                 }
                 else
                     ProgramFail(Parser, "operator not expected here");
