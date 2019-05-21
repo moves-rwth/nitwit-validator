@@ -60,6 +60,8 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str]:
 				pos = errmsg.find('#')
 				if pos != -1:
 					errmsg = errmsg[pos + 1:]
+				else:
+					errmsg = out.decode('ascii')
 		except subprocess.TimeoutExpired:
 			process.kill()
 		res = process.poll()

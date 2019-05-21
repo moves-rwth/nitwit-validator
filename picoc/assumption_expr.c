@@ -1385,7 +1385,7 @@ int AssumptionExpressionParse(struct ParseState *Parser, struct Value **Result)
                     else {
                         /* it's a value variable */
                         VariableValue->VarIdentifier = LexValue->Val->Identifier;
-                        AssumptionExpressionStackPushLValue(Parser, &StackTop, VariableValue, 0);   
+                        AssumptionExpressionStackPushLValue(Parser, &StackTop, VariableValue, 0);
                     }
                 }
                 else /* push a dummy value */

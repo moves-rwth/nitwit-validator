@@ -76,6 +76,7 @@ void PrintType(struct ValueType *Typ, IOFILE *Stream)
         case TypeEnum:          PrintStr("enum ", Stream); PrintStr(Typ->Identifier, Stream); break;
         case TypeGotoLabel:     PrintStr("goto label ", Stream); break;
         case Type_Type:         PrintStr("type ", Stream); break;
+        case TypeFunctionPtr:   PrintStr("fptr ", Stream); break;
     }
 }
 
