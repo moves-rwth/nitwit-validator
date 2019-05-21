@@ -72,6 +72,15 @@ def load_result_files(results: str) -> Optional[Tuple[list, ...]]:
 	return tuple(out)
 
 
+def load_result_file(results: str) -> Optional[list]:
+	if not (os.path.exists(results) and os.path.isfile(results)):
+		print("Cannot load output file with info about validation results.")
+		return None
+	with open(results, 'r') as fp:
+		valid_jObj = json.load(fp)
+	return list(valid_jObj)
+
+
 def load_validators_result_file(validators: str) -> Optional[dict]:
 	if not (os.path.exists(validators) and os.path.isfile(validators)):
 		print("Cannot load output file with info about validators.")
