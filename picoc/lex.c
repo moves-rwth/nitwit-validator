@@ -628,6 +628,7 @@ void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText,
     Parser->DebuggerCallback = DebuggerCallback;
     Parser->EnterFunction = NULL;
     Parser->ReturnFromFunction = NULL;
+    Parser->CurrentFunction = NULL;
     Parser->VerifierErrorCalled = FALSE;
     Parser->ResolvedNonDetVars = NULL;
     // todo : what about copying these parser properties?

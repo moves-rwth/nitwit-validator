@@ -1657,6 +1657,10 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
 
             Parser->ScopeID = OldScopeID;
 
+            // track the function
+            const char * FunctionBefore = Parser->CurrentFunction;
+            Parser->CurrentFunction = FuncName;
+
             if (ParseStatement(&FuncParser, TRUE) != ParseResultOk)
                 ProgramFail(&FuncParser, "function body expected");
 
@@ -1666,18 +1670,10 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
                     ProgramFail(&FuncParser, "no value returned from a function returning %t", FuncValue->Val->FuncDef.ReturnType);
 
                 else if (FuncParser.Mode == RunModeGoto){
-                    struct ParseState ParseFunctionAgainForLabel;
-                    ParserCopy(&ParseFunctionAgainForLabel, &FuncValue->Val->FuncDef.Body);
-//                    ParserGetToTop(Parser);
-                    enum ParseResult Ok;
-                    Ok = ParseStatement(&ParseFunctionAgainForLabel, TRUE);
-
-                    if (Ok != ParseResultOk)
-                        ProgramFail(&FuncParser, "couldn't find goto label '%s'", FuncParser.SearchGotoLabel);
-                    // skip the rest after returning back from goto call
-                    Parser->Mode = RunModeSkip;
+                    ProgramFail(&FuncParser, "couldn't find goto label '%s'", FuncParser.SearchGotoLabel);
                 }
             }
+            Parser->CurrentFunction = FunctionBefore;
 
             VariableStackFramePop(Parser);
         }

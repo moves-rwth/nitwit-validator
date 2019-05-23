@@ -95,6 +95,41 @@ enum LexToken
     /* 0x5e */ TokenEOF, TokenEndOfLine, TokenEndOfFunction,
 };
 
+/* hash table data structure */
+struct TableEntry
+{
+    struct TableEntry *Next;        /* next item in this hash chain */
+    const char *DeclFileName;       /* where the variable was declared */
+    unsigned short DeclLine;
+    unsigned short DeclColumn;
+
+    union TableEntryPayload
+    {
+        struct ValueEntry
+        {
+            char *Key;              /* points to the shared string table */
+            struct Value *Val;      /* the value we're storing */
+        } v;                        /* used for tables of values */
+
+        char Key[1];                /* dummy size - used for the shared string table */
+
+        struct BreakpointEntry      /* defines a breakpoint */
+        {
+            const char *FileName;
+            short int Line;
+            short int CharacterPos;
+        } b;
+
+    } p;
+};
+
+struct Table
+{
+    short Size;
+    short OnHeap;
+    struct TableEntry **HashTable;
+};
+
 /* used in dynamic memory allocation */
 struct AllocNode
 {
@@ -144,6 +179,7 @@ struct ParseState
     // jsv:
     void (*DebuggerCallback)(struct ParseState *); /* calls a callback when breakpoint reached */
     const char * EnterFunction;
+    const char * CurrentFunction;
     const char * ReturnFromFunction;
     int VerifierErrorCalled;
     struct ValueList * ResolvedNonDetVars;
@@ -251,41 +287,6 @@ struct Value
     // jsv
     char * VarIdentifier;           /* keeps track of the name of the variable this value belongs to */
     struct ValueType ** OriginalTypePtr;
-};
-
-/* hash table data structure */
-struct TableEntry
-{
-    struct TableEntry *Next;        /* next item in this hash chain */
-    const char *DeclFileName;       /* where the variable was declared */
-    unsigned short DeclLine;
-    unsigned short DeclColumn;
-
-    union TableEntryPayload
-    {
-        struct ValueEntry
-        {
-            char *Key;              /* points to the shared string table */
-            struct Value *Val;      /* the value we're storing */
-        } v;                        /* used for tables of values */
-        
-        char Key[1];                /* dummy size - used for the shared string table */
-        
-        struct BreakpointEntry      /* defines a breakpoint */
-        {
-            const char *FileName;
-            short int Line;
-            short int CharacterPos;
-        } b;
-        
-    } p;
-};
-    
-struct Table
-{
-    short Size;
-    short OnHeap;
-    struct TableEntry **HashTable;
 };
 
 /* stack frame for function calls */
@@ -436,6 +437,11 @@ struct Picoc_Struct
     void *HeapStackTop;                 /* the top of the stack */
 # endif
 #endif
+
+    // jsv
+    struct Table GotoLabels;        /* contains the positions of goto labels */
+    struct TableEntry *GotoLabelsHashTable[GOTO_LABELS_TABLE_SIZE]; // so that we don't have to allocate the actual hash table for GotoLabels
+    //
 
     struct AllocNode *FreeListBucket[FREELIST_BUCKETS];      /* we keep a pool of freelist buckets to reduce fragmentation */
     struct AllocNode *FreeListBig;                           /* free memory which doesn't fit in a bucket */
@@ -677,6 +683,8 @@ void DebugCleanup();
 void DebugCheckStatement(struct ParseState *Parser);
 void DebugSetBreakpoint(struct ParseState *Parser);
 
+
+char *GetGotoIdentifier(const char *function_id, const char *goto_id);
 
 /* stdio.c */
 extern const char StdioDefs[];

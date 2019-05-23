@@ -14,7 +14,7 @@ VALIDATOR_EXECUTABLE = ""
 EXECUTION_TIMEOUT = 0
 
 
-def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
+def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str]:
 	witness, source, info_file = config
 	print([VALIDATOR_EXECUTABLE, witness, source])
 	with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
@@ -38,7 +38,7 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str]:
 
 	# outs, errs = process.communicate()
 
-	return process.returncode, info_file
+	return process.returncode, info_file, ''
 
 
 def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
@@ -69,7 +69,7 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 	return True
 
 
-def run_single_config(witness_info_file: str) -> Tuple[int, str]:
+def run_single_config(witness_info_file: str) -> Tuple[int, str, str]:
 	witness_info_file = os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, witness_info_file)
 	if not os.path.isfile(witness_info_file):
 		raise FileNotFoundError(witness_info_file)

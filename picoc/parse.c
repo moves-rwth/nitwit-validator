@@ -24,7 +24,7 @@ void ParseCleanup(Picoc *pc)
 /* parse a statement, but only run it if Condition is TRUE */
 enum ParseResult ParseStatementMaybeRun(struct ParseState *Parser, int Condition, int CheckTrailingSemicolon)
 {
-    if (Parser->Mode != RunModeSkip && Parser->Mode != RunModeGoto && !Condition)
+    if (Parser->Mode != RunModeSkip && !Condition)
     {
         enum RunMode OldMode = Parser->Mode;
         int Result;
@@ -77,6 +77,9 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
 
     if (pc->TopStackFrame != NULL && !IsPtrDecl)
         ProgramFail(Parser, "nested function definitions are not allowed");
+    // track the function
+    const char * FunctionBefore = Parser->CurrentFunction;
+    Parser->CurrentFunction = Identifier;
 
     LexGetToken(Parser, NULL, TRUE);  /* open bracket */
     ParserCopy(&ParamParser, Parser);
@@ -178,6 +181,8 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
                       Parser->CharacterPos))
             ProgramFail(Parser, "'%s' is already defined", Identifier);
     }
+    // track the function
+    Parser->CurrentFunction = FunctionBefore;
     return FuncValue;
 }
 
@@ -611,6 +616,15 @@ void ParseTypedef(struct ParseState *Parser)
     }
 }
 
+char *GetGotoIdentifier(const char *function_id, const char *goto_id) {
+    int len = strlen(function_id) + strlen(goto_id) + 1;
+    char * s = malloc(sizeof(char) * (len));
+    strcpy(s, function_id);
+    s[strlen(function_id)] = ':';
+    strcpy(s+strlen(function_id) + 1, goto_id);
+    return s;
+}
+
 /* parse a statement */
 enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemicolon)
 {
@@ -653,6 +667,16 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 {
                     /* declare the identifier as a goto label */
                     LexGetToken(Parser, NULL, TRUE);
+                    if (Parser->CurrentFunction == NULL)
+                        ProgramFail(Parser, "labels have to be defined in a function");
+                    else {
+                        struct Value * PosVal = VariableAllocValueFromType(Parser->pc, Parser, Parser->pc->VoidPtrType, FALSE, NULL, TRUE);
+                        struct ParseState * GotoPos = malloc(sizeof(struct ParseState));
+                        ParserCopy(GotoPos, Parser);
+                        PosVal->Val->Pointer = GotoPos;
+                        TableSet(Parser->pc, &Parser->pc->GotoLabels, TableStrRegister(Parser->pc, GetGotoIdentifier(Parser->CurrentFunction, LexerValue->Val->Identifier)),
+                                PosVal, Parser->FileName, Parser->Line, Parser->CharacterPos);
+                    }
                     if (Parser->Mode == RunModeGoto && LexerValue->Val->Identifier == Parser->SearchGotoLabel)
                         Parser->Mode = RunModeRun;
 
@@ -948,7 +972,25 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             {
                 /* start scanning for the goto label */
                 Parser->SearchGotoLabel = LexerValue->Val->Identifier;
-                Parser->Mode = RunModeGoto;
+
+                struct Value * PosVal;
+                const char * decfn; int line, col;
+                char *key = GetGotoIdentifier(Parser->CurrentFunction, Parser->SearchGotoLabel);
+                int found = TableGet(&Parser->pc->GotoLabels, TableStrRegister(Parser->pc, key), &PosVal, &decfn, &line, &col);
+                free(key);
+                if (!found)
+                    ProgramFail(Parser, "couldn't find goto label '%s'", Parser->SearchGotoLabel);
+                struct ParseState * SavedGotoPosition = (struct ParseState*) PosVal->Val->Pointer;
+                ParserCopyPos(Parser, SavedGotoPosition);
+//                Parser->HashIfEvaluateToLevel = 0;
+//                Parser->HashIfLevel = 0;
+                enum ParseResult Ok;
+                do {
+                    Ok = ParseStatement(Parser, TRUE);
+                } while (Ok == ParseResultOk);
+
+                // skip the rest after returning back from goto call
+                Parser->Mode = RunModeSkip;
             }
             break;
 
