@@ -5,6 +5,8 @@
 #include "interpreter.h"
 
 
+void GotoInit(Picoc *pc);
+
 /* initialise everything */
 void PicocInitialise(Picoc *pc, int StackSize)
 {
@@ -26,6 +28,11 @@ void PicocInitialise(Picoc *pc, int StackSize)
 #endif
     PlatformLibraryInit(pc);
     DebugInit(pc);
+    GotoInit(pc);
+}
+
+void GotoInit(Picoc *pc) {
+    TableInitTable(&pc->GotoLabels, &pc->GotoLabelsHashTable[0], GOTO_LABELS_TABLE_SIZE, TRUE);
 }
 
 /* free memory */
