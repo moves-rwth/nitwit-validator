@@ -1098,3 +1098,15 @@ void PicocParseInteractive(Picoc *pc)
     PlatformPrintf(pc->CStdOut, INTERACTIVE_PROMPT_START);
     PicocParseInteractiveNoStartPrompt(pc, TRUE);
 }
+
+
+void ParserGetToTop(struct ParseState* Parser){
+    Parser->Line = 1;
+    Parser->SearchLabel = 0;
+    Parser->HashIfLevel = 0;
+    Parser->HashIfEvaluateToLevel = 0;
+    Parser->LastConditionBranch = ConditionUndefined;
+    Parser->CharacterPos = 0;
+    Parser->EnterFunction = NULL;
+    Parser->ReturnFromFunction = NULL;
+}
