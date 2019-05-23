@@ -1,8 +1,7 @@
-void main() {
-    if (1) {
-        goto _L___7;
+int main() {
+    if (0) {
+        label_1780:;
     } else {
-        _L___7: /* CIL Label */
+        goto label_1780;
     }
 }
-
