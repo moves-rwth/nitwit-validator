@@ -618,7 +618,7 @@ void ParseTypedef(struct ParseState *Parser)
 
 char *GetGotoIdentifier(const char *function_id, const char *goto_id) {
     int len = strlen(function_id) + strlen(goto_id) + 1;
-    char * s = malloc(sizeof(char) * (len));
+    char * s = malloc(sizeof(char) * (len + 1));
     strcpy(s, function_id);
     s[strlen(function_id)] = ':';
     strcpy(s+strlen(function_id) + 1, goto_id);
@@ -670,12 +670,23 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                     if (Parser->CurrentFunction == NULL)
                         ProgramFail(Parser, "labels have to be defined in a function");
                     else {
-                        struct Value * PosVal = VariableAllocValueFromType(Parser->pc, Parser, Parser->pc->VoidPtrType, FALSE, NULL, TRUE);
-                        struct ParseState * GotoPos = malloc(sizeof(struct ParseState));
-                        ParserCopy(GotoPos, Parser);
-                        PosVal->Val->Pointer = GotoPos;
-                        TableSet(Parser->pc, &Parser->pc->GotoLabels, TableStrRegister(Parser->pc, GetGotoIdentifier(Parser->CurrentFunction, LexerValue->Val->Identifier)),
-                                PosVal, Parser->FileName, Parser->Line, Parser->CharacterPos);
+                        char *gotoIdentifier = GetGotoIdentifier(Parser->CurrentFunction,
+                                                                 LexerValue->Val->Identifier);
+                        char *key = TableStrRegister(Parser->pc, gotoIdentifier);
+                        free(gotoIdentifier);
+                        struct Value * PosVal;
+                        const char * declfn; int line, col;
+                        if (!TableGet(&Parser->pc->GotoLabels, key, &PosVal, &declfn, &line, &col)){
+                            PosVal = VariableAllocValueFromType(Parser->pc, Parser, Parser->pc->VoidPtrType, FALSE, NULL, TRUE);
+                            struct ParseState * GotoPos = malloc(sizeof(struct ParseState));
+                            ParserCopyPos(GotoPos, Parser);
+                            PosVal->Val->Pointer = GotoPos;
+                            if (!TableSet(Parser->pc, &Parser->pc->GotoLabels, key,
+                                     PosVal, Parser->FileName, Parser->Line, Parser->CharacterPos)){
+                                VariableFree(Parser->pc, PosVal);
+                                free(GotoPos);
+                            }
+                        }
                     }
                     if (Parser->Mode == RunModeGoto && LexerValue->Val->Identifier == Parser->SearchGotoLabel)
                         Parser->Mode = RunModeRun;
@@ -982,8 +993,6 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                     ProgramFail(Parser, "couldn't find goto label '%s'", Parser->SearchGotoLabel);
                 struct ParseState * SavedGotoPosition = (struct ParseState*) PosVal->Val->Pointer;
                 ParserCopyPos(Parser, SavedGotoPosition);
-//                Parser->HashIfEvaluateToLevel = 0;
-//                Parser->HashIfLevel = 0;
                 enum ParseResult Ok;
                 do {
                     Ok = ParseStatement(Parser, TRUE);

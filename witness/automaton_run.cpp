@@ -44,6 +44,7 @@ vector<string> split(string str, char delimiter) {
     for (size_t d = str.find_first_of(delimiter); d != string::npos; d = str.find_first_of(delimiter, d + 1)) {
         string ass = str.substr(begin, d);
         result.push_back(ass);
+        begin = d + 1;
     }
     return result;
 }
