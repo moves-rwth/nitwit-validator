@@ -674,10 +674,9 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                                                                  LexerValue->Val->Identifier);
                         char *key = TableStrRegister(Parser->pc, gotoIdentifier);
                         free(gotoIdentifier);
-                        struct Value * PosVal;
-                        const char * declfn; int line, col;
-                        if (!TableGet(&Parser->pc->GotoLabels, key, &PosVal, &declfn, &line, &col)){
-                            PosVal = VariableAllocValueFromType(Parser->pc, Parser, Parser->pc->VoidPtrType, FALSE, NULL, TRUE);
+                        int AddAt;
+                        if (TableSearch(&Parser->pc->GotoLabels, key, &AddAt) == NULL){
+                            struct Value * PosVal = VariableAllocValueFromType(Parser->pc, Parser, Parser->pc->VoidPtrType, FALSE, NULL, TRUE);
                             struct ParseState * GotoPos = malloc(sizeof(struct ParseState));
                             ParserCopy(GotoPos, Parser);
                             PosVal->Val->Pointer = GotoPos;
