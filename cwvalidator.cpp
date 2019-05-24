@@ -37,6 +37,9 @@ void printProgramState(ParseState *ps) {
     if (ps->ReturnFromFunction != nullptr)
         printf(", Return: %s", ps->ReturnFromFunction);
     printf("\n");
+    if (ps->Line == 24 && ps->CharacterPos == 0){
+        printf("debug\n");
+    }
 }
 
 void handleDebugBreakpoint(struct ParseState *ps) {
@@ -55,9 +58,6 @@ void handleDebugBreakpoint(struct ParseState *ps) {
         ProgramFailWithExitCode(ps, WITNESS_IN_SINK, "Witness automaton reached sink state without a violation.");
         return;
     }
-//    if (ps->Line == 245 && ps->CharacterPos == 17){
-//        printf("Debug\n");
-//    }
 
     wit_aut->consumeState(ps);
 
@@ -71,8 +71,6 @@ int validate(const char *source_filename) {
 
     Picoc pc;
     PicocInitialise(&pc, 8388608); // stack size of 8 MiB
-    // include standard functions
-//    PicocIncludeAllSystemHeaders(&pc);
 
     // the interpreter will jump here after finding a violation
     if (PicocPlatformSetExitPoint(&pc)) {

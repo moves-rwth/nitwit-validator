@@ -787,8 +787,8 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
             AddResolvedVariable(Parser, Identifier);
         } else {
 
-            double TopFP = (TopValue->Typ == &Parser->pc->FPType) ? TopValue->Val->FP : (double)AssumptionExpressionCoerceInteger(TopValue);
-            double BottomFP = (BottomValue->Typ == &Parser->pc->FPType) ? BottomValue->Val->FP : (double)AssumptionExpressionCoerceInteger(BottomValue);
+            double TopFP = (TopValue->Typ->Base == TypeFP) ? TopValue->Val->FP : (double)AssumptionExpressionCoerceInteger(TopValue);
+            double BottomFP = (BottomValue->Typ->Base == TypeFP) ? BottomValue->Val->FP : (double)AssumptionExpressionCoerceInteger(BottomValue);
 
             switch (Op)
             {

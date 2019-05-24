@@ -1657,7 +1657,10 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
                     ProgramFail(&FuncParser, "no value returned from a function returning %t", FuncValue->Val->FuncDef.ReturnType);
 
                 else if (FuncParser.Mode == RunModeGoto){
-                    ProgramFail(&FuncParser, "couldn't find goto label '%s'", FuncParser.SearchGotoLabel);
+                    ParserCopyPos(&FuncParser, &FuncValue->Val->FuncDef.Body);
+                    ParseStatement(&FuncParser, TRUE);
+                    if (FuncParser.Mode == RunModeGoto)
+                        ProgramFail(&FuncParser, "couldn't find goto label '%s'", FuncParser.SearchGotoLabel);
                 }
             }
             Parser->CurrentFunction = FunctionBefore;
