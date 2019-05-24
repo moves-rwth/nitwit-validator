@@ -642,6 +642,18 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     struct ParseState ParserPrePosition;
     ParserCopyPos(&ParserPrePosition, Parser);
 
+    /* if we're debugging, check for a breakpoint */
+    if (Parser->DebugMode && Parser->Mode == RunModeRun){
+        switch (Token)
+        {
+            case TokenIf:
+                DebugCheckStatement(Parser);
+                break;
+            default:
+                break;
+        }
+    }
+
     switch (Token)
     {
         case TokenEOF:
@@ -1058,7 +1070,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenBreak:
             case TokenReturn:
             case TokenTypedef:
-//            case TokenIdentifier:
+            case TokenIdentifier:
             case TokenIntType:
             case TokenShortType:
             case TokenCharType:

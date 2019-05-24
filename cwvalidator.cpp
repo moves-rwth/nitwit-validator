@@ -55,6 +55,9 @@ void handleDebugBreakpoint(struct ParseState *ps) {
         ProgramFailWithExitCode(ps, WITNESS_IN_SINK, "Witness automaton reached sink state without a violation.");
         return;
     }
+//    if (ps->Line == 245 && ps->CharacterPos == 17){
+//        printf("Debug\n");
+//    }
 
     wit_aut->consumeState(ps);
 

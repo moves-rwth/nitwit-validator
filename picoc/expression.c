@@ -1165,10 +1165,6 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
         ParserCopy(&PreState, Parser);
         Token = LexGetToken(Parser, &LexValue, TRUE);
 
-        // save the expression's position
-        struct ParseState ParserPrePosition;
-        ParserCopyPos(&ParserPrePosition, Parser);
-
         if ( ( ( (int)Token > TokenComma && (int)Token <= (int)TokenOpenBracket) ||
                (Token == TokenCloseBracket && BracketPrecedence != 0)) &&
                (Token != TokenColon || TernaryDepth > 0) )
@@ -1420,15 +1416,6 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
             ParserCopy(Parser, &PreState);
             Done = TRUE;
         }
-
-        // call back after parsing the expression, but with the position of before parsing it
-        struct ParseState NowPosition;
-        ParserCopyPos(&NowPosition, Parser);
-        ParserCopyPos(Parser, &ParserPrePosition);
-        if (Parser->DebugMode && Parser->Mode == RunModeRun) {
-            DebugCheckStatement(Parser);
-        }
-        ParserCopyPos(Parser, &NowPosition);
 
     } while (!Done);
 
