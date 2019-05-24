@@ -183,7 +183,6 @@ struct ParseState
     const char * ReturnFromFunction;
     int VerifierErrorCalled;
     struct ValueList * ResolvedNonDetVars;
-    int BlockLevel; // to track how deeply we are in a block because of gotos
 };
 
 
@@ -439,11 +438,6 @@ struct Picoc_Struct
 # endif
 #endif
 
-    // jsv
-    struct Table GotoLabels;        /* contains the positions of goto labels */
-    struct TableEntry *GotoLabelsHashTable[GOTO_LABELS_TABLE_SIZE]; // so that we don't have to allocate the actual hash table for GotoLabels
-    //
-
     struct AllocNode *FreeListBucket[FREELIST_BUCKETS];      /* we keep a pool of freelist buckets to reduce fragmentation */
     struct AllocNode *FreeListBig;                           /* free memory which doesn't fit in a bucket */
 
@@ -551,7 +545,6 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
 void ParseCleanup(Picoc *pc);
 void ParserCopyPos(struct ParseState *To, struct ParseState *From);
 void ParserCopy(struct ParseState *To, struct ParseState *From);
-void ParserGetToTop(struct ParseState* Parser);
 
 /* expression.c */
 int ExpressionParse(struct ParseState *Parser, struct Value **Result);

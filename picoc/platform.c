@@ -5,8 +5,6 @@
 #include "interpreter.h"
 
 
-void GotoInit(Picoc *pc);
-
 /* initialise everything */
 void PicocInitialise(Picoc *pc, int StackSize)
 {
@@ -28,36 +26,11 @@ void PicocInitialise(Picoc *pc, int StackSize)
 #endif
     PlatformLibraryInit(pc);
     DebugInit(pc);
-    GotoInit(pc);
-}
-
-void GotoInit(Picoc *pc) {
-    TableInitTable(&pc->GotoLabels, &pc->GotoLabelsHashTable[0], GOTO_LABELS_TABLE_SIZE, TRUE);
-}
-
-void GotoCleanup(Picoc *pc) {
-    struct Table *HashTable = &pc->GotoLabels;
-    struct TableEntry *Entry;
-    struct TableEntry *NextEntry;
-    int Count;
-
-    for (Count = 0; Count < HashTable->Size; Count++)
-    {
-        for (Entry = HashTable->HashTable[Count]; Entry != NULL; Entry = NextEntry)
-        {
-            NextEntry = Entry->Next;
-            free((struct ParseState*)Entry->p.v.Val->Val->Pointer);
-            VariableFree(pc, Entry->p.v.Val);
-            /* free the hash table entry */
-            HeapFreeMem(pc, Entry);
-        }
-    }
 }
 
 /* free memory */
 void PicocCleanup(Picoc *pc)
 {
-    GotoCleanup(pc);
     DebugCleanup(pc);
 #ifndef NO_HASH_INCLUDE
     IncludeCleanup(pc);
