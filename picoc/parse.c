@@ -679,7 +679,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                         if (!TableGet(&Parser->pc->GotoLabels, key, &PosVal, &declfn, &line, &col)){
                             PosVal = VariableAllocValueFromType(Parser->pc, Parser, Parser->pc->VoidPtrType, FALSE, NULL, TRUE);
                             struct ParseState * GotoPos = malloc(sizeof(struct ParseState));
-                            ParserCopyPos(GotoPos, Parser);
+                            ParserCopy(GotoPos, Parser);
                             PosVal->Val->Pointer = GotoPos;
                             if (!TableSet(Parser->pc, &Parser->pc->GotoLabels, key,
                                      PosVal, Parser->FileName, Parser->Line, Parser->CharacterPos)){
@@ -979,6 +979,11 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             if (LexGetToken(Parser, &LexerValue, TRUE) != TokenIdentifier)
                 ProgramFail(Parser, "identifier expected");
 
+            if (LexGetToken(Parser, NULL, TRUE) != TokenSemicolon)
+                ProgramFail(Parser, "';' expected after identifier");
+
+            CheckTrailingSemicolon = FALSE;
+
             if (Parser->Mode == RunModeRun)
             {
                 /* start scanning for the goto label */
@@ -992,12 +997,19 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 if (!found)
                     ProgramFail(Parser, "couldn't find goto label '%s'", Parser->SearchGotoLabel);
                 struct ParseState * SavedGotoPosition = (struct ParseState*) PosVal->Val->Pointer;
-                ParserCopyPos(Parser, SavedGotoPosition);
+                struct ParseState * NewParser = malloc(sizeof(struct ParseState));
+                ParserCopy(NewParser, SavedGotoPosition);
+
+                // set the state
+                NewParser->VerifierErrorCalled = Parser->VerifierErrorCalled;
+                NewParser->Mode = Parser->Mode;
+
                 enum ParseResult Ok;
                 do {
-                    Ok = ParseStatement(Parser, TRUE);
+                    Ok = ParseStatement(NewParser, TRUE);
                 } while (Ok == ParseResultOk);
 
+                free(NewParser);
                 // skip the rest after returning back from goto call
                 Parser->Mode = RunModeSkip;
             }

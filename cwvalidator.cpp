@@ -34,8 +34,11 @@ void printProgramState(ParseState *ps) {
         printf(", Control: %d", ps->LastConditionBranch == ConditionTrue);
     if (ps->EnterFunction != nullptr)
         printf(", Enter: %s", ps->EnterFunction);
-    if (ps->ReturnFromFunction != nullptr)
+    if (ps->ReturnFromFunction != nullptr){
         printf(", Return: %s", ps->ReturnFromFunction);
+        if (strcmp(ps->ReturnFromFunction, "main") == 0)
+            printf("debug\n");
+        }
     printf("\n");
 }
 
