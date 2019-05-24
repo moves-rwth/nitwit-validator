@@ -183,6 +183,7 @@ struct ParseState
     const char * ReturnFromFunction;
     int VerifierErrorCalled;
     struct ValueList * ResolvedNonDetVars;
+    int BlockLevel; // to track how deeply we are in a block because of gotos
 };
 
 

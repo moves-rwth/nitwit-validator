@@ -8,7 +8,7 @@
 void cw_verbose(const string& Format, ...){}
 #endif
 
-void assignValue(Value *DestValue, Value* FromValue) {
+bool assignValue(Value *DestValue, Value* FromValue) {
 
     if (IS_FP(DestValue)) {
         DestValue->Val->FP = ExpressionCoerceFP(FromValue);
@@ -24,9 +24,10 @@ void assignValue(Value *DestValue, Value* FromValue) {
             case TypeUnsignedShort: DestValue->Val->UnsignedShortInteger = (unsigned short)FromInt; break;
             case TypeUnsignedLong:  DestValue->Val->UnsignedLongInteger = (unsigned long)FromInt; break;
             case TypeUnsignedChar:  DestValue->Val->UnsignedCharacter = (unsigned char)FromInt; break;
-            default: break;
+            default: return false;
         }
     }
+    return true;
 }
 
 string baseFileName(const string &s) {
@@ -111,7 +112,9 @@ void CopyValue(ParseState *ToState, Value *FromValue, const char *Identifier, bo
             return;
         }
     }
-    assignValue(entry->p.v.Val, FromValue);
+    if (assignValue(entry->p.v.Val, FromValue)){
+        entry->p.v.Val->Typ = TypeGetDeterministic(ToState, entry->p.v.Val->Typ);
+    }
 }
 
 int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *Source,
