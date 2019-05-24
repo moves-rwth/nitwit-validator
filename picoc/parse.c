@@ -477,7 +477,6 @@ void ParserCopyPos(struct ParseState *To, struct ParseState *From)
     To->HashIfLevel = From->HashIfLevel;
     To->HashIfEvaluateToLevel = From->HashIfEvaluateToLevel;
     To->CharacterPos = From->CharacterPos;
-    To->BlockLevel = From->BlockLevel;
 }
 
 /* parse a "for" statement */
@@ -574,7 +573,6 @@ enum RunMode ParseBlock(struct ParseState *Parser, int AbsorbOpenBrace, int Cond
     if (AbsorbOpenBrace && LexGetToken(Parser, NULL, TRUE) != TokenLeftBrace)
         ProgramFail(Parser, "'{' expected");
 
-    ++Parser->BlockLevel;
     if (Parser->Mode == RunModeSkip || !Condition)
     {
         /* condition failed - skip this block instead */
@@ -590,8 +588,6 @@ enum RunMode ParseBlock(struct ParseState *Parser, int AbsorbOpenBrace, int Cond
         while (ParseStatement(Parser, TRUE) == ParseResultOk)
         {}
     }
-    if (Parser->BlockLevel > 0)
-        --Parser->BlockLevel;
 
     if (LexGetToken(Parser, NULL, TRUE) != TokenRightBrace)
         ProgramFail(Parser, "'}' expected");
@@ -689,32 +685,6 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
 
                     CheckTrailingSemicolon = FALSE;
                     break;
-
-//                    /* declare the identifier as a goto label */
-//                    LexGetToken(Parser, NULL, TRUE);
-//                    if (Parser->CurrentFunction == NULL)
-//                        ProgramFail(Parser, "labels have to be defined in a function");
-//                    else {
-//
-////                        char *gotoIdentifier = GetGotoIdentifier(Parser->CurrentFunction,
-////                                                                 LexerValue->Val->Identifier);
-////                        char *key = TableStrRegister(Parser->pc, gotoIdentifier);
-////                        free(gotoIdentifier);
-////                        int AddAt;
-////                        if (TableSearch(&Parser->pc->GotoLabels, key, &AddAt) == NULL){
-////                            struct Value * PosVal = VariableAllocValueFromType(Parser->pc, Parser, Parser->pc->VoidPtrType, FALSE, NULL, TRUE);
-////                            struct ParseState * GotoPos = malloc(sizeof(struct ParseState));
-////                            ParserCopy(GotoPos, Parser);
-////                            PosVal->Val->Pointer = GotoPos;
-////                            if (!TableSet(Parser->pc, &Parser->pc->GotoLabels, key,
-////                                     PosVal, Parser->FileName, Parser->Line, Parser->CharacterPos)){
-////                                VariableFree(Parser->pc, PosVal);
-////                                free(GotoPos);
-////                            }
-////                        }
-////                        CheckTrailingSemicolon = FALSE;
-//                    }
-//                    break;
                 }
 #ifdef FEATURE_AUTO_DECLARE_VARIABLES
                 else /* new_identifier = something */
@@ -1001,45 +971,11 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             if (LexGetToken(Parser, &LexerValue, TRUE) != TokenIdentifier)
                 ProgramFail(Parser, "identifier expected");
 
-//            if (LexGetToken(Parser, NULL, TRUE) != TokenSemicolon)
-//                ProgramFail(Parser, "';' expected after identifier");
-
-//            CheckTrailingSemicolon = FALSE;
-
             if (Parser->Mode == RunModeRun)
             {
                 /* start scanning for the goto label */
                 Parser->SearchGotoLabel = LexerValue->Val->Identifier;
                 Parser->Mode = RunModeGoto;
-//                struct Value * PosVal;
-//                const char * decfn; int line, col;
-//                char *key = GetGotoIdentifier(Parser->CurrentFunction, Parser->SearchGotoLabel);
-//                int found = TableGet(&Parser->pc->GotoLabels, TableStrRegister(Parser->pc, key), &PosVal, &decfn, &line, &col);
-//                free(key);
-//                if (!found)
-//                    ProgramFail(Parser, "couldn't find goto label '%s'", Parser->SearchGotoLabel);
-//                struct ParseState * SavedGotoPosition = (struct ParseState*) PosVal->Val->Pointer;
-//                struct ParseState * NewParser = malloc(sizeof(struct ParseState));
-//                ParserCopy(NewParser, SavedGotoPosition);
-//
-//                // set the state
-//                NewParser->VerifierErrorCalled = Parser->VerifierErrorCalled;
-//                NewParser->Mode = Parser->Mode;
-//
-//                enum ParseResult Ok;
-//
-//                do {
-//                    Ok = ParseStatement(NewParser, TRUE);
-//                    if (Ok == ParseResultError){
-//                        --NewParser->BlockLevel;
-//                        LexGetToken(NewParser, NULL, TRUE);
-//                    }
-//                } while (Ok == ParseResultOk || NewParser->BlockLevel > 0);
-//
-//                free(NewParser);
-//                // skip the rest after returning back from goto call
-//                Parser->Mode = RunModeSkip;
-//                return ParseResultError;
             }
             break;
 
@@ -1190,14 +1126,3 @@ void PicocParseInteractive(Picoc *pc)
     PicocParseInteractiveNoStartPrompt(pc, TRUE);
 }
 
-
-void ParserGetToTop(struct ParseState* Parser){
-    Parser->Line = 1;
-    Parser->SearchLabel = 0;
-    Parser->HashIfLevel = 0;
-    Parser->HashIfEvaluateToLevel = 0;
-    Parser->LastConditionBranch = ConditionUndefined;
-    Parser->CharacterPos = 0;
-    Parser->EnterFunction = NULL;
-    Parser->ReturnFromFunction = NULL;
-}
