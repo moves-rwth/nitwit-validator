@@ -3,8 +3,6 @@
 #include "picoc.h"
 #include "interpreter.h"
 
-void ConditionCallback(struct ParseState *Parser, int Condition);
-
 /* deallocate any memory */
 void ParseCleanup(Picoc *pc)
 {
@@ -478,6 +476,7 @@ void ParserCopyPos(struct ParseState *To, struct ParseState *From)
     To->HashIfEvaluateToLevel = From->HashIfEvaluateToLevel;
     To->CharacterPos = From->CharacterPos;
     To->FreshGotoSearch = From->FreshGotoSearch;
+    To->SkipIntrinsic = From->SkipIntrinsic;
 }
 
 /* parse a "for" statement */
@@ -640,9 +639,6 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     /* take note of where we are and then grab a token to see what statement we have */
     ParserCopy(&PreState, Parser);
     Token = LexGetToken(Parser, &LexerValue, TRUE);
-//    if (Parser->Mode == RunModeGoto){
-//        printf("Debug goto: %d: %d\n", Parser->Line, Parser->CharacterPos);
-//    }
 
     struct ParseState ParserPrePosition;
     ParserCopyPos(&ParserPrePosition, Parser);
@@ -689,9 +685,9 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                         Parser->SearchGotoLabel = NULL;
                     }
 
-
-                    CheckTrailingSemicolon = FALSE;
-                    break;
+                    return ParseStatement(Parser, TRUE);
+//                    CheckTrailingSemicolon = FALSE;
+//                    break;
                 }
 #ifdef FEATURE_AUTO_DECLARE_VARIABLES
                 else /* new_identifier = something */
@@ -757,7 +753,9 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             if (LexGetToken(Parser, NULL, FALSE) == TokenElse)
             {
                 LexGetToken(Parser, NULL, TRUE);
-                if (ParseStatementMaybeRun(Parser, !Condition, TRUE) != ParseResultOk)
+                if (ParseStatementMaybeRun(Parser,
+                        (!Condition && !(PreState.Mode == RunModeGoto
+                        && Parser->Mode== RunModeRun)), TRUE) != ParseResultOk)
                     ProgramFail(Parser, "statement expected");
             }
             CheckTrailingSemicolon = FALSE;

@@ -304,6 +304,7 @@ void Automaton::consumeState(ParseState *state) {
     }
 
     if (could_go_to_sink) {
+        cw_verbose("\tTaking edge: %s --> sink\n", current_state->id.c_str());
         current_state = nodes.find("sink")->second;
     }
 }
