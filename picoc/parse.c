@@ -378,11 +378,14 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
                 }
                 if (FuncValue != NULL) VariableFree(pc, FuncValue);
 
-                if (LexGetToken(Parser, NULL, FALSE) == TokenAssign)
+                enum LexToken next_token = LexGetToken(Parser, NULL, FALSE);
+                if (next_token == TokenAssign)
                 {
                     /* we're assigning an initial value */
                     LexGetToken(Parser, NULL, TRUE);
                     ParseDeclarationAssignment(Parser, NewVariable, !IsStatic || FirstVisit);
+                } else if (NewVariable != NULL && (next_token == TokenComma || next_token == TokenSemicolon)) {
+                    NewVariable->Typ = TypeGetNonDeterministic(Parser, NewVariable->Typ);
                 }
             }
         }
