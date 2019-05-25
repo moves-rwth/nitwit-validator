@@ -183,6 +183,7 @@ struct ParseState
     const char * ReturnFromFunction;
     int VerifierErrorCalled;
     struct ValueList * ResolvedNonDetVars;
+    char FreshGotoSearch;
 };
 
 

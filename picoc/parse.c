@@ -477,6 +477,7 @@ void ParserCopyPos(struct ParseState *To, struct ParseState *From)
     To->HashIfLevel = From->HashIfLevel;
     To->HashIfEvaluateToLevel = From->HashIfEvaluateToLevel;
     To->CharacterPos = From->CharacterPos;
+    To->FreshGotoSearch = From->FreshGotoSearch;
 }
 
 /* parse a "for" statement */
@@ -577,10 +578,10 @@ enum RunMode ParseBlock(struct ParseState *Parser, int AbsorbOpenBrace, int Cond
     {
         /* condition failed - skip this block instead */
         enum RunMode OldMode = Parser->Mode;
-        Parser->Mode = RunModeSkip;
+        Parser->Mode = Parser->Mode == RunModeGoto ? RunModeGoto : RunModeSkip;
         while (ParseStatement(Parser, TRUE) == ParseResultOk)
         {}
-        Parser->Mode = OldMode;
+        Parser->Mode = OldMode == RunModeGoto ? Parser->Mode : OldMode;
     }
     else
     {
@@ -639,6 +640,9 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     /* take note of where we are and then grab a token to see what statement we have */
     ParserCopy(&PreState, Parser);
     Token = LexGetToken(Parser, &LexerValue, TRUE);
+//    if (Parser->Mode == RunModeGoto){
+//        printf("Debug goto: %d: %d\n", Parser->Line, Parser->CharacterPos);
+//    }
 
     struct ParseState ParserPrePosition;
     ParserCopyPos(&ParserPrePosition, Parser);
@@ -680,8 +684,11 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 {
                     /* declare the identifier as a goto label */
                     LexGetToken(Parser, NULL, TRUE);
-                    if (Parser->Mode == RunModeGoto && LexerValue->Val->Identifier == Parser->SearchGotoLabel)
+                    if (Parser->Mode == RunModeGoto && LexerValue->Val->Identifier == Parser->SearchGotoLabel) {
                         Parser->Mode = RunModeRun;
+                        Parser->SearchGotoLabel = NULL;
+                    }
+
 
                     CheckTrailingSemicolon = FALSE;
                     break;
@@ -777,12 +784,12 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                         ProgramFail(Parser, "statement expected");
 
                     if (Parser->Mode == RunModeContinue)
-                        Parser->Mode = PreMode;
+                        Parser->Mode = PreMode == RunModeGoto && Parser->SearchGotoLabel == NULL ? RunModeRun : PreMode;
 
                 } while (Parser->Mode == RunModeRun && Condition);
 
                 if (Parser->Mode == RunModeBreak)
-                    Parser->Mode = PreMode;
+                    Parser->Mode = PreMode == RunModeGoto && Parser->SearchGotoLabel == NULL ? RunModeRun : PreMode;
 
                 CheckTrailingSemicolon = FALSE;
             }
@@ -800,7 +807,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                         ProgramFail(Parser, "statement expected");
 
                     if (Parser->Mode == RunModeContinue)
-                        Parser->Mode = PreMode;
+                        Parser->Mode = PreMode == RunModeGoto && Parser->SearchGotoLabel == NULL ? RunModeRun : PreMode;
 
                     if (LexGetToken(Parser, NULL, TRUE) != TokenWhile)
                         ProgramFail(Parser, "'while' expected");
@@ -816,7 +823,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 } while (Condition && Parser->Mode == RunModeRun);
 
                 if (Parser->Mode == RunModeBreak)
-                    Parser->Mode = PreMode;
+                    Parser->Mode = PreMode == RunModeGoto && Parser->SearchGotoLabel == NULL ? RunModeRun : PreMode;
             }
             break;
 
@@ -976,6 +983,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 /* start scanning for the goto label */
                 Parser->SearchGotoLabel = LexerValue->Val->Identifier;
                 Parser->Mode = RunModeGoto;
+                Parser->FreshGotoSearch = TRUE;
             }
             break;
 

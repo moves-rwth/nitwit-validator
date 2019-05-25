@@ -1575,7 +1575,8 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
     else
     {
         ExpressionPushInt(Parser, StackTop, 0);
-        Parser->Mode = RunModeSkip;
+//        Parser->Mode = RunModeSkip;
+        Parser->Mode = Parser->Mode == RunModeGoto ? RunModeGoto : RunModeSkip;
     }
 
     /* parse arguments */
@@ -1657,8 +1658,11 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
                     ProgramFail(&FuncParser, "no value returned from a function returning %t", FuncValue->Val->FuncDef.ReturnType);
 
                 else if (FuncParser.Mode == RunModeGoto){
-                    ParserCopyPos(&FuncParser, &FuncValue->Val->FuncDef.Body);
-                    ParseStatement(&FuncParser, TRUE);
+                    do {
+                        ParserCopyPos(&FuncParser, &FuncValue->Val->FuncDef.Body);
+                        FuncParser.FreshGotoSearch = FALSE;
+                        ParseStatement(&FuncParser, TRUE);
+                    } while (FuncParser.Mode == RunModeGoto && FuncParser.FreshGotoSearch == TRUE);
                     if (FuncParser.Mode == RunModeGoto)
                         ProgramFail(&FuncParser, "couldn't find goto label '%s'", FuncParser.SearchGotoLabel);
                 }
@@ -1674,7 +1678,7 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
 
         HeapPopStackFrame(Parser->pc);
     }
-    Parser->Mode = OldMode;
+    Parser->Mode = OldMode == RunModeGoto ? Parser->Mode : OldMode;
 }
 
 /* parse an expression */
