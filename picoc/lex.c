@@ -632,6 +632,7 @@ void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText,
     Parser->VerifierErrorCalled = FALSE;
     Parser->ResolvedNonDetVars = NULL;
     Parser->FreshGotoSearch = FALSE;
+    Parser->SkipIntrinsic = FALSE;
     // todo : what about copying these parser properties?
 }
 

@@ -184,6 +184,7 @@ struct ParseState
     int VerifierErrorCalled;
     struct ValueList * ResolvedNonDetVars;
     char FreshGotoSearch;
+    char SkipIntrinsic;
 };
 
 
@@ -546,6 +547,7 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
 void ParseCleanup(Picoc *pc);
 void ParserCopyPos(struct ParseState *To, struct ParseState *From);
 void ParserCopy(struct ParseState *To, struct ParseState *From);
+void ConditionCallback(struct ParseState *Parser, int Condition);
 
 /* expression.c */
 int ExpressionParse(struct ParseState *Parser, struct Value **Result);

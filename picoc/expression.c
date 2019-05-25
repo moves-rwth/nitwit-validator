@@ -504,11 +504,13 @@ void ExpressionQuestionMarkOperator(struct ParseState *Parser, struct Expression
     if (ExpressionCoerceInteger(TopValue))
     {
         /* the condition's true, return the BottomValue */
+        ConditionCallback(Parser, TRUE);
         ExpressionStackPushValue(Parser, StackTop, BottomValue);
     }
     else
     {
         /* the condition's false, return void */
+        ConditionCallback(Parser, FALSE);
         ExpressionStackPushValueByType(Parser, StackTop, &Parser->pc->VoidType);
     }
 }
@@ -1327,6 +1329,12 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
             {
                 char RunIt = Parser->Mode == RunModeRun && Precedence < IgnorePrecedence;
                 char *FuncName = RunIt ? ExpressionResolveFunctionName(Parser, LexValue) : LexValue->Val->Identifier;
+                struct Value * FuncValue;
+                if (RunIt)
+                    VariableGet(Parser->pc, Parser, FuncName, &FuncValue);
+                if (RunIt && FuncValue->Val->FuncDef.Intrinsic != NULL){
+                    Parser->SkipIntrinsic = TRUE;
+                }
                 if (Parser->DebugMode && Parser->Mode == RunModeRun) {
                     Parser->EnterFunction = FuncName;
                     DebugCheckStatement(Parser);
@@ -1338,6 +1346,8 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
                     DebugCheckStatement(Parser);
                     Parser->ReturnFromFunction = NULL;
                 }
+                if (Parser->SkipIntrinsic == TRUE)
+                    Parser->SkipIntrinsic = FALSE;
             }
             else
             {
@@ -1448,6 +1458,7 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
         DebugCheckStatement(Parser);
     }
     Parser->ReturnFromFunction = NULL;
+    Parser->LastConditionBranch = ConditionUndefined;
 
     debugf("ExpressionParse() done\n\n");
 #ifdef DEBUG_EXPRESSIONS
