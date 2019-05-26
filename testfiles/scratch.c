@@ -1,15 +1,17 @@
 #include <stdio.h>
 
 int main() {
-    int n = 0;
-    if (1) {
-        n = 1;
-    } else
-        _L___2: /* CIL Label */
-        if (1) {
-            n = 2;
-        }
+    int a, b;
+    int *p1, *p2;
 
-    printf("n: %d\n", n);
+    p1 = &a;
+    p2 = &b;
+
+    b = 1;
+    a = 5;
+
+    printf("%d\n", *p1);
+    printf("%d\n", *p2);
+
     return 0;
 }
