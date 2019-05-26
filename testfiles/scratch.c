@@ -5,13 +5,12 @@ int main() {
     int *p1, *p2;
 
     p1 = &a;
-    p2 = &b;
+    p2 = NULL;
 
     b = 1;
     a = 5;
 
     printf("%d\n", *p1);
-    printf("%d\n", *p2);
 
     return 0;
 }
