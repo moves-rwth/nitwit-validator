@@ -98,7 +98,7 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
     return true;
 }
 
-void CopyValue(ParseState *ToState, Value *FromValue, const char *Identifier, bool IsGlobal) {
+bool CopyValue(ParseState *ToState, Value *FromValue, const char *Identifier, bool IsGlobal) {
     char *registeredIdent = TableStrRegister(ToState->pc, Identifier);
     // todo could top stack be null?
     Table *table = IsGlobal ? &ToState->pc->GlobalTable : &ToState->pc->TopStackFrame->LocalTable;
@@ -108,13 +108,23 @@ void CopyValue(ParseState *ToState, Value *FromValue, const char *Identifier, bo
     if (entry == nullptr){
         entry = TableSearch(&ToState->pc->GlobalTable, registeredIdent, &addAt);
         if (entry == nullptr){
-            assert(entry == nullptr); // the variable should really exist in the original variable space
-            return;
+            if (ToState->pc->TopStackFrame != nullptr) {
+                entry = TableSearch(&ToState->pc->TopStackFrame->LocalTable, registeredIdent, &addAt);
+                if (entry == nullptr){
+                    assert(entry != nullptr); // the variable should really exist in the original variable space
+                    return false;
+                }
+            } else {
+                assert(entry != nullptr); // the variable should really exist in the original variable space
+                return false;
+            }
         }
     }
     if (assignValue(entry->p.v.Val, FromValue)){
         entry->p.v.Val->Typ = TypeGetDeterministic(ToState, entry->p.v.Val->Typ);
+        return true;
     }
+    return false;
 }
 
 int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *Source,
@@ -154,17 +164,20 @@ int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *
     for (ValueList *I = Next; I != nullptr; I = Next) {
         Value *val;
         VariableGet(pc, &Parser, I->Identifier, &val);
-        CopyValue(main_state, val, I->Identifier, IsGlobal);
+        if (CopyValue(main_state, val, I->Identifier, IsGlobal)){
 #ifdef VERBOSE
-        VariableGet(main_state->pc, main_state, TableStrRegister(main_state->pc, I->Identifier), &val);
-        if (IS_FP(val)) {
-            double fp = AssumptionExpressionCoerceFP(val);
-            cw_verbose("Resolved var: %s: ---> %2.20f\n", I->Identifier, fp);
-        } else {
-            int i = AssumptionExpressionCoerceInteger(val);
-            cw_verbose("Resolved var: %s: ---> %d\n", I->Identifier, i);
-        }
+            VariableGet(main_state->pc, main_state, TableStrRegister(main_state->pc, I->Identifier), &val);
+            if (IS_FP(val)) {
+                double fp = AssumptionExpressionCoerceFP(val);
+                cw_verbose("Resolved var: %s: ---> %2.20f\n", I->Identifier, fp);
+            } else {
+                int i = AssumptionExpressionCoerceInteger(val);
+                cw_verbose("Resolved var: %s: ---> %d\n", I->Identifier, i);
+            }
 #endif
+        } else {
+            ret = 0;
+        }
         Next = Next->Next;
         free(I);
     }
