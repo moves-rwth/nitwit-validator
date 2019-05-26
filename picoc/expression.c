@@ -355,7 +355,7 @@ void ExpressionAssignToPointer(struct ParseState *Parser, struct Value *ToValue,
     struct ValueType *PointedToType = ToValue->Typ->FromType;
 
     if (FromValue->Typ == ToValue->Typ || FromValue->Typ == Parser->pc->VoidPtrType || (ToValue->Typ == Parser->pc->VoidPtrType && FromValue->Typ->Base == TypePointer)
-        || (TypeIsNonDeterministic(FromValue->Typ->FromType)
+        || (FromValue->Typ->FromType != NULL && TypeIsNonDeterministic(FromValue->Typ->FromType)
             && ToValue->Typ->FromType->Base == FromValue->Typ->FromType->Base)
         )
     {

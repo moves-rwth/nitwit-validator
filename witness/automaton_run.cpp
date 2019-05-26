@@ -184,6 +184,7 @@ int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *
 
     return ret;
 }
+static int ZeroValue = 0;
 
 bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &edge) {
     // check scope
@@ -208,6 +209,9 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             PicocCleanup(&pc);
             return false;
         }
+        char null[] = "NULL";
+        VariableDefinePlatformVar(&pc, NULL, null, &pc.IntType, (union AnyValue *)&ZeroValue, FALSE);
+
         int res = PicocParseAssumptionAndResolve(&pc, "assumption-1243asdfeqv45q", ass.c_str(), ass.length(),
                                                  TRUE, FALSE, FALSE, state, IsGlobalScope);
 
