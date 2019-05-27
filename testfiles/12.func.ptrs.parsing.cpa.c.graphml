@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+  <default>false</default>
+ </key>
+ <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+  <default>false</default>
+ </key>
+ <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+  <default>false</default>
+ </key>
+ <key attr.name="violatedProperty" attr.type="string" for="node" id="violatedProperty"/>
+ <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+ <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+ <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+ <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+ <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+ <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+ <key attr.name="creationTime" attr.type="string" for="graph" id="creationtime"/>
+ <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+ <key attr.name="endline" attr.type="int" for="edge" id="endline"/>
+ <key attr.name="startoffset" attr.type="int" for="edge" id="startoffset"/>
+ <key attr.name="endoffset" attr.type="int" for="edge" id="endoffset"/>
+ <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+  <default>./12.func.ptrs.parsing.c</default>
+ </key>
+ <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+ <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+ <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+ <key attr.name="returnFromFunction" attr.type="string" for="edge" id="returnFrom"/>
+ <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+ <key attr.name="inputWitnessHash" attr.type="string" for="graph" id="inputwitnesshash"/>
+ <graph edgedefault="directed">
+  <data key="witness-type">violation_witness</data>
+  <data key="sourcecodelang">C</data>
+  <data key="producer">CPAchecker 1.8-svn a776d662f5+ / kInduction</data>
+  <data key="specification">CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )</data>
+  <data key="programfile">./12.func.ptrs.parsing.c</data>
+  <data key="programhash">0ee1d1b9d05a336ba614fd8cea4945c5556bf43328590c022d661d9b5d4a3209</data>
+  <data key="architecture">32bit</data>
+  <data key="creationtime">2019-05-27T11:18:47+02:00</data>
+  <node id="A143">
+   <data key="entry">true</data>
+  </node>
+  <node id="A491"/>
+  <edge source="A143" target="A491">
+   <data key="startline">20</data>
+   <data key="endline">20</data>
+   <data key="startoffset">18181</data>
+   <data key="endoffset">18191</data>
+   <data key="enterFunction">main</data>
+  </edge>
+  <node id="sink">
+   <data key="sink">true</data>
+  </node>
+  <edge source="A491" target="sink">
+   <data key="startline">25</data>
+   <data key="endline">25</data>
+   <data key="startoffset">18248</data>
+   <data key="endoffset">18254</data>
+   <data key="enterFunction">func1</data>
+  </edge>
+  <node id="A517"/>
+  <edge source="A491" target="A517">
+   <data key="startline">25</data>
+   <data key="endline">25</data>
+   <data key="startoffset">18248</data>
+   <data key="endoffset">18252</data>
+   <data key="enterFunction">func2</data>
+  </edge>
+  <node id="A544"/>
+  <edge source="A517" target="A544">
+   <data key="startline">11</data>
+   <data key="endline">11</data>
+   <data key="startoffset">18060</data>
+   <data key="endoffset">18079</data>
+   <data key="assumption">y == (50);</data>
+   <data key="assumption.scope">func2</data>
+  </edge>
+  <node id="A564"/>
+  <edge source="A544" target="A564">
+   <data key="startline">12</data>
+   <data key="endline">12</data>
+   <data key="startoffset">18086</data>
+   <data key="endoffset">18093</data>
+   <data key="returnFrom">func2</data>
+  </edge>
+  <node id="A608"/>
+  <edge source="A564" target="A608">
+   <data key="startline">27</data>
+   <data key="endline">27</data>
+   <data key="startoffset">18276</data>
+   <data key="endoffset">18280</data>
+   <data key="enterFunction">func1</data>
+  </edge>
+  <node id="A617"/>
+  <edge source="A608" target="A617">
+   <data key="startline">6</data>
+   <data key="endline">6</data>
+   <data key="startoffset">17997</data>
+   <data key="endoffset">18016</data>
+   <data key="assumption">x == (49);</data>
+   <data key="assumption.scope">func1</data>
+  </edge>
+  <node id="A628"/>
+  <edge source="A617" target="A628">
+   <data key="startline">7</data>
+   <data key="endline">7</data>
+   <data key="startoffset">18023</data>
+   <data key="endoffset">18030</data>
+   <data key="returnFrom">func1</data>
+  </edge>
+  <edge source="A628" target="sink">
+   <data key="startline">29</data>
+   <data key="endline">29</data>
+   <data key="startoffset">18304</data>
+   <data key="endoffset">18310</data>
+   <data key="enterFunction">func1</data>
+  </edge>
+  <node id="A684"/>
+  <edge source="A628" target="A684">
+   <data key="startline">29</data>
+   <data key="endline">29</data>
+   <data key="startoffset">18304</data>
+   <data key="endoffset">18308</data>
+   <data key="enterFunction">func2</data>
+  </edge>
+  <node id="A699"/>
+  <edge source="A684" target="A699">
+   <data key="startline">11</data>
+   <data key="endline">11</data>
+   <data key="startoffset">18060</data>
+   <data key="endoffset">18079</data>
+   <data key="assumption">y == (50);</data>
+   <data key="assumption.scope">func2</data>
+  </edge>
+  <node id="A711"/>
+  <edge source="A699" target="A711">
+   <data key="startline">12</data>
+   <data key="endline">12</data>
+   <data key="startoffset">18086</data>
+   <data key="endoffset">18093</data>
+   <data key="returnFrom">func2</data>
+  </edge>
+  <edge source="A711" target="sink">
+   <data key="startline">30</data>
+   <data key="endline">30</data>
+   <data key="startoffset">18316</data>
+   <data key="endoffset">18325</data>
+   <data key="enterFunction">func1</data>
+  </edge>
+  <node id="A742"/>
+  <edge source="A711" target="A742">
+   <data key="startline">30</data>
+   <data key="endline">30</data>
+   <data key="startoffset">18316</data>
+   <data key="endoffset">18323</data>
+   <data key="enterFunction">func2</data>
+  </edge>
+  <node id="A744"/>
+  <edge source="A742" target="A744">
+   <data key="startline">11</data>
+   <data key="endline">11</data>
+   <data key="startoffset">18060</data>
+   <data key="endoffset">18079</data>
+   <data key="assumption">y == (50);</data>
+   <data key="assumption.scope">func2</data>
+  </edge>
+  <node id="A746"/>
+  <edge source="A744" target="A746">
+   <data key="startline">12</data>
+   <data key="endline">12</data>
+   <data key="startoffset">18086</data>
+   <data key="endoffset">18093</data>
+   <data key="returnFrom">func2</data>
+  </edge>
+  <node id="A760"/>
+  <edge source="A746" target="A760">
+   <data key="startline">33</data>
+   <data key="endline">33</data>
+   <data key="startoffset">18358</data>
+   <data key="endoffset">18362</data>
+   <data key="enterFunction">func1</data>
+  </edge>
+  <node id="A762"/>
+  <edge source="A760" target="A762">
+   <data key="startline">6</data>
+   <data key="endline">6</data>
+   <data key="startoffset">17997</data>
+   <data key="endoffset">18016</data>
+   <data key="assumption">x == (49);</data>
+   <data key="assumption.scope">func1</data>
+  </edge>
+  <node id="A767"/>
+  <edge source="A762" target="A767">
+   <data key="startline">7</data>
+   <data key="endline">7</data>
+   <data key="startoffset">18023</data>
+   <data key="endoffset">18030</data>
+   <data key="returnFrom">func1</data>
+  </edge>
+  <node id="A827"/>
+  <edge source="A767" target="A827">
+   <data key="startline">37</data>
+   <data key="endline">37</data>
+   <data key="startoffset">18424</data>
+   <data key="endoffset">18433</data>
+   <data key="enterFunction">func1</data>
+  </edge>
+  <node id="A831"/>
+  <edge source="A827" target="A831">
+   <data key="startline">6</data>
+   <data key="endline">6</data>
+   <data key="startoffset">17997</data>
+   <data key="endoffset">18016</data>
+   <data key="assumption">x == (49);</data>
+   <data key="assumption.scope">func1</data>
+  </edge>
+  <node id="A832"/>
+  <edge source="A831" target="A832">
+   <data key="startline">7</data>
+   <data key="endline">7</data>
+   <data key="startoffset">18023</data>
+   <data key="endoffset">18030</data>
+   <data key="returnFrom">func1</data>
+  </edge>
+  <edge source="A832" target="sink">
+   <data key="startline">38</data>
+   <data key="endline">38</data>
+   <data key="startoffset">18441</data>
+   <data key="endoffset">18452</data>
+   <data key="enterFunction">func1</data>
+  </edge>
+  <node id="A869"/>
+  <edge source="A832" target="A869">
+   <data key="startline">38</data>
+   <data key="endline">38</data>
+   <data key="startoffset">18441</data>
+   <data key="endoffset">18450</data>
+   <data key="enterFunction">func2</data>
+  </edge>
+  <node id="A874"/>
+  <edge source="A869" target="A874">
+   <data key="startline">11</data>
+   <data key="endline">11</data>
+   <data key="startoffset">18060</data>
+   <data key="endoffset">18079</data>
+   <data key="assumption">y == (50);</data>
+   <data key="assumption.scope">func2</data>
+  </edge>
+  <node id="A875"/>
+  <edge source="A874" target="A875">
+   <data key="startline">12</data>
+   <data key="endline">12</data>
+   <data key="startoffset">18086</data>
+   <data key="endoffset">18093</data>
+   <data key="returnFrom">func2</data>
+  </edge>
+  <edge source="A875" target="sink">
+   <data key="startline">39</data>
+   <data key="endline">39</data>
+   <data key="startoffset">18458</data>
+   <data key="endoffset">18469</data>
+   <data key="enterFunction">func1</data>
+  </edge>
+  <node id="A903"/>
+  <edge source="A875" target="A903">
+   <data key="startline">39</data>
+   <data key="endline">39</data>
+   <data key="startoffset">18458</data>
+   <data key="endoffset">18467</data>
+   <data key="enterFunction">func2</data>
+  </edge>
+  <node id="A908"/>
+  <edge source="A903" target="A908">
+   <data key="startline">11</data>
+   <data key="endline">11</data>
+   <data key="startoffset">18060</data>
+   <data key="endoffset">18079</data>
+   <data key="assumption">y == (50);</data>
+   <data key="assumption.scope">func2</data>
+  </edge>
+  <node id="A909"/>
+  <edge source="A908" target="A909">
+   <data key="startline">12</data>
+   <data key="endline">12</data>
+   <data key="startoffset">18086</data>
+   <data key="endoffset">18093</data>
+   <data key="returnFrom">func2</data>
+  </edge>
+  <node id="A932">
+   <data key="violation">true</data>
+   <data key="violatedProperty">__VERIFIER_error(); called in line 16</data>
+  </node>
+  <edge source="A909" target="A932">
+   <data key="startline">42</data>
+   <data key="endline">42</data>
+   <data key="startoffset">18520</data>
+   <data key="endoffset">18533</data>
+   <data key="enterFunction">error</data>
+  </edge>
+ </graph>
+</graphml>

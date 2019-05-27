@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+    <default>&lt;command-line&gt;</default>
+  </key>
+  <key attr.name="invariant" attr.type="string" for="node" id="invariant"/>
+  <key attr.name="invariant.scope" attr.type="string" for="node" id="invariant.scope"/>
+  <key attr.name="nodeType" attr.type="string" for="node" id="nodetype">
+    <default>path</default>
+  </key>
+  <key attr.name="isFrontierNode" attr.type="boolean" for="node" id="frontier">
+    <default>false</default>
+  </key>
+  <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+    <default>false</default>
+  </key>
+  <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+    <default>false</default>
+  </key>
+  <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+    <default>false</default>
+  </key>
+  <key attr.name="enterLoopHead" attr.type="boolean" for="edge" id="enterLoopHead">
+    <default>false</default>
+  </key>
+  <key attr.name="threadNumber" attr.type="int" for="node" id="thread">
+    <default>0</default>
+  </key>
+  <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+  <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+  <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+  <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+  <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+  <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+  <key attr.name="sourcecode" attr.type="string" for="edge" id="sourcecode"/>
+  <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+  <key attr.name="control" attr.type="string" for="edge" id="control"/>
+  <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+  <key attr.name="assumption.resultfunction" attr.type="string" for="edge" id="assumption.resultfunction"/>
+  <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+  <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+  <key attr.name="returnFromFunction" attr.type="string" for="edge" id="returnFrom"/>
+  <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+  <graph edgedefault="directed">
+    <data key="sourcecodelang">C</data>
+    <node id="sink"/>
+    <node id="1.19">
+      <data key="entry">true</data>
+    </node>
+    <edge source="1.19" target="4.21">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">22</data>
+      <data key="assumption">y = func2;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="4.21"/>
+    <edge source="4.21" target="9.29">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">25</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="9.29"/>
+    <edge source="9.29" target="12.31">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">26</data>
+      <data key="assumption">x = func1;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="12.31"/>
+    <edge source="12.31" target="16.38">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">27</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="16.38"/>
+    <edge source="16.38" target="18.39">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">28</data>
+      <data key="assumption">x = func2;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="18.39"/>
+    <edge source="18.39" target="24.47">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">29</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="24.47"/>
+    <edge source="24.47" target="29.55">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">30</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="29.55"/>
+    <edge source="29.55" target="30.56">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">31</data>
+      <data key="assumption">x = (NULL);</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="30.56"/>
+    <edge source="30.56" target="33.58">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">32</data>
+      <data key="assumption">x = func1;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="33.58"/>
+    <edge source="33.58" target="38.66">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">33</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="38.66"/>
+    <edge source="38.66" target="41.68">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">35</data>
+      <data key="assumption">arr[0] = func1; arr[1] = func2; arr[2] = func2;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="41.68"/>
+    <edge source="41.68" target="46.75">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">37</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="46.75"/>
+    <edge source="46.75" target="52.83">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">38</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="52.83"/>
+    <edge source="52.83" target="58.92">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">39</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="58.92"/>
+    <edge source="58.92" target="60.93">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">41</data>
+      <data key="assumption">f = error;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="60.93"/>
+    <edge source="60.93" target="87.99">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">42</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="87.99">
+      <data key="violation">true</data>
+    </node>
+    <edge source="87.99" target="sink">
+      <data key="originfile">12.func.ptrs.parsing.c</data>
+      <data key="startline">16</data>
+    </edge>
+  </graph>
+</graphml>
