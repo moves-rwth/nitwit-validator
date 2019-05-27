@@ -534,8 +534,6 @@ void AssumptionExpressionPrefixOperator(struct ParseState *Parser, struct Expres
                 char * id = TopValue->Val->Identifier;
                 Result = VariableAllocValueFromType(Parser->pc, Parser, TopValue->Typ, FALSE, NULL, FALSE);
                 Result->Val->Identifier = id;
-                if (TopValue->ValOnHeap)
-                    VariableFree(Parser->pc, TopValue);
             } else {
                 ValPtr = TopValue->Val;
                 Result = VariableAllocValueFromType(Parser->pc, Parser, TypeGetMatching(Parser->pc, Parser, TopValue->Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE), FALSE, NULL, FALSE);
