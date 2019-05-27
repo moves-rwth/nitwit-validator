@@ -638,6 +638,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     int Condition;
     struct ParseState PreState;
     enum LexToken Token;
+    int GotoCallback = FALSE;
 
     /* take note of where we are and then grab a token to see what statement we have */
     ParserCopy(&PreState, Parser);
@@ -985,6 +986,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 Parser->SearchGotoLabel = LexerValue->Val->Identifier;
                 Parser->Mode = RunModeGoto;
                 Parser->FreshGotoSearch = TRUE;
+                GotoCallback = TRUE;
             }
             break;
 
@@ -1019,12 +1021,13 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     }
 
     /* if we're debugging, check for a breakpoint */
-    if (Parser->DebugMode && Parser->Mode == RunModeRun){
+    if ((Parser->DebugMode && Parser->Mode == RunModeRun) || GotoCallback){
         struct ParseState NowPosition;
         ParserCopyPos(&NowPosition, Parser);
         ParserCopyPos(Parser, &ParserPrePosition);
         switch (Token)
         {
+            case TokenGoto:
             case TokenSwitch:
             case TokenCase:
             case TokenDefault:
