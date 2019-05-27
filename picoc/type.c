@@ -56,6 +56,8 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
 #ifndef NO_FP
             case TypeFP: Base = &Parser->pc->FPNDType; break;
 #endif
+            // function ptrs aren't supported to be ND - not even in SV-COMP
+            case TypeFunctionPtr: Base = &Parser->pc->FunctionPtrType; break;
             default:
                 fprintf(stderr, "Unsupported non-deterministic type conversion.\n");
                 Base = Typ;
