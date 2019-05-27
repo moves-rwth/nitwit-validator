@@ -1307,6 +1307,8 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
 
                     if (Token == TokenOpenBracket) {
                         char RunIt = Parser->Mode == RunModeRun && Precedence < IgnorePrecedence;
+                        if (RunIt)
+                            Parser->EnterFunction = StackTop->Next->Val->Val->Identifier;
                         ExpressionParseFunctionCall(Parser, &StackTop,
                             RunIt ? StackTop->Next->Val->Val->Identifier : Parser->pc->StrEmpty, RunIt);
                     }
@@ -1625,6 +1627,7 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
 
     if (RunIt)
     {
+        Parser->EnterFunction = NULL; // remove the enter function identifier before call
         /* run the function */
         if (ArgCount < FuncValue->Val->FuncDef.NumParams)
             ProgramFail(Parser, "not enough arguments to '%s'", FuncName);

@@ -1,4 +1,6 @@
+extern void __VERIFIER_error();
 #include <stdio.h>
+
 
 int func1(char x){
     printf("1: %c\n", x);
@@ -10,10 +12,13 @@ int func2(char y) {
     return y;
 }
 
+double error(char x, int y, short z) {
+    __VERIFIER_error();
+    return 1.0;
+}
+
 int main()
 {
-    int n = 1;
-    int *p = &n;
     int (*y)(char) = &func2;
     int (*x)(char);
 
@@ -32,6 +37,9 @@ int main()
     arr[0]('1');
     arr[1]('2');
     arr[2]('2');
+
+    double (*f)(char, int, short) = &error;
+    (*f)('s', 1, 2);
     return 0;
 }
 
