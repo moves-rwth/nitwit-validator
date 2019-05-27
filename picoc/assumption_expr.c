@@ -473,10 +473,14 @@ void AssumptionExpressionAssign(struct ParseState *Parser, struct Value *DestVal
             memcpy((void *)DestValue->Val, (void *)SourceValue->Val, TypeSizeValue(SourceValue, FALSE));
             break;
         case TypeFunctionPtr:
-            if (DestValue->Typ->Base != SourceValue->Typ->Base)
+            if (DestValue->Typ->Base != SourceValue->Typ->Base
+                && !(SourceValue->Typ->Base == TypeInt && ExpressionCoerceInteger(SourceValue) == 0))
                 AssignFail(Parser, "%t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
 
-            DestValue->Val->Identifier = SourceValue->Val->Identifier;
+            if (SourceValue->Typ->Base == TypeInt)
+                DestValue->Val->Identifier = NULL;
+            else
+                DestValue->Val->Identifier = SourceValue->Val->Identifier;
             break;
         default:
             AssignFail(Parser, "%t", DestValue->Typ, NULL, 0, 0, FuncName, ParamNo);
@@ -938,6 +942,31 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
             HeapUnpopStack(Parser->pc, sizeof(struct Value));
             BottomValue->Val->Pointer = Pointer;
             AssumptionExpressionStackPushValueNode(Parser, StackTop, BottomValue);
+        }
+        else
+            ProgramFail(Parser, "invalid operation");
+    } else if (BottomValue->Typ->Base == TypeFunctionPtr && IS_NUMERIC_COERCIBLE(TopValue))
+    {
+        /* pointer/integer infix arithmetic */
+        long TopInt = AssumptionExpressionCoerceInteger(TopValue);
+
+        if (Op == TokenEqual || Op == TokenNotEqual)
+        {
+            /* comparison to a NULL pointer */
+            if (TopInt != 0)
+                ProgramFail(Parser, "invalid operation");
+
+            if (Op == TokenEqual)
+                AssumptionExpressionPushInt(Parser, StackTop, BottomValue->Val->Identifier == NULL);
+            else
+                AssumptionExpressionPushInt(Parser, StackTop, BottomValue->Val->Identifier != NULL);
+        }
+        else if (Op == TokenAssign && TopInt == 0)
+        {
+            /* checking if func ptr is a NULL pointer (allow usage of
+             * assigns instead of equal) */
+            HeapUnpopStack(Parser->pc, sizeof(struct Value));
+            AssumptionExpressionPushInt(Parser, StackTop, BottomValue->Val->Identifier == NULL);
         }
         else
             ProgramFail(Parser, "invalid operation");

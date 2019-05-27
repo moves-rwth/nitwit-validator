@@ -1,16 +1,22 @@
+extern void __VERIFIER_error();
 #include <stdio.h>
 
-int main() {
-    int a, b;
-    int *p1, *p2;
 
-    p1 = &a;
-    p2 = NULL;
+int func1(char x){
+    printf("1: %c\n", x);
+    return x;
+}
 
-    b = 1;
-    a = 5;
+double error(char x, int y, short z) {
+    __VERIFIER_error();
+    return 1.0;
+}
 
-    printf("%d\n", *p1);
-
+int main()
+{
+    int (*x)(char) = &func1;
+    (*x)('2');
+    x = NULL;
     return 0;
 }
+
