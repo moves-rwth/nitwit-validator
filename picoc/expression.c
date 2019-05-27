@@ -313,7 +313,6 @@ void ExpressionStackPushLValue(struct ParseState *Parser, struct ExpressionStack
 {
     struct Value *ValueLoc = VariableAllocValueShared(Parser, PushValue);
     ValueLoc->Val = (void *)((char *)ValueLoc->Val + Offset);
-    ValueLoc->OriginalTypePtr = &PushValue->Typ;
     ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
 
@@ -550,8 +549,6 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
                 char * id = TopValue->Val->Identifier;
                 Result = VariableAllocValueFromType(Parser->pc, Parser, TopValue->Typ, FALSE, NULL, FALSE);
                 Result->Val->Identifier = id;
-                if (TopValue->ValOnHeap)
-                    VariableFree(Parser->pc, TopValue);
             } else {
                 ValPtr = TopValue->Val;
                 Result = VariableAllocValueFromType(Parser->pc, Parser, TypeGetMatching(Parser->pc, Parser, TopValue->Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE), FALSE, NULL, FALSE);
@@ -804,10 +801,6 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         /* integer operation */
         long TopInt = ExpressionCoerceInteger(TopValue);
         long BottomInt = ExpressionCoerceInteger(BottomValue);
-        if (TypeIsNonDeterministic(TopValue->Typ) && BottomValue->OriginalTypePtr != NULL) {
-            // todo
-            *BottomValue->OriginalTypePtr = TypeGetNonDeterministic(Parser, BottomValue->Typ);
-        }
         switch (Op)
         {
             case TokenAssign:               ResultInt = ExpressionAssignInt(Parser, BottomValue, TopInt, FALSE); break;

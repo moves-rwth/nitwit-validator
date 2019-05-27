@@ -288,7 +288,6 @@ struct Value
     char OutOfScope;
     // jsv
     char * VarIdentifier;           /* keeps track of the name of the variable this value belongs to */
-    struct ValueType ** OriginalTypePtr;
 };
 
 /* stack frame for function calls */
