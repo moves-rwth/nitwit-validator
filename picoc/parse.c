@@ -370,7 +370,7 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
                     ProgramFail(Parser, "can't define a void variable");
 
                 if (Typ == &pc->FunctionPtrType || (Typ->Base == TypeArray && Typ->FromType->Base == TypeFunctionPtr)) {
-                    FuncValue = ParseFunctionDefinition(Parser, BasicType, Identifier, TRUE);
+                    FuncValue = ParseFunctionDefinition(Parser, BasicType, Identifier, TRUE); // fixme Typ should hold the return type
                 }
 
                 if (Parser->Mode == RunModeRun || Parser->Mode == RunModeGoto){

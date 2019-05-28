@@ -115,7 +115,7 @@ def count_producers():
 				continue
 			with open(entry.path) as f:
 				jObj = json.load(f)
-				if 'producer' in jObj:
+				if 'producer' in jObj and 'witness-type' in jObj and jObj['witness-type'] == 'violation_witness' and 'programfile' in jObj and str(jObj['programfile']).endswith('.c') and 'programhash' in jObj and jObj['programfile'].find("sv-benchmarks/c/") != -1:
 					producer = jObj['producer']
 					if producer in prod_map:
 						prod_map[producer] = prod_map[producer] + 1
@@ -125,7 +125,7 @@ def count_producers():
 					info_without_proc = info_without_proc + 1
 
 	print(prod_map)
-	print(f"Witnesses without producer info: {info_without_proc}.")
+	print(f"Witnesses without producer info: {info_without_proc}. In total {sum(prod_map.values())}")
 
 
 def c_files_count_producers():
@@ -251,9 +251,9 @@ def main():
 		return 1
 	# filter_violation_witnesses()
 	# remove_non_matching_info_files()
-	# count_producers()
+	count_producers()
 	# count_c_files()
-	reach_c_files_count_unique_files()
+	# reach_c_files_count_unique_files()
 
 
 if __name__ == "__main__":

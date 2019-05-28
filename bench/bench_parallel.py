@@ -95,9 +95,9 @@ def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str
 					if 'programfile' in jObj and 'programhash' in jObj:
 						programfile = str(jObj['programfile'])
 						if not programfile.endswith(".c") \
-								or not str(jObj['specification']) == \
-								       "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )" or \
-								('witness-type' in jObj and not jObj['witness-type'] == 'violation_witness'):
+								or not str(jobj['specification']).lower() == \
+								       "check( init(main()), ltl(g ! call(__verifier_error())) )" or \
+								('witness-type' in jobj and not jobj['witness-type'] == 'violation_witness'):
 							continue  # not a reachability C verification file
 						sv_regexp_location = programfile.find("sv-benchmarks/c/")
 						if not sv_regexp_location == -1:

@@ -1,22 +1,36 @@
-extern void __VERIFIER_error();
+//extern void __VERIFIER_error();
 #include <stdio.h>
+#include <stdlib.h>
 
+struct JoinPoint {
+    int a;
+    int b;
+};
 
-int func1(char x){
-    printf("1: %c\n", x);
-    return x;
+void * func1(struct JoinPoint * jp){
+    struct JoinPoint * x = malloc(sizeof(struct JoinPoint));
+    x->a = 1;
+    x->b = 1;
+
+    return (void *) x;
 }
 
-double error(char x, int y, short z) {
-    __VERIFIER_error();
-    return 1.0;
-}
 
 int main()
 {
-    int (*x)(char) = &func1;
-    (*x)('2');
-    x = NULL;
+    void *(*fp)(struct JoinPoint * );
+    fp = &func1;
+
+    struct JoinPoint *jp = malloc(sizeof(struct JoinPoint));
+    jp->a = 0;
+    jp->b = 0;
+
+    struct JoinPoint * y = (struct JoinPoint *) fp(jp);
+    struct JoinPoint ** x = &y;
+    printf("%d, %d\n", (*x)->a, (*x)->b);
+    free(*x);
+    free(jp);
+
     return 0;
 }
 

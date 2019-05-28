@@ -9,14 +9,18 @@ from common.utils import *
 
 def analyze(results: Tuple[List, ...], validators: dict):
 	val, nval, bpar = results
-	by_witness = validators['byWitnessHash']
+	by_witness = validators['byWitnessHash'].keys()
+	witness_keys = set([hash['witnessSHA'].lower() for key in by_witness for hash in validators['byWitnessHash'][key]['results']])
 
 	found = 0
 	all = val + nval + bpar
 	for r in all:
-		if str(r[1]).partition('.json')[0] in by_witness:
+		if str(r[1]).partition('.json')[0].lower() in witness_keys:
 			found = found + 1
-	print(f"I could match {found} of witnesses")
+		# else:
+		# 	print(r)
+		# 	break
+	print(f"I could match {found} out of {len(all)} witnesses")
 
 
 def main():
