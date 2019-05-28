@@ -658,12 +658,14 @@ void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identif
     
     TypeParseFront(Parser, &BasicType, IsStatic);
 
-    if (LexGetToken(Parser, NULL, FALSE) == TokenOpenBracket){
-        if (TypeParseFunctionPointer(Parser, BasicType, Typ, Identifier))
-            return;
+    if (!TypeParseFunctionPointer(Parser, BasicType, Typ, Identifier)){
+        TypeParseIdentPart(Parser, BasicType, Typ, Identifier);
+    } else {
+        struct Value * FuncValue = ParseFunctionDefinition(Parser, BasicType, *Identifier, TRUE); // fixme Typ should hold the return type
+        if (FuncValue != NULL) VariableFree(Parser->pc, FuncValue);
+
     }
 
-    TypeParseIdentPart(Parser, BasicType, Typ, Identifier);
 }
 
 /* check if a type has been fully defined - otherwise it's just a forward declaration */
