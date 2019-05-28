@@ -558,7 +558,7 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
             break;
 
         case TokenAsterisk:
-            if (TopValue->Typ->Base == TypeFunctionPtr || (TopValue->Typ->Base = TypeArray
+            if (TopValue->Typ->Base == TypeFunctionPtr || (TopValue->Typ->Base == TypeArray
                     && TopValue->Typ->FromType->Base == TypeFunctionPtr)) {
                 ExpressionStackPushValue(Parser, StackTop, TopValue);
                 break;

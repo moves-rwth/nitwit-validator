@@ -567,6 +567,12 @@ int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicT
     *Type = BasicType;
     ParserCopy(&Before, Parser);
 
+    while (LexGetToken(Parser, NULL, FALSE) == TokenAsterisk){
+        LexGetToken(Parser, NULL, TRUE);
+        if (*Type == NULL)
+            ProgramFail(Parser, "bad type declaration");
+        *Type = TypeGetMatching(Parser->pc, Parser, *Type, TypePointer, 0, Parser->pc->StrEmpty, TRUE);
+    }
     enum LexToken Token = LexGetToken(Parser, NULL, TRUE);
     if (Token != TokenOpenBracket) goto ERROR;
     Token = LexGetToken(Parser, NULL, TRUE);
@@ -582,10 +588,13 @@ int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicT
     if (Token != TokenCloseBracket)
         ProgramFail(Parser, ") expected after function pointer identifier");
 
+
+
     return TRUE;
 
     ERROR:
         ParserCopy(Parser, &Before);
+        *Type = BasicType;
         return FALSE;
 }
 
