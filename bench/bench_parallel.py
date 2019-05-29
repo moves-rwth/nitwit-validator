@@ -21,7 +21,7 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 		print(f"The directory {dir} doesn't exist or is not a directory.", file=sys.stderr)
 		return False
 
-	global WITNESS_INFO_BY_WITNESS_HASH_DIR, WITNESSES_BY_PROGRAM_HASH_DIR, WITNESS_FILE_BY_HASH_DIR, SV_BENCHMARK_DIR,\
+	global WITNESS_INFO_BY_WITNESS_HASH_DIR, WITNESSES_BY_PROGRAM_HASH_DIR, WITNESS_FILE_BY_HASH_DIR, SV_BENCHMARK_DIR, \
 		VALIDATOR_EXECUTABLE, EXECUTION_TIMEOUT
 	WITNESS_INFO_BY_WITNESS_HASH_DIR = os.path.join(dir, WITNESS_INFO_BY_WITNESS_HASH_DIR)
 	WITNESSES_BY_PROGRAM_HASH_DIR = os.path.join(dir, WITNESSES_BY_PROGRAM_HASH_DIR)
@@ -95,9 +95,9 @@ def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str
 					if 'programfile' in jObj and 'programhash' in jObj:
 						programfile = str(jObj['programfile'])
 						if not programfile.endswith(".c") \
-								or not str(jobj['specification']).lower() == \
-								       "check( init(main()), ltl(g ! call(__verifier_error())) )" or \
-								('witness-type' in jobj and not jobj['witness-type'] == 'violation_witness'):
+								or not str(jObj['specification']) == \
+								       "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )" or \
+								('witness-type' in jObj and not jObj['witness-type'] == 'violation_witness'):
 							continue  # not a reachability C verification file
 						sv_regexp_location = programfile.find("sv-benchmarks/c/")
 						if not sv_regexp_location == -1:
