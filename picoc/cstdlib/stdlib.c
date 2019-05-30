@@ -41,7 +41,7 @@ void StdlibStrtoul(struct ParseState *Parser, struct Value *ReturnValue, struct 
 
 void StdlibMalloc(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Pointer = malloc(Param[0]->Val->Integer);
+    ReturnValue->Val->Pointer = calloc(Param[0]->Val->Integer, 1);
 }
 
 void StdlibCalloc(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)

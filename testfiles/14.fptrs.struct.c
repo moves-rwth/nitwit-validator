@@ -17,7 +17,7 @@ void * func1(struct JoinPoint * jp){
 }
 void * func2(struct JoinPoint * jp) {
     __VERIFIER_error();
-    return jp;
+    return 0;
 }
 
 int main()
@@ -31,10 +31,10 @@ int main()
     struct JoinPoint ** x = &y;
     printf("%d, %d\n", (*x)->a, (*x)->b);
     free(*x);
-//
-//    jp->fp = &func2;
-//    y = (struct JoinPoint *) jp->fp(jp);
-//
+
+    jp->fp = &func2;
+    y = (struct JoinPoint *) jp->fp(jp);
+
     free(jp);
 
     return 0;

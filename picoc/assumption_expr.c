@@ -715,7 +715,7 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
         ProgramFail(Parser, "invalid expression");
 
     if (BottomValue->Val == NULL || TopValue->Val == NULL){
-        AssumptionExpressionPushInt(Parser, StackTop, 7);
+        AssumptionExpressionPushInt(Parser, StackTop, 0);
         return;
     }
 
