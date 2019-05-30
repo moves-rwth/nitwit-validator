@@ -207,7 +207,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         unsigned char *heapmemory_before = state->pc->HeapMemory;
         void *heapbottom_before = state->pc->HeapBottom;
         void *stackframe = state->pc->StackFrame;
-        HeapInit(state->pc, 1048576); // 1 MB
+        HeapInit(state->pc, 1048576); // 1 MB todo don't allocate every time new...
         char *RegFileName = TableStrRegister(state->pc, ("assumption " + ass).c_str());
 
         void *Tokens = LexAnalyse(state->pc, RegFileName, ass.c_str(), ass.length(), nullptr);
