@@ -77,12 +77,13 @@ bool copyVariableTables(ParseState *state, Picoc *to, Picoc *from) {
         for (short s = 0; s < from->TopStackFrame->LocalTable.Size; ++s) {
             if (from->TopStackFrame->LocalTable.HashTable[s] == nullptr) continue;
             for (TableEntry *e = from->TopStackFrame->LocalTable.HashTable[s]; e != nullptr; e = e->Next) {
-                if (e->p.v.Val->Typ->Base == TypeStruct){
+                if (e->p.v.Val->Typ->Base == TypeStruct) {
                     printf("huh debug\n");
                 }
-                if (!VariableDefined(to, TableStrRegister(to, e->p.v.Key))){
+                if (!VariableDefined(to, TableStrRegister(to, e->p.v.Key))) {
                     VariableDefine(to, state, TableStrRegister(to, e->p.v.Key), e->p.v.Val,
-                        e->p.v.Val->Typ == &from->FPType ? &to->FPType : e->p.v.Val->Typ, e->p.v.Val->IsLValue);
+                                   e->p.v.Val->Typ == &from->FPType ? &to->FPType : e->p.v.Val->Typ,
+                                   e->p.v.Val->IsLValue);
                 }
             }
         }
@@ -91,15 +92,15 @@ bool copyVariableTables(ParseState *state, Picoc *to, Picoc *from) {
     for (short s = 0; s < from->GlobalTable.Size; ++s) {
         if (from->GlobalTable.HashTable[s] == nullptr) continue;
         for (TableEntry *e = from->GlobalTable.HashTable[s]; e != nullptr; e = e->Next) {
-            if (!VariableDefined(to, TableStrRegister(to, e->p.v.Key))){
+            if (!VariableDefined(to, TableStrRegister(to, e->p.v.Key))) {
                 VariableDefine(to, state, TableStrRegister(to, e->p.v.Key), e->p.v.Val,
-                           e->p.v.Val->Typ == &from->FPType ? &to->FPType : e->p.v.Val->Typ, e->p.v.Val->IsLValue);
+                               e->p.v.Val->Typ == &from->FPType ? &to->FPType : e->p.v.Val->Typ, e->p.v.Val->IsLValue);
             }
         }
     }
 
-    for (ValueType *t = from->UberType.DerivedTypeList; t != nullptr ; t = t->Next) {
-        if (t->Base == TypeStruct){
+    for (ValueType *t = from->UberType.DerivedTypeList; t != nullptr; t = t->Next) {
+        if (t->Base == TypeStruct) {
             printf("debug\n");
         }
     }
@@ -114,12 +115,12 @@ bool CopyValue(ParseState *ToState, Value *FromValue, const char *Identifier, bo
 
     int addAt;
     TableEntry *entry = TableSearch(table, registeredIdent, &addAt);
-    if (entry == nullptr){
+    if (entry == nullptr) {
         entry = TableSearch(&ToState->pc->GlobalTable, registeredIdent, &addAt);
-        if (entry == nullptr){
+        if (entry == nullptr) {
             if (ToState->pc->TopStackFrame != nullptr) {
                 entry = TableSearch(&ToState->pc->TopStackFrame->LocalTable, registeredIdent, &addAt);
-                if (entry == nullptr){
+                if (entry == nullptr) {
                     assert(entry != nullptr); // the variable should really exist in the original variable space
                     return false;
                 }
@@ -129,7 +130,7 @@ bool CopyValue(ParseState *ToState, Value *FromValue, const char *Identifier, bo
             }
         }
     }
-    if (assignValue(entry->p.v.Val, FromValue)){
+    if (assignValue(entry->p.v.Val, FromValue)) {
         entry->p.v.Val->Typ = TypeGetDeterministic(ToState, entry->p.v.Val->Typ);
         return true;
     }
@@ -173,7 +174,7 @@ int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *
     for (ValueList *I = Next; I != nullptr; I = Next) {
         Value *val;
         VariableGet(pc, &Parser, I->Identifier, &val);
-        if (CopyValue(main_state, val, I->Identifier, IsGlobal)){
+        if (CopyValue(main_state, val, I->Identifier, IsGlobal)) {
 #ifdef VERBOSE
             VariableGet(main_state->pc, main_state, TableStrRegister(main_state->pc, I->Identifier), &val);
             if (IS_FP(val)) {
@@ -197,20 +198,20 @@ int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *
 bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &edge) {
     auto assumptions = split(edge->assumption, ';');
     for (const string &ass: assumptions) {
-        if (ass.empty()){
+        if (ass.empty()) {
             continue;
         }
 
         state->pc->IsInAssumptionMode = TRUE;
-        void * heapstacktop_before = state->pc->HeapStackTop;
-        unsigned char * heapmemory_before = state->pc->HeapMemory;
-        void * heapbottom_before = state->pc->HeapBottom;
-        void * stackframe = state->pc->StackFrame;
+        void *heapstacktop_before = state->pc->HeapStackTop;
+        unsigned char *heapmemory_before = state->pc->HeapMemory;
+        void *heapbottom_before = state->pc->HeapBottom;
+        void *stackframe = state->pc->StackFrame;
         HeapInit(state->pc, 1048576); // 1 MB
-        char *RegFileName = TableStrRegister(state->pc, ("assumption "+ass).c_str());
+        char *RegFileName = TableStrRegister(state->pc, ("assumption " + ass).c_str());
 
         void *Tokens = LexAnalyse(state->pc, RegFileName, ass.c_str(), ass.length(), nullptr);
-        if (setjmp(state->pc->AssumptionPicocExitBuf)){
+        if (setjmp(state->pc->AssumptionPicocExitBuf)) {
             cw_verbose("Stopping assumption checker.\n");
             free(Tokens);
             HeapCleanup(state->pc);
