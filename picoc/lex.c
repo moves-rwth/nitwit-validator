@@ -480,7 +480,7 @@ enum LexToken LexScanGetToken(Picoc *pc, struct LexState *Lexer, struct Value **
             case '\'': GotToken = LexGetCharacterConstant(pc, Lexer, *Value); break;
             case '(': if (Lexer->Mode == LexModeHashDefineSpaceIdent) GotToken = TokenOpenMacroBracket; else GotToken = TokenOpenBracket; Lexer->Mode = LexModeNormal; break;
             case ')': GotToken = TokenCloseBracket; break;
-            case '=': NEXTIS('=', TokenEqual, TokenAssign); break;
+            case '=': NEXTIS('=', TokenEqual, TokenAssign); if (GotToken == TokenAssign && pc->IsInAssumptionMode) GotToken = TokenEqual; break;
             case '+': NEXTIS3('=', TokenAddAssign, '+', TokenIncrement, TokenPlus); break;
             case '-': NEXTIS4('=', TokenSubtractAssign, '>', TokenArrow, '-', TokenDecrement, TokenMinus); break;
             case '*': NEXTIS('=', TokenMultiplyAssign, TokenAsterisk); break;

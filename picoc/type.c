@@ -175,7 +175,8 @@ void TypeInit(Picoc *pc)
     struct DoubleAlign { char x; double y; } da;
 #endif
     struct PointerAlign { char x; void *y; } pa;
-    
+    struct FunctionPointerAlign { char x; char* y; } fpa;
+
     IntAlignBytes = (char *)&ia.y - &ia.x;
     PointerAlignBytes = (char *)&pa.y - &pa.x;
     
@@ -192,7 +193,7 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->FunctionType, TypeFunction, sizeof(int), IntAlignBytes, FALSE);
     TypeAddBaseType(pc, &pc->MacroType, TypeMacro, sizeof(int), IntAlignBytes, FALSE);
     TypeAddBaseType(pc, &pc->GotoLabelType, TypeGotoLabel, 0, 1, FALSE);
-    TypeAddBaseType(pc, &pc->FunctionPtrType, TypeFunctionPtr, sizeof(void *), PointerAlignBytes, FALSE);
+    TypeAddBaseType(pc, &pc->FunctionPtrType, TypeFunctionPtr, sizeof(char *), PointerAlignBytes, FALSE);
 
     // NDs
     TypeAddBaseType(pc, &pc->IntNDType, TypeInt, sizeof(int), IntAlignBytes, TRUE);

@@ -42,15 +42,15 @@ vector<string> split(string str, char delimiter) {
     }
     auto result = vector<string>();
     result.reserve(n);
-    for (size_t d = str.find_first_of(delimiter); d != string::npos; d = str.find_first_of(delimiter, d + 1)) {
-        string ass = str.substr(begin, d);
+    for (size_t d = str.find_first_of(delimiter); d != string::npos; d = str.find_first_of(delimiter, begin)) {
+        string ass = str.substr(begin, d - begin);
         result.push_back(ass);
         begin = d + 1;
     }
     return result;
 }
 
-bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
+bool copyVariableTables(ParseState *state, Picoc *to, Picoc *from) {
     if (to->StringTable.Size != from->StringTable.Size) {
         fprintf(stderr, "String tables have different size.\n");
         return false;
@@ -74,9 +74,12 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
 
 
         // copy defined local variables and values
-        for (short s = 0; s < to->TopStackFrame->LocalTable.Size; ++s) {
+        for (short s = 0; s < from->TopStackFrame->LocalTable.Size; ++s) {
             if (from->TopStackFrame->LocalTable.HashTable[s] == nullptr) continue;
             for (TableEntry *e = from->TopStackFrame->LocalTable.HashTable[s]; e != nullptr; e = e->Next) {
+                if (e->p.v.Val->Typ->Base == TypeStruct){
+                    printf("huh debug\n");
+                }
                 if (!VariableDefined(to, TableStrRegister(to, e->p.v.Key))){
                     VariableDefine(to, state, TableStrRegister(to, e->p.v.Key), e->p.v.Val,
                         e->p.v.Val->Typ == &from->FPType ? &to->FPType : e->p.v.Val->Typ, e->p.v.Val->IsLValue);
@@ -85,13 +88,19 @@ bool copyStringTable(ParseState *state, Picoc *to, Picoc *from) {
         }
     }
     // copy defined global variables and values
-    for (short s = 0; s < to->GlobalTable.Size; ++s) {
+    for (short s = 0; s < from->GlobalTable.Size; ++s) {
         if (from->GlobalTable.HashTable[s] == nullptr) continue;
         for (TableEntry *e = from->GlobalTable.HashTable[s]; e != nullptr; e = e->Next) {
             if (!VariableDefined(to, TableStrRegister(to, e->p.v.Key))){
                 VariableDefine(to, state, TableStrRegister(to, e->p.v.Key), e->p.v.Val,
                            e->p.v.Val->Typ == &from->FPType ? &to->FPType : e->p.v.Val->Typ, e->p.v.Val->IsLValue);
             }
+        }
+    }
+
+    for (ValueType *t = from->UberType.DerivedTypeList; t != nullptr ; t = t->Next) {
+        if (t->Base == TypeStruct){
+            printf("debug\n");
         }
     }
 
@@ -156,7 +165,7 @@ int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *
     /* do the parsing */
     LexInitParser(&Parser, pc, Source, Tokens, RegFileName, RunIt, EnableDebugger, nullptr);
 
-    copyStringTable(&Parser, pc, main_state->pc);
+    copyVariableTables(&Parser, pc, main_state->pc);
 
     int ret = AssumptionExpressionParseInt(&Parser);
 
@@ -184,39 +193,62 @@ int PicocParseAssumptionAndResolve(Picoc *pc, const char *FileName, const char *
 
     return ret;
 }
-static int ZeroValue = 0;
 
 bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &edge) {
-    // check scope
-    bool IsGlobalScope = true;
-    if (!edge->assumption_scope.empty()) {
-        IsGlobalScope = false;
-        if (state->pc->TopStackFrame == nullptr) { // not in a function at all
-            return false;
-        }
-        if (strcmp(state->pc->TopStackFrame->FuncName, edge->assumption_scope.c_str()) != 0) { // not in scope
-            return false;
-        }
-    }
     auto assumptions = split(edge->assumption, ';');
-    for (const auto &ass: assumptions) {
+    for (const string &ass: assumptions) {
+        if (ass.empty()){
+            continue;
+        }
 
-        Picoc pc;
-        PicocInitialise(&pc, 8388608); // stack size of 8 MiB
+        state->pc->IsInAssumptionMode = TRUE;
+        void * heapstacktop_before = state->pc->HeapStackTop;
+        unsigned char * heapmemory_before = state->pc->HeapMemory;
+        void * heapbottom_before = state->pc->HeapBottom;
+        void * stackframe = state->pc->StackFrame;
+        HeapInit(state->pc, 1048576); // 1 MB
+        char *RegFileName = TableStrRegister(state->pc, ("assumption "+ass).c_str());
 
-        if (PicocPlatformSetExitPoint(&pc)) {
+        void *Tokens = LexAnalyse(state->pc, RegFileName, ass.c_str(), ass.length(), nullptr);
+        if (setjmp(state->pc->AssumptionPicocExitBuf)){
             cw_verbose("Stopping assumption checker.\n");
-            PicocCleanup(&pc);
+            free(Tokens);
+            HeapCleanup(state->pc);
+            state->pc->IsInAssumptionMode = FALSE;
+            state->pc->HeapStackTop = heapstacktop_before;
+            state->pc->HeapMemory = heapmemory_before;
+            state->pc->HeapBottom = heapbottom_before;
+            state->pc->StackFrame = stackframe;
             return false;
         }
-        char null[] = "NULL";
-        VariableDefinePlatformVar(&pc, NULL, null, &pc.IntType, (union AnyValue *)&ZeroValue, FALSE);
+        ParseState Parser{};
+        LexInitParser(&Parser, state->pc, ass.c_str(), Tokens, RegFileName, TRUE, FALSE, nullptr);
+        int ret = AssumptionExpressionParseInt(&Parser);
+        free(Tokens);
+        HeapCleanup(state->pc);
+        state->pc->IsInAssumptionMode = FALSE;
+        state->pc->HeapStackTop = heapstacktop_before;
+        state->pc->HeapMemory = heapmemory_before;
+        state->pc->HeapBottom = heapbottom_before;
+        state->pc->StackFrame = stackframe;
 
-        int res = PicocParseAssumptionAndResolve(&pc, "assumption-1243asdfeqv45q", ass.c_str(), ass.length(),
-                                                 TRUE, FALSE, FALSE, state, IsGlobalScope);
-
-        PicocCleanup(&pc);
-        if (!res) {
+        ValueList *Next = Parser.ResolvedNonDetVars;
+        for (ValueList *I = Next; I != nullptr; I = Next) {
+            Value *val;
+#ifdef VERBOSE
+            VariableGet(state->pc, state, I->Identifier, &val);
+            if (IS_FP(val)) {
+                double fp = AssumptionExpressionCoerceFP(val);
+                cw_verbose("Resolved var: %s: ---> %2.20f\n", I->Identifier, fp);
+            } else {
+                int i = AssumptionExpressionCoerceInteger(val);
+                cw_verbose("Resolved var: %s: ---> %d\n", I->Identifier, i);
+            }
+#endif
+            Next = Next->Next;
+            free(I);
+        }
+        if (!ret) {
             return false;
         }
     }

@@ -135,6 +135,17 @@ void PicocPlatformScanFile(Picoc *pc, const char *FileName)
 void PlatformExit(Picoc *pc, int RetVal)
 {
     pc->PicocExitValue = RetVal;
-    longjmp(pc->PicocExitBuf, 1);
+    if (pc->IsInAssumptionMode)
+        longjmp(pc->AssumptionPicocExitBuf, 1);
+    else
+        longjmp(pc->PicocExitBuf, 1);
+}
+
+
+/* exit the program */
+void AssumptionPlatformExit(Picoc *pc, int RetVal)
+{
+    pc->PicocExitValue = RetVal;
+    longjmp(pc->AssumptionPicocExitBuf, 1);
 }
 
