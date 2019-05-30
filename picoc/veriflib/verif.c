@@ -35,6 +35,7 @@ struct LibraryFunction VerifFunctions[] =
                 {VerifierNonDet, "char __VERIFIER_nondet_char();"},
                 {VerifierNonDet, "unsigned char __VERIFIER_nondet_uchar();"},
                 {VerifierNonDet, "double __VERIFIER_nondet_double();"},
+                {VerifierNonDet, "double __VERIFIER_nondet_float();"},
                 {VerifierNonDet, "_Bool __VERIFIER_nondet_bool();"},
                 {NULL, NULL}
         };
