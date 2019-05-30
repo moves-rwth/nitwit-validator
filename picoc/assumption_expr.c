@@ -714,6 +714,11 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
     if (BottomValue == NULL || TopValue == NULL)
         ProgramFail(Parser, "invalid expression");
 
+    if (BottomValue->Val == NULL || TopValue->Val == NULL){
+        AssumptionExpressionPushInt(Parser, StackTop, 7);
+        return;
+    }
+
     if (Op == TokenLeftSquareBracket)
     {
         /* array index */
@@ -884,6 +889,8 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
         }
 
         AssumptionExpressionPushInt(Parser, StackTop, ResultInt);
+    } else if (BottomValue->Typ->Base == TypeFunctionPtr && TopValue->Typ->Base == TypeFunctionPtr) {
+        AssumptionExpressionPushInt(Parser, StackTop, BottomValue->Val->Identifier == TopValue->Val->Identifier);
     }
     else if (BottomValue->Typ->Base == TypePointer && IS_NUMERIC_COERCIBLE(TopValue))
     {
@@ -1177,6 +1184,9 @@ void AssumptionExpressionGetStructElement(struct ParseState *Parser, struct Expr
         /* if we're doing '->' dereference the struct pointer first */
         if (Token == TokenArrow)
             DerefDataLoc = VariableDereferencePointer(Parser, ParamVal, &StructVal, NULL, &StructType, NULL);
+
+        if (DerefDataLoc == NULL)
+            ProgramFail(Parser, "the struct hasn't been initialized yet");
 
         if (StructType->Base != TypeStruct && StructType->Base != TypeUnion)
             ProgramFail(Parser, "can't use '%s' on something that's not a struct or union %s : it's a %t", (Token == TokenDot) ? "." : "->", (Token == TokenArrow) ? "pointer" : "", ParamVal->Typ);

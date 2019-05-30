@@ -37,9 +37,9 @@ void printProgramState(ParseState *ps) {
     if (ps->ReturnFromFunction != nullptr)
         printf(", Return: %s", ps->ReturnFromFunction);
     printf("\n");
-//    if (ps->Line == 12 && ps->CharacterPos == 0){
-//        printf("debug\n");
-//    }
+    if (ps->Line == 35 && ps->CharacterPos == 0){
+        printf("debug\n");
+    }
 }
 
 void handleDebugBreakpoint(struct ParseState *ps) {
