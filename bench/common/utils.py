@@ -5,9 +5,9 @@ from typing import Tuple, List, Dict, Optional
 
 
 def output(output_path: str,
-           validated: List[Tuple[int, str, str]],
-           non_validated: List[Tuple[int, str, str]],
-           badly_parsed: List[Tuple[int, str, str]]):
+           validated: List[Tuple[int, str, str, float]],
+           non_validated: List[Tuple[int, str, str, float]],
+           badly_parsed: List[Tuple[int, str, str, float]]):
 	if not os.path.exists(output_path):
 		os.makedirs(output_path)
 
@@ -21,25 +21,25 @@ def output(output_path: str,
 		json.dump(badly_parsed, badly_parsed_fp)
 
 
-def process_results(results: List[Tuple[int, str, str]], executable: str, out: bool):
+def process_results(results: List[Tuple[int, str, str, float]], executable: str, out: bool):
 	validated = []
 	non_validated = []
 	badly_parsed = []
-	for ret_code, info_file, err_msg in results:
+	for ret_code, info_file, err_msg, time in results:
 		if ret_code is None:
-			non_validated.append((9, os.path.basename(info_file), err_msg))
+			non_validated.append((9, os.path.basename(info_file), err_msg, time))
 		elif ret_code == 0:
-			validated.append((ret_code, os.path.basename(info_file), err_msg))
+			validated.append((ret_code, os.path.basename(info_file), err_msg, time))
 		elif ret_code >= 240 and ret_code <= 243:
-			non_validated.append((ret_code, os.path.basename(info_file), err_msg))
+			non_validated.append((ret_code, os.path.basename(info_file), err_msg, time))
 		elif ret_code >= 244 and ret_code <= 246:
-			badly_parsed.append((ret_code, os.path.basename(info_file), err_msg))
+			badly_parsed.append((ret_code, os.path.basename(info_file), err_msg, time))
 		elif ret_code == 2:
 			print(f"Witness parse error: {info_file}")
 		elif ret_code == 3:
 			print(f"Bad usage: {info_file}")
 		elif ret_code == 4 or ret_code == 5:
-			non_validated.append((ret_code, os.path.basename(info_file), err_msg))
+			non_validated.append((ret_code, os.path.basename(info_file), err_msg, time))
 		else:
 			print(f"Other error: {ret_code}, {info_file}")
 
