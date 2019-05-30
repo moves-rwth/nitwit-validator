@@ -90,8 +90,8 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
 
         ValueList *Next = Parser.ResolvedNonDetVars;
         for (ValueList *I = Next; I != nullptr; I = Next) {
-            Value *val;
 #ifdef VERBOSE
+            Value *val;
             VariableGet(state->pc, state, I->Identifier, &val);
             if (IS_FP(val)) {
                 double fp = AssumptionExpressionCoerceFP(val);

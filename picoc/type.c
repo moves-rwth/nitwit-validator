@@ -175,7 +175,6 @@ void TypeInit(Picoc *pc)
     struct DoubleAlign { char x; double y; } da;
 #endif
     struct PointerAlign { char x; void *y; } pa;
-    struct FunctionPointerAlign { char x; char* y; } fpa;
 
     IntAlignBytes = (char *)&ia.y - &ia.x;
     PointerAlignBytes = (char *)&pa.y - &pa.x;
