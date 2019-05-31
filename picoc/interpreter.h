@@ -85,14 +85,13 @@ enum LexToken
     /* 0x2d */ TokenIdentifier, TokenIntegerConstant, TokenFPConstant, TokenStringConstant, TokenCharacterConstant,
     /* 0x32 */ TokenSemicolon, TokenEllipsis,
     /* 0x34 */ TokenLeftBrace, TokenRightBrace,
-    /* 0x36 */ TokenIntType, TokenCharType, TokenFloatType, TokenDoubleType, TokenVoidType, TokenEnumType,
-    /* 0x3c */ TokenLongType, TokenSignedType, TokenShortType, TokenStaticType, TokenAutoType, TokenRegisterType, TokenExternType, TokenStructType, TokenUnionType, TokenUnsignedType, TokenTypedef,
-    /* 0x46 */ TokenContinue, TokenDo, TokenElse, TokenFor, TokenGoto, TokenIf, TokenWhile, TokenBreak, TokenSwitch, TokenCase, TokenDefault, TokenReturn,
-    /* 0x52 */ TokenHashDefine, TokenHashInclude, TokenHashIf, TokenHashIfdef, TokenHashIfndef, TokenHashElse, TokenHashEndif,
-    /* 0x59 */ TokenNew, TokenDelete,
-    /* 0x5b */ TokenOpenMacroBracket,
-    /* 0x5c */ TokenAttribute, TokenNoReturn,
-    /* 0x5e */ TokenConst,
+    /* 0x36 */ TokenIntType, TokenCharType, TokenFloatType, TokenDoubleType, TokenVoidType, TokenEnumType, TokenConst,
+    /* 0x3d */ TokenLongType, TokenSignedType, TokenShortType, TokenStaticType, TokenAutoType, TokenRegisterType, TokenExternType, TokenStructType, TokenUnionType, TokenUnsignedType, TokenTypedef,
+    /* 0x47 */ TokenContinue, TokenDo, TokenElse, TokenFor, TokenGoto, TokenIf, TokenWhile, TokenBreak, TokenSwitch, TokenCase, TokenDefault, TokenReturn,
+    /* 0x53 */ TokenHashDefine, TokenHashInclude, TokenHashIf, TokenHashIfdef, TokenHashIfndef, TokenHashElse, TokenHashEndif,
+    /* 0x5a */ TokenNew, TokenDelete,
+    /* 0x5c */ TokenOpenMacroBracket,
+    /* 0x5d */ TokenAttribute, TokenNoReturn,
     /* 0x5f */ TokenEOF, TokenEndOfLine, TokenEndOfFunction,
 };
 
@@ -289,6 +288,7 @@ struct Value
     char OutOfScope;
     // jsv
     char * VarIdentifier;           /* keeps track of the name of the variable this value belongs to */
+    int ConstQualifier;            /* true if it's a const */
 };
 
 /* stack frame for function calls */
@@ -578,10 +578,12 @@ int TypeSize(struct ValueType *Typ, int ArraySize, int Compact);
 int TypeSizeValue(struct Value *Val, int Compact);
 int TypeStackSizeValue(struct Value *Val);
 int TypeLastAccessibleOffset(Picoc *pc, struct Value *Val);
-int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsStatic);
-void TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct ValueType **Typ, char **Identifier);
+int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsStatic, int *pInt);
+void
+TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct ValueType **Typ, char **Identifier,
+                   int *pInt);
 int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicType, struct ValueType **Type, char **Identifier);
-void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identifier, int *IsStatic);
+void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identifier, int *IsStatic, int *pInt);
 struct ValueType *TypeGetMatching(Picoc *pc, struct ParseState *Parser, struct ValueType *ParentType, enum BaseType Base, int ArraySize, const char *Identifier, int AllowDuplicates);
 struct ValueType *TypeCreateOpaqueStruct(Picoc *pc, struct ParseState *Parser, const char *StructName, int Size);
 int TypeIsForwardDeclared(struct ParseState *Parser, struct ValueType *Typ);

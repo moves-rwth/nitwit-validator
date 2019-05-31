@@ -107,8 +107,9 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
         }
         else
         {
-            /* add a parameter */
-            TypeParse(&ParamParser, &ParamType, &ParamIdentifier, NULL);
+            int IsConst;
+            /* add a parameter */ // fixme: const parameters
+            TypeParse(&ParamParser, &ParamType, &ParamIdentifier, NULL, &IsConst);
             if (ParamType->Base == TypeVoid)
             {
                 /* this isn't a real parameter at all - delete it */
@@ -342,15 +343,16 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
     struct ValueType *Typ;
     struct Value *NewVariable = NULL, * FuncValue = NULL;
     int IsStatic = FALSE;
+    int IsConst = FALSE;
     int FirstVisit = FALSE;
     Picoc *pc = Parser->pc;
 
-    TypeParseFront(Parser, &BasicType, &IsStatic);
+    TypeParseFront(Parser, &BasicType, &IsStatic, &IsConst);
     do
     {
         // try parsing a function pointer
         if (!TypeParseFunctionPointer(Parser, BasicType, &Typ, &Identifier)){
-            TypeParseIdentPart(Parser, BasicType, &Typ, &Identifier);
+            TypeParseIdentPart(Parser, BasicType, &Typ, &Identifier, &IsConst);
             if ((Token != TokenVoidType && Token != TokenStructType && Token != TokenUnionType && Token != TokenEnumType) && Identifier == pc->StrEmpty)
                 ProgramFail(Parser, "identifier expected");
         }
@@ -608,7 +610,7 @@ void ParseTypedef(struct ParseState *Parser)
     char *TypeName;
     struct Value InitValue;
 
-    TypeParse(Parser, &Typ, &TypeName, NULL);
+    TypeParse(Parser, &Typ, &TypeName, NULL, NULL);
 
     if (Parser->Mode == RunModeRun)
     {

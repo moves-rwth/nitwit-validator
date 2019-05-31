@@ -297,9 +297,12 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     (*Typ)->Members = VariableAlloc(pc, Parser, sizeof(struct Table) + STRUCT_TABLE_SIZE * sizeof(struct TableEntry), TRUE);
     (*Typ)->Members->HashTable = (struct TableEntry **)((char *)(*Typ)->Members + sizeof(struct Table));
     TableInitTable((*Typ)->Members, (struct TableEntry **)((char *)(*Typ)->Members + sizeof(struct Table)), STRUCT_TABLE_SIZE, TRUE);
-    
+
+    int IsConst;
     do {
-        TypeParse(Parser, &MemberType, &MemberIdentifier, NULL);
+        TypeParse(Parser, &MemberType, &MemberIdentifier, NULL, &IsConst);
+        if (IsConst == TRUE)
+            ProgramFail(Parser, "const qualifiers not supported in structs yet");
         if (MemberType == NULL || MemberIdentifier == NULL)
             ProgramFail(Parser, "invalid type in struct");
         
@@ -423,7 +426,7 @@ void TypeParseEnum(struct ParseState *Parser, struct ValueType **Typ)
 }
 
 /* parse a type - just the basic type */
-int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsStatic)
+int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsStatic, int *IsConst)
 {
     struct ParseState Before;
     struct Value *LexerValue;
@@ -514,6 +517,8 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
         }
     } while(!Done);
 
+    if (IsConst != NULL)
+        *IsConst = ConstQualifier;
     return TRUE;
 }
 
@@ -557,21 +562,6 @@ struct ValueType *TypeParseBack(struct ParseState *Parser, struct ValueType *Fro
     }
 }
 
-struct ValueType *TypeParseFunctionPointerArguments(struct ParseState *Parser, struct ValueType *Type) {
-    enum LexToken Token = LexGetToken(Parser, NULL, TRUE);
-    if (Token != TokenOpenBracket)
-        ProgramFail(Parser, "( expected here");
-    do {
-        int IsStatic;
-        struct ValueType * ArgType;
-        TypeParseFront(Parser, &ArgType, &IsStatic);
-    } while (Token == TokenComma);
-
-    if (Token != TokenCloseBracket)
-        ProgramFail(Parser, ") expected here");
-    return Type;
-}
-
 int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicType, struct ValueType **Type,
                              char **Identifier) {
     struct Value *LexValue;
@@ -612,7 +602,9 @@ int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicT
 }
 
 /* parse a type - the part which is repeated with each identifier in a declaration list */
-void TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct ValueType **Typ, char **Identifier)
+void
+TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct ValueType **Typ, char **Identifier,
+                   int *IsConst)
 {
     struct ParseState Before;
     enum LexToken Token;
@@ -631,7 +623,7 @@ void TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, s
                 if (*Typ != NULL)
                     ProgramFail(Parser, "bad type declaration");
 
-                TypeParse(Parser, Typ, Identifier, NULL);
+                TypeParse(Parser, Typ, Identifier, NULL, IsConst);
                 if (LexGetToken(Parser, NULL, TRUE) != TokenCloseBracket)
                     ProgramFail(Parser, "')' expected");
                 break;
@@ -665,14 +657,14 @@ void TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, s
 }
 
 /* parse a type - a complete declaration including identifier */
-void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identifier, int *IsStatic)
+void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identifier, int *IsStatic, int *IsConst)
 {
     struct ValueType *BasicType;
-    
-    TypeParseFront(Parser, &BasicType, IsStatic);
+
+    TypeParseFront(Parser, &BasicType, IsStatic, IsConst);
 
     if (!TypeParseFunctionPointer(Parser, BasicType, Typ, Identifier)){
-        TypeParseIdentPart(Parser, BasicType, Typ, Identifier);
+        TypeParseIdentPart(Parser, BasicType, Typ, Identifier, IsConst);
     } else {
         struct Value * FuncValue = ParseFunctionDefinition(Parser, BasicType, *Identifier, TRUE);
         if (FuncValue != NULL) VariableFree(Parser->pc, FuncValue);
