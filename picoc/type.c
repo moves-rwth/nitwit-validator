@@ -53,6 +53,7 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
             case TypeUnsignedShort: Base = &Parser->pc->UnsignedShortNDType; break;
             case TypeUnsignedLong: Base = &Parser->pc->UnsignedLongNDType; break;
             case TypeUnsignedChar: Base = &Parser->pc->UnsignedCharNDType; break;
+            case TypeStruct: Base = Typ; break; // uninit struct should stay deterministic
 #ifndef NO_FP
             case TypeFP: Base = &Parser->pc->FPNDType; break;
 #endif
@@ -301,8 +302,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     int IsConst;
     do {
         TypeParse(Parser, &MemberType, &MemberIdentifier, NULL, &IsConst);
-        if (IsConst == TRUE)
-            ProgramFail(Parser, "const qualifiers not supported in structs yet");
+
         if (MemberType == NULL || MemberIdentifier == NULL)
             ProgramFail(Parser, "invalid type in struct");
         
@@ -325,6 +325,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
             if (MemberValue->Typ->Sizeof > (*Typ)->Sizeof)
                 (*Typ)->Sizeof = TypeSizeValue(MemberValue, TRUE);
         }
+        MemberValue->ConstQualifier = IsConst;
 
         /* make sure to align to the size of the largest member's alignment */
         if ((*Typ)->AlignBytes < MemberValue->Typ->AlignBytes)
