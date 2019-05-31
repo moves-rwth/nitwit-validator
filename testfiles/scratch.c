@@ -3,6 +3,7 @@
 
 int main()
 {
+    char const * c = "23";
     const int a = 90;
     const char * s = "23";
     double f = 2.0;
@@ -10,7 +11,9 @@ int main()
 
     int b = 12;
     b = 23;
-    s = "23234";
+    *s = 'j';
+    c = "33224";
+    c[3] = 0;
     return 0;
 }
 
