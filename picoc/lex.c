@@ -133,7 +133,7 @@ enum LexToken LexCheckReservedWord(Picoc *pc, const char *Word)
 /* get a numeric literal - used while scanning */
 enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, struct Value *Value)
 {
-    long Result = 0;
+    long long Result = 0;
     long Base = 10;
     enum LexToken ResultToken;
 #ifndef NO_FP
@@ -175,8 +175,8 @@ enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, struct Value *Valu
         /* IsLong = 1; */
     }
 
-    Value->Typ = &pc->LongType; /* ignored? */
-    Value->Val->LongInteger = Result;
+    Value->Typ = &pc->LongLongType; /* ignored? */
+    Value->Val->LongLongInteger = Result;
 
     ResultToken = TokenIntegerConstant;
 
@@ -520,7 +520,7 @@ int LexTokenSize(enum LexToken Token)
     switch (Token)
     {
         case TokenIdentifier: case TokenStringConstant: return sizeof(char *);
-        case TokenIntegerConstant: return sizeof(long);
+        case TokenIntegerConstant: return sizeof(long long);
         case TokenCharacterConstant: return sizeof(unsigned char);
         case TokenFPConstant: return sizeof(double);
         default: return 0;
@@ -725,7 +725,7 @@ enum LexToken LexGetRawToken(struct ParseState *Parser, struct Value **Value, in
             {
                 case TokenStringConstant:       pc->LexValue.Typ = pc->CharPtrType; break;
                 case TokenIdentifier:           pc->LexValue.Typ = NULL; break;
-                case TokenIntegerConstant:      pc->LexValue.Typ = &pc->LongType; break;
+                case TokenIntegerConstant:      pc->LexValue.Typ = &pc->LongLongType; break;
                 case TokenCharacterConstant:    pc->LexValue.Typ = &pc->CharType; break;
 #ifndef NO_FP
                 case TokenFPConstant:           pc->LexValue.Typ = &pc->FPType; break;
