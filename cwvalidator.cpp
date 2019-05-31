@@ -137,7 +137,7 @@ int main(int argc, char **argv) {
         cw_verbose("Automaton finished in state %s, with error code %d.\n", wit_aut->getCurrentState()->id.c_str(),
                    exit_value);
         if (!wit_aut->wasVerifierErrorCalled())
-            cw_verbose("FAILED: Wasn't able to validate the witness. Witness violation state NOT reached"
+            cw_verbose("FAILED: Wasn't able to validate the witness. Witness violation state NOT reached "
                        "and __VERIFIER_error was never called.\n");
         else {
             cw_verbose("FAILED: Wasn't able to validate the witness. Witness violation state NOT reached,"

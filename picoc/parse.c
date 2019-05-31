@@ -838,6 +838,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             CheckTrailingSemicolon = FALSE;
             break;
 
+        case TokenConst:
         case TokenIntType:
         case TokenShortType:
         case TokenCharType:
