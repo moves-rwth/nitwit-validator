@@ -38,9 +38,9 @@ void printProgramState(ParseState *ps) {
     if (ps->ReturnFromFunction != nullptr)
         printf(", Return: %s", ps->ReturnFromFunction);
     printf("\n");
-    if (ps->Line == 35 && ps->CharacterPos == 0) {
-        printf("debug\n");
-    }
+//    if (ps->Line == 35 && ps->CharacterPos == 0) {
+//        printf("debug\n");
+//    }
 }
 
 void handleDebugBreakpoint(struct ParseState *ps) {
@@ -146,13 +146,13 @@ int main(int argc, char **argv) {
         }
         return exit_value;
     } else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
-        cw_verbose("__VERIFIER_error was never called.\n");
+        cw_verbose("FAILED: __VERIFIER_error was never called, even though witness IS in violation state.\n");
         return 5;
     } else if (wit_aut->isInViolationState() && wit_aut->wasVerifierErrorCalled()) {
         printf("\nVALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
         return 0;
     } else {
-        cw_verbose("A different error occurred, probably a parsing error or program exited.\n");
+        cw_verbose("UNKNOWN: A different error occurred, probably a parsing error or program exited.\n");
         return 4;
     }
 }
