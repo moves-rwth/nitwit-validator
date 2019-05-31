@@ -169,6 +169,7 @@ void TypeInit(Picoc *pc)
     struct ShortAlign { char x; short y; } sa;
     struct CharAlign { char x; char y; } ca;
     struct LongAlign { char x; long y; } la;
+    struct LongLongAlign { char x; long long y; } lla;
 #ifndef NO_FP
     struct DoubleAlign { char x; double y; } da;
 #endif
@@ -182,9 +183,11 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->ShortType, TypeShort, sizeof(short), (char *) &sa.y - &sa.x, FALSE);
     TypeAddBaseType(pc, &pc->CharType, TypeChar, sizeof(char), (char *) &ca.y - &ca.x, FALSE);
     TypeAddBaseType(pc, &pc->LongType, TypeLong, sizeof(long), (char *) &la.y - &la.x, FALSE);
+    TypeAddBaseType(pc, &pc->LongLongType, TypeLongLong, sizeof(long long), 8, FALSE);
     TypeAddBaseType(pc, &pc->UnsignedIntType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, FALSE);
     TypeAddBaseType(pc, &pc->UnsignedShortType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x, FALSE);
     TypeAddBaseType(pc, &pc->UnsignedLongType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, FALSE);
+    TypeAddBaseType(pc, &pc->UnsignedLongLongType, TypeUnsignedLongLong, sizeof(unsigned long long), 8, FALSE);
     TypeAddBaseType(pc, &pc->UnsignedCharType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, FALSE);
     TypeAddBaseType(pc, &pc->VoidType, TypeVoid, 0, 1, FALSE);
     TypeAddBaseType(pc, &pc->FunctionType, TypeFunction, sizeof(int), IntAlignBytes, FALSE);
@@ -409,7 +412,7 @@ void TypeParseEnum(struct ParseState *Parser, struct ValueType **Typ)
         if (LexGetToken(Parser, NULL, FALSE) == TokenAssign)
         {
             LexGetToken(Parser, NULL, TRUE);
-            EnumValue = ExpressionParseInt(Parser);
+            EnumValue = ExpressionParseLongLong(Parser);
         }
         
         VariableDefine(pc, Parser, EnumIdentifier, &InitValue, NULL, FALSE);
@@ -477,7 +480,13 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
         case TokenIntType: *Typ = Unsigned ? &pc->UnsignedIntType : &pc->IntType; break;
         case TokenShortType: *Typ = Unsigned ? &pc->UnsignedShortType : &pc->ShortType; break;
         case TokenCharType: *Typ = Unsigned ? &pc->UnsignedCharType : &pc->CharType; break;
-        case TokenLongType: *Typ = Unsigned ? &pc->UnsignedLongType : &pc->LongType; break;
+        case TokenLongType:
+            if (LexGetToken(Parser, NULL, FALSE) == TokenLongType){
+                LexGetToken(Parser, NULL, TRUE);
+                *Typ = Unsigned ? &pc->UnsignedLongLongType : &pc->LongLongType; break;
+            } else {
+                *Typ = Unsigned ? &pc->UnsignedLongType : &pc->LongType; break;
+            }
 #ifndef NO_FP
         case TokenFloatType: case TokenDoubleType: *Typ = &pc->FPType; break;
 #endif
@@ -540,7 +549,7 @@ struct ValueType *TypeParseBack(struct ParseState *Parser, struct ValueType *Fro
             enum RunMode OldMode = Parser->Mode;
             int ArraySize;
             Parser->Mode = RunModeRun;
-            ArraySize = ExpressionParseInt(Parser);
+            ArraySize = ExpressionParseLongLong(Parser);
             Parser->Mode = OldMode;
             
             if (LexGetToken(Parser, NULL, TRUE) != TokenRightSquareBracket)

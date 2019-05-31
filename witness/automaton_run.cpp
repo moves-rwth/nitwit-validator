@@ -13,7 +13,7 @@ bool assignValue(Value *DestValue, Value* FromValue) {
     if (IS_FP(DestValue)) {
         DestValue->Val->FP = ExpressionCoerceFP(FromValue);
     } else {
-        long FromInt = ExpressionCoerceInteger(FromValue);
+        long FromInt = ExpressionCoerceLongLong(FromValue);
         switch (DestValue->Typ->Base)
         {
             case TypeInt:           DestValue->Val->Integer = FromInt; break;
@@ -79,7 +79,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         }
         ParseState Parser{};
         LexInitParser(&Parser, state->pc, ass.c_str(), Tokens, RegFileName, TRUE, FALSE, nullptr);
-        int ret = AssumptionExpressionParseInt(&Parser);
+        int ret = AssumptionExpressionParseLongLong(&Parser);
         free(Tokens);
         HeapCleanup(state->pc);
         state->pc->IsInAssumptionMode = FALSE;
@@ -97,7 +97,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
                 double fp = AssumptionExpressionCoerceFP(val);
                 cw_verbose("Resolved var: %s: ---> %2.20f\n", I->Identifier, fp);
             } else {
-                int i = AssumptionExpressionCoerceInteger(val);
+                int i = AssumptionExpressionCoerceLongLong(val);
                 cw_verbose("Resolved var: %s: ---> %d\n", I->Identifier, i);
             }
 #endif
