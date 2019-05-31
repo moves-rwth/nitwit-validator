@@ -23,10 +23,11 @@ int WITNESS_IN_SINK = 241;
 int PROGRAM_FINISHED = 242;
 int WITNESS_IN_ILLEGAL_STATE = 243;
 int IDENTIFIER_UNDEFINED = 244;
-int BAD_FUNCTION_DEF = 245;
+int PROGRAM_FINISHED_WITH_VIOLATION = 245;
 int ALREADY_DEFINED = 246;
 int UNSUPPORTED_NONDET_RESOLUTION_OP = 247;
 int ASSERTION_FAILED = 248;
+int BAD_FUNCTION_DEF = 249;
 
 void printProgramState(ParseState *ps) {
     printf("%s --- Line: %zu, Pos: %d", ps->FileName, ps->Line, ps->CharacterPos);
@@ -37,7 +38,7 @@ void printProgramState(ParseState *ps) {
     if (ps->ReturnFromFunction != nullptr)
         printf(", Return: %s", ps->ReturnFromFunction);
     printf("\n");
-    if (ps->Line == 35 && ps->CharacterPos == 0){
+    if (ps->Line == 35 && ps->CharacterPos == 0) {
         printf("debug\n");
     }
 }
@@ -133,12 +134,16 @@ int main(int argc, char **argv) {
     int exit_value = validate(argv[2]);
     if ((!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) &&
         (exit_value >= NO_WITNESS_CODE && exit_value <= ALREADY_DEFINED)) {
+        cw_verbose("Automaton finished in state %s, with error code %d.\n", wit_aut->getCurrentState()->id.c_str(),
+                   exit_value);
         if (!wit_aut->wasVerifierErrorCalled())
-            cw_verbose("__VERIFIER_error was never called.\n");
-        cw_verbose("FAILED: Wasn't able to validate the witness. Violation NOT reached.\n");
-        cw_verbose("Automaton finished in state %s, with error code %d.\n",
-               wit_aut->getCurrentState()->id.c_str(),
-               exit_value);
+            cw_verbose("FAILED: Wasn't able to validate the witness. Witness violation state NOT reached"
+                       "and __VERIFIER_error was never called.\n");
+        else {
+            cw_verbose("FAILED: Wasn't able to validate the witness. Witness violation state NOT reached,"
+                       "even though __VERIFIER_error was called.\n");
+            exit_value = PROGRAM_FINISHED_WITH_VIOLATION;
+        }
         return exit_value;
     } else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
         cw_verbose("__VERIFIER_error was never called.\n");

@@ -155,7 +155,7 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     {
         /* it's a full function definition with a body */
         if (Token != TokenLeftBrace)
-            ProgramFailWithExitCode(Parser, 245, "bad function definition");
+            ProgramFailWithExitCode(Parser, 249, "bad function definition");
 
         ParserCopy(&FuncBody, Parser);
         if (ParseStatementMaybeRun(Parser, FALSE, TRUE) != ParseResultOk)
