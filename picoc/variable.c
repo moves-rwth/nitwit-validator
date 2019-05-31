@@ -150,7 +150,7 @@ VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *
     NewValue->IsLValue = IsLValue;
     NewValue->LValueFrom = LValueFrom;
     NewValue->VarIdentifier = VarIdentifier;
-    NewValue->ConstQualifier = LValueFrom->ConstQualifier;
+    NewValue->ConstQualifier = LValueFrom == NULL ? FALSE : LValueFrom->ConstQualifier;
 
     return NewValue;
 }

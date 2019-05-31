@@ -389,6 +389,8 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
                 } else if (NewVariable != NULL && (next_token == TokenComma || next_token == TokenSemicolon)) {
                     NewVariable->Typ = TypeGetNonDeterministic(Parser, NewVariable->Typ);
                 }
+                if (NewVariable != NULL)
+                    NewVariable->ConstQualifier = IsConst;
             }
         }
 
@@ -1039,6 +1041,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenReturn:
             case TokenTypedef:
             case TokenIdentifier:
+            case TokenConst:
             case TokenIntType:
             case TokenShortType:
             case TokenCharType:
