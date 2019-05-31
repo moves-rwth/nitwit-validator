@@ -28,9 +28,6 @@ struct ValueType* TypeGetDeterministic(struct ParseState * Parser, struct ValueT
 #ifndef NO_FP
             case TypeFP: Base = &Parser->pc->FPType; break;
 #endif
-//            case TypePointer: Base =
-//                    TypeGetMatching(Parser->pc, Parser, Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE);
-//                    break;
             default:
                 fprintf(stderr, "Unsupported non-deterministic type conversion.\n");
                 Base = Typ;
