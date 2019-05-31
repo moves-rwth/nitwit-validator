@@ -28,11 +28,11 @@ def process_results(results: List[Tuple[int, str, str, float]], executable: str,
 	for ret_code, info_file, err_msg, time in results:
 		if ret_code is None:
 			non_validated.append((9, os.path.basename(info_file), err_msg, time))
-		elif ret_code == 0:
+		elif ret_code == 0 or ret_code == 245:
 			validated.append((ret_code, os.path.basename(info_file), err_msg, time))
-		elif ret_code >= 240 and ret_code <= 243:
+		elif 240 <= ret_code <= 243:
 			non_validated.append((ret_code, os.path.basename(info_file), err_msg, time))
-		elif ret_code >= 244 and ret_code <= 246:
+		elif ret_code == 244 or ret_code == 246:
 			badly_parsed.append((ret_code, os.path.basename(info_file), err_msg, time))
 		elif ret_code == 2:
 			print(f"Witness parse error: {info_file}")
