@@ -1188,7 +1188,8 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
                         char *CastIdentifier;
                         struct Value *CastTypeValue;
 
-                        TypeParse(Parser, &CastType, &CastIdentifier, NULL);
+                        int IsConst;
+                        TypeParse(Parser, &CastType, &CastIdentifier, NULL, &IsConst);
                         if (LexGetToken(Parser, &LexValue, TRUE) != TokenCloseBracket)
                             ProgramFail(Parser, "brackets not closed");
 
@@ -1413,7 +1414,7 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
 
             PrefixState = FALSE;
             ParserCopy(Parser, &PreState);
-            TypeParse(Parser, &Typ, &Identifier, NULL);
+            TypeParse(Parser, &Typ, &Identifier, NULL, NULL);
             TypeValue = VariableAllocValueFromType(Parser->pc, Parser, &Parser->pc->TypeType, FALSE, NULL, FALSE);
             TypeValue->Val->Typ = Typ;
             ExpressionStackPushValueNode(Parser, &StackTop, TypeValue);

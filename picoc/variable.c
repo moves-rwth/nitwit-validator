@@ -103,6 +103,7 @@ VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, in
 
     NewValue->OutOfScope = 0;
     NewValue->VarIdentifier = VarIdentifier;
+    NewValue->ConstQualifier = FALSE;
     return NewValue;
 }
 
@@ -110,7 +111,6 @@ VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, in
 struct Value *VariableAllocValueFromType(Picoc *pc, struct ParseState *Parser, struct ValueType *Typ, int IsLValue, struct Value *LValueFrom, int OnHeap)
 {
     int Size = TypeSize(Typ, Typ->ArraySize, FALSE);
-    // TODO is nondet=uninit OK here?
     struct Value *NewValue = VariableAllocValueAndData(pc, Parser, Size, IsLValue, LValueFrom, OnHeap, NULL);
     assert(Size >= 0 || Typ == &pc->VoidType);
     NewValue->Typ = Typ;
@@ -150,7 +150,8 @@ VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *
     NewValue->IsLValue = IsLValue;
     NewValue->LValueFrom = LValueFrom;
     NewValue->VarIdentifier = VarIdentifier;
-    
+    NewValue->ConstQualifier = LValueFrom->ConstQualifier;
+
     return NewValue;
 }
 

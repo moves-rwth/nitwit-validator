@@ -43,7 +43,7 @@ void LibraryAdd(Picoc *pc, struct Table *GlobalTable, const char *LibraryName, s
     {
         Tokens = LexAnalyse(pc, IntrinsicName, FuncList[Count].Prototype, strlen((char *)FuncList[Count].Prototype), NULL);
         LexInitParser(&Parser, pc, FuncList[Count].Prototype, Tokens, IntrinsicName, TRUE, FALSE, NULL);
-        TypeParse(&Parser, &ReturnType, &Identifier, NULL);
+        TypeParse(&Parser, &ReturnType, &Identifier, NULL, NULL);
         NewValue = ParseFunctionDefinition(&Parser, ReturnType, Identifier, 0);
         NewValue->Val->FuncDef.Intrinsic = FuncList[Count].Func;
         HeapFreeMem(pc, Tokens);
