@@ -1,6 +1,11 @@
 //extern void __VERIFIER_error();
 #include <stdio.h>
 
+struct S {
+    const char * ch;
+    const short sh;
+};
+
 int main()
 {
     char const * c = "23";
@@ -9,11 +14,10 @@ int main()
     double f = 2.0;
     const double * d = &f;
 
-    int b = 12;
-    b = 23;
-    *s = 'j';
-    c = "33224";
-    c[3] = 0;
+    struct S st;
+
+    st.ch = "asdf";
+    st.sh = 2;
     return 0;
 }
 
