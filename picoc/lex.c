@@ -80,7 +80,9 @@ static struct ReservedWord ReservedWords[] =
     { "void", TokenVoidType },
     { "while", TokenWhile },
     { "__attribute__", TokenAttribute },
-    { "__noreturn__", TokenNoReturn }
+    { "__noreturn__", TokenNoReturn },
+    { "const", TokenConst },
+    { "__const", TokenConst },
 };
 
 
