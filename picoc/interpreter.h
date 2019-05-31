@@ -92,7 +92,8 @@ enum LexToken
     /* 0x59 */ TokenNew, TokenDelete,
     /* 0x5b */ TokenOpenMacroBracket,
     /* 0x5c */ TokenAttribute, TokenNoReturn,
-    /* 0x5e */ TokenEOF, TokenEndOfLine, TokenEndOfFunction,
+    /* 0x5e */ TokenConst,
+    /* 0x5f */ TokenEOF, TokenEndOfLine, TokenEndOfFunction,
 };
 
 /* hash table data structure */
