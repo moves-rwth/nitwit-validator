@@ -107,8 +107,9 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
         }
         else
         {
-            /* add a parameter */
-            TypeParse(&ParamParser, &ParamType, &ParamIdentifier, NULL);
+            int IsConst;
+            /* add a parameter */ // fixme: const parameters
+            TypeParse(&ParamParser, &ParamType, &ParamIdentifier, NULL, &IsConst);
             if (ParamType->Base == TypeVoid)
             {
                 /* this isn't a real parameter at all - delete it */
@@ -155,7 +156,7 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
     {
         /* it's a full function definition with a body */
         if (Token != TokenLeftBrace)
-            ProgramFailWithExitCode(Parser, 245, "bad function definition");
+            ProgramFailWithExitCode(Parser, 249, "bad function definition");
 
         ParserCopy(&FuncBody, Parser);
         if (ParseStatementMaybeRun(Parser, FALSE, TRUE) != ParseResultOk)
@@ -342,15 +343,16 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
     struct ValueType *Typ;
     struct Value *NewVariable = NULL, * FuncValue = NULL;
     int IsStatic = FALSE;
+    int IsConst = FALSE;
     int FirstVisit = FALSE;
     Picoc *pc = Parser->pc;
 
-    TypeParseFront(Parser, &BasicType, &IsStatic);
+    TypeParseFront(Parser, &BasicType, &IsStatic, &IsConst);
     do
     {
         // try parsing a function pointer
         if (!TypeParseFunctionPointer(Parser, BasicType, &Typ, &Identifier)){
-            TypeParseIdentPart(Parser, BasicType, &Typ, &Identifier);
+            TypeParseIdentPart(Parser, BasicType, &Typ, &Identifier, &IsConst);
             if ((Token != TokenVoidType && Token != TokenStructType && Token != TokenUnionType && Token != TokenEnumType) && Identifier == pc->StrEmpty)
                 ProgramFail(Parser, "identifier expected");
         }
@@ -387,6 +389,8 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
                 } else if (NewVariable != NULL && (next_token == TokenComma || next_token == TokenSemicolon)) {
                     NewVariable->Typ = TypeGetNonDeterministic(Parser, NewVariable->Typ);
                 }
+                if (NewVariable != NULL)
+                    NewVariable->ConstQualifier = IsConst;
             }
         }
 
@@ -608,7 +612,7 @@ void ParseTypedef(struct ParseState *Parser)
     char *TypeName;
     struct Value InitValue;
 
-    TypeParse(Parser, &Typ, &TypeName, NULL);
+    TypeParse(Parser, &Typ, &TypeName, NULL, NULL);
 
     if (Parser->Mode == RunModeRun)
     {
@@ -838,6 +842,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             CheckTrailingSemicolon = FALSE;
             break;
 
+        case TokenConst:
         case TokenIntType:
         case TokenShortType:
         case TokenCharType:
@@ -1036,6 +1041,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenReturn:
             case TokenTypedef:
             case TokenIdentifier:
+            case TokenConst:
             case TokenIntType:
             case TokenShortType:
             case TokenCharType:
