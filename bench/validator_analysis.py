@@ -91,7 +91,7 @@ def main():
 		return 1
 
 	matching = get_matching(all, validators['byWitnessHash'], args.outputmatched)
-	# analyze(matching, validators['byWitnessHash'])
+	analyze(matching, validators['byWitnessHash'])
 
 
 if __name__ == "__main__":
