@@ -245,6 +245,10 @@ long ExpressionAssignInt(struct ParseState *Parser, struct Value *DestValue, lon
     if (!DestValue->IsLValue)
         ProgramFail(Parser, "can't assign to this");
 
+    // check if not const
+    if (DestValue->ConstQualifier == TRUE)
+        ProgramFail(Parser, "can't assign to const %t", DestValue->Typ);
+
     if (After)
         Result = ExpressionCoerceInteger(DestValue);
     else
@@ -271,6 +275,10 @@ double ExpressionAssignFP(struct ParseState *Parser, struct Value *DestValue, do
 {
     if (!DestValue->IsLValue)
         ProgramFail(Parser, "can't assign to this");
+
+    // check if not const
+    if (DestValue->ConstQualifier == TRUE)
+        ProgramFail(Parser, "can't assign to const %t", DestValue->Typ);
 
     DestValue->Val->FP = FromFP;
     return FromFP;
@@ -329,6 +337,8 @@ void ExpressionStackPushDereference(struct ParseState *Parser, struct Expression
 
     ValueLoc = VariableAllocValueFromExistingData(Parser, DerefType, (union AnyValue *) DerefDataLoc, DerefIsLValue,
                                                   DerefVal, NULL);
+    ValueLoc->ConstQualifier = DereferenceValue->ConstQualifier;
+
     ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
 
@@ -400,9 +410,29 @@ void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct
     if (IS_NUMERIC_COERCIBLE(DestValue) && !IS_NUMERIC_COERCIBLE_PLUS_POINTERS(SourceValue, AllowPointerCoercion))
         AssignFail(Parser, "%t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
 
-    // todo if Source is NonDet, so should the assigned value
+    // if Source is NonDet, so should the assigned value
     if (TypeIsNonDeterministic(SourceValue->Typ)) {
         DestValue->Typ = SourceValue->Typ;
+    }
+// check if not const
+    if (DestValue->ConstQualifier == TRUE){
+        switch (DestValue->Typ->Base){
+            case TypeInt:
+            case TypeShort:
+            case TypeChar:
+            case TypeLong:
+            case TypeUnsignedInt:
+            case TypeUnsignedShort:
+            case TypeUnsignedLong:
+            case TypeUnsignedChar:
+            case TypeFP:
+            case TypeStruct:
+            case TypeUnion:
+                AssignFail(Parser, "const %t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
+                break;
+            default:
+                break;
+        }
     }
     switch (DestValue->Typ->Base)
     {
@@ -1199,6 +1229,7 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
                         ExpressionStackCollapse(Parser, &StackTop, Precedence+1, &IgnorePrecedence);
                         CastTypeValue = VariableAllocValueFromType(Parser->pc, Parser, &Parser->pc->TypeType, FALSE, NULL, FALSE);
                         CastTypeValue->Val->Typ = CastType;
+                        CastTypeValue->ConstQualifier = IsConst;
                         ExpressionStackPushValueNode(Parser, &StackTop, CastTypeValue);
                         ExpressionStackPushOperator(Parser, &StackTop, OrderInfix, TokenCast, Precedence);
                     }
