@@ -718,11 +718,13 @@ void AssumptionExpressionPostfixOperator(struct ParseState *Parser, struct Expre
         ProgramFail(Parser, "invalid operation");
 }
 
-void AddResolvedVariable(struct ParseState *Parser, const char * Identifier) {
+void ResolvedVariable(struct ParseState *Parser, const char *Identifier, struct Value *VariableValue) {
     struct ValueList * vl = malloc(sizeof *vl);
     vl->Identifier = Identifier;
     vl->Next = Parser->ResolvedNonDetVars;
     Parser->ResolvedNonDetVars = vl;
+
+    VariableValue->Typ = TypeGetDeterministic(Parser, VariableValue->Typ);
 }
 
 /* evaluate an infix operator */
@@ -790,7 +792,8 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
         double ResultFP = 0.0;
         if (TypeIsNonDeterministic(TopValue->Typ) != TypeIsNonDeterministic(BottomValue->Typ)) {
             /* one of the values is nondet */
-            char * Identifier = TypeIsNonDeterministic(TopValue->Typ) ? TopValue->VarIdentifier : BottomValue->VarIdentifier;
+            struct Value *NonDetValue = TypeIsNonDeterministic(TopValue->Typ) ? TopValue : BottomValue;
+            char * Identifier = NonDetValue->VarIdentifier;
 
             /* integer nondet resolution */
             double AssignedDouble = TypeIsNonDeterministic(TopValue->Typ) ? (BottomValue->Typ == &Parser->pc->FPType) ? BottomValue->Val->FP : (double) AssumptionExpressionCoerceLongLong(
@@ -798,8 +801,8 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
                                                   : (TopValue->Typ == &Parser->pc->FPType) ? TopValue->Val->FP : (double) AssumptionExpressionCoerceLongLong(
                             TopValue);
 
-            struct Value * NonDetValue;
-            VariableGet(Parser->pc, Parser, Identifier, &NonDetValue);
+            if (NonDetValue->IsLValue && NonDetValue->LValueFrom != NULL)
+                NonDetValue = NonDetValue->LValueFrom;
 
             if (IS_FP(NonDetValue)) {
                 ResultFP = AssumptionExpressionAssignFP(Parser, NonDetValue, AssignedDouble);
@@ -815,7 +818,7 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
                 default:                        ProgramFailWithExitCode(Parser, 247,"unsupported operation for nondet resolution"); break;
             }
 
-            AddResolvedVariable(Parser, Identifier);
+            ResolvedVariable(Parser, Identifier, NonDetValue);
         } else {
 
             double TopFP = (TopValue->Typ->Base == TypeFP) ? TopValue->Val->FP : (double) AssumptionExpressionCoerceLongLong(
@@ -854,15 +857,15 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
         /* integer operation */
         if (TypeIsNonDeterministic(TopValue->Typ) != TypeIsNonDeterministic(BottomValue->Typ)) {
             /* one of the values is nondet */
-            char * Identifier = TypeIsNonDeterministic(TopValue->Typ) ? TopValue->VarIdentifier : BottomValue->VarIdentifier;
-
+            struct Value * NonDetValue = TypeIsNonDeterministic(TopValue->Typ) ? TopValue : BottomValue;
+            char * Identifier = NonDetValue->VarIdentifier;
             /* integer nondet resolution */
             long long AssignedInt = TypeIsNonDeterministic(TopValue->Typ) ? AssumptionExpressionCoerceLongLong(
                     BottomValue)
                     : AssumptionExpressionCoerceLongLong(TopValue);
 
-            struct Value * NonDetValue;
-            VariableGet(Parser->pc, Parser, TableStrRegister(Parser->pc, Identifier), &NonDetValue);
+            if (NonDetValue->IsLValue && NonDetValue->LValueFrom != NULL)
+                NonDetValue = NonDetValue->LValueFrom;
 
             AssumptionExpressionAssignLongLong(Parser, NonDetValue, AssignedInt, FALSE);
             switch (Op)
@@ -872,7 +875,7 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
                 default:                        ProgramFailWithExitCode(Parser, 247,"unsupported operation for nondet resolution"); break;
             }
 
-            AddResolvedVariable(Parser, Identifier);
+            ResolvedVariable(Parser, Identifier, NonDetValue);
         } else {
             long long TopInt = AssumptionExpressionCoerceLongLong(TopValue);
             long long BottomInt = AssumptionExpressionCoerceLongLong(BottomValue);

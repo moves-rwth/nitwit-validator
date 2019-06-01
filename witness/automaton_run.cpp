@@ -34,6 +34,7 @@ string baseFileName(const string &s) {
     return s.substr(s.find_last_of("/\\") + 1);
 }
 
+// fixme bugs: this function isn't ideal - it will not work with for instance x == "  ;";
 vector<string> split(string str, char delimiter) {
     int begin = 0;
     size_t n = count(str.begin(), str.end(), delimiter);
@@ -42,7 +43,10 @@ vector<string> split(string str, char delimiter) {
     }
     auto result = vector<string>();
     result.reserve(n);
-    for (size_t d = str.find_first_of(delimiter); d != string::npos; d = str.find_first_of(delimiter, begin)) {
+    for (size_t d = str.find_first_of(delimiter); d != string::npos; d = str.find_first_of(delimiter, d+1)) {
+        if (0 < d && d + 1 < str.length() && str[d-1] == '\'' && str[d+1] == '\''){
+            continue;
+        }
         string ass = str.substr(begin, d - begin);
         result.push_back(ass);
         begin = d + 1;
