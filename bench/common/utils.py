@@ -30,7 +30,7 @@ def process_results(results: List[Tuple[int, str, str, float]], executable: str,
 			non_validated.append((9, os.path.basename(info_file), err_msg, time))
 		elif ret_code == 0 or ret_code == 245:
 			validated.append((ret_code, os.path.basename(info_file), err_msg, time))
-		elif 240 <= ret_code <= 243:
+		elif 240 <= ret_code <= 243 or ret_code == 250:
 			non_validated.append((ret_code, os.path.basename(info_file), err_msg, time))
 		elif ret_code == 244 or ret_code == 246:
 			badly_parsed.append((ret_code, os.path.basename(info_file), err_msg, time))

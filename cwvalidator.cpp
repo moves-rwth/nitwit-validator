@@ -28,6 +28,7 @@ int ALREADY_DEFINED = 246;
 int UNSUPPORTED_NONDET_RESOLUTION_OP = 247;
 int ASSERTION_FAILED = 248;
 int BAD_FUNCTION_DEF = 249;
+int UNVALIDATED_VIOLATION = 250;
 
 void printProgramState(ParseState *ps) {
     printf("%s --- Line: %zu, Pos: %d", ps->FileName, ps->Line, ps->CharacterPos);
@@ -38,9 +39,9 @@ void printProgramState(ParseState *ps) {
     if (ps->ReturnFromFunction != nullptr)
         printf(", Return: %s", ps->ReturnFromFunction);
     printf("\n");
-    if (ps->Line == 35 && ps->CharacterPos == 38) {
-        printf("debug\n");
-    }
+//    if (ps->Line == 35 && ps->CharacterPos == 38) {
+//        printf("debug\n");
+//    }
 }
 
 void handleDebugBreakpoint(struct ParseState *ps) {
@@ -136,13 +137,18 @@ int main(int argc, char **argv) {
         (exit_value >= NO_WITNESS_CODE && exit_value <= ALREADY_DEFINED)) {
         cw_verbose("Automaton finished in state %s, with error code %d.\n", wit_aut->getCurrentState()->id.c_str(),
                    exit_value);
-        if (!wit_aut->wasVerifierErrorCalled())
-            cw_verbose("FAILED: Wasn't able to validate the witness. Witness violation state NOT reached "
-                       "and __VERIFIER_error was never called.\n");
-        else {
-            cw_verbose("FAILED: Wasn't able to validate the witness. Witness violation state NOT reached,"
-                       "even though __VERIFIER_error was called.\n");
+        cw_verbose("FAILED: Wasn't able to validate the witness. ");
+        if (wit_aut->isInViolationState()) {
+            cw_verbose("Witness violation state reached ");
+            exit_value = UNVALIDATED_VIOLATION;
+        } else{
+            cw_verbose("Witness violation state NOT reached ");
+        }
+        if (wit_aut->wasVerifierErrorCalled()) {
+            cw_verbose(", __VERIFIER_error was called.\n");
             exit_value = PROGRAM_FINISHED_WITH_VIOLATION;
+        } else {
+            cw_verbose(", __VERIFIER_error was never called.\n");
         }
         return exit_value;
     } else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
