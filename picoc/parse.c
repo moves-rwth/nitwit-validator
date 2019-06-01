@@ -642,7 +642,8 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     int Condition;
     struct ParseState PreState;
     enum LexToken Token;
-    int GotoCallback = FALSE;
+    char GotoCallback = FALSE;
+    char SkipDebugCheck = FALSE;
 
     /* take note of where we are and then grab a token to see what statement we have */
     ParserCopy(&PreState, Parser);
@@ -735,6 +736,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         case TokenOpenBracket:
             *Parser = PreState;
             ExpressionParse(Parser, &CValue);
+            SkipDebugCheck = TRUE;
             if (Parser->Mode == RunModeRun)
                 VariableStackPop(Parser, CValue);
             break;
@@ -1026,7 +1028,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     }
 
     /* if we're debugging, check for a breakpoint */
-    if ((Parser->DebugMode && Parser->Mode == RunModeRun) || GotoCallback){
+    if ((Parser->DebugMode && Parser->Mode == RunModeRun && !SkipDebugCheck) || GotoCallback){
         struct ParseState NowPosition;
         ParserCopyPos(&NowPosition, Parser);
         ParserCopyPos(Parser, &ParserPrePosition);
