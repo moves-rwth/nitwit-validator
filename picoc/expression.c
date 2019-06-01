@@ -787,6 +787,7 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
                                                                                            TRUE)),
                                                                           BottomValue->IsLValue,
                                                                           BottomValue->LValueFrom, NULL); break;
+            //todo nondet pointer
             case TypePointer: Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType,
                                                                           (union AnyValue *) (
                                                                                   (char *) BottomValue->Val->Pointer +
@@ -818,7 +819,9 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         double BottomFP = (BottomValue->Typ == &Parser->pc->FPType || BottomValue->Typ == &Parser->pc->FPNDType)
                 ? BottomValue->Val->FP : (double) ExpressionCoerceLongLong(BottomValue);
 
-        // todo nondet
+        if (TypeIsNonDeterministic(TopValue->Typ))
+            if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != NULL)
+                BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->Typ);
         switch (Op)
         {
             case TokenAssign:               ASSIGN_FP_OR_INT(TopFP); break;
@@ -850,6 +853,9 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         /* integer operation */
         long long TopInt = ExpressionCoerceLongLong(TopValue);
         long long BottomInt = ExpressionCoerceLongLong(BottomValue);
+        if (TypeIsNonDeterministic(TopValue->Typ))
+            if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != NULL)
+                BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->Typ);
         switch (Op)
         {
             case TokenAssign:               ResultInt = ExpressionAssignLongLong(Parser, BottomValue, TopInt, FALSE); break;

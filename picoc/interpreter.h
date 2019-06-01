@@ -292,7 +292,7 @@ struct Value
     char OutOfScope;
     // jsv
     char * VarIdentifier;           /* keeps track of the name of the variable this value belongs to */
-    int ConstQualifier;            /* true if it's a const */
+    char ConstQualifier;            /* true if it's a const */
 };
 
 /* stack frame for function calls */
