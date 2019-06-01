@@ -16,7 +16,6 @@ EXECUTION_TIMEOUT = 0
 
 def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float]:
 	witness, source, info_file = config
-	print(' '.join([VALIDATOR_EXECUTABLE, witness, source]))
 	with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
 	                      stdout=subprocess.PIPE,
 	                      stderr=subprocess.PIPE) as process:
@@ -38,6 +37,8 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float]:
 
 	# outs, errs = process.communicate()
 	times = os.times()
+	print(' '.join([witness, source]))
+	print(' '.join([witness[3:], source[3:]]))
 	return process.returncode, info_file, '', times[2] + times[3]
 
 

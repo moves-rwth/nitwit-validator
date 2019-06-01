@@ -10,7 +10,7 @@ void VerifierError(struct ParseState *Parser, struct Value *ReturnValue, struct 
 
 void VerifierAssume(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs) {
     if (!Param[0]->Val->Integer)
-        ProgramFailWithExitCode(Parser, 247, "assumption does not hold");
+        ProgramFailWithExitCode(Parser, 248, "assumption does not hold");
 }
 
 void VerifierNonDet(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs) {
