@@ -83,6 +83,8 @@ static struct ReservedWord ReservedWords[] =
     { "__noreturn__", TokenNoReturn },
     { "const", TokenConst },
     { "__const", TokenConst },
+    { "restrict", TokenRestrict },
+    { "__restrict", TokenRestrict },
 };
 
 
@@ -259,8 +261,12 @@ enum LexToken LexGetWord(Picoc *pc, struct LexState *Lexer, struct Value *Value)
         default: break;
     }
 
-    if (Token != TokenNone)
+
+    if (Token == TokenRestrict)
+        return LexGetWord(pc, Lexer, Value);
+    else if (Token != TokenNone)
         return Token;
+
 
     if (Lexer->Mode == LexModeHashDefineSpace)
         Lexer->Mode = LexModeHashDefineSpaceIdent;
