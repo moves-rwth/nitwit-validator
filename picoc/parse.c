@@ -509,7 +509,7 @@ void ParseFor(struct ParseState *Parser)
     if (LexGetToken(Parser, NULL, FALSE) == TokenSemicolon)
         Condition = TRUE;
     else
-        Condition = ExpressionParseInt(Parser);
+        Condition = ExpressionParseLongLong(Parser);
 
     ConditionCallback(Parser, Condition);
 
@@ -540,7 +540,7 @@ void ParseFor(struct ParseState *Parser)
         if (LexGetToken(Parser, NULL, FALSE) == TokenSemicolon)
             Condition = TRUE;
         else
-            Condition = ExpressionParseInt(Parser);
+            Condition = ExpressionParseLongLong(Parser);
 
         if (Condition)
         {
@@ -748,7 +748,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             if (LexGetToken(Parser, NULL, TRUE) != TokenOpenBracket)
                 ProgramFail(Parser, "'(' expected");
 
-            Condition = ExpressionParseInt(Parser);
+            Condition = ExpressionParseLongLong(Parser);
 
             ConditionCallback(Parser, Condition);
 
@@ -781,7 +781,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 do
                 {
                     ParserCopyPos(Parser, &PreConditional);
-                    Condition = ExpressionParseInt(Parser);
+                    Condition = ExpressionParseLongLong(Parser);
                     ConditionCallback(Parser, Condition);
                     if (LexGetToken(Parser, NULL, TRUE) != TokenCloseBracket)
                         ProgramFail(Parser, "')' expected");
@@ -821,7 +821,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                     if (LexGetToken(Parser, NULL, TRUE) != TokenOpenBracket)
                         ProgramFail(Parser, "'(' expected");
 
-                    Condition = ExpressionParseInt(Parser);
+                    Condition = ExpressionParseLongLong(Parser);
                     ConditionCallback(Parser, Condition);
                     if (LexGetToken(Parser, NULL, TRUE) != TokenCloseBracket)
                         ProgramFail(Parser, "')' expected");
@@ -882,7 +882,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             if (LexGetToken(Parser, NULL, TRUE) != TokenOpenBracket)
                 ProgramFail(Parser, "'(' expected");
 
-            Condition = ExpressionParseInt(Parser);
+            Condition = ExpressionParseLongLong(Parser);
 
             if (LexGetToken(Parser, NULL, TRUE) != TokenCloseBracket)
                 ProgramFail(Parser, "')' expected");
@@ -912,11 +912,11 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             if (Parser->Mode == RunModeCaseSearch)
             {
                 Parser->Mode = RunModeRun;
-                Condition = ExpressionParseInt(Parser);
+                Condition = ExpressionParseLongLong(Parser);
                 Parser->Mode = RunModeCaseSearch;
             }
             else
-                Condition = ExpressionParseInt(Parser);
+                Condition = ExpressionParseLongLong(Parser);
 
             if (LexGetToken(Parser, NULL, TRUE) != TokenColon)
                 ProgramFail(Parser, "':' expected");
@@ -959,7 +959,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                         ProgramFail(Parser, "value required in return");
 
                     if (!Parser->pc->TopStackFrame) /* return from top-level program? */
-                        PlatformExit(Parser->pc, ExpressionCoerceInteger(CValue));
+                        PlatformExit(Parser->pc, ExpressionCoerceLongLong(CValue));
                     else
                         ExpressionAssign(Parser, Parser->pc->TopStackFrame->ReturnValue, CValue, TRUE, NULL, 0, FALSE);
                     VariableStackPop(Parser, CValue);

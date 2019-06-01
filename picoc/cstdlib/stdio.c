@@ -268,7 +268,7 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                     {
                         /* show a signed integer */
                         if (IS_NUMERIC_COERCIBLE(ThisArg))
-                            StdioFprintfWord(&SOStream, OneFormatBuf, ExpressionCoerceUnsignedInteger(ThisArg));
+                            StdioFprintfWord(&SOStream, OneFormatBuf, ExpressionCoerceUnsignedLongLong(ThisArg));
                         else
                             StdioOutPuts("XXX", &SOStream);
                     }

@@ -16,7 +16,7 @@
 #if defined(__hppa__) || defined(__sparc__)
 #define ALIGN_TYPE double                   /* the default data type to use for alignment */
 #else
-#define ALIGN_TYPE void *                   /* the default data type to use for alignment */
+#define ALIGN_TYPE long long                   /* the default data type to use for alignment */
 #endif
 
 #define GLOBAL_TABLE_SIZE 97                /* global variable table */

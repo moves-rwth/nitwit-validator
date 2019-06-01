@@ -50,7 +50,7 @@ typedef FILE IOFILE;
 #define IS_POINTER_COERCIBLE(v, ap) ((ap) ? ((v)->Typ->Base == TypePointer) : 0)
 #define POINTER_COERCE(v) ((int)(v)->Val->Pointer)
 
-#define IS_INTEGER_NUMERIC_TYPE(t) ((t)->Base >= TypeInt && (t)->Base <= TypeUnsignedLong)
+#define IS_INTEGER_NUMERIC_TYPE(t) ((t)->Base >= TypeInt && (t)->Base <= TypeUnsignedLongLong)
 #define IS_INTEGER_NUMERIC(v) IS_INTEGER_NUMERIC_TYPE((v)->Typ)
 #define IS_NUMERIC_COERCIBLE(v) (IS_INTEGER_NUMERIC(v) || IS_FP(v))
 #define IS_NUMERIC_COERCIBLE_PLUS_POINTERS(v,ap) (IS_NUMERIC_COERCIBLE(v) || IS_POINTER_COERCIBLE(v,ap))
@@ -196,10 +196,12 @@ enum BaseType
     TypeShort,                  /* short integer */
     TypeChar,                   /* a single character (signed) */
     TypeLong,                   /* long integer */
+    TypeLongLong,                   /* long long integer */
     TypeUnsignedInt,            /* unsigned integer */
     TypeUnsignedShort,          /* unsigned short integer */
     TypeUnsignedChar,           /* unsigned 8-bit number */ /* must be before unsigned long */
     TypeUnsignedLong,           /* unsigned long integer */
+    TypeUnsignedLongLong,           /* unsigned long long integer */
 #ifndef NO_FP
     TypeFP,                     /* floating point */
 #endif
@@ -260,9 +262,11 @@ union AnyValue
     short ShortInteger;
     int Integer;
     long LongInteger;
+    long long LongLongInteger;
     unsigned short UnsignedShortInteger;
     unsigned int UnsignedInteger;
     unsigned long UnsignedLongInteger;
+    unsigned long UnsignedLongLongInteger;
     unsigned char UnsignedCharacter;
     char *Identifier;
     char ArrayMem[2];               /* placeholder for where the data starts, doesn't point to it */
@@ -449,9 +453,11 @@ struct Picoc_Struct
     struct ValueType ShortType;
     struct ValueType CharType;
     struct ValueType LongType;
+    struct ValueType LongLongType;
     struct ValueType UnsignedIntType;
     struct ValueType UnsignedShortType;
     struct ValueType UnsignedLongType;
+    struct ValueType UnsignedLongLongType;
     struct ValueType UnsignedCharType;
     #ifndef NO_FP
     struct ValueType FPType;
@@ -553,20 +559,20 @@ void ConditionCallback(struct ParseState *Parser, int Condition);
 
 /* expression.c */
 int ExpressionParse(struct ParseState *Parser, struct Value **Result);
-long ExpressionParseInt(struct ParseState *Parser);
+long long ExpressionParseLongLong(struct ParseState *Parser);
 void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct Value *SourceValue, int Force, const char *FuncName, int ParamNo, int AllowPointerCoercion);
-long ExpressionCoerceInteger(struct Value *Val);
-unsigned long ExpressionCoerceUnsignedInteger(struct Value *Val);
+long long ExpressionCoerceLongLong(struct Value *Val);
+unsigned long long ExpressionCoerceUnsignedLongLong(struct Value *Val);
 #ifndef NO_FP
 double ExpressionCoerceFP(struct Value *Val);
 #endif
 
 /* assumption_expr.c */
 int AssumptionExpressionParse(struct ParseState *Parser, struct Value **Result);
-long AssumptionExpressionParseInt(struct ParseState *Parser);
+long long AssumptionExpressionParseLongLong(struct ParseState *Parser);
 void AssumptionExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct Value *SourceValue, int Force, const char *FuncName, int ParamNo, int AllowPointerCoercion);
-long AssumptionExpressionCoerceInteger(struct Value *Val);
-unsigned long AssumptionExpressionCoerceUnsignedInteger(struct Value *Val);
+long long AssumptionExpressionCoerceLongLong(struct Value *Val);
+unsigned long long AssumptionExpressionCoerceUnsignedLongLong(struct Value *Val);
 #ifndef NO_FP
 double AssumptionExpressionCoerceFP(struct Value *Val);
 #endif
@@ -641,6 +647,7 @@ void CLibraryInit(Picoc *pc);
 void PrintCh(char OutCh, IOFILE *Stream);
 void PrintSimpleInt(long Num, IOFILE *Stream);
 void PrintInt(long Num, int FieldWidth, int ZeroPad, int LeftJustify, IOFILE *Stream);
+void PrintLongLong(long Num, int FieldWidth, int ZeroPad, int LeftJustify, IOFILE *Stream);
 void PrintStr(const char *Str, IOFILE *Stream);
 void PrintFP(double Num, IOFILE *Stream);
 void PrintType(struct ValueType *Typ, IOFILE *Stream);
