@@ -139,10 +139,10 @@ int main(int argc, char **argv) {
                    exit_value);
         cw_verbose("FAILED: Wasn't able to validate the witness. ");
         if (wit_aut->isInViolationState()) {
-            cw_verbose("Witness violation state reached ");
+            cw_verbose("Witness violation state reached");
             exit_value = UNVALIDATED_VIOLATION;
         } else{
-            cw_verbose("Witness violation state NOT reached ");
+            cw_verbose("Witness violation state NOT reached");
         }
         if (wit_aut->wasVerifierErrorCalled()) {
             cw_verbose(", __VERIFIER_error was called.\n");

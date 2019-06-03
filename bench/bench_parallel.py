@@ -1,5 +1,6 @@
 import argparse
 import os
+import resource
 import sys
 import json
 from typing import Union, List, Tuple, Callable, Set
@@ -47,6 +48,7 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 
 def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float]:
     witness, source, info_file = config
+    info_before = resource.getrusage(resource.RUSAGE_CHILDREN)
     with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
                           stdout=subprocess.PIPE,
                           stderr=subprocess.DEVNULL) as process:
@@ -68,8 +70,8 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float]:
             print(f"Process {process.pid} still running!")
             process.kill()
 
-        times = os.times()
-        return process.returncode, info_file, errmsg, times[2] + times[3]
+        info = resource.getrusage(resource.RUSAGE_CHILDREN)
+        return process.returncode, info_file, errmsg, info.ru_utime + info.ru_stime - (info_before.ru_utime + info_before.ru_stime)
 
 
 def run_bench_parallel(configs: List[Tuple[str, str, str]]) -> List[Tuple[int, str, str, float]]:
