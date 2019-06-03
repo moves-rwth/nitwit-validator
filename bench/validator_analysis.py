@@ -64,7 +64,7 @@ def get_matching(all_results: List, validators: dict, outputmatched: str = None)
 	return dict([(r[1].partition('.json')[0], (r[0], r[3], validators[r[1].partition('.json')[0]])) for r in matched])
 
 
-def analyze(matching: Dict[str, int], validators: dict):
+def analyze(matching: Dict[str, tuple], validators: dict):
 	print(f"Analyze {len(matching)}")
 	fig, axs = plt.subplots(nrows=2, ncols=2)
 	for i in range(4):
@@ -72,13 +72,13 @@ def analyze(matching: Dict[str, int], validators: dict):
 		heatmap = np.zeros((6, 7), dtype=int)
 		for w, c in matching.items():
 			if name is None:
-				name = validators[w]['results'][i]['tool']
-			heatmap[RESULT_CODES[c], STATUSES[validators[w]['results'][i]['status']]] += 1
+				name = c[2]['results'][i]['tool']
+			heatmap[RESULT_CODES[c[0]], STATUSES[c[2]['results'][i]['status']]] += 1
 		dataframe = pd.DataFrame(data=heatmap, index=row_names, columns=col_names)
 		ax = sns.heatmap(dataframe, annot=True, fmt="d", ax=axs[math.floor(i / 2)][i % 2], cmap="BuGn")
 		ax.set_title(name)
 
-	plt.show()
+	# plt.show()
 
 
 def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
@@ -142,8 +142,7 @@ def analyze_times(matching: Dict[str, tuple], validators: dict):
 	print("-" * 40)
 	ax = sns.distplot(reject_outliers(times), kde=True, rug=True, ax=axs[0][2], color="green")
 	ax.set_title("CWValidator")
-	fig.delaxes(ax[1, 2])
-	plt.show()
+	fig.delaxes(axs[1, 2])  # The indexing is zero-based here
 
 
 def print_stats(times):
@@ -172,11 +171,12 @@ def main():
 		return 1
 
 	matching = get_matching(all, validators['byWitnessHash'], args.outputmatched)
-	# analyze(matching, validators['byWitnessHash'])
+	analyze(matching, validators['byWitnessHash'])
 
 	# analyze_by_producer(matching, validators['byWitnessHash'])
 
 	analyze_times(matching, validators['byWitnessHash'])
+	plt.show()
 
 
 if __name__ == "__main__":
