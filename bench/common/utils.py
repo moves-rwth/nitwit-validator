@@ -52,7 +52,7 @@ def process_results(results: List[Tuple[int, str, str, float]], executable: str,
 		print(f"Badly parsed: {badly_parsed}")
 
 
-def emplace_in_dict(m: Dict[str, int], el: any):
+def increase_count_in_dict(m: Dict[any, int], el: any):
 	if el in m:
 		m[el] = m[el] + 1
 	elif el is not None:

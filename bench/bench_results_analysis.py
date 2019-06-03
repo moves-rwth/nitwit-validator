@@ -4,7 +4,7 @@ import sys
 import json
 from typing import Tuple, List, Optional, Dict
 
-from common.utils import emplace_in_dict, load_result_files
+from common.utils import increase_count_in_dict, load_result_files
 
 WITNESSES_BY_PROGRAM_HASH_DIR = "witnessListByProgramHashJSON"
 WITNESS_INFO_BY_WITNESS_HASH_DIR = "witnessInfoByHash"
@@ -79,18 +79,18 @@ def analyze_bench_output(results: list, name: str, search_string: str):
 	false_positives = 0
 
 	for witness in results:
-		emplace_in_dict(result_map, witness[0])
+		increase_count_in_dict(result_map, witness[0])
 		with open(os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, witness[1]), 'r') as fp:
 			info_jObj = json.load(fp)
 			if 'producer' in info_jObj:
-				emplace_in_dict(prod_map, info_jObj['producer'])
+				increase_count_in_dict(prod_map, info_jObj['producer'])
 			else:
 				unknown = unknown + 1
 
 			pf = str(info_jObj['programfile'])
 			if pf.find(search_string) == -1:
 				false_positives = false_positives + 1
-		emplace_in_dict(err_msg_map, f"({witness[0]}) {witness[2]}")
+		increase_count_in_dict(err_msg_map, f"({witness[0]}) {witness[2]}")
 
 	print('-' * 20 + ' ', name.capitalize(), ' ' + '-' * 20)
 	print(f"Producer summary: {prod_map}")
