@@ -53,8 +53,7 @@ def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str
                 try:
                     if 'programfile' in jObj and 'programhash' in jObj:
                         programfile = str(jObj['programfile'])
-                        if not programfile.endswith(".c") \
-                                or not str(jObj['specification']) == \
+                        if not str(jObj['specification']) == \
                                        "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )" or \
                                 ('witness-type' in jObj and not jObj['witness-type'] == 'violation_witness'):
                             continue  # not a reachability C verification file
@@ -75,7 +74,7 @@ def get_bench_params(exec_limit: Union[int, None], should_include: Callable[[str
                                     # run the validator with the found witness and source code
                                     configs_to_run.append((path_to_witness_file, path_to_source_code, entry.name))
                                 else:
-                                    print(f"SV-COMP file {path_to_source_code} not found!")
+                                    # print(f"SV-COMP file {path_to_source_code} not found!")
                                     sv_bench_not_found = sv_bench_not_found + 1
 
                 except Exception as e:

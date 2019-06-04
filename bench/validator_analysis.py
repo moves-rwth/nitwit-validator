@@ -50,6 +50,11 @@ VALIDATORS = {
 	3: "CProver",
 	4: "CWValidator"
 }
+VALIDATORS_LIST = ["CPAChecker",
+                   "Ultimate Automizer",
+                   "CPA-witness2test",
+                   "CProver",
+                   "CWValidator"]
 
 
 def get_matching(all_results: List, validators: dict, outputmatched: str = None) -> Dict[str, dict]:
@@ -89,13 +94,17 @@ def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
 			nval = nonvalidated[k]
 		if k in validated:
 			val = validated[k]
-		result[k] = {'val': val, 'nval': nval}
+		result[k] = (val, nval)
+	# sorted_vals = sorted(list(result.keys()))
+	# return sorted_vals, [[result[k][0], result[k][1]] for k in sorted_vals]
 	return result
 
 
 def analyze_by_producer(matching: Dict[str, dict]):
 	print(f"Analyze by producer {len(matching)} witnesses")
-	df = pd.DataFrame()
+	mux = pd.MultiIndex.from_product([VALIDATORS_LIST, ['val', 'nval']])
+	df = pd.DataFrame(columns=mux)
+	data = []
 	for i in range(5):
 		validated = {}
 		nonvalidated = {}
@@ -104,8 +113,15 @@ def analyze_by_producer(matching: Dict[str, dict]):
 				increase_count_in_dict(validated, c['creator'])
 			else:
 				increase_count_in_dict(nonvalidated, c['creator'])
-		df = pd.concat([df, pd.DataFrame.from_dict(validated, orient='index', columns=[f"{VALIDATORS[i]} val"])], axis=1, sort=True)
-		df = pd.concat([df, pd.DataFrame.from_dict(nonvalidated, orient='index', columns=[f"{VALIDATORS[i]} nval"])], axis=1, sort=True)
+		data.append(join_val_non_val(validated, nonvalidated))
+	rows = set(np.asarray(list(map(lambda x: list(x.keys()), data))).flatten())
+	for producer in rows:
+		df.loc[producer] = [float('nan')]*len(VALIDATORS_LIST)*2
+	for i, d in enumerate(data):
+		for k, v in d.items():
+			df.at[k, (VALIDATORS_LIST[i], 'val')] = v[0]
+			df.at[k, (VALIDATORS_LIST[i], 'nval')] = v[1]
+	df.loc["Total"] = df.sum()
 	print(df.to_latex())
 
 
