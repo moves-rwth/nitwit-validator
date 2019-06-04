@@ -25,11 +25,7 @@ STATUSES = {
 	'error (invalid witness file)': 4,
 	'assertion': 4,
 	'out of memory': 5,
-	'-': 6
-}
-col_names = ['false', 'unknown', 'true', 't/o', 'error', 'o/m', 'not run']
-
-RESULT_CODES = {
+	'-': 6,
 	0: 0,  # false
 	245: 0,  # false, but not totally correct witness
 	4: 1,  # parse error
@@ -41,44 +37,48 @@ RESULT_CODES = {
 	241: 4,  # error, witness in sink
 	242: 5,  # program finished, witness not in violation state
 }
+col_names = ['false', 'unknown', 'true', 't/o', 'error', 'o/m', 'not run']
+
+RESULT_CODES = {
+}
 row_names = ['false', 'unknown', 'not reached', 't/o', 'sink', 'not in violation state']
 
 VALIDATORS = {
 	0: "CPAChecker",
 	1: "Ultimate Automizer",
 	2: "CPA-witness2test",
-	3: "CProver"
+	3: "CProver",
+	4: "CWValidator"
 }
 
 
-def get_matching(all_results: List, validators: dict, outputmatched: str = None) -> Dict[str, tuple]:
+def get_matching(all_results: List, validators: dict, outputmatched: str = None) -> Dict[str, dict]:
 	by_witness = validators.keys()
 	# witness_keys = [hash['witnessSHA'].lower() for key in by_witness for hash in validators[key]['results']]
 	witness_keys = set(by_witness)
 
 	matched = list(filter(lambda r: str(r[1]).partition('.json')[0] in witness_keys, all_results))
+	matched_keys = list(map(lambda r: str(r[1]).partition('.json')[0], matched))
 	if outputmatched is not None:
 		with open(outputmatched, 'w') as fp:
 			json.dump(matched, fp)
+	for w in matched:
+		validators[w[1].partition('.json')[0]]['results'] \
+			.insert(4, dict({'cpu': w[3], 'tool': 'CWValidator', 'status': w[0]}))
 	print(f"I could match {len(matched)} out of {len(all_results)} witnesses")
-	return dict([(r[1].partition('.json')[0], (r[0], r[3], validators[r[1].partition('.json')[0]])) for r in matched])
+	return {k: v for k, v in validators.items() if k in matched_keys}
 
 
-def analyze(matching: Dict[str, tuple], validators: dict):
+def analyze(matching: Dict[str, dict]):
 	print(f"Analyze {len(matching)}")
 	fig, axs = plt.subplots(nrows=2, ncols=2)
 	for i in range(4):
-		name = None
 		heatmap = np.zeros((6, 7), dtype=int)
 		for w, c in matching.items():
-			if name is None:
-				name = c[2]['results'][i]['tool']
-			heatmap[RESULT_CODES[c[0]], STATUSES[c[2]['results'][i]['status']]] += 1
+			heatmap[STATUSES[c['results'][4]['status']], STATUSES[c['results'][i]['status']]] += 1
 		dataframe = pd.DataFrame(data=heatmap, index=row_names, columns=col_names)
 		ax = sns.heatmap(dataframe, annot=True, fmt="d", ax=axs[math.floor(i / 2)][i % 2], cmap="BuGn")
-		ax.set_title(name)
-
-	# plt.show()
+		ax.set_title(VALIDATORS[i])
 
 
 def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
@@ -93,55 +93,38 @@ def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
 	return result
 
 
-def analyze_by_producer(matching: Dict[str, tuple], validators: dict):
+def analyze_by_producer(matching: Dict[str, dict]):
 	print(f"Analyze by producer {len(matching)} witnesses")
-	for i in range(4):
+	df = pd.DataFrame()
+	for i in range(5):
 		validated = {}
 		nonvalidated = {}
-		name = None
 		for w, c in matching.items():
-			if name is None:
-				name = validators[w]['results'][i]['tool']
-			if STATUSES[validators[w]['results'][i]['status']] == 0:
-				increase_count_in_dict(validated, validators[w]['creator'])
+			if STATUSES[c['results'][i]['status']] == 0:
+				increase_count_in_dict(validated, c['creator'])
 			else:
-				increase_count_in_dict(nonvalidated, validators[w]['creator'])
-		print(f"Validator {name}:")
-		print(join_val_non_val(validated, nonvalidated))
-		print("-" * 40)
-	validated = {}
-	nonvalidated = {}
-	for w, c in matching.items():
-		if RESULT_CODES[c[0]] == 0:
-			increase_count_in_dict(validated, validators[w]['creator'])
-		else:
-			increase_count_in_dict(nonvalidated, validators[w]['creator'])
-	print("CWValidator:")
-	print(join_val_non_val(validated, nonvalidated))
-	print("-" * 40)
+				increase_count_in_dict(nonvalidated, c['creator'])
+		df = pd.concat([df, pd.DataFrame.from_dict(validated, orient='index', columns=[f"{VALIDATORS[i]} val"])], axis=1, sort=True)
+		df = pd.concat([df, pd.DataFrame.from_dict(nonvalidated, orient='index', columns=[f"{VALIDATORS[i]} nval"])], axis=1, sort=True)
+	print(df.to_latex())
 
 
 def reject_outliers(data, m=2):
 	return data[abs(data - np.mean(data)) < m * np.std(data)]
 
 
-def analyze_times(matching: Dict[str, tuple], validators: dict):
+def analyze_times(matching: Dict[str, dict]):
 	fig, axs = plt.subplots(nrows=2, ncols=3)
 	# take just the successful ones
-	for i in range(4):
-		times = np.asarray(list(map(lambda x: float(x[2]['results'][i]['cpu']), filter(lambda x: STATUSES[x[2]['results'][i]['status']] == 0, matching.values()))))
+	for i in range(5):
+		times = np.asarray(list(map(lambda x: float(x['results'][i]['cpu']),
+		                            filter(lambda x: STATUSES[x['results'][i]['status']] == 0, matching.values()))))
 		print(f"Validator {VALIDATORS[i]}:")
 		print_stats(times)
 		print("-" * 40)
-		ax = sns.distplot(reject_outliers(times), kde=True, rug=True, ax=axs[math.floor(i / 2)][i % 2], color="green")
+		ax = sns.distplot(reject_outliers(times), kde=True, rug=True, ax=axs[i % 2][math.floor(i / 2)], color="green")
 		ax.set_title(VALIDATORS[i])
 
-	times = np.asarray(list(map(lambda x: x[1], filter(lambda x: RESULT_CODES[x[0]] == 0, matching.values()))))
-	print("CWValidator:")
-	print_stats(times)
-	print("-" * 40)
-	ax = sns.distplot(reject_outliers(times), kde=True, rug=True, ax=axs[0][2], color="green")
-	ax.set_title("CWValidator")
 	fig.delaxes(axs[1, 2])  # The indexing is zero-based here
 
 
@@ -171,11 +154,11 @@ def main():
 		return 1
 
 	matching = get_matching(all, validators['byWitnessHash'], args.outputmatched)
-	analyze(matching, validators['byWitnessHash'])
+	# analyze(matching)
 
-	# analyze_by_producer(matching, validators['byWitnessHash'])
+	analyze_by_producer(matching)
 
-	analyze_times(matching, validators['byWitnessHash'])
+	# analyze_times(matching)
 	plt.show()
 
 
