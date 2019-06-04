@@ -51,10 +51,16 @@ int ParseCountParams(struct ParseState *Parser)
     {
         /* count the number of parameters */
         ParamCount++;
-        while ((Token = LexGetToken(Parser, NULL, TRUE)) != TokenCloseBracket && Token != TokenEOF)
+        int depth = 0;
+        while (((Token = LexGetToken(Parser, NULL, TRUE)) != TokenCloseBracket
+                || depth != 0) && Token != TokenEOF)
         {
-            if (Token == TokenComma)
+            if (Token == TokenComma && depth == 0)
                 ParamCount++;
+            if (Token == TokenOpenBracket)
+                ++depth;
+            if (Token == TokenCloseBracket)
+                --depth;
         }
     }
 
