@@ -27,7 +27,7 @@
 
 #define MAX_CHAR_VALUE 255      /* maximum value which can be represented by a "char" data type */
 
-
+enum LexToken LexScanGetToken(Picoc *pc, struct LexState *Lexer, struct Value **Value);
 struct ReservedWord
 {
     const char *Word;
@@ -91,6 +91,7 @@ static struct ReservedWord ReservedWords[] =
     { "__inline__", TokenIgnore },
     { "__inline", TokenIgnore },
     { "__builtin_va_list", TokenIgnore },
+    { "volatile", TokenIgnore },
 };
 
 
@@ -263,14 +264,12 @@ enum LexToken LexGetWord(Picoc *pc, struct LexState *Lexer, struct Value *Value)
     {
         case TokenHashInclude: Lexer->Mode = LexModeHashInclude; break;
         case TokenHashDefine: Lexer->Mode = LexModeHashDefine; break;
-        case TokenIgnore: return LexGetWord(pc, Lexer, Value);
+        case TokenIgnore: return LexScanGetToken(pc, Lexer, &Value);
         default: break;
     }
 
-
     if (Token != TokenNone)
         return Token;
-
 
     if (Lexer->Mode == LexModeHashDefineSpace)
         Lexer->Mode = LexModeHashDefineSpaceIdent;
