@@ -436,6 +436,7 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
     struct Value *VarValue;
     int StaticQualifier = FALSE;
     int ConstQualifier = FALSE;
+    int LongQualifier = FALSE;
     Picoc *pc = Parser->pc;
     *Typ = NULL;
 
@@ -443,11 +444,12 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
     ParserCopy(&Before, Parser);
     Token = LexGetToken(Parser, &LexerValue, TRUE);
     while (Token == TokenStaticType || Token == TokenAutoType || Token == TokenRegisterType || Token == TokenExternType
-            || Token == TokenConst)
+            || Token == TokenConst || (Token == TokenLongType && !LongQualifier))
     {
         if (Token == TokenStaticType)
             StaticQualifier = TRUE;
-
+        if (Token == TokenLongType)
+            LongQualifier = TRUE;
         if (Token == TokenConst)
             ConstQualifier = TRUE;
         Token = LexGetToken(Parser, &LexerValue, TRUE);
@@ -486,6 +488,8 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
         case TokenLongType:
             if (LexGetToken(Parser, NULL, FALSE) == TokenLongType){
                 LexGetToken(Parser, NULL, TRUE);
+                *Typ = Unsigned ? &pc->UnsignedLongLongType : &pc->LongLongType;
+            } else if (LongQualifier == TRUE){
                 *Typ = Unsigned ? &pc->UnsignedLongLongType : &pc->LongLongType;
             } else {
                 *Typ = Unsigned ? &pc->UnsignedLongType : &pc->LongType;
