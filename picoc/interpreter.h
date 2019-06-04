@@ -91,7 +91,7 @@ enum LexToken
     /* 0x53 */ TokenHashDefine, TokenHashInclude, TokenHashIf, TokenHashIfdef, TokenHashIfndef, TokenHashElse, TokenHashEndif,
     /* 0x5a */ TokenNew, TokenDelete,
     /* 0x5c */ TokenOpenMacroBracket,
-    /* 0x5d */ TokenAttribute, TokenNoReturn, TokenRestrict,
+    /* 0x5d */ TokenAttribute, TokenNoReturn, TokenIgnore,
     /* 0x60 */ TokenEOF, TokenEndOfLine, TokenEndOfFunction,
 };
 
