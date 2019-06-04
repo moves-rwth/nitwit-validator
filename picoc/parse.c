@@ -866,9 +866,15 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         case TokenStaticType:
         case TokenAutoType:
         case TokenRegisterType:
-        case TokenExternType:
             *Parser = PreState;
             CheckTrailingSemicolon = ParseDeclaration(Parser, Token);
+            break;
+        case TokenExternType:
+            // just ignore the externs...
+            for (Token = LexGetToken(Parser, NULL, TRUE);
+                Token != TokenSemicolon && Token != TokenEOF;
+                Token = LexGetToken(Parser, NULL, TRUE)) {}
+            CheckTrailingSemicolon = FALSE;
             break;
 
         case TokenHashDefine:
