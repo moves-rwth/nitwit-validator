@@ -87,10 +87,9 @@ def run_single_config(witness_info_file: str) -> Tuple[int, str, str, float]:
 
 			if 'programfile' in jObj and 'programhash' in jObj:
 				programfile = str(jObj['programfile'])
-				if not programfile.endswith(".c") \
-						or not str(
+				if not str(
 					jObj['specification']) == "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )":
-					raise Exception("Not a reachability C verification file")
+					raise Exception("Not a violation reachability verification file")
 
 				sv_regexp_location = programfile.find("sv-benchmarks/c/")
 				if not sv_regexp_location == -1:

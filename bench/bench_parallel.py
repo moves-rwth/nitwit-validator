@@ -95,6 +95,7 @@ def main():
     parser.add_argument("-e", "--exec", required=True, type=str, help="The CWValidator executable.")
     parser.add_argument("-sv", "--sv_benchmark", required=True, type=str, help="The SV-COMP benchmark source files.")
     parser.add_argument("-to", "--timeout", required=False, type=float, default=300, help="Timeout for a validation.")
+    parser.add_argument("-l", "--limit", required=False, type=int, default=None, help="How many configurations to run.")
     parser.add_argument("-c", "--config", required=True, type=str, help="The executions configuration file.")
 
     args = parser.parse_args()
@@ -102,6 +103,8 @@ def main():
         return 1
 
     configs = get_bench_configs(args.config)
+    if args.limit is not None:
+        configs = configs[:args.limit]
     results = run_bench_parallel(configs)
     process_results(results, VALIDATOR_EXECUTABLE, True)
 

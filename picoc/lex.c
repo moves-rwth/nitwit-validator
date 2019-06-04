@@ -70,6 +70,7 @@ static struct ReservedWord ReservedWords[] =
     { "return", TokenReturn },
     { "short", TokenShortType },
     { "signed", TokenSignedType },
+    { "__signed__", TokenSignedType },
     { "sizeof", TokenSizeof },
     { "static", TokenStaticType },
     { "struct", TokenStructType },
@@ -83,10 +84,14 @@ static struct ReservedWord ReservedWords[] =
     { "__noreturn__", TokenNoReturn },
     { "const", TokenConst },
     { "__const", TokenConst },
-    { "restrict", TokenRestrict },
-    { "__restrict", TokenRestrict },
+    { "restrict", TokenIgnore },
+    { "__restrict", TokenIgnore },
+    { "__inline", TokenIgnore },
+    { "__extension__", TokenIgnore },
+    { "__inline__", TokenIgnore },
+    { "__inline", TokenIgnore },
+    { "__builtin_va_list", TokenIgnore },
 };
-
 
 
 /* initialise the lexer */
@@ -258,13 +263,12 @@ enum LexToken LexGetWord(Picoc *pc, struct LexState *Lexer, struct Value *Value)
     {
         case TokenHashInclude: Lexer->Mode = LexModeHashInclude; break;
         case TokenHashDefine: Lexer->Mode = LexModeHashDefine; break;
+        case TokenIgnore: return LexGetWord(pc, Lexer, Value);
         default: break;
     }
 
 
-    if (Token == TokenRestrict)
-        return LexGetWord(pc, Lexer, Value);
-    else if (Token != TokenNone)
+    if (Token != TokenNone)
         return Token;
 
 

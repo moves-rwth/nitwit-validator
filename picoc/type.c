@@ -478,15 +478,21 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
     switch (Token)
     {
         case TokenIntType: *Typ = Unsigned ? &pc->UnsignedIntType : &pc->IntType; break;
-        case TokenShortType: *Typ = Unsigned ? &pc->UnsignedShortType : &pc->ShortType; break;
+        case TokenShortType: *Typ = Unsigned ? &pc->UnsignedShortType : &pc->ShortType;
+            if (LexGetToken(Parser, NULL, FALSE) == TokenIntType)
+                LexGetToken(Parser, NULL, TRUE);
+            break;
         case TokenCharType: *Typ = Unsigned ? &pc->UnsignedCharType : &pc->CharType; break;
         case TokenLongType:
             if (LexGetToken(Parser, NULL, FALSE) == TokenLongType){
                 LexGetToken(Parser, NULL, TRUE);
-                *Typ = Unsigned ? &pc->UnsignedLongLongType : &pc->LongLongType; break;
+                *Typ = Unsigned ? &pc->UnsignedLongLongType : &pc->LongLongType;
             } else {
-                *Typ = Unsigned ? &pc->UnsignedLongType : &pc->LongType; break;
+                *Typ = Unsigned ? &pc->UnsignedLongType : &pc->LongType;
             }
+            if (LexGetToken(Parser, NULL, FALSE) == TokenIntType)
+                LexGetToken(Parser, NULL, TRUE);
+            break;
 #ifndef NO_FP
         case TokenFloatType: case TokenDoubleType: *Typ = &pc->FPType; break;
 #endif
