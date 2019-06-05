@@ -265,11 +265,11 @@ enum LexToken LexGetWord(Picoc *pc, struct LexState *Lexer, struct Value *Value)
         case TokenHashInclude: Lexer->Mode = LexModeHashInclude; break;
         case TokenHashDefine: Lexer->Mode = LexModeHashDefine; break;
         case TokenIgnore: return LexScanGetToken(pc, Lexer, &Value);
-//        case TokenAttribute:
-//            // just ignore the __attributes__
-//            for (; Lexer->Pos != Lexer->End && *Lexer->Pos != ';'
-//                    ; LEXER_INC(Lexer)) {}
-//            return TokenSemicolon;
+        case TokenAttribute:
+            // just ignore the __attributes__
+            for (; Lexer->Pos != Lexer->End && *Lexer->Pos != ';'
+                    ; LEXER_INC(Lexer)) {}
+            return TokenSemicolon;
         default: break;
     }
 
