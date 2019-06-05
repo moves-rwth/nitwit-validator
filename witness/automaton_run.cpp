@@ -61,7 +61,6 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             continue;
         }
 
-        state->pc->IsInAssumptionMode = TRUE;
         void *heapstacktop_before = state->pc->HeapStackTop;
         unsigned char *heapmemory_before = state->pc->HeapMemory;
         void *heapbottom_before = state->pc->HeapBottom;
@@ -69,7 +68,8 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         HeapInit(state->pc, 1048576); // 1 MB todo don't allocate every time new...
         char *RegFileName = TableStrRegister(state->pc, ("assumption " + ass).c_str());
 
-        void *Tokens = LexAnalyse(state->pc, RegFileName, ass.c_str(), ass.length(), nullptr);
+        state->pc->IsInAssumptionMode = TRUE;
+        void *Tokens = nullptr;
         if (setjmp(state->pc->AssumptionPicocExitBuf)) {
             cw_verbose("Stopping assumption checker.\n");
             free(Tokens);
@@ -81,6 +81,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             state->pc->StackFrame = stackframe;
             return false;
         }
+        Tokens = LexAnalyse(state->pc, RegFileName, ass.c_str(), ass.length(), nullptr);
         ParseState Parser{};
         LexInitParser(&Parser, state->pc, ass.c_str(), Tokens, RegFileName, TRUE, FALSE, nullptr);
         int ret = AssumptionExpressionParseLongLong(&Parser);
