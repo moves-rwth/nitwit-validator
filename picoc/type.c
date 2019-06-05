@@ -444,12 +444,10 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
     ParserCopy(&Before, Parser);
     Token = LexGetToken(Parser, &LexerValue, TRUE);
     while (Token == TokenStaticType || Token == TokenAutoType || Token == TokenRegisterType || Token == TokenExternType
-            || Token == TokenConst || (Token == TokenLongType && !LongQualifier))
+            || Token == TokenConst)
     {
         if (Token == TokenStaticType)
             StaticQualifier = TRUE;
-        if (Token == TokenLongType)
-            LongQualifier = TRUE;
         if (Token == TokenConst)
             ConstQualifier = TRUE;
         Token = LexGetToken(Parser, &LexerValue, TRUE);
@@ -517,6 +515,10 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
             break;
 
         case TokenIdentifier:
+            if (LongQualifier == TRUE){
+                *Typ = Unsigned ? &pc->UnsignedLongType : &pc->LongType;
+                break;
+            }
             /* we already know it's a typedef-defined type because we got here */
             VariableGet(pc, Parser, LexerValue->Val->Identifier, &VarValue);
             *Typ = VarValue->Val->Typ;
