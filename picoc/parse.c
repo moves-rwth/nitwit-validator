@@ -173,6 +173,7 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
 
     }
 
+    char SkipDefinition = FALSE;
     /* is this function already in the global table? */
     if (!IsPtrDecl) {
         if (TableGet(&pc->GlobalTable, Identifier, &OldFuncValue, NULL, NULL, NULL)) {
@@ -181,9 +182,17 @@ struct Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueTyp
                 ProgramFail(Parser, "'%s' is already defined", Identifier);
 
             /* override an old function prototype */
-            VariableFree(pc, TableDelete(pc, &pc->GlobalTable, Identifier));
+            if (FuncValue->Val->FuncDef.Body.Pos == NULL &&
+                OldFuncValue->Val->FuncDef.Intrinsic != NULL){
+                // just a "non-extern" declaration of library function
+                SkipDefinition = TRUE;
+                VariableFree(pc, FuncValue);
+            } else {
+                VariableFree(pc, TableDelete(pc, &pc->GlobalTable, Identifier));
+            }
         }
-        if (!TableSet(pc, &pc->GlobalTable, Identifier, FuncValue, (char *) Parser->FileName, Parser->Line,
+        if (!SkipDefinition &&
+            !TableSet(pc, &pc->GlobalTable, Identifier, FuncValue, (char *) Parser->FileName, Parser->Line,
                       Parser->CharacterPos))
             ProgramFail(Parser, "'%s' is already defined", Identifier);
     }
