@@ -626,6 +626,7 @@ void ParseTypedef(struct ParseState *Parser)
     struct ValueType **TypPtr;
     char *TypeName;
     struct Value InitValue;
+    struct Value* OldTypedef;
 
     TypeParse(Parser, &Typ, &TypeName, NULL, NULL);
 
@@ -635,6 +636,14 @@ void ParseTypedef(struct ParseState *Parser)
         InitValue.Typ = &Parser->pc->TypeType;
         InitValue.Val = (union AnyValue *)TypPtr;
         InitValue.IsLValue = FALSE;
+
+        if (VariableDefined(Parser->pc, TypeName)){
+            VariableGet(Parser->pc, Parser, TypeName, &OldTypedef);
+            if (OldTypedef->Typ == InitValue.Typ){
+                return;
+            }
+        }
+
         VariableDefine(Parser->pc, Parser, TypeName, &InitValue, NULL, FALSE);
     }
 }
@@ -875,9 +884,13 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         case TokenStaticType:
         case TokenAutoType:
         case TokenRegisterType:
+#ifdef NO_HEADER_INCLUDE
+        case TokenExternType:
+#endif
             *Parser = PreState;
             CheckTrailingSemicolon = ParseDeclaration(Parser, Token);
             break;
+#ifndef NO_HEADER_INCLUDE
         case TokenExternType:
             // just ignore the externs...
             for (Token = LexGetToken(Parser, NULL, TRUE);
@@ -885,7 +898,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 Token = LexGetToken(Parser, NULL, TRUE)) {}
             CheckTrailingSemicolon = FALSE;
             break;
-
+#endif
         case TokenHashDefine:
             ParseMacroDefinition(Parser);
             CheckTrailingSemicolon = FALSE;

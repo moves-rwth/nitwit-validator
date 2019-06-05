@@ -92,6 +92,7 @@ static struct ReservedWord ReservedWords[] =
     { "__inline", TokenIgnore },
     { "__builtin_va_list", TokenIgnore },
     { "volatile", TokenIgnore },
+    { "#pragma", TokenPragma },
 };
 
 
@@ -268,6 +269,14 @@ enum LexToken LexGetWord(Picoc *pc, struct LexState *Lexer, struct Value *Value)
         case TokenAttribute:
             // just ignore the __attributes__
             for (; Lexer->Pos != Lexer->End && *Lexer->Pos != ';'
+                    ; LEXER_INC(Lexer)) {
+                if (*Lexer->Pos == '\n')
+                    ++Lexer->EmitExtraNewlines;
+            }
+            return TokenSemicolon;
+        case TokenPragma:
+            // just ignore the pragmas
+            for (; Lexer->Pos != Lexer->End && *Lexer->Pos != '\n'
                     ; LEXER_INC(Lexer)) {}
             return TokenSemicolon;
         default: break;
@@ -640,7 +649,7 @@ void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText,
     Parser->SourceText = SourceText;
     Parser->DebugMode = EnableDebugger;
     // jsv
-    Parser->ScopeID = 0; // getting uninit errors from valgrind :/
+    Parser->ScopeID = 0;
     Parser->DebuggerCallback = DebuggerCallback;
     Parser->EnterFunction = NULL;
     Parser->ReturnFromFunction = NULL;
