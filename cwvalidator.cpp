@@ -86,15 +86,15 @@ int validate(const char *source_filename) {
         return ret;
     }
     cw_verbose("============Start simulation============\n");
-    char defs[] = "_Bool.h";
-    IncludeFile(&pc, defs);
+//    char defs[] = "_Bool.h";
+//    IncludeFile(&pc, defs);
+//    char fn[] = "verif.h";
+//    IncludeFile(&pc, fn);
+    PicocIncludeAllSystemHeaders(&pc);
     char *source = readFile(source_filename);
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
     // also include extern functions used by verifiers like error, assume, nondet...
-    char fn[] = "verif.h";
-    IncludeFile(&pc, fn);
-
     if (!VariableDefined(&pc, TableStrRegister(&pc, "main")))
         printf("Sorry, not sorry. No main function...");
 
