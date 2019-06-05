@@ -610,8 +610,8 @@ int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicT
     else {
         *Identifier = LexValue->Val->Identifier;
         *Type = TypeParseBack(Parser, *Type);
+        Token = LexGetToken(Parser, &LexValue, TRUE);
     }
-    Token = LexGetToken(Parser, &LexValue, TRUE);
 
     if (Token != TokenCloseBracket)
         ProgramFail(Parser, ") expected after function pointer identifier");
