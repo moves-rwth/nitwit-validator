@@ -39,7 +39,7 @@ void printProgramState(ParseState *ps) {
     if (ps->ReturnFromFunction != nullptr)
         printf(", Return: %s", ps->ReturnFromFunction);
     printf("\n");
-    if (ps->Line == 375 && ps->CharacterPos == 0) {
+    if (ps->Line == 34 && ps->CharacterPos == 0) {
         printf("debug\n");
     }
 }
@@ -85,10 +85,11 @@ int validate(const char *source_filename) {
         return ret;
     }
     cw_verbose("============Start simulation============\n");
-//    IncludeFile(&pc, TableStrRegister(&pc, "_Bool.h"));
     // include all standard libraries and extern functions used by verifiers
     // like stdio, stdlib, special error, assume, nondet functions
+#ifndef NO_HEADER_INCLUDE
     PicocIncludeAllSystemHeaders(&pc);
+#endif
     char *source = readFile(source_filename);
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
