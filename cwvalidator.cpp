@@ -82,21 +82,16 @@ int validate(const char *source_filename) {
         cw_verbose("Stopping the interpreter.\n");
         int ret = pc.PicocExitValue;
         PicocCleanup(&pc);
-
         return ret;
     }
     cw_verbose("============Start simulation============\n");
-//    char defs[] = "_Bool.h";
-//    IncludeFile(&pc, defs);
-//    char fn[] = "verif.h";
-//    IncludeFile(&pc, fn);
-    PicocIncludeAllSystemHeaders(&pc);
+    IncludeFile(&pc, TableStrRegister(&pc, "_Bool.h"));
     char *source = readFile(source_filename);
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
-    // also include extern functions used by verifiers like error, assume, nondet...
-    if (!VariableDefined(&pc, TableStrRegister(&pc, "main")))
-        printf("Sorry, not sorry. No main function...");
+    // include all standard libraries and extern functions used by verifiers
+    // like stdio, stdlib, special error, assume, nondet functions
+    PicocIncludeAllSystemHeaders(&pc);
 
     struct Value *MainFuncValue = nullptr;
     VariableGet(&pc, nullptr, TableStrRegister(&pc, "main"), &MainFuncValue);
@@ -106,7 +101,6 @@ int validate(const char *source_filename) {
 
     PicocCallMain(&pc, nullptr, 0, nullptr);
     cw_verbose("===============Finished=================\n\n");
-
     cw_verbose("Program finished. Exit value: %d\n", pc.PicocExitValue);
 
     PicocCleanup(&pc);
