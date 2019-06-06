@@ -15,8 +15,5 @@ int main() {
     unsigned long tmp13;
     unsigned long int tmp14;
 
-    int __unbuffered_cnt;
-    int __unbuffered_cnt = 0;
-
     return 1;
 }
