@@ -67,7 +67,8 @@ void PrintType(struct ValueType *Typ, IOFILE *Stream)
         case TypeUnsignedLongLong:  PrintStr("unsigned long long", Stream); break;
         case TypeUnsignedChar:      PrintStr("unsigned char", Stream); break;
 #ifndef NO_FP
-        case TypeFP:                PrintStr("double", Stream); break;
+        case TypeDouble:            PrintStr("double", Stream); break;
+        case TypeFloat:             PrintStr("float", Stream); break;
 #endif
         case TypeFunction:          PrintStr("function", Stream); break;
         case TypeMacro:             PrintStr("macro", Stream); break;
@@ -268,7 +269,7 @@ void GenericPrintf(struct ParseState *Parser, struct Value *ReturnValue, struct 
                 case 's': FormatType = CharPtrType; break;
                 case 'd': case 'u': case 'x': case 'b': case 'c': FormatType = &IntType; break;
 #ifndef NO_FP
-                case 'f': FormatType = &FPType; break;
+                case 'f': FormatType = &DoubleType; break;
 #endif
                 case '%': PrintCh('%', Stream); FormatType = NULL; break;
                 case '\0': FPos--; FormatType = NULL; break;
@@ -375,92 +376,92 @@ void LibExit(struct ParseState *Parser, struct Value *ReturnValue, struct Value 
 #ifdef PICOC_LIBRARY
 void LibSin(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = sin(Param[0]->Val->FP);
+    ReturnValue->Val->Double = sin(Param[0]->Val->Double);
 }
 
 void LibCos(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = cos(Param[0]->Val->FP);
+    ReturnValue->Val->Double = cos(Param[0]->Val->Double);
 }
 
 void LibTan(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = tan(Param[0]->Val->FP);
+    ReturnValue->Val->Double = tan(Param[0]->Val->Double);
 }
 
 void LibAsin(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = asin(Param[0]->Val->FP);
+    ReturnValue->Val->Double = asin(Param[0]->Val->Double);
 }
 
 void LibAcos(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = acos(Param[0]->Val->FP);
+    ReturnValue->Val->Double = acos(Param[0]->Val->Double);
 }
 
 void LibAtan(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = atan(Param[0]->Val->FP);
+    ReturnValue->Val->Double = atan(Param[0]->Val->Double);
 }
 
 void LibSinh(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = sinh(Param[0]->Val->FP);
+    ReturnValue->Val->Double = sinh(Param[0]->Val->Double);
 }
 
 void LibCosh(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = cosh(Param[0]->Val->FP);
+    ReturnValue->Val->Double = cosh(Param[0]->Val->Double);
 }
 
 void LibTanh(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = tanh(Param[0]->Val->FP);
+    ReturnValue->Val->Double = tanh(Param[0]->Val->Double);
 }
 
 void LibExp(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = exp(Param[0]->Val->FP);
+    ReturnValue->Val->Double = exp(Param[0]->Val->Double);
 }
 
 void LibFabs(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = fabs(Param[0]->Val->FP);
+    ReturnValue->Val->Double = fabs(Param[0]->Val->Double);
 }
 
 void LibLog(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = log(Param[0]->Val->FP);
+    ReturnValue->Val->Double = log(Param[0]->Val->Double);
 }
 
 void LibLog10(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = log10(Param[0]->Val->FP);
+    ReturnValue->Val->Double = log10(Param[0]->Val->Double);
 }
 
 void LibPow(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = pow(Param[0]->Val->FP, Param[1]->Val->FP);
+    ReturnValue->Val->Double = pow(Param[0]->Val->Double, Param[1]->Val->Double);
 }
 
 void LibSqrt(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = sqrt(Param[0]->Val->FP);
+    ReturnValue->Val->Double = sqrt(Param[0]->Val->Double);
 }
 
 void LibRound(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = floor(Param[0]->Val->FP + 0.5);   /* XXX - fix for soft float */
+    ReturnValue->Val->Double = floor(Param[0]->Val->Double + 0.5);   /* XXX - fix for soft float */
 }
 
 void LibCeil(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = ceil(Param[0]->Val->FP);
+    ReturnValue->Val->Double = ceil(Param[0]->Val->Double);
 }
 
 void LibFloor(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = floor(Param[0]->Val->FP);
+    ReturnValue->Val->Double = floor(Param[0]->Val->Double);
 }
 #endif
 

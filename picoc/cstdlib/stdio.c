@@ -215,9 +215,9 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                     case 'd': case 'i':     ShowType = &pc->IntType; break;     /* integer decimal */
                     case 'o': case 'u': case 'x': case 'X': ShowType = &pc->IntType; break; /* integer base conversions */
 #ifndef NO_FP
-                    case 'e': case 'E':     ShowType = &pc->FPType; break;      /* double, exponent form */
-                    case 'f': case 'F':     ShowType = &pc->FPType; break;      /* double, fixed-point */
-                    case 'g': case 'G':     ShowType = &pc->FPType; break;      /* double, flexible format */
+                    case 'e': case 'E':     ShowType = &pc->DoubleType; break;      /* double, exponent form */
+                    case 'f': case 'F':     ShowType = &pc->DoubleType; break;      /* double, fixed-point */
+                    case 'g': case 'G':     ShowType = &pc->DoubleType; break;      /* double, flexible format */
 #endif
                     case 'a': case 'A':     ShowType = &pc->IntType; break;     /* hexadecimal, 0x- format */
                     case 'c':               ShowType = &pc->IntType; break;     /* character */
@@ -273,7 +273,7 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                             StdioOutPuts("XXX", &SOStream);
                     }
 #ifndef NO_FP
-                    else if (ShowType == &pc->FPType)
+                    else if (ShowType == &pc->DoubleType)
                     {
                         /* show a floating point number */
                         if (IS_NUMERIC_COERCIBLE(ThisArg))
