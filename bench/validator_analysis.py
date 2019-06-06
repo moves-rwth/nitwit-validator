@@ -56,6 +56,12 @@ VALIDATORS_LIST = ["CPAChecker",
                    "CProver",
                    "CWValidator"]
 
+CPU_MULTIPLIER = 2.1 / 3.4
+
+
+def adjust_to_cpu(time: float) -> float:
+	return time * CPU_MULTIPLIER
+
 
 def get_matching(all_results: List, validators: dict, outputmatched: str = None) -> Dict[str, dict]:
 	by_witness = validators.keys()
@@ -69,7 +75,7 @@ def get_matching(all_results: List, validators: dict, outputmatched: str = None)
 			json.dump(matched, fp)
 	for w in matched:
 		validators[w[1].partition('.json')[0]]['results'] \
-			.insert(4, dict({'cpu': w[3], 'tool': 'CWValidator', 'status': w[0]}))
+			.insert(4, dict({'cpu': adjust_to_cpu(w[3]), 'tool': 'CWValidator', 'status': w[0]}))
 	print(f"I could match {len(matched)} out of {len(all_results)} witnesses")
 	return {k: v for k, v in validators.items() if k in matched_keys}
 
@@ -116,7 +122,7 @@ def analyze_by_producer(matching: Dict[str, dict]):
 		data.append(join_val_non_val(validated, nonvalidated))
 	rows = set(np.asarray(list(map(lambda x: list(x.keys()), data))).flatten())
 	for producer in rows:
-		df.loc[producer] = [float('nan')]*len(VALIDATORS_LIST)*2
+		df.loc[producer] = [float('nan')] * len(VALIDATORS_LIST) * 2
 	for i, d in enumerate(data):
 		for k, v in d.items():
 			df.at[k, (VALIDATORS_LIST[i], 'val')] = v[0]
