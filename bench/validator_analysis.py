@@ -170,11 +170,12 @@ def main():
 		return 1
 
 	matching = get_matching(all, validators['byWitnessHash'], args.outputmatched)
-	# analyze(matching)
-	#
-	# analyze_by_producer(matching)
-	#
-	# analyze_times(matching)
+	analyze(matching)
+
+	analyze_by_producer(matching)
+
+	analyze_times(matching)
+
 	plt.show()
 
 
