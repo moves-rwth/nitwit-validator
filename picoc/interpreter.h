@@ -40,8 +40,8 @@ typedef FILE IOFILE;
 
 /* coercion of numeric types to other numeric types */
 #ifndef NO_FP
-#define IS_FP(v) ((v)->Typ->Base == TypeFP)
-#define FP_VAL(v) ((v)->Val->FP)
+#define IS_FP(v) ((v)->Typ->Base == TypeDouble || (v)->Typ->Base == TypeFloat)
+//#define FP_VAL(v) ((v)->Val->FP)
 #else
 #define IS_FP(v) 0
 #define FP_VAL(v) 0
@@ -203,7 +203,8 @@ enum BaseType
     TypeUnsignedLong,           /* unsigned long integer */
     TypeUnsignedLongLong,           /* unsigned long long integer */
 #ifndef NO_FP
-    TypeFP,                     /* floating point */
+    TypeDouble,                     /* floating point */
+    TypeFloat,                     /* floating point */
 #endif
     TypeFunction,               /* a function */
     TypeFunctionPtr,               /* a function pointer*/
@@ -274,7 +275,8 @@ union AnyValue
     struct FuncDef FuncDef;
     struct MacroDef MacroDef;
 #ifndef NO_FP
-    double FP;
+    double Double;
+    float Float;
 #endif
     void *Pointer;                  /* unsafe native pointers */
 };
@@ -460,7 +462,8 @@ struct Picoc_Struct
     struct ValueType UnsignedLongLongType;
     struct ValueType UnsignedCharType;
     #ifndef NO_FP
-    struct ValueType FPType;
+    struct ValueType DoubleType;
+    struct ValueType FloatType;
     #endif
     struct ValueType VoidType;
     struct ValueType TypeType;

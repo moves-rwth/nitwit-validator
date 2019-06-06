@@ -8,7 +8,7 @@ static int Stdlib_ZeroValue = 0;
 #ifndef NO_FP
 void StdlibAtof(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = atof(Param[0]->Val->Pointer);
+    ReturnValue->Val->Double = atof(Param[0]->Val->Pointer);
 }
 #endif
 
@@ -25,7 +25,7 @@ void StdlibAtol(struct ParseState *Parser, struct Value *ReturnValue, struct Val
 #ifndef NO_FP
 void StdlibStrtod(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = strtod(Param[0]->Val->Pointer, Param[1]->Val->Pointer);
+    ReturnValue->Val->Double = strtod(Param[0]->Val->Pointer, Param[1]->Val->Pointer);
 }
 #endif
 

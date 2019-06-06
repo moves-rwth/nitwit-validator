@@ -11,7 +11,7 @@ void cw_verbose(const string& Format, ...){}
 bool assignValue(Value *DestValue, Value* FromValue) {
 
     if (IS_FP(DestValue)) {
-        DestValue->Val->FP = ExpressionCoerceFP(FromValue);
+        DestValue->Val->Double = ExpressionCoerceFP(FromValue);
     } else {
         long FromInt = ExpressionCoerceLongLong(FromValue);
         switch (DestValue->Typ->Base)
