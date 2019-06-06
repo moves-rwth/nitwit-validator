@@ -479,10 +479,12 @@ struct Picoc_Struct
     struct ValueType ShortNDType;
     struct ValueType CharNDType;
     struct ValueType LongNDType;
+    struct ValueType LongLongNDType;
     struct ValueType UnsignedIntNDType;
     struct ValueType UnsignedShortNDType;
     struct ValueType UnsignedCharNDType;
     struct ValueType UnsignedLongNDType;
+    struct ValueType UnsignedLongLongNDType;
 #ifndef NO_FP
     struct ValueType FPNDType;
 #endif

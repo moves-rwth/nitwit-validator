@@ -21,9 +21,11 @@ struct ValueType* TypeGetDeterministic(struct ParseState * Parser, struct ValueT
             case TypeShort: Base = &Parser->pc->ShortType; break;
             case TypeChar: Base = &Parser->pc->CharType; break;
             case TypeLong: Base = &Parser->pc->LongType; break;
+            case TypeLongLong: Base = &Parser->pc->LongLongType; break;
             case TypeUnsignedInt: Base = &Parser->pc->UnsignedIntType; break;
             case TypeUnsignedShort: Base = &Parser->pc->UnsignedShortType; break;
             case TypeUnsignedLong: Base = &Parser->pc->UnsignedLongType; break;
+            case TypeUnsignedLongLong: Base = &Parser->pc->UnsignedLongLongType; break;
             case TypeUnsignedChar: Base = &Parser->pc->UnsignedCharType; break;
 #ifndef NO_FP
             case TypeFP: Base = &Parser->pc->FPType; break;
@@ -46,9 +48,11 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
             case TypeShort: Base = &Parser->pc->ShortNDType; break;
             case TypeChar: Base = &Parser->pc->CharNDType; break;
             case TypeLong: Base = &Parser->pc->LongNDType; break;
+            case TypeLongLong: Base = &Parser->pc->LongLongNDType; break;
             case TypeUnsignedInt: Base = &Parser->pc->UnsignedIntNDType; break;
             case TypeUnsignedShort: Base = &Parser->pc->UnsignedShortNDType; break;
             case TypeUnsignedLong: Base = &Parser->pc->UnsignedLongNDType; break;
+            case TypeUnsignedLongLong: Base = &Parser->pc->UnsignedLongLongNDType; break;
             case TypeUnsignedChar: Base = &Parser->pc->UnsignedCharNDType; break;
             case TypeStruct: Base = Typ; break; // uninit struct should stay deterministic
 #ifndef NO_FP
@@ -194,21 +198,22 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->MacroType, TypeMacro, sizeof(int), IntAlignBytes, FALSE);
     TypeAddBaseType(pc, &pc->GotoLabelType, TypeGotoLabel, 0, 1, FALSE);
     TypeAddBaseType(pc, &pc->FunctionPtrType, TypeFunctionPtr, sizeof(char *), PointerAlignBytes, FALSE);
+    TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *) &da.y - &da.x, FALSE);  /* must be large enough to cast to a double */
 
     // NDs
     TypeAddBaseType(pc, &pc->IntNDType, TypeInt, sizeof(int), IntAlignBytes, TRUE);
     TypeAddBaseType(pc, &pc->ShortNDType, TypeShort, sizeof(short), (char *) &sa.y - &sa.x, TRUE);
     TypeAddBaseType(pc, &pc->CharNDType, TypeChar, sizeof(char), (char *) &ca.y - &ca.x, TRUE);
     TypeAddBaseType(pc, &pc->LongNDType, TypeLong, sizeof(long), (char *) &la.y - &la.x, TRUE);
+    TypeAddBaseType(pc, &pc->LongLongNDType, TypeLongLong, sizeof(long long), (char *) &lla.y - &lla.x, TRUE);
     TypeAddBaseType(pc, &pc->UnsignedIntNDType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, TRUE);
-    TypeAddBaseType(pc, &pc->UnsignedShortNDType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x,
-                    TRUE);
-    TypeAddBaseType(pc, &pc->UnsignedCharNDType, TypeUnsignedChar, sizeof(unsigned long), (char *) &la.y - &la.x, TRUE);
-    TypeAddBaseType(pc, &pc->UnsignedLongNDType, TypeUnsignedLong, sizeof(unsigned char), (char *) &ca.y - &ca.x, TRUE);
+    TypeAddBaseType(pc, &pc->UnsignedShortNDType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x, TRUE);
+    TypeAddBaseType(pc, &pc->UnsignedCharNDType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, TRUE);
+    TypeAddBaseType(pc, &pc->UnsignedLongNDType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, TRUE);
+    TypeAddBaseType(pc, &pc->UnsignedLongLongNDType, TypeUnsignedLongLong, sizeof(unsigned long long), (char *) &lla.y - &lla.x, TRUE);
 
 #ifndef NO_FP
     TypeAddBaseType(pc, &pc->FPType, TypeFP, sizeof(double), (char *) &da.y - &da.x, FALSE);
-    TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *) &da.y - &da.x, FALSE);  /* must be large enough to cast to a double */
     // NDs
     TypeAddBaseType(pc, &pc->FPNDType, TypeFP, sizeof(double), (char *) &da.y - &da.x, TRUE);
 #else
@@ -277,8 +282,12 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     }
 
     *Typ = TypeGetMatching(pc, Parser, &Parser->pc->UberType, IsStruct ? TypeStruct : TypeUnion, 0, StructIdentifier, TRUE);
-    if (Token == TokenLeftBrace && (*Typ)->Members != NULL)
-        ProgramFail(Parser, "data type '%t' is already defined", *Typ);
+    if (Token == TokenLeftBrace && (*Typ)->Members != NULL){
+        fprintf(stderr, "Warning: data type '%s' is already defined. Will skip this.", StructIdentifier);
+        while (LexGetToken(Parser, NULL, FALSE) != TokenRightBrace)
+            LexGetToken(Parser, NULL, TRUE);
+        LexGetToken(Parser, NULL, TRUE);
+    }
 
     Token = LexGetToken(Parser, NULL, FALSE);
     if (Token != TokenLeftBrace)
@@ -437,6 +446,7 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
     int StaticQualifier = FALSE;
     int ConstQualifier = FALSE;
     int LongQualifier = FALSE;
+    int LongLongQualifier = FALSE;
     Picoc *pc = Parser->pc;
     *Typ = NULL;
 
@@ -455,6 +465,19 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
     
     if (IsStatic != NULL)
         *IsStatic = StaticQualifier;
+
+    if (Token == TokenLongType){
+        if (LexGetToken(Parser, NULL, FALSE) != TokenIdentifier){
+            LongQualifier = TRUE;
+            Token = LexGetToken(Parser, NULL, TRUE);
+            if (LexGetToken(Parser, NULL, FALSE) != TokenIdentifier){
+                if (Token == TokenLongType){
+                    LongLongQualifier = TRUE;
+                    Token = LexGetToken(Parser, NULL, TRUE);
+                }
+            }
+        }
+    }
         
     /* handle signed/unsigned with no trailing type */
     if (Token == TokenSignedType || Token == TokenUnsignedType)
@@ -464,11 +487,17 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
         
         if (FollowToken != TokenIntType && FollowToken != TokenLongType && FollowToken != TokenShortType && FollowToken != TokenCharType)
         {
-            if (Token == TokenUnsignedType)
-                *Typ = &pc->UnsignedIntType;
-            else
-                *Typ = &pc->IntType;
-            
+            if (!LongLongQualifier) {
+                if (Unsigned)
+                    *Typ = &pc->UnsignedIntType;
+                else
+                    *Typ = &pc->IntType;
+            } else {
+                if (Unsigned)
+                    *Typ = &pc->UnsignedLongLongType;
+                else
+                    *Typ = &pc->LongLongType;
+            }
             return TRUE;
         }
         
@@ -477,7 +506,15 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
 
     switch (Token)
     {
-        case TokenIntType: *Typ = Unsigned ? &pc->UnsignedIntType : &pc->IntType; break;
+        case TokenIntType:
+            if (LongLongQualifier){
+                *Typ = Unsigned ? &pc->UnsignedLongLongType : &pc->LongLongType;
+            } else if (LongQualifier) {
+                *Typ = Unsigned ? &pc->UnsignedLongType : &pc->LongType;
+            } else {
+                *Typ = Unsigned ? &pc->UnsignedIntType : &pc->IntType;
+            }
+            break;
         case TokenShortType: *Typ = Unsigned ? &pc->UnsignedShortType : &pc->ShortType;
             if (LexGetToken(Parser, NULL, FALSE) == TokenIntType)
                 LexGetToken(Parser, NULL, TRUE);
