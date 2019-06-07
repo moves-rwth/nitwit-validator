@@ -41,7 +41,6 @@ typedef FILE IOFILE;
 /* coercion of numeric types to other numeric types */
 #ifndef NO_FP
 #define IS_FP(v) ((v)->Typ->Base == TypeDouble || (v)->Typ->Base == TypeFloat)
-//#define FP_VAL(v) ((v)->Val->FP)
 #else
 #define IS_FP(v) 0
 #define FP_VAL(v) 0

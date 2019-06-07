@@ -1,19 +1,46 @@
+#include <stdio.h>
+#include <math.h>
+ void __VERIFIER_error(){
+    printf("Error\n");
+}
+/* Example from "Abstract Domains for Bit-Level Machine Integer and
+   Floating-point Operations" by Miné, published in WING 12.
+*/
 
-int main() {
-    long long tmp1;
-    long long int tmp2;
-    long unsigned long int tmp3;
-    long unsigned long tmp4;
-    unsigned long long int tmp5;
-    unsigned long long tmp6;
-    long long unsigned int tmp7;
-    long long unsigned tmp8;
-    long tmp9;
-    long int tmp10;
-    long unsigned tmp11;
-    long unsigned int tmp12;
-    unsigned long tmp13;
-    unsigned long int tmp14;
+int  __VERIFIER_nondet_int(void){
+    return -3841;
+}
+void __VERIFIER_assume(int expression){
+    printf("Assume %d\n", expression);
+}
+void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
-    return 1;
+union u {
+    int i[2];
+    double d;
+};
+
+double cast(int i)
+{
+    union u x, y;
+    x.i[0] = 0x43300000;
+    y.i[0] = x.i[0];
+    x.i[1] = 0x80000000;
+    y.i[1] = i ^ x.i[1];
+
+    double res = y.d - x.d;
+    printf("Is nan: %d\n", isnan(res));
+}
+
+int main()
+{
+    int a;
+    double r;
+
+    a = __VERIFIER_nondet_int();
+    __VERIFIER_assume(a >= -10000 && a <= 10000);
+
+    r = cast(a);
+    __VERIFIER_assert(r >= -10000. && r <= 10000.);
+    return 0;
 }

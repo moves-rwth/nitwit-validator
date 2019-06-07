@@ -838,9 +838,9 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
         AssumptionExpressionColonOperator(Parser, StackTop, TopValue, BottomValue);
 
 #ifndef NO_FP
-    else if ( (TopValue->Typ == &Parser->pc->DoubleType && BottomValue->Typ == &Parser->pc->DoubleType) ||
-              (TopValue->Typ == &Parser->pc->DoubleType && IS_NUMERIC_COERCIBLE(BottomValue)) ||
-              (IS_NUMERIC_COERCIBLE(TopValue) && BottomValue->Typ == &Parser->pc->DoubleType) )
+    else if ( (IS_FP(TopValue) && IS_FP(BottomValue)) ||
+              (IS_FP(TopValue) && IS_NUMERIC_COERCIBLE(BottomValue)) ||
+              (IS_NUMERIC_COERCIBLE(TopValue) && IS_FP(BottomValue)) )
     {
         /* floating point infix arithmetic */
         int ResultIsInt = FALSE;
@@ -876,10 +876,8 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
             ResolvedVariable(Parser, Identifier, NonDetValue);
         } else {
 
-            double TopFP = (TopValue->Typ->Base == TypeDouble) ? TopValue->Val->Double : (double) AssumptionExpressionCoerceLongLong(
-                    TopValue);
-            double BottomFP = (BottomValue->Typ->Base == TypeDouble) ? BottomValue->Val->Double : (double) AssumptionExpressionCoerceLongLong(
-                    BottomValue);
+            double TopFP = (IS_FP(TopValue)) ? AssumptionExpressionCoerceDouble(TopValue) : (double) AssumptionExpressionCoerceLongLong(TopValue);
+            double BottomFP = (IS_FP(BottomValue)) ? AssumptionExpressionCoerceDouble(BottomValue) : (double) AssumptionExpressionCoerceLongLong(BottomValue);
 
             switch (Op)
             {
