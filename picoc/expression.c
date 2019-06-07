@@ -472,7 +472,14 @@ void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct
 
     // if Source is NonDet, so should the assigned value
     if (TypeIsNonDeterministic(SourceValue->Typ)) {
-        DestValue->Typ = SourceValue->Typ;
+        DestValue->Typ = TypeGetNonDeterministic(Parser, DestValue->Typ);
+    }
+    if (DestValue->LValueFrom != NULL){
+        if (TypeIsNonDeterministic(SourceValue->Typ)) {
+            DestValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, DestValue->Typ);
+        } else {
+            DestValue->LValueFrom->Typ = TypeGetDeterministic(Parser, DestValue->Typ);
+        }
     }
 // check if not const
     if (DestValue->ConstQualifier == TRUE){
@@ -863,21 +870,22 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         ExpressionColonOperator(Parser, StackTop, TopValue, BottomValue);
 
 #ifndef NO_FP
-    else if ( (TopValue->Typ == &Parser->pc->DoubleType && BottomValue->Typ == &Parser->pc->DoubleType) ||
-              (TopValue->Typ == &Parser->pc->DoubleType && IS_NUMERIC_COERCIBLE(BottomValue)) ||
-              (IS_NUMERIC_COERCIBLE(TopValue) && BottomValue->Typ == &Parser->pc->DoubleType) )
+    else if ( (IS_FP(TopValue) && IS_FP(BottomValue)) ||
+              (IS_FP(TopValue) && IS_NUMERIC_COERCIBLE(BottomValue)) ||
+              (IS_NUMERIC_COERCIBLE(TopValue) && IS_FP(BottomValue)) )
     {
         /* floating point infix arithmetic */
         int ResultIsInt = FALSE;
         double ResultFP = 0.0;
-        double TopFP = (TopValue->Typ == &Parser->pc->DoubleType) ? TopValue->Val->Double : (double) ExpressionCoerceLongLong(
-                TopValue);
-        double BottomFP = (BottomValue->Typ == &Parser->pc->DoubleType || BottomValue->Typ == &Parser->pc->DoubleNDType)
-                ? BottomValue->Val->Double : (double) ExpressionCoerceLongLong(BottomValue);
+        double TopFP = (IS_FP(TopValue)) ? ExpressionCoerceDouble(TopValue) : (double) ExpressionCoerceLongLong(TopValue);
+        double BottomFP = (IS_FP(BottomValue)) ? ExpressionCoerceDouble(BottomValue) : (double) ExpressionCoerceLongLong(BottomValue);
 
-        if (TypeIsNonDeterministic(TopValue->Typ))
-            if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != NULL)
+        if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != NULL && Op >= TokenAssign && Op <= TokenModulusAssign){
+            if (TypeIsNonDeterministic(TopValue->Typ))
                 BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->Typ);
+            else
+                BottomValue->LValueFrom->Typ = TypeGetDeterministic(Parser, BottomValue->Typ);
+        }
         switch (Op)
         {
             case TokenAssign:               ASSIGN_FP_OR_INT(TopFP); break;

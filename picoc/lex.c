@@ -225,6 +225,10 @@ enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, struct Value *Valu
         {
             ExponentSign = -1;
             LEXER_INC(Lexer);
+        } else if (Lexer->Pos != Lexer->End && *Lexer->Pos == '+')
+        {
+            ExponentSign = 1;
+            LEXER_INC(Lexer);
         }
 
         Result = 0;

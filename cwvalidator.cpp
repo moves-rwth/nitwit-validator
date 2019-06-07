@@ -31,7 +31,7 @@ int BAD_FUNCTION_DEF = 249;
 int UNVALIDATED_VIOLATION = 250;
 
 void printProgramState(ParseState *ps) {
-    printf("%s --- Line: %zu, Pos: %d", ps->FileName, ps->Line, ps->CharacterPos);
+    printf("--- Line: %zu, Pos: %d", ps->Line, ps->CharacterPos);
     if (ps->LastConditionBranch != ConditionUndefined)
         printf(", Control: %d", ps->LastConditionBranch == ConditionTrue);
     if (ps->EnterFunction != nullptr)
@@ -39,7 +39,7 @@ void printProgramState(ParseState *ps) {
     if (ps->ReturnFromFunction != nullptr)
         printf(", Return: %s", ps->ReturnFromFunction);
     printf("\n");
-    if (ps->Line == 129 && ps->CharacterPos == 0) {
+    if (ps->Line == 31 && ps->CharacterPos == 45) {
         printf("debug\n");
     }
 }
