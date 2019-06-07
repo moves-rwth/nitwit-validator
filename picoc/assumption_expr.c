@@ -886,7 +886,10 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
                 case TokenSubtractAssign:       ASSIGN_FP_OR_INT(BottomFP - TopFP); break;
                 case TokenMultiplyAssign:       ASSIGN_FP_OR_INT(BottomFP * TopFP); break;
                 case TokenDivideAssign:         ASSIGN_FP_OR_INT(BottomFP / TopFP); break;
-                case TokenEqual:                ResultInt = BottomFP == TopFP; ResultIsInt = TRUE; break;
+                case TokenEqual:                ResultInt = BottomFP == TopFP; ResultIsInt = TRUE;
+                    if (isnan(TopFP) || isnan(BottomFP))
+                        ResultInt = isnan(TopFP) == isnan(BottomFP);
+                    break;
                 case TokenNotEqual:             ResultInt = BottomFP != TopFP; ResultIsInt = TRUE; break;
                 case TokenLessThan:             ResultInt = BottomFP < TopFP; ResultIsInt = TRUE; break;
                 case TokenGreaterThan:          ResultInt = BottomFP > TopFP; ResultIsInt = TRUE; break;

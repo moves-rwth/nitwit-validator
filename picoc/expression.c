@@ -661,7 +661,9 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
                 Result->Val->Identifier = id;
             } else {
                 ValPtr = TopValue->Val;
-                Result = VariableAllocValueFromType(Parser->pc, Parser, TypeGetMatching(Parser->pc, Parser, TopValue->Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE), FALSE, NULL, FALSE);
+                Result = VariableAllocValueFromType(Parser->pc, Parser,
+                        TypeGetMatching(Parser->pc, Parser, TopValue->Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE),
+                        FALSE, TopValue->LValueFrom, FALSE);
                 Result->Val->Pointer = (void *)ValPtr;
             }
             ExpressionStackPushValueNode(Parser, StackTop, Result);
@@ -774,6 +776,20 @@ void ExpressionPostfixOperator(struct ParseState *Parser, struct ExpressionStack
 
         ExpressionPushFP(Parser, StackTop, ResultFP);
     }
+    else if (TopValue->Typ == &Parser->pc->FloatType)
+    {
+        /* floating point prefix arithmetic */
+        double ResultFP = 0.0;
+
+        switch (Op)
+        {
+            case TokenIncrement:    ResultFP = ExpressionAssignFP(Parser, TopValue, TopValue->Val->Float+1); break;
+            case TokenDecrement:    ResultFP = ExpressionAssignFP(Parser, TopValue, TopValue->Val->Float-1); break;
+            default:                ProgramFail(Parser, "invalid operation"); break;
+        }
+
+        ExpressionPushFP(Parser, StackTop, ResultFP);
+    }
     else
 #endif
     if (IS_NUMERIC_COERCIBLE(TopValue))
@@ -856,8 +872,9 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
                                                                                   (char *) BottomValue->Val->Pointer +
                                                                                   TypeSize(BottomValue->Typ->FromType,
                                                                                            0, TRUE) * ArrayIndex),
-                                                                          BottomValue->IsLValue,
+                                                                          BottomValue->LValueFrom != NULL ? TRUE: BottomValue->IsLValue,
                                                                           BottomValue->LValueFrom, NULL); break;
+                                                                          // allow to change to LValue later ((unsigned*)&dmax)[0] = 0x47efffff;
             default:          ProgramFail(Parser, "this %t is not an array", BottomValue->Typ);
         }
 
@@ -1068,6 +1085,7 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         /* cast a value to a different type */   /* XXX - possible bug if the destination type takes more than sizeof(struct Value) + sizeof(struct ValueType *) */
         struct Value *ValueLoc = ExpressionStackPushValueByType(Parser, StackTop, BottomValue->Val->Typ);
         ExpressionAssign(Parser, ValueLoc, TopValue, TRUE, NULL, 0, TRUE);
+        ValueLoc->LValueFrom = TopValue->LValueFrom; // allow things like ((unsigned*)&dmax)[0] = 0x47efffff;
     } else if (Op == TokenOpenBracket){
         // called a function
         ExpressionStackPushValue(Parser, StackTop, TopValue);
