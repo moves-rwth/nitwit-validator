@@ -56,7 +56,7 @@
     <node id="3.23"/>
     <edge source="3.23" target="30.26">
       <data key="originfile">SV-COMP_cast_union_tight_.c</data>
-      <data key="startline">31</data>
+      <data key="startline">16</data>
       <data key="assumption">i = 2146435072;</data>
       <data key="assumption.scope">main</data>
     </edge>
@@ -98,9 +98,8 @@
     <node id="6.35"/>
     <edge source="6.35" target="24.36">
       <data key="originfile">SV-COMP_cast_union_tight_.c</data>
-      <data key="startline">32</data>
+      <data key="startline">7</data>
       <data key="assumption">cond = 0;</data>
-      <data key="assumption.scope">main</data>
     </edge>
     <node id="24.36"/>
     <edge source="24.36" target="25.37">

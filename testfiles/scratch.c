@@ -10,43 +10,38 @@
 double __VERIFIER_nondet_double(void){
     return NAN;
 }
+int __VERIFIER_nondet_int(void){
+    return 0;
+}
 void __VERIFIER_assume(int expression){
     printf("Assume %d\n", expression);
 }
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
 
-float cast(double d)
+union u {
+    int i[2];
+    double d;
+};
+
+double cast(int i)
 {
-    double dmax;
-    float f;
-    printf("d nan: %d\n", isnan(d));
-
-    if ( (((*(unsigned*)&d) & 0x7FF00000) >> 20) == 2047 ) return 0.f;
-
-    ((unsigned*)&dmax)[0] = 0x47efffff;
-    ((unsigned*)&dmax)[1] = 0xe0000000;
-
-    if (d > dmax) {
-        *(unsigned*)&f = 0x7f7fffff;
-    }
-    else if (-d > dmax) {
-        *(unsigned*)&f = 0xff7fffff;
-    }
-    else {
-        __VERIFIER_assert(d >= -3.41e38 && d <= 3.41e38);
-        f = d;
-    }
-
-    return f;
+    union u x, y;
+    x.i[0] = 0x43300000;
+    y.i[0] = x.i[0];
+    x.i[1] = 0x80000000;
+    y.i[1] = i ^ x.i[1];
+    return y.d - x.d;
 }
 
 int main()
 {
-    double a;
-    float r;
+    int a;
+    double r;
 
-    a = __VERIFIER_nondet_double();
+    a = __VERIFIER_nondet_int();
+
     r = cast(a);
+    __VERIFIER_assert(r == a);
     return 0;
 }
