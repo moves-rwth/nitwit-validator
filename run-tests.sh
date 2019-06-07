@@ -26,7 +26,7 @@ for C_FILE in testfiles/*.c ; do
         $1/cwvalidator $WITNESS $C_FILE > /dev/null
 
         exit_val=$?
-        if [[ ${exit_val} -eq 0 ]]
+        if [[ ${exit_val} -eq 0 || ${exit_val} -eq 245 ]]
         then
             echo "Validated witness: $WITNESS"
         elif [[ ${exit_val} -ge 240 && ${exit_val} -le 250 ]]
