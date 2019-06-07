@@ -489,7 +489,8 @@ struct Picoc_Struct
     struct ValueType UnsignedLongNDType;
     struct ValueType UnsignedLongLongNDType;
 #ifndef NO_FP
-    struct ValueType FPNDType;
+    struct ValueType DoubleNDType;
+    struct ValueType FloatNDType;
 #endif
     /* debugger */
     struct Table BreakpointTable;

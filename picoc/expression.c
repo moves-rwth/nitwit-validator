@@ -872,7 +872,7 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         double ResultFP = 0.0;
         double TopFP = (TopValue->Typ == &Parser->pc->DoubleType) ? TopValue->Val->Double : (double) ExpressionCoerceLongLong(
                 TopValue);
-        double BottomFP = (BottomValue->Typ == &Parser->pc->DoubleType || BottomValue->Typ == &Parser->pc->FPNDType)
+        double BottomFP = (BottomValue->Typ == &Parser->pc->DoubleType || BottomValue->Typ == &Parser->pc->DoubleNDType)
                 ? BottomValue->Val->Double : (double) ExpressionCoerceLongLong(BottomValue);
 
         if (TypeIsNonDeterministic(TopValue->Typ))
@@ -1467,10 +1467,12 @@ int ExpressionParse(struct ParseState *Parser, struct Value **Result)
                 char RunIt = Parser->Mode == RunModeRun && Precedence < IgnorePrecedence;
                 char *FuncName = RunIt ? ExpressionResolveFunctionName(Parser, LexValue) : LexValue->Val->Identifier;
                 struct Value * FuncValue;
-                if (RunIt)
+                if (RunIt){
                     VariableGet(Parser->pc, Parser, FuncName, &FuncValue);
-                if (RunIt && FuncValue->Val->FuncDef.Intrinsic != NULL){
-                    Parser->SkipIntrinsic = TRUE;
+                    if (FuncValue->Val->FuncDef.Intrinsic != NULL
+                            && FuncName != TableStrRegister(Parser->pc, "__VERIFIER_assume")){
+                        Parser->SkipIntrinsic = TRUE;
+                    }
                 }
                 if (Parser->DebugMode && Parser->Mode == RunModeRun) {
                     Parser->EnterFunction = FuncName;
