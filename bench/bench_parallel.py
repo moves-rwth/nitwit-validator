@@ -75,7 +75,7 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float]:
 
 
 def run_bench_parallel(configs: List[Tuple[str, str, str]]) -> List[Tuple[int, str, str, float]]:
-    with multiprocessing.Pool(48) as pool:
+    with multiprocessing.Pool(10) as pool:
         results = pool.map(run_validator, configs)
     return results
 
