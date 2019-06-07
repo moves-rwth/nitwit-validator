@@ -50,15 +50,15 @@
     <edge source="2.20" target="3.23">
       <data key="originfile">SV-COMP_cast_float_ptr_.c</data>
       <data key="startline">35</data>
-      <data key="assumption">a = +NAN;</data>
+      <data key="assumption">a = NAN;</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="3.23"/>
     <edge source="3.23" target="29.26">
       <data key="originfile">SV-COMP_cast_float_ptr_.c</data>
-      <data key="startline">36</data>
-      <data key="assumption">d = +NAN;</data>
-      <data key="assumption.scope">main</data>
+      <data key="startline">8</data>
+      <data key="assumption">d == NAN;</data>
+      <data key="assumption.scope">cast</data>
     </edge>
     <node id="29.26"/>
     <edge source="29.26" target="34.27">
@@ -67,17 +67,10 @@
       <data key="sourcecode">[!((byte_extract_little_endian(d!0@1#1, 0, __CPROVER_size_t) &amp; 2146435072u) &gt;&gt; 20 == 2047u)]</data>
     </edge>
     <node id="34.27"/>
-    <edge source="34.27" target="35.28">
+    <edge source="34.27" target="36.29">
       <data key="originfile">SV-COMP_cast_float_ptr_.c</data>
       <data key="startline">13</data>
       <data key="assumption">dmax = 5.962933e-315;</data>
-      <data key="assumption.scope">cast</data>
-    </edge>
-    <node id="35.28"/>
-    <edge source="35.28" target="36.29">
-      <data key="originfile">SV-COMP_cast_float_ptr_.c</data>
-      <data key="startline">14</data>
-      <data key="assumption">dmax = -2.681562e+154;</data>
       <data key="assumption.scope">cast</data>
     </edge>
     <node id="36.29"/>
@@ -95,9 +88,8 @@
     <node id="42.33"/>
     <edge source="42.33" target="23.34">
       <data key="originfile">SV-COMP_cast_float_ptr_.c</data>
-      <data key="startline">23</data>
+      <data key="startline">3</data>
       <data key="assumption">cond = 0;</data>
-      <data key="assumption.scope">cast</data>
     </edge>
     <node id="23.34"/>
     <edge source="23.34" target="24.35">

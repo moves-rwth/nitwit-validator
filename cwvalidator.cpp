@@ -39,7 +39,7 @@ void printProgramState(ParseState *ps) {
     if (ps->ReturnFromFunction != nullptr)
         printf(", Return: %s", ps->ReturnFromFunction);
     printf("\n");
-    if (ps->Line == 31 && ps->CharacterPos == 45) {
+    if (ps->Line == 8 && ps->CharacterPos == 0) {
         printf("debug\n");
     }
 }
