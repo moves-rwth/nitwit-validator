@@ -900,7 +900,7 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != NULL && Op >= TokenAssign && Op <= TokenModulusAssign){
             if (TypeIsNonDeterministic(TopValue->Typ))
                 BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->Typ);
-            else
+            else if (TypeIsNonDeterministic(BottomValue->Typ)) //topvalue is deterministic, but don't change structs/unions
                 BottomValue->LValueFrom->Typ = TypeGetDeterministic(Parser, BottomValue->Typ);
         }
         switch (Op)
