@@ -176,6 +176,7 @@ long long ExpressionCoerceLongLong(struct Value *Val)
         case TypePointer:         return (long) Val->Val->Pointer;
 #ifndef NO_FP
         case TypeDouble:              return (long long)Val->Val->Double;
+        case TypeFloat:              return (long long)Val->Val->Float;
 #endif
         default:                  return 0;
     }
@@ -198,13 +199,14 @@ unsigned long long ExpressionCoerceUnsignedLongLong(struct Value *Val)
         case TypePointer:         return (unsigned long) Val->Val->Pointer;
 #ifndef NO_FP
         case TypeDouble:              return (unsigned long long)Val->Val->Double;
+        case TypeFloat:              return (unsigned long long)Val->Val->Float;
 #endif
         default:                  return 0;
     }
 }
 
 #ifndef NO_FP
-double ExpressionCoerceFP(struct Value *Val)
+double ExpressionCoerceDouble(struct Value *Val)
 {
 #ifndef BROKEN_FLOAT_CASTS
     int IntVal;
@@ -225,6 +227,47 @@ double ExpressionCoerceFP(struct Value *Val)
         case TypeUnsignedLongLong:    ULLVal= Val->Val->UnsignedLongLongInteger; return (double)ULLVal;
         case TypeUnsignedChar:    UnsignedVal = Val->Val->UnsignedCharacter; return (double)UnsignedVal;
         case TypeDouble:              return Val->Val->Double;
+        case TypeFloat:              return (double) Val->Val->Float;
+        default:                  return 0.0;
+    }
+#else
+    switch (Val->Typ->Base)
+    {
+        case TypeInt:             return (double)Val->Val->Integer;
+        case TypeChar:            return (double)Val->Val->Character;
+        case TypeShort:           return (double)Val->Val->ShortInteger;
+        case TypeLong:            return (double)Val->Val->LongInteger;
+        case TypeUnsignedInt:     return (double)Val->Val->UnsignedInteger;
+        case TypeUnsignedShort:   return (double)Val->Val->UnsignedShortInteger;
+        case TypeUnsignedLong:    return (double)Val->Val->UnsignedLongInteger;
+        case TypeUnsignedChar:    return (double)Val->Val->UnsignedCharacter;
+        case TypeDouble:              return (double)Val->Val->Double;
+        default:                  return 0.0;
+    }
+#endif
+}
+float ExpressionCoerceFloat(struct Value *Val)
+{
+#ifndef BROKEN_FLOAT_CASTS
+    int IntVal;
+    unsigned UnsignedVal;
+    long long LLVal;
+    unsigned long long ULLVal;
+
+    switch (Val->Typ->Base)
+    {
+        case TypeInt:             IntVal = Val->Val->Integer; return (float)IntVal;
+        case TypeChar:            IntVal = Val->Val->Character; return (float)IntVal;
+        case TypeShort:           IntVal = Val->Val->ShortInteger; return (float)IntVal;
+        case TypeLong:            IntVal = Val->Val->LongInteger; return (float)IntVal;
+        case TypeLongLong:        LLVal = Val->Val->LongLongInteger; return (float)LLVal;
+        case TypeUnsignedInt:     UnsignedVal = Val->Val->UnsignedInteger; return (float)UnsignedVal;
+        case TypeUnsignedShort:   UnsignedVal = Val->Val->UnsignedShortInteger; return (float)UnsignedVal;
+        case TypeUnsignedLong:    UnsignedVal = Val->Val->UnsignedLongInteger; return (float)UnsignedVal;
+        case TypeUnsignedLongLong:    ULLVal= Val->Val->UnsignedLongLongInteger; return (float)ULLVal;
+        case TypeUnsignedChar:    UnsignedVal = Val->Val->UnsignedCharacter; return (float)UnsignedVal;
+        case TypeDouble:              return (float) Val->Val->Double;
+        case TypeFloat:              return Val->Val->Float;
         default:                  return 0.0;
     }
 #else
@@ -290,7 +333,14 @@ double ExpressionAssignFP(struct ParseState *Parser, struct Value *DestValue, do
     if (DestValue->ConstQualifier == TRUE)
         ProgramFail(Parser, "can't assign to const %t", DestValue->Typ);
 
-    DestValue->Val->Double = FromFP;
+    switch (DestValue->Typ->Base) {
+        case TypeDouble:
+            DestValue->Val->Double = FromFP; break;
+        case TypeFloat:
+            DestValue->Val->Float = (float) FromFP; break;
+        default:
+            DestValue->Val->Double = FromFP; break;
+    }
     return FromFP;
 }
 #endif
@@ -467,7 +517,13 @@ void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct
             if (!IS_NUMERIC_COERCIBLE_PLUS_POINTERS(SourceValue, AllowPointerCoercion))
                 AssignFail(Parser, "%t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
 
-            DestValue->Val->Double = ExpressionCoerceFP(SourceValue);
+            DestValue->Val->Double = ExpressionCoerceDouble(SourceValue);
+            break;
+        case TypeFloat:
+            if (!IS_NUMERIC_COERCIBLE_PLUS_POINTERS(SourceValue, AllowPointerCoercion))
+                AssignFail(Parser, "%t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
+
+            DestValue->Val->Float = ExpressionCoerceFloat(SourceValue);
             break;
 #endif
         case TypePointer:
