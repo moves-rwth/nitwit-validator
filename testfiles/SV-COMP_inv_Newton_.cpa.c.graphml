@@ -140,8 +140,6 @@
    <data key="endline">35</data>
    <data key="startoffset">714</data>
    <data key="endoffset">724</data>
-   <data key="assumption">xi == (-1.0710594349089162E-78);</data>
-   <data key="assumption.scope">inv</data>
   </edge>
   <node id="A182"/>
   <edge source="A181" target="A182">
@@ -179,8 +177,6 @@
    <data key="endline">38</data>
    <data key="startoffset">760</data>
    <data key="endoffset">777</data>
-   <data key="assumption">xsi == (-2.1421188698178324E-78);</data>
-   <data key="assumption.scope">inv</data>
   </edge>
   <node id="A196"/>
   <edge source="A194" target="A196">
@@ -188,8 +184,6 @@
    <data key="endline">39</data>
    <data key="startoffset">784</data>
    <data key="endoffset">796</data>
-   <data key="assumption">temp == (-1.0710594349089162E-78);</data>
-   <data key="assumption.scope">inv</data>
   </edge>
   <node id="A202"/>
   <edge source="A196" target="A202">
@@ -198,8 +192,6 @@
    <data key="startoffset">812</data>
    <data key="endoffset">823</data>
    <data key="control">condition-false</data>
-   <data key="assumption">temp == (-1.0710594349089162E-78);</data>
-   <data key="assumption.scope">inv</data>
   </edge>
   <edge source="A196" target="sink">
    <data key="startline">40</data>
@@ -215,8 +207,6 @@
    <data key="startoffset">830</data>
    <data key="endoffset">842</data>
    <data key="control">condition-false</data>
-   <data key="assumption">temp == (-1.0710594349089162E-78);</data>
-   <data key="assumption.scope">inv</data>
   </edge>
   <edge source="A202" target="sink">
    <data key="startline">40</data>
@@ -241,8 +231,6 @@
    <data key="endline">41</data>
    <data key="startoffset">851</data>
    <data key="endoffset">858</data>
-   <data key="assumption">xi == (-2.1421188698178324E-78);</data>
-   <data key="assumption.scope">inv</data>
   </edge>
   <node id="A923"/>
   <edge source="A220" target="A923">
@@ -283,8 +271,6 @@
    <data key="startoffset">1022</data>
    <data key="endoffset">1027</data>
    <data key="control">condition-false</data>
-   <data key="assumption">r == (-2.1421188698178324E-78);</data>
-   <data key="assumption.scope">main</data>
   </edge>
   <node id="A951"/>
   <edge source="A947" target="A951">

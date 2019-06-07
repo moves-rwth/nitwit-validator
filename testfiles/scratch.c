@@ -6,9 +6,8 @@
 /* Example from "Abstract Domains for Bit-Level Machine Integer and
    Floating-point Operations" by Miné, published in WING 12.
 */
-
 double __VERIFIER_nondet_double(void){
-    return NAN;
+    return 22.822146805041292;
 }
 int __VERIFIER_nondet_int(void){
     return 0;
@@ -18,30 +17,41 @@ void __VERIFIER_assume(int expression){
 }
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
-
-union u {
-    int i[2];
+union double_int
+{
     double d;
+    int i;
 };
 
-double cast(int i)
+double inv (double A)
 {
-    union u x, y;
-    x.i[0] = 0x43300000;
-    y.i[0] = x.i[0];
-    x.i[1] = 0x80000000;
-    y.i[1] = i ^ x.i[1];
-    return y.d - x.d;
+    double xi, xsi, temp;
+    signed int cond, exp;
+    union double_int A_u, xi_u;
+    A_u.d = A;
+    exp = (signed int) ((A_u.i & 0x7FF00000) >> 20) - 1023;
+    xi_u.d = 1;
+    xi_u.i = ((1023-exp) << 20);
+    printf("xi: %f\n", xi); xi = xi_u.d; printf("xi: %f\n", xi);
+    cond = 1;
+    while (cond) {
+        printf("xsi: %f\n", xsi);xsi = 2*xi-A*xi*xi;printf("xsi: %f\n", xsi);
+        temp = xsi-xi;
+        cond = ((temp > 1e-10) || (temp < -1e-10));
+        printf("xi: %f\n", xi); xi = xsi; printf("xi: %f\n", xi);
+    }
+    return xi;
 }
 
 int main()
 {
-    int a;
-    double r;
+    double a,r;
 
-    a = __VERIFIER_nondet_int();
+    a = __VERIFIER_nondet_double();
+    __VERIFIER_assume(a >= 20. && a <= 30.);
 
-    r = cast(a);
-    __VERIFIER_assert(r == a);
+    r = inv(a);
+
+    __VERIFIER_assert(r >= 0 && r <= 0.06);
     return 0;
 }
