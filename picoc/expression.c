@@ -476,9 +476,9 @@ void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct
     }
     if (DestValue->LValueFrom != NULL){
         if (TypeIsNonDeterministic(SourceValue->Typ)) {
-            DestValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, DestValue->Typ);
+            DestValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, DestValue->LValueFrom->Typ);
         } else {
-            DestValue->LValueFrom->Typ = TypeGetDeterministic(Parser, DestValue->Typ);
+            DestValue->LValueFrom->Typ = TypeGetDeterministic(Parser, DestValue->LValueFrom->Typ);
         }
     }
 // check if not const
