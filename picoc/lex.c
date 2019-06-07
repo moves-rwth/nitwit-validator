@@ -80,6 +80,7 @@ static struct ReservedWord ReservedWords[] =
     { "unsigned", TokenUnsignedType },
     { "void", TokenVoidType },
     { "while", TokenWhile },
+    // jsv
     { "__attribute__", TokenAttribute },
     { "__noreturn__", TokenNoReturn },
     { "const", TokenConst },
@@ -203,7 +204,7 @@ enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, struct Value *Valu
         return ResultToken;
     }
 
-    Value->Typ = &pc->FPType;
+    Value->Typ = &pc->DoubleType;
     FPResult = (double)Result;
 
     if (*Lexer->Pos == '.')
@@ -224,6 +225,10 @@ enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, struct Value *Valu
         {
             ExponentSign = -1;
             LEXER_INC(Lexer);
+        } else if (Lexer->Pos != Lexer->End && *Lexer->Pos == '+')
+        {
+            ExponentSign = 1;
+            LEXER_INC(Lexer);
         }
 
         Result = 0;
@@ -236,7 +241,7 @@ enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, struct Value *Valu
         FPResult *= pow((double)Base, (double)Result * ExponentSign);
     }
 
-    Value->Val->FP = FPResult;
+    Value->Val->Double = FPResult;
 
     if (*Lexer->Pos == 'f' || *Lexer->Pos == 'F')
         LEXER_INC(Lexer);
@@ -751,7 +756,7 @@ enum LexToken LexGetRawToken(struct ParseState *Parser, struct Value **Value, in
                 case TokenIntegerConstant:      pc->LexValue.Typ = &pc->LongLongType; break;
                 case TokenCharacterConstant:    pc->LexValue.Typ = &pc->CharType; break;
 #ifndef NO_FP
-                case TokenFPConstant:           pc->LexValue.Typ = &pc->FPType; break;
+                case TokenFPConstant:           pc->LexValue.Typ = &pc->DoubleType; break;
 #endif
                 default: break;
             }

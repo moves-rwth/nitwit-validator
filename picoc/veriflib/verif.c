@@ -35,13 +35,20 @@ struct LibraryFunction VerifFunctions[] =
                 {VerifierNonDet, "char __VERIFIER_nondet_char();"},
                 {VerifierNonDet, "unsigned char __VERIFIER_nondet_uchar();"},
                 {VerifierNonDet, "double __VERIFIER_nondet_double();"},
-                {VerifierNonDet, "double __VERIFIER_nondet_float();"},
+                {VerifierNonDet, "float __VERIFIER_nondet_float();"},
                 {VerifierNonDet, "_Bool __VERIFIER_nondet_bool();"},
                 {NULL, NULL}
         };
 
+
+static union AnyValue notanumber;
 /* creates various system-dependent definitions */
 void VerifSetupFunc(Picoc *pc) {
+    notanumber.Double = NAN;
+    if (!VariableDefined(pc, TableStrRegister(pc, "NaN")))
+        VariableDefinePlatformVar(pc, NULL, "NaN", &pc->DoubleType, &notanumber, FALSE);
+    if (!VariableDefined(pc, TableStrRegister(pc, "NAN")))
+        VariableDefinePlatformVar(pc, NULL, "NAN", &pc->DoubleType, &notanumber, FALSE);
 }
 
 /*

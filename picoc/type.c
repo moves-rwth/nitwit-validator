@@ -28,7 +28,8 @@ struct ValueType* TypeGetDeterministic(struct ParseState * Parser, struct ValueT
             case TypeUnsignedLongLong: Base = &Parser->pc->UnsignedLongLongType; break;
             case TypeUnsignedChar: Base = &Parser->pc->UnsignedCharType; break;
 #ifndef NO_FP
-            case TypeFP: Base = &Parser->pc->FPType; break;
+            case TypeDouble: Base = &Parser->pc->DoubleType; break;
+            case TypeFloat: Base = &Parser->pc->FloatType; break;
 #endif
             default:
                 fprintf(stderr, "Unsupported non-deterministic type conversion.\n");
@@ -54,9 +55,11 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
             case TypeUnsignedLong: Base = &Parser->pc->UnsignedLongNDType; break;
             case TypeUnsignedLongLong: Base = &Parser->pc->UnsignedLongLongNDType; break;
             case TypeUnsignedChar: Base = &Parser->pc->UnsignedCharNDType; break;
-            case TypeStruct: Base = Typ; break; // uninit struct should stay deterministic
+            case TypeUnion:
+            case TypeStruct: Base = Typ; break; // uninit struct/union should stay deterministic
 #ifndef NO_FP
-            case TypeFP: Base = &Parser->pc->FPNDType; break;
+            case TypeDouble: Base = &Parser->pc->DoubleNDType; break;
+            case TypeFloat: Base = &Parser->pc->FloatNDType; break;
 #endif
             // function ptrs aren't supported to be ND - not even in SV-COMP
             case TypeFunctionPtr: Base = &Parser->pc->FunctionPtrType; break;
@@ -176,6 +179,7 @@ void TypeInit(Picoc *pc)
     struct LongLongAlign { char x; long long y; } lla;
 #ifndef NO_FP
     struct DoubleAlign { char x; double y; } da;
+    struct FloatAlign { char x; float y; } fa;
 #endif
     struct PointerAlign { char x; void *y; } pa;
 
@@ -213,9 +217,11 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->UnsignedLongLongNDType, TypeUnsignedLongLong, sizeof(unsigned long long), (char *) &lla.y - &lla.x, TRUE);
 
 #ifndef NO_FP
-    TypeAddBaseType(pc, &pc->FPType, TypeFP, sizeof(double), (char *) &da.y - &da.x, FALSE);
+    TypeAddBaseType(pc, &pc->DoubleType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, FALSE);
+    TypeAddBaseType(pc, &pc->FloatType, TypeFloat, sizeof(double), (char *) &fa.y - &fa.x, FALSE);
     // NDs
-    TypeAddBaseType(pc, &pc->FPNDType, TypeFP, sizeof(double), (char *) &da.y - &da.x, TRUE);
+    TypeAddBaseType(pc, &pc->DoubleNDType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, TRUE);
+    TypeAddBaseType(pc, &pc->FloatNDType, TypeFloat, sizeof(double), (char *) &fa.y - &fa.x, TRUE);
 #else
     TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(struct ValueType *), PointerAlignBytes);
 #endif
@@ -533,7 +539,8 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
                 LexGetToken(Parser, NULL, TRUE);
             break;
 #ifndef NO_FP
-        case TokenFloatType: case TokenDoubleType: *Typ = &pc->FPType; break;
+        case TokenFloatType: *Typ = &pc->FloatType; break;
+        case TokenDoubleType: *Typ = &pc->DoubleType; break;
 #endif
         case TokenVoidType: *Typ = &pc->VoidType; break;
 

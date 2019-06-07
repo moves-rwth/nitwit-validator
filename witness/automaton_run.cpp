@@ -8,28 +8,6 @@
 void cw_verbose(const string& Format, ...){}
 #endif
 
-bool assignValue(Value *DestValue, Value* FromValue) {
-
-    if (IS_FP(DestValue)) {
-        DestValue->Val->FP = ExpressionCoerceFP(FromValue);
-    } else {
-        long FromInt = ExpressionCoerceLongLong(FromValue);
-        switch (DestValue->Typ->Base)
-        {
-            case TypeInt:           DestValue->Val->Integer = FromInt; break;
-            case TypeShort:         DestValue->Val->ShortInteger = (short)FromInt; break;
-            case TypeChar:          DestValue->Val->Character = (char)FromInt; break;
-            case TypeLong:          DestValue->Val->LongInteger = (long)FromInt; break;
-            case TypeUnsignedInt:   DestValue->Val->UnsignedInteger = (unsigned int)FromInt; break;
-            case TypeUnsignedShort: DestValue->Val->UnsignedShortInteger = (unsigned short)FromInt; break;
-            case TypeUnsignedLong:  DestValue->Val->UnsignedLongInteger = (unsigned long)FromInt; break;
-            case TypeUnsignedChar:  DestValue->Val->UnsignedCharacter = (unsigned char)FromInt; break;
-            default: return false;
-        }
-    }
-    return true;
-}
-
 string baseFileName(const string &s) {
     return s.substr(s.find_last_of("/\\") + 1);
 }
@@ -99,7 +77,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             Value *val;
             VariableGet(state->pc, state, I->Identifier, &val);
             if (IS_FP(val)) {
-                double fp = AssumptionExpressionCoerceFP(val);
+                double fp = AssumptionExpressionCoerceDouble(val);
                 cw_verbose("Resolved var: %s: ---> %2.20f\n", I->Identifier, fp);
             } else {
                 int i = AssumptionExpressionCoerceLongLong(val);

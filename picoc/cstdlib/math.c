@@ -18,122 +18,141 @@ static double M_2_SQRTPIValue = 1.12837916709551257390;  /* 2/sqrt(pi) */
 static double M_SQRT2Value =    1.41421356237309504880;  /* sqrt(2) */
 static double M_SQRT1_2Value =  0.70710678118654752440;  /* 1/sqrt(2) */
 
+/* assign a floating point value */
+double AssignFP(struct Value *DestValue, double FromFP)
+{
+    switch (DestValue->Typ->Base) {
+        case TypeFloat:
+            DestValue->Val->Float = (float) FromFP; break;
+        default:
+            DestValue->Val->Double = FromFP; break;
+    }
+    return FromFP;
+}
+double CoerceFP(struct Value* Val) {
+    switch (Val->Typ->Base){
+        case TypeFloat:
+            return Val->Val->Float;
+        default:
+            return Val->Val->Double;
+    }
+}
 
 void MathSin(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = sin(Param[0]->Val->FP);
+    AssignFP(ReturnValue, sin(CoerceFP(Param[0])));
 }
 
 void MathCos(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = cos(Param[0]->Val->FP);
+    AssignFP(ReturnValue, cos(CoerceFP(Param[0])));
 }
 
 void MathTan(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = tan(Param[0]->Val->FP);
+    AssignFP(ReturnValue, tan(CoerceFP(Param[0])));
 }
 
 void MathAsin(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = asin(Param[0]->Val->FP);
+    AssignFP(ReturnValue, asin(CoerceFP(Param[0])));
 }
 
 void MathAcos(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = acos(Param[0]->Val->FP);
+    AssignFP(ReturnValue, acos(CoerceFP(Param[0])));
 }
 
 void MathAtan(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = atan(Param[0]->Val->FP);
+    AssignFP(ReturnValue, atan(CoerceFP(Param[0])));
 }
 
 void MathAtan2(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = atan2(Param[0]->Val->FP, Param[1]->Val->FP);
+    AssignFP(ReturnValue, atan2(CoerceFP(Param[0]), Param[1]->Val->Double));
 }
 
 void MathSinh(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = sinh(Param[0]->Val->FP);
+    AssignFP(ReturnValue, sinh(CoerceFP(Param[0])));
 }
 
 void MathCosh(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = cosh(Param[0]->Val->FP);
+    AssignFP(ReturnValue, cosh(CoerceFP(Param[0])));
 }
 
 void MathTanh(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = tanh(Param[0]->Val->FP);
+    AssignFP(ReturnValue, tanh(CoerceFP(Param[0])));
 }
 
 void MathExp(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = exp(Param[0]->Val->FP);
+    AssignFP(ReturnValue, exp(CoerceFP(Param[0])));
 }
 
 void MathFabs(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = fabs(Param[0]->Val->FP);
+    AssignFP(ReturnValue, fabs(CoerceFP(Param[0])));
 }
 
 void MathFmod(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = fmod(Param[0]->Val->FP, Param[1]->Val->FP);
+    AssignFP(ReturnValue, fmod(CoerceFP(Param[0]), Param[1]->Val->Double));
 }
 
 void MathFrexp(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = frexp(Param[0]->Val->FP, Param[1]->Val->Pointer);
+    AssignFP(ReturnValue, frexp(CoerceFP(Param[0]), Param[1]->Val->Pointer));
 }
 
 void MathLdexp(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = ldexp(Param[0]->Val->FP, Param[1]->Val->Integer);
+    AssignFP(ReturnValue, ldexp(CoerceFP(Param[0]), Param[1]->Val->Integer));
 }
 
 void MathLog(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = log(Param[0]->Val->FP);
+    AssignFP(ReturnValue, log(CoerceFP(Param[0])));
 }
 
 void MathLog10(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = log10(Param[0]->Val->FP);
+    AssignFP(ReturnValue, log10(CoerceFP(Param[0])));
 }
 
 void MathModf(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = modf(Param[0]->Val->FP, Param[0]->Val->Pointer);
+    AssignFP(ReturnValue, modf(CoerceFP(Param[0]), Param[0]->Val->Pointer));
 }
 
 void MathPow(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = pow(Param[0]->Val->FP, Param[1]->Val->FP);
+    AssignFP(ReturnValue, pow(CoerceFP(Param[0]), Param[1]->Val->Double));
 }
 
 void MathSqrt(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = sqrt(Param[0]->Val->FP);
+    AssignFP(ReturnValue, sqrt(CoerceFP(Param[0])));
 }
 
 void MathRound(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
     /* this awkward definition of "round()" due to it being inconsistently
      * declared in math.h */
-    ReturnValue->Val->FP = ceil(Param[0]->Val->FP - 0.5);
+    AssignFP(ReturnValue, ceil(CoerceFP(Param[0]) - 0.5));
 }
 
 void MathCeil(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = ceil(Param[0]->Val->FP);
+    AssignFP(ReturnValue, ceil(CoerceFP(Param[0])));
 }
 
 void MathFloor(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->FP = floor(Param[0]->Val->FP);
+    AssignFP(ReturnValue, floor(CoerceFP(Param[0])));
 }
 
 /* all math.h functions */
@@ -168,19 +187,19 @@ struct LibraryFunction MathFunctions[] =
 /* creates various system-dependent definitions */
 void MathSetupFunc(Picoc *pc)
 {
-    VariableDefinePlatformVar(pc, NULL, "M_E", &pc->FPType, (union AnyValue *)&M_EValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_LOG2E", &pc->FPType, (union AnyValue *)&M_LOG2EValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_LOG10E", &pc->FPType, (union AnyValue *)&M_LOG10EValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_LN2", &pc->FPType, (union AnyValue *)&M_LN2Value, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_LN10", &pc->FPType, (union AnyValue *)&M_LN10Value, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_PI", &pc->FPType, (union AnyValue *)&M_PIValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_PI_2", &pc->FPType, (union AnyValue *)&M_PI_2Value, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_PI_4", &pc->FPType, (union AnyValue *)&M_PI_4Value, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_1_PI", &pc->FPType, (union AnyValue *)&M_1_PIValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_2_PI", &pc->FPType, (union AnyValue *)&M_2_PIValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_2_SQRTPI", &pc->FPType, (union AnyValue *)&M_2_SQRTPIValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_SQRT2", &pc->FPType, (union AnyValue *)&M_SQRT2Value, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_SQRT1_2", &pc->FPType, (union AnyValue *)&M_SQRT1_2Value, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_E", &pc->DoubleType, (union AnyValue *)&M_EValue, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_LOG2E", &pc->DoubleType, (union AnyValue *)&M_LOG2EValue, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_LOG10E", &pc->DoubleType, (union AnyValue *)&M_LOG10EValue, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_LN2", &pc->DoubleType, (union AnyValue *)&M_LN2Value, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_LN10", &pc->DoubleType, (union AnyValue *)&M_LN10Value, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_PI", &pc->DoubleType, (union AnyValue *)&M_PIValue, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_PI_2", &pc->DoubleType, (union AnyValue *)&M_PI_2Value, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_PI_4", &pc->DoubleType, (union AnyValue *)&M_PI_4Value, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_1_PI", &pc->DoubleType, (union AnyValue *)&M_1_PIValue, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_2_PI", &pc->DoubleType, (union AnyValue *)&M_2_PIValue, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_2_SQRTPI", &pc->DoubleType, (union AnyValue *)&M_2_SQRTPIValue, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_SQRT2", &pc->DoubleType, (union AnyValue *)&M_SQRT2Value, FALSE);
+    VariableDefinePlatformVar(pc, NULL, "M_SQRT1_2", &pc->DoubleType, (union AnyValue *)&M_SQRT1_2Value, FALSE);
 }
 
 #endif /* !NO_FP */
