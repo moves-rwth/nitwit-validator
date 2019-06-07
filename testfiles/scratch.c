@@ -16,42 +16,47 @@ void __VERIFIER_assume(int expression){
     printf("Assume %d\n", expression);
 }
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
+float pi = 3.14159 ;
 
-union double_int
-{
-    double d;
-    int i;
-};
 
-double inv (double A)
+double diff(double x1,double x2)
 {
-    double xi, xsi, temp;
-    signed int cond, exp;
-    union double_int A_u, xi_u;
-    A_u.d = A;
-    exp = (signed int) ((A_u.i & 0x7FF00000) >> 20) - 1023;
-    xi_u.d = 1;
-    xi_u.i = ((1023-exp) << 20);
-    printf("xi: %f\n", xi); xi = xi_u.d; printf("xi: %f\n", xi);
-    cond = 1;
-    while (cond) {
-        printf("xsi: %f\n", xsi);xsi = 2*xi-A*xi*xi;printf("xsi: %f\n", xsi);
-        temp = xsi-xi;
-        cond = ((temp > 1e-10) || (temp < -1e-10));
-        printf("xi: %f\n", xi); xi = xsi; printf("xi: %f\n", xi);
-    }
-    return xi;
+    if(x1 > x2)
+        return (x1-x2) ;
+    else
+        return (x2-x1) ;
 }
 
+double radianMeasure(int degrees)
+{
+    return (degrees * (pi/180)) ;
+}
 int main()
 {
-    double a,r;
+    int x ;
+    float angleInRadian ;
+    float phaseLag = pi/2, phaseLead=pi ;
+    double sum1=0.0, sum2 = 0.0 ;
+    int temp;
+    double count=0.0 ;
+    printf("phaselag: %f, phaselead: %f", phaseLag, phaseLead);
 
-    a = __VERIFIER_nondet_double();
-    __VERIFIER_assume(a >= 20. && a <= 30.);
 
-    r = inv(a);
-
-    __VERIFIER_assert(r >= 0 && r <= 0.06);
-    return 0;
+    while(1)
+    {
+        x = __VERIFIER_nondet_int() ;
+        __VERIFIER_assume(x > -180 && x < 180) ;
+        angleInRadian = radianMeasure(x) ; printf("x is %d\n", x);
+        printf("Diff: %f, sum1: %f, sum2: %f\n", diff(sum1, sum2), sum1, sum2);
+        sum2 = sum2 + sin(angleInRadian+2*phaseLead);
+        printf("Diff: %f, sum1: %f, sum2: %f\n", diff(sum1, sum2), sum1, sum2);
+        sum1 = sum1 + cos(angleInRadian+3*phaseLag) ;
+        printf("Diff: %f, sum1: %f, sum2: %f\n", diff(sum1, sum2), sum1, sum2);
+        temp = __VERIFIER_nondet_int() ;
+        count++ ;
+        if(temp == 0) break ;
+    }
+    printf("Diff: %f, cnt: %f\n", diff(sum1, sum2), count*2);
+    __VERIFIER_assert(diff(sum1,sum2) <= count*2) ;
+    return 0 ;
 }
