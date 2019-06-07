@@ -569,7 +569,7 @@ void ExpressionAssign(struct ParseState *Parser, struct Value *DestValue, struct
 long long ExpressionCoerceLongLong(struct Value *Val);
 unsigned long long ExpressionCoerceUnsignedLongLong(struct Value *Val);
 #ifndef NO_FP
-double ExpressionCoerceFP(struct Value *Val);
+double ExpressionCoerceDouble(struct Value *Val);
 #endif
 
 /* assumption_expr.c */
@@ -579,7 +579,8 @@ void AssumptionExpressionAssign(struct ParseState *Parser, struct Value *DestVal
 long long AssumptionExpressionCoerceLongLong(struct Value *Val);
 unsigned long long AssumptionExpressionCoerceUnsignedLongLong(struct Value *Val);
 #ifndef NO_FP
-double AssumptionExpressionCoerceFP(struct Value *Val);
+double AssumptionExpressionCoerceDouble(struct Value *Val);
+float ExpressionCoerceFloat(struct Value *Val);
 #endif
 
 /* type.c */

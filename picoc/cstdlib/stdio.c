@@ -277,10 +277,18 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                     {
                         /* show a floating point number */
                         if (IS_NUMERIC_COERCIBLE(ThisArg))
-                            StdioFprintfFP(&SOStream, OneFormatBuf, ExpressionCoerceFP(ThisArg));
+                            StdioFprintfFP(&SOStream, OneFormatBuf, ExpressionCoerceDouble(ThisArg));
                         else
                             StdioOutPuts("XXX", &SOStream);
-                    }                    
+                    }
+                    else if (ShowType == &pc->FloatType)
+                    {
+                        /* show a floating point number */
+                        if (IS_NUMERIC_COERCIBLE(ThisArg))
+                            StdioFprintfFP(&SOStream, OneFormatBuf, ExpressionCoerceFloat(ThisArg));
+                        else
+                            StdioOutPuts("XXX", &SOStream);
+                    }
 #endif
                     else if (ShowType == pc->CharPtrType)
                     {
