@@ -47,6 +47,8 @@
 # include <unistd.h>
 # include <stdarg.h>
 # include <setjmp.h>
+#include <string>
+using namespace std;
 # ifndef NO_FP
 #  include <math.h>
 #  define PICOC_MATH_LIBRARY

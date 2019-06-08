@@ -16,7 +16,7 @@ static int CLK_TCKValue = CLK_TCK;
 
 void StdAsctime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Pointer = asctime(Param[0]->Val->Pointer);
+    ReturnValue->Val->Pointer = asctime((const struct tm*)Param[0]->Val->Pointer);
 }
 
 void StdClock(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
@@ -26,7 +26,7 @@ void StdClock(struct ParseState *Parser, struct Value *ReturnValue, struct Value
 
 void StdCtime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Pointer = ctime(Param[0]->Val->Pointer);
+    ReturnValue->Val->Pointer = ctime((const time_t*)Param[0]->Val->Pointer);
 }
 
 #ifndef NO_FP
@@ -38,53 +38,50 @@ void StdDifftime(struct ParseState *Parser, struct Value *ReturnValue, struct Va
 
 void StdGmtime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Pointer = gmtime(Param[0]->Val->Pointer);
+    ReturnValue->Val->Pointer = gmtime((const time_t*)Param[0]->Val->Pointer);
 }
 
 void StdLocaltime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Pointer = localtime(Param[0]->Val->Pointer);
+    ReturnValue->Val->Pointer = localtime((const time_t*)Param[0]->Val->Pointer);
 }
 
 void StdMktime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Integer = (int)mktime(Param[0]->Val->Pointer);
+    ReturnValue->Val->Integer = (int)mktime((struct tm*)Param[0]->Val->Pointer);
 }
 
 void StdTime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Integer = (int)time(Param[0]->Val->Pointer);
+    ReturnValue->Val->Integer = (int)time((time_t *)Param[0]->Val->Pointer);
 }
 
 void StdStrftime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Integer = strftime(Param[0]->Val->Pointer, Param[1]->Val->Integer, Param[2]->Val->Pointer, Param[3]->Val->Pointer);
+    ReturnValue->Val->Integer = strftime((char*)Param[0]->Val->Pointer, Param[1]->Val->Integer, (const char*) Param[2]->Val->Pointer, (struct tm*) Param[3]->Val->Pointer);
 }
 
 #ifndef WIN32
 void StdStrptime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-	  extern char *strptime(const char *s, const char *format, struct tm *tm);
+//	  extern char *strptime(const char *s, const char *format, struct tm *tm);
 	  
-    ReturnValue->Val->Pointer = strptime(Param[0]->Val->Pointer, Param[1]->Val->Pointer, Param[2]->Val->Pointer);
+    ReturnValue->Val->Pointer = strptime((const char*)Param[0]->Val->Pointer, (const char*)Param[1]->Val->Pointer, (struct tm*) Param[2]->Val->Pointer);
 }
 
 void StdGmtime_r(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Pointer = gmtime_r(Param[0]->Val->Pointer, Param[1]->Val->Pointer);
+    ReturnValue->Val->Pointer = gmtime_r((const time_t*)Param[0]->Val->Pointer, (struct tm*)Param[1]->Val->Pointer);
 }
 
 void StdTimegm(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Integer = timegm(Param[0]->Val->Pointer);
+    ReturnValue->Val->Integer = timegm((struct tm*)Param[0]->Val->Pointer);
 }
 #endif
 
 /* handy structure definitions */
-const char StdTimeDefs[] = "\
-typedef int time_t; \
-typedef int clock_t;\
-";
+const char StdTimeDefs[] = "typedef int time_t; typedef int clock_t;";
 
 /* all string.h functions */
 struct LibraryFunction StdTimeFunctions[] =
@@ -105,7 +102,7 @@ struct LibraryFunction StdTimeFunctions[] =
 	{ StdGmtime_r,      "struct tm *gmtime_r(int *, struct tm *);" },
     { StdTimegm,        "int timegm(struct tm *);" },
 #endif
-    { NULL,             NULL }
+    { nullptr,             nullptr }
 };
 
 
@@ -113,15 +110,15 @@ struct LibraryFunction StdTimeFunctions[] =
 void StdTimeSetupFunc(Picoc *pc)
 {
     /* make a "struct tm" which is the same size as a native tm structure */
-    TypeCreateOpaqueStruct(pc, NULL, TableStrRegister(pc, "tm"), sizeof(struct tm));
+    TypeCreateOpaqueStruct(pc, nullptr, TableStrRegister(pc, "tm"), sizeof(struct tm));
     
     /* define CLK_PER_SEC etc. */
-    VariableDefinePlatformVar(pc, NULL, "CLOCKS_PER_SEC", &pc->IntType, (union AnyValue *)&CLOCKS_PER_SECValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "CLOCKS_PER_SEC", &pc->IntType, (union AnyValue *)&CLOCKS_PER_SECValue, FALSE);
 #ifdef CLK_PER_SEC
-    VariableDefinePlatformVar(pc, NULL, "CLK_PER_SEC", &pc->IntType, (union AnyValue *)&CLK_PER_SECValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "CLK_PER_SEC", &pc->IntType, (union AnyValue *)&CLK_PER_SECValue, FALSE);
 #endif
 #ifdef CLK_TCK
-    VariableDefinePlatformVar(pc, NULL, "CLK_TCK", &pc->IntType, (union AnyValue *)&CLK_TCKValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "CLK_TCK", &pc->IntType, (union AnyValue *)&CLK_TCKValue, FALSE);
 #endif
 }
 

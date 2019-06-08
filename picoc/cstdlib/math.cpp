@@ -105,7 +105,7 @@ void MathFmod(struct ParseState *Parser, struct Value *ReturnValue, struct Value
 
 void MathFrexp(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    AssignFP(ReturnValue, frexp(CoerceFP(Param[0]), Param[1]->Val->Pointer));
+    AssignFP(ReturnValue, frexp(CoerceFP(Param[0]), (int*)Param[1]->Val->Pointer));
 }
 
 void MathLdexp(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
@@ -125,7 +125,7 @@ void MathLog10(struct ParseState *Parser, struct Value *ReturnValue, struct Valu
 
 void MathModf(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    AssignFP(ReturnValue, modf(CoerceFP(Param[0]), Param[0]->Val->Pointer));
+    AssignFP(ReturnValue, modf(CoerceFP(Param[0]), (float*) Param[0]->Val->Pointer));
 }
 
 void MathPow(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
@@ -181,25 +181,25 @@ struct LibraryFunction MathFunctions[] =
     { MathSqrt,         "float sqrt(float);" },
     { MathTan,          "float tan(float);" },
     { MathTanh,         "float tanh(float);" },
-    { NULL,             NULL }
+    { nullptr,             nullptr }
 };
 
 /* creates various system-dependent definitions */
 void MathSetupFunc(Picoc *pc)
 {
-    VariableDefinePlatformVar(pc, NULL, "M_E", &pc->DoubleType, (union AnyValue *)&M_EValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_LOG2E", &pc->DoubleType, (union AnyValue *)&M_LOG2EValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_LOG10E", &pc->DoubleType, (union AnyValue *)&M_LOG10EValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_LN2", &pc->DoubleType, (union AnyValue *)&M_LN2Value, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_LN10", &pc->DoubleType, (union AnyValue *)&M_LN10Value, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_PI", &pc->DoubleType, (union AnyValue *)&M_PIValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_PI_2", &pc->DoubleType, (union AnyValue *)&M_PI_2Value, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_PI_4", &pc->DoubleType, (union AnyValue *)&M_PI_4Value, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_1_PI", &pc->DoubleType, (union AnyValue *)&M_1_PIValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_2_PI", &pc->DoubleType, (union AnyValue *)&M_2_PIValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_2_SQRTPI", &pc->DoubleType, (union AnyValue *)&M_2_SQRTPIValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_SQRT2", &pc->DoubleType, (union AnyValue *)&M_SQRT2Value, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "M_SQRT1_2", &pc->DoubleType, (union AnyValue *)&M_SQRT1_2Value, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_E", &pc->DoubleType, (union AnyValue *)&M_EValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_LOG2E", &pc->DoubleType, (union AnyValue *)&M_LOG2EValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_LOG10E", &pc->DoubleType, (union AnyValue *)&M_LOG10EValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_LN2", &pc->DoubleType, (union AnyValue *)&M_LN2Value, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_LN10", &pc->DoubleType, (union AnyValue *)&M_LN10Value, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_PI", &pc->DoubleType, (union AnyValue *)&M_PIValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_PI_2", &pc->DoubleType, (union AnyValue *)&M_PI_2Value, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_PI_4", &pc->DoubleType, (union AnyValue *)&M_PI_4Value, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_1_PI", &pc->DoubleType, (union AnyValue *)&M_1_PIValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_2_PI", &pc->DoubleType, (union AnyValue *)&M_2_PIValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_2_SQRTPI", &pc->DoubleType, (union AnyValue *)&M_2_SQRTPIValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_SQRT2", &pc->DoubleType, (union AnyValue *)&M_SQRT2Value, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "M_SQRT1_2", &pc->DoubleType, (union AnyValue *)&M_SQRT1_2Value, FALSE);
 }
 
 #endif /* !NO_FP */

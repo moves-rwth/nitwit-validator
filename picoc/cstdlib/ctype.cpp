@@ -104,7 +104,7 @@ struct LibraryFunction StdCtypeFunctions[] =
     { StdToupper,      "int toupper(int);" },
     { StdIsascii,      "int isascii(int);" },
     { StdToascii,      "int toascii(int);" },
-    { NULL,             NULL }
+    { nullptr,             nullptr }
 };
 
 #endif /* !BUILTIN_MINI_STDLIB */
