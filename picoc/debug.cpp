@@ -2,7 +2,7 @@
 
 #ifndef NO_DEBUGGER
 
-#include "interpreter.h"
+#include "interpreter.hpp"
 
 #define BREAKPOINT_HASH(p) ( ((unsigned long)(p)->FileName) ^ (((p)->Line << 16) | ((p)->CharacterPos << 16)) )
 

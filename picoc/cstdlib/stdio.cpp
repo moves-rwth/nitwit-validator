@@ -2,7 +2,7 @@
 #ifndef BUILTIN_MINI_STDLIB
 
 #include <errno.h>
-#include "../interpreter.h"
+#include "../interpreter.hpp"
 
 #define MAX_FORMAT 80
 #define MAX_SCANF_ARGS 10

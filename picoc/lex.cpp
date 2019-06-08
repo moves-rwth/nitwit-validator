@@ -1,6 +1,6 @@
 /* picoc lexer - converts source text into a tokenised form */
 
-#include "interpreter.h"
+#include "interpreter.hpp"
 
 #ifdef NO_CTYPE
 #define isalpha(c) (((c) >= 'a' && (c) <= 'z') || ((c) >= 'A' && (c) <= 'Z'))

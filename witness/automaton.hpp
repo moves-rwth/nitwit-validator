@@ -6,7 +6,7 @@
 #define CWVALIDATOR_AUTOMATON_HPP
 
 extern "C" {
-#include "../picoc/picoc.h"
+#include "../picoc/picoc.hpp"
 }
 #undef min
 

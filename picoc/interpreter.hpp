@@ -5,7 +5,7 @@
 #ifndef INTERPRETER_H
 #define INTERPRETER_H
 
-#include "platform.h"
+#include "platform.hpp"
 
 
 /* handy definitions */

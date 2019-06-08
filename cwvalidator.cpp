@@ -3,7 +3,7 @@
 #include <cstdlib>
 
 extern "C" {
-#include "picoc/picoc.h"
+#include "picoc/picoc.hpp"
 }
 #undef min
 

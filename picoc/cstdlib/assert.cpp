@@ -2,7 +2,7 @@
 // Created by jan on 5.5.19.
 //
 
-#include "../interpreter.h"
+#include "../interpreter.hpp"
 
 
 void Assert(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs) {
