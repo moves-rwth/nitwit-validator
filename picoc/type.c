@@ -473,10 +473,16 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
         *IsStatic = StaticQualifier;
 
     if (Token == TokenLongType){
-        if (LexGetToken(Parser, NULL, FALSE) != TokenIdentifier){
+        enum LexToken FollowToken = LexGetToken(Parser, NULL, FALSE);
+        if (FollowToken != TokenIdentifier
+                && (FollowToken == TokenSignedType || FollowToken == TokenUnsignedType ||
+                    FollowToken == TokenIntType || FollowToken == TokenLongType)){
             LongQualifier = TRUE;
             Token = LexGetToken(Parser, NULL, TRUE);
-            if (LexGetToken(Parser, NULL, FALSE) != TokenIdentifier){
+            FollowToken = LexGetToken(Parser, NULL, FALSE);
+            if (FollowToken != TokenIdentifier
+                && (FollowToken == TokenSignedType || FollowToken == TokenUnsignedType ||
+                    FollowToken == TokenIntType || FollowToken == TokenLongType)){
                 if (Token == TokenLongType){
                     LongLongQualifier = TRUE;
                     Token = LexGetToken(Parser, NULL, TRUE);

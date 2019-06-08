@@ -81,7 +81,7 @@ enum LexToken
     /* 0x21 */ TokenIncrement, TokenDecrement, TokenUnaryNot, TokenUnaryExor, TokenSizeof, TokenCast,
     /* 0x27 */ TokenLeftSquareBracket, TokenRightSquareBracket, TokenDot, TokenArrow, 
     /* 0x2b */ TokenOpenBracket, TokenCloseBracket,
-    /* 0x2d */ TokenIdentifier, TokenIntegerConstant, TokenFPConstant, TokenStringConstant, TokenCharacterConstant,
+    /* 0x2d */ TokenIdentifier, TokenIntegerConstant, TokenUnsignedIntConstanst, TokenLLConstanst, TokenUnsignedLLConstanst, TokenFPConstant, TokenStringConstant, TokenCharacterConstant,
     /* 0x32 */ TokenSemicolon, TokenEllipsis,
     /* 0x34 */ TokenLeftBrace, TokenRightBrace,
     /* 0x36 */ TokenIntType, TokenCharType, TokenFloatType, TokenDoubleType, TokenVoidType, TokenEnumType, TokenConst,
