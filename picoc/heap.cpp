@@ -3,7 +3,7 @@
  * you can define USE_MALLOC_HEAP to use your system's own malloc() allocator */
  
 /* stack grows up from the bottom and heap grows down from the top of heap space */
-#include "interpreter.h"
+#include "interpreter.hpp"
 
 #ifdef DEBUG_HEAP
 void ShowBigList(Picoc *pc)

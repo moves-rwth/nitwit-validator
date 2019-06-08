@@ -1,8 +1,8 @@
 /* picoc mini standard C library - provides an optional tiny C standard library 
  * if BUILTIN_MINI_STDLIB is defined */ 
  
-#include "picoc.h"
-#include "interpreter.h"
+#include "picoc.hpp"
+#include "interpreter.hpp"
 
 
 /* endian-ness checking */

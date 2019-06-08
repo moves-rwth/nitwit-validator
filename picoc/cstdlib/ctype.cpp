@@ -1,6 +1,6 @@
 /* string.h library for large systems - small embedded systems use clibrary.c instead */
 #include <ctype.h>
-#include "../interpreter.h"
+#include "../interpreter.hpp"
 
 #ifndef BUILTIN_MINI_STDLIB
 

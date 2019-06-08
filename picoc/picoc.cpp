@@ -2,7 +2,7 @@
  * how you're using picoc */
  
 /* include only picoc.h here - should be able to use it with only the external interfaces, no internals from interpreter.h */
-#include "picoc.h"
+#include "picoc.hpp"
 
 /* platform-dependent code for running programs is in this file */
 

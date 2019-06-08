@@ -1,6 +1,6 @@
 /* time.h library */
 #include <time.h>
-#include "../interpreter.h"
+#include "../interpreter.hpp"
 
 #ifndef BUILTIN_MINI_STDLIB
 

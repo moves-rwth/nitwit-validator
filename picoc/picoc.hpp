@@ -16,7 +16,7 @@
 #define FALSE 0
 #endif
 
-#include "interpreter.h"
+#include "interpreter.hpp"
 
 
 #if defined(UNIX_HOST) || defined(WIN32)

@@ -1,7 +1,7 @@
 /* picoc parser - parses source and executes statements */
 
-#include "picoc.h"
-#include "interpreter.h"
+#include "picoc.hpp"
+#include "interpreter.hpp"
 
 /* deallocate any memory */
 void ParseCleanup(Picoc *pc)
