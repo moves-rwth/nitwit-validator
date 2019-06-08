@@ -178,7 +178,7 @@ long long ExpressionCoerceLongLong(struct Value *Val)
         case TypeDouble:              return (long long)Val->Val->Double;
         case TypeFloat:              return (long long)Val->Val->Float;
 #endif
-        default:                  return 0;
+        default:                  return Val->Val->UnsignedLongLongInteger;
     }
 }
 
@@ -201,7 +201,7 @@ unsigned long long ExpressionCoerceUnsignedLongLong(struct Value *Val)
         case TypeDouble:              return (unsigned long long)Val->Val->Double;
         case TypeFloat:              return (unsigned long long)Val->Val->Float;
 #endif
-        default:                  return 0;
+        default:                  return Val->Val->UnsignedLongLongInteger;
     }
 }
 
