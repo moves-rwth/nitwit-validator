@@ -95,7 +95,7 @@
     <edge source="29.55" target="30.56">
       <data key="originfile">12.func.ptrs.parsing.c</data>
       <data key="startline">31</data>
-      <data key="assumption">x = (NULL);</data>
+      <data key="assumption">x = (nullptr);</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="30.56"/>

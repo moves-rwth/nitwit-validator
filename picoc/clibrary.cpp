@@ -17,14 +17,14 @@ void LibraryInit(Picoc *pc)
     
     /* define the version number macro */
     pc->VersionString = TableStrRegister(pc, PICOC_VERSION);
-    VariableDefinePlatformVar(pc, NULL, "PICOC_VERSION", pc->CharPtrType, (union AnyValue *)&pc->VersionString, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "PICOC_VERSION", pc->CharPtrType, (union AnyValue *)&pc->VersionString, FALSE);
 
     /* define endian-ness macros */
     BigEndian = ((*(char*)&__ENDIAN_CHECK__) == 0);
     LittleEndian = ((*(char*)&__ENDIAN_CHECK__) == 1);
 
-    VariableDefinePlatformVar(pc, NULL, "BIG_ENDIAN", &pc->IntType, (union AnyValue *)&BigEndian, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "LITTLE_ENDIAN", &pc->IntType, (union AnyValue *)&LittleEndian, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "BIG_ENDIAN", &pc->IntType, (union AnyValue *)&BigEndian, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "LITTLE_ENDIAN", &pc->IntType, (union AnyValue *)&LittleEndian, FALSE);
 }
 
 /* add a library */
@@ -39,11 +39,11 @@ void LibraryAdd(Picoc *pc, struct Table *GlobalTable, const char *LibraryName, s
     char *IntrinsicName = TableStrRegister(pc, "c library");
     
     /* read all the library definitions */
-    for (Count = 0; FuncList[Count].Prototype != NULL; Count++)
+    for (Count = 0; FuncList[Count].Prototype != nullptr; Count++)
     {
-        Tokens = LexAnalyse(pc, IntrinsicName, FuncList[Count].Prototype, strlen((char *)FuncList[Count].Prototype), NULL);
-        LexInitParser(&Parser, pc, FuncList[Count].Prototype, Tokens, IntrinsicName, TRUE, FALSE, NULL);
-        TypeParse(&Parser, &ReturnType, &Identifier, NULL, NULL);
+        Tokens = LexAnalyse(pc, IntrinsicName, FuncList[Count].Prototype, strlen((char *)FuncList[Count].Prototype), nullptr);
+        LexInitParser(&Parser, pc, FuncList[Count].Prototype, Tokens, IntrinsicName, TRUE, FALSE, nullptr);
+        TypeParse(&Parser, &ReturnType, &Identifier, nullptr, nullptr);
         NewValue = ParseFunctionDefinition(&Parser, ReturnType, Identifier, 0);
         NewValue->Val->FuncDef.Intrinsic = FuncList[Count].Func;
         HeapFreeMem(pc, Tokens);
@@ -106,9 +106,9 @@ void BasicIOInit(Picoc *pc)
 void CLibraryInit(Picoc *pc)
 {
     /* define some constants */
-    VariableDefinePlatformVar(pc, NULL, "NULL", &IntType, (union AnyValue *)&ZeroValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "TRUE", &IntType, (union AnyValue *)&TRUEValue, FALSE);
-    VariableDefinePlatformVar(pc, NULL, "FALSE", &IntType, (union AnyValue *)&ZeroValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "nullptr", &IntType, (union AnyValue *)&ZeroValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "TRUE", &IntType, (union AnyValue *)&TRUEValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "FALSE", &IntType, (union AnyValue *)&ZeroValue, FALSE);
 }
 
 /* stream for writing into strings */
@@ -271,12 +271,12 @@ void GenericPrintf(struct ParseState *Parser, struct Value *ReturnValue, struct 
 #ifndef NO_FP
                 case 'f': FormatType = &DoubleType; break;
 #endif
-                case '%': PrintCh('%', Stream); FormatType = NULL; break;
-                case '\0': FPos--; FormatType = NULL; break;
-                default:  PrintCh(*FPos, Stream); FormatType = NULL; break;
+                case '%': PrintCh('%', Stream); FormatType = nullptr; break;
+                case '\0': FPos--; FormatType = nullptr; break;
+                default:  PrintCh(*FPos, Stream); FormatType = nullptr; break;
             }
             
-            if (FormatType != NULL)
+            if (FormatType != nullptr)
             { 
                 /* we have to format something */
                 if (ArgCount >= NumArgs)
@@ -302,8 +302,8 @@ void GenericPrintf(struct ParseState *Parser, struct Value *ReturnValue, struct 
                                 else
                                     Str = &NextArg->Val->ArrayMem[0];
                                     
-                                if (Str == NULL)
-                                    PrintStr("NULL", Stream); 
+                                if (Str == nullptr)
+                                    PrintStr("nullptr", Stream);
                                 else
                                     PrintStr(Str, Stream); 
                                 break;
@@ -354,11 +354,11 @@ void LibSPrintf(struct ParseState *Parser, struct Value *ReturnValue, struct Val
 /* get a line of input. protected from buffer overrun */
 void LibGets(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Pointer = PlatformGetLine(Param[0]->Val->Pointer, GETS_BUF_MAX, NULL);
-    if (ReturnValue->Val->Pointer != NULL)
+    ReturnValue->Val->Pointer = PlatformGetLine(Param[0]->Val->Pointer, GETS_BUF_MAX, nullptr);
+    if (ReturnValue->Val->Pointer != nullptr)
     {
         char *EOLPos = strchr(Param[0]->Val->Pointer, '\n');
-        if (EOLPos != NULL)
+        if (EOLPos != nullptr)
             *EOLPos = '\0';
     }
 }
@@ -568,7 +568,7 @@ void LibIndex(struct ParseState *Parser, struct Value *ReturnValue, struct Value
         Pos++;
     
     if (*Pos != SearchChar)
-        ReturnValue->Val->Pointer = NULL;
+        ReturnValue->Val->Pointer = nullptr;
     else
         ReturnValue->Val->Pointer = Pos;
 }
@@ -578,7 +578,7 @@ void LibRindex(struct ParseState *Parser, struct Value *ReturnValue, struct Valu
     char *Pos = (char *)Param[0]->Val->Pointer;
     int SearchChar = Param[1]->Val->Integer;
 
-    ReturnValue->Val->Pointer = NULL;
+    ReturnValue->Val->Pointer = nullptr;
     for (; *Pos != '\0'; Pos++)
     {
         if (*Pos == SearchChar)
@@ -674,7 +674,7 @@ struct LibraryFunction CLibrary[] =
     { LibMemcpy,        "void memcpy(void *,void *,int);" },
     { LibMemcmp,        "int memcmp(void *,void *,int);" },
 #endif
-    { NULL,             NULL }
+    { nullptr,             nullptr }
 };
 
 #endif /* BUILTIN_MINI_STDLIB */

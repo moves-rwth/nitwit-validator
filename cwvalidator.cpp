@@ -2,9 +2,7 @@
 #include <cstring>
 #include <cstdlib>
 
-extern "C" {
 #include "picoc/picoc.hpp"
-}
 #undef min
 
 #include "utils/files.hpp"

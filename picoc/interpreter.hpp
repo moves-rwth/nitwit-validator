@@ -14,9 +14,6 @@
 #define FALSE 0
 #endif
 
-#ifndef NULL
-#define NULL 0
-#endif
 
 #ifndef min
 #define min(x,y) (((x)<(y))?(x):(y))
@@ -115,7 +112,7 @@ struct TableEntry
         struct BreakpointEntry      /* defines a breakpoint */
         {
             const char *FileName;
-            short int Line;
+            unsigned short int Line;
             short int CharacterPos;
         } b;
 
@@ -165,7 +162,7 @@ struct ParseState
     const unsigned char *Pos;   /* the character position in the source text */
     char *FileName;             /* what file we're executing (registered string) */
     size_t Line;             /* line number we're executing */
-    short int CharacterPos;     /* character/column in the line we're executing */
+    short unsigned int CharacterPos;     /* character/column in the line we're executing */
     enum RunMode Mode;          /* whether to skip or run code */
     int SearchLabel;            /* what case label we're searching for */
     const char *SearchGotoLabel;/* what goto label we're searching for */
@@ -225,7 +222,7 @@ struct ValueType
     int Sizeof;                     /* the storage required */
     int AlignBytes;                 /* the alignment boundary of this type */
     const char *Identifier;         /* the name of a struct or union */
-    struct ValueType *FromType;     /* the type we're derived from (or NULL) */
+    struct ValueType *FromType;     /* the type we're derived from (or nullptr) */
     struct ValueType *DerivedTypeList;  /* first in a list of types derived from this one */
     struct ValueType *Next;         /* next item in the derived type list */
     struct Table *Members;          /* members of a struct or union */
@@ -243,7 +240,7 @@ struct FuncDef
     int VarArgs;                    /* has a variable number of arguments after the explicitly specified ones */
     struct ValueType **ParamType;   /* array of parameter types */
     char **ParamName;               /* array of parameter names */
-    void (*Intrinsic)();            /* intrinsic call address or NULL */
+    void (*Intrinsic)(struct ParseState *, struct Value *, struct Value **, int );            /* intrinsic call address or nullptr */
     struct ParseState Body;         /* lexical tokens of the function body if not intrinsic */
 };
 
@@ -284,7 +281,7 @@ struct Value
 {
     struct ValueType *Typ;          /* the type of this value */
     union AnyValue *Val;            /* pointer to the AnyValue which holds the actual content */
-    struct Value *LValueFrom;       /* if an LValue, this is a Value our LValue is contained within (or NULL) */
+    struct Value *LValueFrom;       /* if an LValue, this is a Value our LValue is contained within (or nullptr) */
     char ValOnHeap;                 /* this Value is on the heap */
     char ValOnStack;                /* the AnyValue is on the stack along with this Value */
     char AnyValOnHeap;              /* the AnyValue is separately allocated from the Value on the heap */
@@ -526,14 +523,14 @@ struct Picoc_Struct
 /* table.c */
 void TableInit(Picoc *pc);
 char *TableStrRegister(Picoc *pc, const char *Str);
-char *TableStrRegister2(Picoc *pc, const char *Str, int Len);
-void TableInitTable(struct Table *Tbl, struct TableEntry **HashTable, int Size, int OnHeap);
-int TableSet(Picoc *pc, struct Table *Tbl, char *Key, struct Value *Val, const char *DeclFileName, int DeclLine, int DeclColumn);
-int TableGet(struct Table *Tbl, const char *Key, struct Value **Val, const char **DeclFileName, int *DeclLine, int *DeclColumn);
+char *TableStrRegister2(Picoc *pc, const char *Str, unsigned Len);
+void TableInitTable(struct Table *Tbl, struct TableEntry **HashTable, unsigned Size, int OnHeap);
+int TableSet(Picoc *pc, struct Table *Tbl, char *Key, struct Value *Val, const char *DeclFileName, unsigned DeclLine, unsigned DeclColumn);
+int TableGet(struct Table *Tbl, const char *Key, struct Value **Val, const char **DeclFileName, unsigned *DeclLine, unsigned *DeclColumn);
 struct Value *TableDelete(Picoc *pc, struct Table *Tbl, const char *Key);
-char *TableSetIdentifier(Picoc *pc, struct Table *Tbl, const char *Ident, int IdentLen);
+char *TableSetIdentifier(Picoc *pc, struct Table *Tbl, const char *Ident, unsigned IdentLen);
 void TableStrFree(Picoc *pc);
-struct TableEntry *TableSearch(struct Table *Tbl, const char *Key, int *AddAt);
+struct TableEntry *TableSearch(struct Table *Tbl, const char *Key, unsigned *AddAt);
 
 
 /* lex.c */
@@ -636,7 +633,7 @@ int VariableDefined(Picoc *pc, const char *Ident);
 int VariableDefinedAndOutOfScope(Picoc *pc, const char *Ident);
 void VariableRealloc(struct ParseState *Parser, struct Value *FromValue, int NewSize);
 void VariableGet(Picoc *pc, struct ParseState *Parser, const char *Ident, struct Value **LVal);
-void VariableDefinePlatformVar(Picoc *pc, struct ParseState *Parser, char *Ident, struct ValueType *Typ, union AnyValue *FromValue, int IsWritable);
+void VariableDefinePlatformVar(Picoc *pc, struct ParseState *Parser, const char *Ident, struct ValueType *Typ, union AnyValue *FromValue, int IsWritable);
 void VariableStackFrameAdd(struct ParseState *Parser, const char *FuncName, int NumParams);
 void VariableStackFramePop(struct ParseState *Parser);
 struct Value *VariableStringLiteralGet(Picoc *pc, char *Ident);
@@ -692,8 +689,8 @@ void IncludeFile(Picoc *pc, char *Filename);
  * void PicocIncludeAllSystemHeaders(); */
  
 /* debug.c */
-void DebugInit();
-void DebugCleanup();
+void DebugInit(Picoc *pc);
+void DebugCleanup(Picoc *pc);
 void DebugCheckStatement(struct ParseState *Parser);
 void DebugSetBreakpoint(struct ParseState *Parser);
 

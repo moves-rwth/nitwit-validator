@@ -1,8 +1,5 @@
 #include "../interpreter.hpp"
 
-void UnixSetupFunc()
-{    
-}
 
 void Ctest (struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs) 
 {
@@ -20,10 +17,10 @@ struct LibraryFunction UnixFunctions[] =
 {
     { Ctest,        "void test(int);" },
     { Clineno,      "int lineno();" },
-    { NULL,         NULL }
+    { nullptr,         nullptr }
 };
 
 void PlatformLibraryInit(Picoc *pc)
 {
-    IncludeRegister(pc, "picoc_unix.h", &UnixSetupFunc, &UnixFunctions[0], NULL);
+    IncludeRegister(pc, "picoc_unix.h", nullptr, &UnixFunctions[0], nullptr);
 }

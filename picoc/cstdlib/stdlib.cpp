@@ -8,35 +8,35 @@ static int Stdlib_ZeroValue = 0;
 #ifndef NO_FP
 void StdlibAtof(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Double = atof(Param[0]->Val->Pointer);
+    ReturnValue->Val->Double = atof((const char*)Param[0]->Val->Pointer);
 }
 #endif
 
 void StdlibAtoi(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Integer = atoi(Param[0]->Val->Pointer);
+    ReturnValue->Val->Integer = atoi((const char*)Param[0]->Val->Pointer);
 }
 
 void StdlibAtol(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Integer = atol(Param[0]->Val->Pointer);
+    ReturnValue->Val->Integer = atol((const char*)Param[0]->Val->Pointer);
 }
 
 #ifndef NO_FP
 void StdlibStrtod(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Double = strtod(Param[0]->Val->Pointer, Param[1]->Val->Pointer);
+    ReturnValue->Val->Double = strtod((const char*)Param[0]->Val->Pointer, (char**)Param[1]->Val->Pointer);
 }
 #endif
 
 void StdlibStrtol(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Integer = strtol(Param[0]->Val->Pointer, Param[1]->Val->Pointer, Param[2]->Val->Integer);
+    ReturnValue->Val->Integer = strtol((const char*)Param[0]->Val->Pointer, (char**)Param[1]->Val->Pointer, Param[2]->Val->Integer);
 }
 
 void StdlibStrtoul(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Integer = strtoul(Param[0]->Val->Pointer, Param[1]->Val->Pointer, Param[2]->Val->Integer);
+    ReturnValue->Val->Integer = strtoul((const char*)Param[0]->Val->Pointer, (char**)Param[1]->Val->Pointer, Param[2]->Val->Integer);
 }
 
 void StdlibMalloc(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
@@ -81,12 +81,12 @@ void StdlibExit(struct ParseState *Parser, struct Value *ReturnValue, struct Val
 
 void StdlibGetenv(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Pointer = getenv(Param[0]->Val->Pointer);
+    ReturnValue->Val->Pointer = getenv((const char*)Param[0]->Val->Pointer);
 }
 
 void StdlibSystem(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Integer = system(Param[0]->Val->Pointer);
+    ReturnValue->Val->Integer = system((const char*)Param[0]->Val->Pointer);
 }
 
 #if 0
@@ -160,15 +160,15 @@ struct LibraryFunction StdlibFunctions[] =
     { StdlibDiv,            "div_t div(int);" },
     { StdlibLdiv,           "ldiv_t ldiv(int);" },
 #endif
-    { NULL,                 NULL }
+    { nullptr,                 nullptr }
 };
 
 /* creates various system-dependent definitions */
 void StdlibSetupFunc(Picoc *pc)
 {
-    /* define NULL, TRUE and FALSE */
-    if (!VariableDefined(pc, TableStrRegister(pc, "NULL")))
-        VariableDefinePlatformVar(pc, NULL, "NULL", &pc->IntType, (union AnyValue *)&Stdlib_ZeroValue, FALSE);
+    /* define nullptr, TRUE and FALSE */
+    if (!VariableDefined(pc, TableStrRegister(pc, "nullptr")))
+        VariableDefinePlatformVar(pc, nullptr, "nullptr", &pc->IntType, (union AnyValue *)&Stdlib_ZeroValue, FALSE);
 }
 
 #endif /* !BUILTIN_MINI_STDLIB */

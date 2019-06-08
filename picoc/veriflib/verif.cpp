@@ -37,7 +37,7 @@ struct LibraryFunction VerifFunctions[] =
                 {VerifierNonDet, "double __VERIFIER_nondet_double();"},
                 {VerifierNonDet, "float __VERIFIER_nondet_float();"},
                 {VerifierNonDet, "_Bool __VERIFIER_nondet_bool();"},
-                {NULL, NULL}
+                {nullptr, nullptr}
         };
 
 
@@ -46,9 +46,9 @@ static union AnyValue notanumber;
 void VerifSetupFunc(Picoc *pc) {
     notanumber.Double = NAN;
     if (!VariableDefined(pc, TableStrRegister(pc, "NaN")))
-        VariableDefinePlatformVar(pc, NULL, "NaN", &pc->DoubleType, &notanumber, FALSE);
+        VariableDefinePlatformVar(pc, nullptr, "NaN", &pc->DoubleType, &notanumber, FALSE);
     if (!VariableDefined(pc, TableStrRegister(pc, "NAN")))
-        VariableDefinePlatformVar(pc, NULL, "NAN", &pc->DoubleType, &notanumber, FALSE);
+        VariableDefinePlatformVar(pc, nullptr, "NAN", &pc->DoubleType, &notanumber, FALSE);
 }
 
 /*

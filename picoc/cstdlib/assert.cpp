@@ -14,5 +14,5 @@ void Assert(struct ParseState *Parser, struct Value *ReturnValue, struct Value *
 struct LibraryFunction AssertFunctions[] =
         {
                 {Assert,  "void assert (int expression);"},
-                {NULL, NULL}
+                {nullptr, nullptr}
         };

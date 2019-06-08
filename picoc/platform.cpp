@@ -56,20 +56,20 @@ void PicocCleanup(Picoc *pc)
 void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(struct ParseState *), int argc, char **argv)
 {
     /* check if the program wants arguments */
-    struct Value *FuncValue = NULL;
+    struct Value *FuncValue = nullptr;
 
     if (!VariableDefined(pc, TableStrRegister(pc, "main")))
         ProgramFailNoParser(pc, "main() is not defined");
         
-    VariableGet(pc, NULL, TableStrRegister(pc, "main"), &FuncValue);
+    VariableGet(pc, nullptr, TableStrRegister(pc, "main"), &FuncValue);
     if (FuncValue->Typ->Base != TypeFunction)
         ProgramFailNoParser(pc, "main is not a function - can't call it");
 
     if (FuncValue->Val->FuncDef.NumParams != 0)
     {
         /* define the arguments */
-        VariableDefinePlatformVar(pc, NULL, "__argc", &pc->IntType, (union AnyValue *)&argc, FALSE);
-        VariableDefinePlatformVar(pc, NULL, "__argv", pc->CharPtrPtrType, (union AnyValue *)&argv, FALSE);
+        VariableDefinePlatformVar(pc, nullptr, "__argc", &pc->IntType, (union AnyValue *)&argc, FALSE);
+        VariableDefinePlatformVar(pc, nullptr, "__argv", pc->CharPtrPtrType, (union AnyValue *)&argv, FALSE);
     }
 
     // changed CleanUpNow to False as this caused a mem-leak for Tokens
@@ -82,7 +82,7 @@ void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(struct ParseState *), int
     }
     else
     {
-        VariableDefinePlatformVar(pc, NULL, "__exit_value", &pc->IntType, (union AnyValue *)&pc->PicocExitValue, TRUE);
+        VariableDefinePlatformVar(pc, nullptr, "__exit_value", &pc->IntType, (union AnyValue *)&pc->PicocExitValue, TRUE);
 
         if (FuncValue->Val->FuncDef.NumParams == 0)
             PicocParse(pc, "startup", CALL_MAIN_NO_ARGS_RETURN_INT, strlen(CALL_MAIN_NO_ARGS_RETURN_INT), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
@@ -99,7 +99,7 @@ void PrintSourceTextErrorLine(IOFILE *Stream, const char *FileName, const char *
     const char *CPos;
     int CCount;
     
-    if (SourceText != NULL)
+    if (SourceText != nullptr)
     {
         /* find the source line */
         for (LinePos = SourceText, LineCount = 1; *LinePos != '\0' && LineCount < Line; LinePos++)
@@ -176,14 +176,14 @@ void AssignFail(struct ParseState *Parser, const char *Format, struct ValueType 
     IOFILE *Stream = Parser->pc->CStdOut;
     
     PrintSourceTextErrorLine(Parser->pc->CStdOut, Parser->FileName, Parser->SourceText, Parser->Line, Parser->CharacterPos);
-    PlatformPrintf(Stream, "can't %s ", (FuncName == NULL) ? "assign to" : "set");
+    PlatformPrintf(Stream, "can't %s ", (FuncName == nullptr) ? "assign to" : "set");
         
-    if (Type1 != NULL)
+    if (Type1 != nullptr)
         PlatformPrintf(Stream, Format, Type1, Type2);
     else
         PlatformPrintf(Stream, Format, Num1, Num2);
     
-    if (FuncName != NULL)
+    if (FuncName != nullptr)
         PlatformPrintf(Stream, " in argument %d of call to %s()", ParamNo, FuncName);
     
     PlatformPrintf(Stream, "\n");

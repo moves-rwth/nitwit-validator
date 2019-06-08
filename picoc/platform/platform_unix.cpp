@@ -12,7 +12,7 @@ jmp_buf PicocExitBuf;
 #ifndef NO_DEBUGGER
 #include <signal.h>
 
-Picoc *break_pc = NULL;
+Picoc *break_pc = nullptr;
 
 static void BreakHandler(int Signal)
 {
@@ -39,12 +39,12 @@ void PlatformCleanup(Picoc *pc)
 char *PlatformGetLine(char *Buf, int MaxLen, const char *Prompt)
 {
 #ifdef USE_READLINE
-    if (Prompt != NULL)
+    if (Prompt != nullptr)
     {
         /* use GNU readline to read the line */
         char *InLine = readline(Prompt);
-        if (InLine == NULL)
-            return NULL;
+        if (InLine == nullptr)
+            return nullptr;
     
         Buf[MaxLen-1] = '\0';
         strncpy(Buf, InLine, MaxLen-2);
@@ -58,7 +58,7 @@ char *PlatformGetLine(char *Buf, int MaxLen, const char *Prompt)
     }
 #endif
 
-    if (Prompt != NULL)
+    if (Prompt != nullptr)
         printf("%s", Prompt);
         
     fflush(stdout);
@@ -90,12 +90,12 @@ char *PlatformReadFile(Picoc *pc, const char *FileName)
     if (stat(FileName, &FileInfo))
         ProgramFailNoParser(pc, "can't read file %s\n", FileName);
     
-    ReadText = malloc(FileInfo.st_size + 1);
-    if (ReadText == NULL)
+    ReadText = static_cast<char *>(malloc(FileInfo.st_size + 1));
+    if (ReadText == nullptr)
         ProgramFailNoParser(pc, "out of memory\n");
         
     InFile = fopen(FileName, "r");
-    if (InFile == NULL)
+    if (InFile == nullptr)
         ProgramFailNoParser(pc, "can't read file %s\n", FileName);
     
     BytesRead = fread(ReadText, 1, FileInfo.st_size, InFile);
@@ -122,13 +122,13 @@ void PicocPlatformScanFile(Picoc *pc, const char *FileName)
     char *SourceStr = PlatformReadFile(pc, FileName);
 
     /* ignore "#!/path/to/picoc" .. by replacing the "#!" with "//" */
-    if (SourceStr != NULL && SourceStr[0] == '#' && SourceStr[1] == '!') 
+    if (SourceStr != nullptr && SourceStr[0] == '#' && SourceStr[1] == '!')
     { 
         SourceStr[0] = '/'; 
         SourceStr[1] = '/'; 
     }
 
-    PicocParse(pc, FileName, SourceStr, strlen(SourceStr), TRUE, FALSE, TRUE, TRUE, NULL);
+    PicocParse(pc, FileName, SourceStr, strlen(SourceStr), TRUE, FALSE, TRUE, TRUE, nullptr);
 }
 
 /* exit the program */
