@@ -5,7 +5,7 @@
 #include "../interpreter.hpp"
 
 
-void Assert(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs) {
+void Assert(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
     if (!Param[0]->Val->Integer)
         ProgramFailWithExitCode(Parser, 248, "assertion does not hold");
 }

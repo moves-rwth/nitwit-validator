@@ -4,16 +4,16 @@
 
 #include "../interpreter.hpp"
 
-void VerifierError(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs) {
+void VerifierError(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
     Parser->VerifierErrorCalled = TRUE;
 }
 
-void VerifierAssume(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs) {
+void VerifierAssume(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
     if (!Param[0]->Val->Integer)
         ProgramFailWithExitCode(Parser, 248, "assumption does not hold");
 }
 
-void VerifierNonDet(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs) {
+void VerifierNonDet(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
     ReturnValue->Typ = TypeGetNonDeterministic(Parser, ReturnValue->Typ);
 }
 /* handy structure definitions */

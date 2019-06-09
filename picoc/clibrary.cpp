@@ -34,7 +34,7 @@ void LibraryAdd(Picoc *pc, struct Table *GlobalTable, const char *LibraryName, s
     int Count;
     char *Identifier;
     struct ValueType *ReturnType;
-    struct Value *NewValue;
+    Value *NewValue;
     void *Tokens;
     char *IntrinsicName = TableStrRegister(pc, "c library");
     
@@ -228,10 +228,10 @@ void PrintFP(double Num, struct OutputStream *Stream)
 #endif
 
 /* intrinsic functions made available to the language */
-void GenericPrintf(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs, struct OutputStream *Stream)
+void GenericPrintf(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs, struct OutputStream *Stream)
 {
     char *FPos;
-    struct Value *NextArg = Param[0];
+    Value *NextArg = Param[0];
     struct ValueType *FormatType;
     int ArgCount = 1;
     int LeftJustify = FALSE;
@@ -283,7 +283,7 @@ void GenericPrintf(struct ParseState *Parser, struct Value *ReturnValue, struct 
                     PrintStr("XXX", Stream);   /* not enough parameters for format */
                 else
                 {
-                    NextArg = (struct Value *)((char *)NextArg + MEM_ALIGN(sizeof(struct Value) + TypeStackSizeValue(NextArg)));
+                    NextArg = (Value *)((char *)NextArg + MEM_ALIGN(sizeof(Value) + TypeStackSizeValue(NextArg)));
                     if (NextArg->Typ != FormatType && 
                             !((FormatType == &IntType || *FPos == 'f') && IS_NUMERIC_COERCIBLE(NextArg)) &&
                             !(FormatType == CharPtrType && (NextArg->Typ->Base == TypePointer || 
@@ -329,7 +329,7 @@ void GenericPrintf(struct ParseState *Parser, struct Value *ReturnValue, struct 
 }
 
 /* printf(): print to console output */
-void LibPrintf(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibPrintf(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     struct OutputStream ConsoleStream;
     
@@ -338,7 +338,7 @@ void LibPrintf(struct ParseState *Parser, struct Value *ReturnValue, struct Valu
 }
 
 /* sprintf(): print to a string */
-void LibSPrintf(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibSPrintf(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     struct OutputStream StrStream;
     
@@ -352,7 +352,7 @@ void LibSPrintf(struct ParseState *Parser, struct Value *ReturnValue, struct Val
 }
 
 /* get a line of input. protected from buffer overrun */
-void LibGets(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibGets(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Pointer = PlatformGetLine(Param[0]->Val->Pointer, GETS_BUF_MAX, nullptr);
     if (ReturnValue->Val->Pointer != nullptr)
@@ -363,134 +363,134 @@ void LibGets(struct ParseState *Parser, struct Value *ReturnValue, struct Value 
     }
 }
 
-void LibGetc(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibGetc(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Integer = PlatformGetCharacter();
 }
 
-void LibExit(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibExit(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     PlatformExit(Param[0]->Val->Integer);
 }
 
 #ifdef PICOC_LIBRARY
-void LibSin(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibSin(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = sin(Param[0]->Val->Double);
 }
 
-void LibCos(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibCos(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = cos(Param[0]->Val->Double);
 }
 
-void LibTan(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibTan(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = tan(Param[0]->Val->Double);
 }
 
-void LibAsin(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibAsin(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = asin(Param[0]->Val->Double);
 }
 
-void LibAcos(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibAcos(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = acos(Param[0]->Val->Double);
 }
 
-void LibAtan(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibAtan(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = atan(Param[0]->Val->Double);
 }
 
-void LibSinh(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibSinh(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = sinh(Param[0]->Val->Double);
 }
 
-void LibCosh(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibCosh(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = cosh(Param[0]->Val->Double);
 }
 
-void LibTanh(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibTanh(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = tanh(Param[0]->Val->Double);
 }
 
-void LibExp(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibExp(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = exp(Param[0]->Val->Double);
 }
 
-void LibFabs(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibFabs(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = fabs(Param[0]->Val->Double);
 }
 
-void LibLog(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibLog(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = log(Param[0]->Val->Double);
 }
 
-void LibLog10(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibLog10(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = log10(Param[0]->Val->Double);
 }
 
-void LibPow(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibPow(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = pow(Param[0]->Val->Double, Param[1]->Val->Double);
 }
 
-void LibSqrt(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibSqrt(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = sqrt(Param[0]->Val->Double);
 }
 
-void LibRound(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibRound(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = floor(Param[0]->Val->Double + 0.5);   /* XXX - fix for soft float */
 }
 
-void LibCeil(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibCeil(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = ceil(Param[0]->Val->Double);
 }
 
-void LibFloor(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibFloor(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = floor(Param[0]->Val->Double);
 }
 #endif
 
 #ifndef NO_STRING_FUNCTIONS
-void LibMalloc(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibMalloc(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Pointer = malloc(Param[0]->Val->Integer);
 }
 
 #ifndef NO_CALLOC
-void LibCalloc(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibCalloc(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Pointer = calloc(Param[0]->Val->Integer, Param[1]->Val->Integer);
 }
 #endif
 
 #ifndef NO_REALLOC
-void LibRealloc(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibRealloc(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Pointer = realloc(Param[0]->Val->Pointer, Param[1]->Val->Integer);
 }
 #endif
 
-void LibFree(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibFree(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     free(Param[0]->Val->Pointer);
 }
 
-void LibStrcpy(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibStrcpy(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     char *To = (char *)Param[0]->Val->Pointer;
     char *From = (char *)Param[1]->Val->Pointer;
@@ -501,7 +501,7 @@ void LibStrcpy(struct ParseState *Parser, struct Value *ReturnValue, struct Valu
     *To = '\0';
 }
 
-void LibStrncpy(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibStrncpy(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     char *To = (char *)Param[0]->Val->Pointer;
     char *From = (char *)Param[1]->Val->Pointer;
@@ -514,7 +514,7 @@ void LibStrncpy(struct ParseState *Parser, struct Value *ReturnValue, struct Val
         *To = '\0';
 }
 
-void LibStrcmp(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibStrcmp(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     char *Str1 = (char *)Param[0]->Val->Pointer;
     char *Str2 = (char *)Param[1]->Val->Pointer;
@@ -529,7 +529,7 @@ void LibStrcmp(struct ParseState *Parser, struct Value *ReturnValue, struct Valu
     ReturnValue->Val->Integer = 0;
 }
 
-void LibStrncmp(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibStrncmp(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     char *Str1 = (char *)Param[0]->Val->Pointer;
     char *Str2 = (char *)Param[1]->Val->Pointer;
@@ -545,7 +545,7 @@ void LibStrncmp(struct ParseState *Parser, struct Value *ReturnValue, struct Val
     ReturnValue->Val->Integer = 0;
 }
 
-void LibStrcat(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibStrcat(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     char *To = (char *)Param[0]->Val->Pointer;
     char *From = (char *)Param[1]->Val->Pointer;
@@ -559,7 +559,7 @@ void LibStrcat(struct ParseState *Parser, struct Value *ReturnValue, struct Valu
     *To = '\0';
 }
 
-void LibIndex(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibIndex(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     char *Pos = (char *)Param[0]->Val->Pointer;
     int SearchChar = Param[1]->Val->Integer;
@@ -573,7 +573,7 @@ void LibIndex(struct ParseState *Parser, struct Value *ReturnValue, struct Value
         ReturnValue->Val->Pointer = Pos;
 }
 
-void LibRindex(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibRindex(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     char *Pos = (char *)Param[0]->Val->Pointer;
     int SearchChar = Param[1]->Val->Integer;
@@ -586,7 +586,7 @@ void LibRindex(struct ParseState *Parser, struct Value *ReturnValue, struct Valu
     }
 }
 
-void LibStrlen(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibStrlen(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     char *Pos = (char *)Param[0]->Val->Pointer;
     int Len;
@@ -597,19 +597,19 @@ void LibStrlen(struct ParseState *Parser, struct Value *ReturnValue, struct Valu
     ReturnValue->Val->Integer = Len;
 }
 
-void LibMemset(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibMemset(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     /* we can use the system memset() */
     memset(Param[0]->Val->Pointer, Param[1]->Val->Integer, Param[2]->Val->Integer);
 }
 
-void LibMemcpy(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibMemcpy(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     /* we can use the system memcpy() */
     memcpy(Param[0]->Val->Pointer, Param[1]->Val->Pointer, Param[2]->Val->Integer);
 }
 
-void LibMemcmp(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void LibMemcmp(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     unsigned char *Mem1 = (unsigned char *)Param[0]->Val->Pointer;
     unsigned char *Mem2 = (unsigned char *)Param[1]->Val->Pointer;

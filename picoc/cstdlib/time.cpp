@@ -14,67 +14,67 @@ static int CLK_PER_SECValue = CLK_PER_SEC;
 static int CLK_TCKValue = CLK_TCK;
 #endif
 
-void StdAsctime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdAsctime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Pointer = asctime((const struct tm*)Param[0]->Val->Pointer);
 }
 
-void StdClock(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdClock(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Integer = clock();
 }
 
-void StdCtime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdCtime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Pointer = ctime((const time_t*)Param[0]->Val->Pointer);
 }
 
 #ifndef NO_FP
-void StdDifftime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdDifftime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = difftime((time_t)Param[0]->Val->Integer, Param[1]->Val->Integer);
 }
 #endif
 
-void StdGmtime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdGmtime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Pointer = gmtime((const time_t*)Param[0]->Val->Pointer);
 }
 
-void StdLocaltime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdLocaltime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Pointer = localtime((const time_t*)Param[0]->Val->Pointer);
 }
 
-void StdMktime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdMktime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Integer = (int)mktime((struct tm*)Param[0]->Val->Pointer);
 }
 
-void StdTime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdTime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Integer = (int)time((time_t *)Param[0]->Val->Pointer);
 }
 
-void StdStrftime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdStrftime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Integer = strftime((char*)Param[0]->Val->Pointer, Param[1]->Val->Integer, (const char*) Param[2]->Val->Pointer, (struct tm*) Param[3]->Val->Pointer);
 }
 
 #ifndef WIN32
-void StdStrptime(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdStrptime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
 //	  extern char *strptime(const char *s, const char *format, struct tm *tm);
 	  
     ReturnValue->Val->Pointer = strptime((const char*)Param[0]->Val->Pointer, (const char*)Param[1]->Val->Pointer, (struct tm*) Param[2]->Val->Pointer);
 }
 
-void StdGmtime_r(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdGmtime_r(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Pointer = gmtime_r((const time_t*)Param[0]->Val->Pointer, (struct tm*)Param[1]->Val->Pointer);
 }
 
-void StdTimegm(struct ParseState *Parser, struct Value *ReturnValue, struct Value **Param, int NumArgs)
+void StdTimegm(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Integer = timegm((struct tm*)Param[0]->Val->Pointer);
 }
