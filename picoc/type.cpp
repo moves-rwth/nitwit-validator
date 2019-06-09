@@ -122,7 +122,7 @@ struct ValueType *TypeGetMatching(Picoc *pc, struct ParseState *Parser, struct V
 }
 
 /* stack space used by a value */
-int TypeStackSizeValue(struct Value *Val)
+int TypeStackSizeValue(Value *Val)
 {
     if (Val != nullptr && Val->ValOnStack)
         return TypeSizeValue(Val, FALSE);
@@ -131,7 +131,7 @@ int TypeStackSizeValue(struct Value *Val)
 }
 
 /* memory used by a value */
-int TypeSizeValue(struct Value *Val, int Compact)
+int TypeSizeValue(Value *Val, int Compact)
 {
     if (IS_INTEGER_NUMERIC(Val) && !Compact)
         return sizeof(ALIGN_TYPE);     /* allow some extra room for type extension */
@@ -172,16 +172,16 @@ void TypeAddBaseType(Picoc *pc, struct ValueType *TypeNode, enum BaseType Base, 
 /* initialise the type system */
 void TypeInit(Picoc *pc)
 {
-    struct IntAlign { char x; int y; } ia;
-    struct ShortAlign { char x; short y; } sa;
-    struct CharAlign { char x; char y; } ca;
-    struct LongAlign { char x; long y; } la;
-    struct LongLongAlign { char x; long long y; } lla;
+    struct IntAlign { char x; int y; } ia{};
+    struct ShortAlign { char x; short y; } sa{};
+    struct CharAlign { char x; char y; } ca{};
+    struct LongAlign { char x; long y; } la{};
+    struct LongLongAlign { char x; long long y; } lla{};
 #ifndef NO_FP
-    struct DoubleAlign { char x; double y; } da;
-    struct FloatAlign { char x; float y; } fa;
+    struct DoubleAlign { char x; double y; } da{};
+    struct FloatAlign { char x; float y; } fa{};
 #endif
-    struct PointerAlign { char x; void *y; } pa;
+    struct PointerAlign { char x; void *y; } pa{};
 
     IntAlignBytes = (char *)&ia.y - &ia.x;
     PointerAlignBytes = (char *)&pa.y - &pa.x;
@@ -265,11 +265,11 @@ void TypeCleanup(Picoc *pc)
 /* parse a struct or union declaration */
 void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsStruct)
 {
-    struct Value *LexValue;
+    Value *LexValue;
     struct ValueType *MemberType;
     char *MemberIdentifier;
     char *StructIdentifier;
-    struct Value *MemberValue;
+    Value *MemberValue;
     enum LexToken Token;
     int AlignBoundary;
     Picoc *pc = Parser->pc;
@@ -383,8 +383,8 @@ struct ValueType *TypeCreateOpaqueStruct(Picoc *pc, struct ParseState *Parser, c
 /* parse an enum declaration */
 void TypeParseEnum(struct ParseState *Parser, struct ValueType **Typ)
 {
-    struct Value *LexValue;
-    struct Value InitValue;
+    Value *LexValue;
+    Value InitValue{};
     enum LexToken Token;
     int EnumValue = 0;
     char *EnumIdentifier;
@@ -419,7 +419,7 @@ void TypeParseEnum(struct ParseState *Parser, struct ValueType **Typ)
         
     LexGetToken(Parser, nullptr, TRUE);
     (*Typ)->Members = &pc->GlobalTable;
-    memset((void *)&InitValue, '\0', sizeof(struct Value));
+    memset((void *)&InitValue, '\0', sizeof(Value));
     InitValue.Typ = &pc->IntType;
     InitValue.Val = (union AnyValue *)&EnumValue;
     do {
@@ -447,11 +447,11 @@ void TypeParseEnum(struct ParseState *Parser, struct ValueType **Typ)
 /* parse a type - just the basic type */
 int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsStatic, int *IsConst)
 {
-    struct ParseState Before;
-    struct Value *LexerValue;
+    struct ParseState Before{};
+    Value *LexerValue;
     enum LexToken Token;
     int Unsigned = FALSE;
-    struct Value *VarValue;
+    Value *VarValue;
     int StaticQualifier = FALSE;
     int ConstQualifier = FALSE;
     int LongQualifier = FALSE;
@@ -595,7 +595,7 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
 struct ValueType *TypeParseBack(struct ParseState *Parser, struct ValueType *FromType)
 {
     enum LexToken Token;
-    struct ParseState Before;
+    struct ParseState Before{};
 
     ParserCopy(&Before, Parser);
     Token = LexGetToken(Parser, nullptr, TRUE);
@@ -633,8 +633,8 @@ struct ValueType *TypeParseBack(struct ParseState *Parser, struct ValueType *Fro
 
 int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicType, struct ValueType **Type,
                              char **Identifier) {
-    struct Value *LexValue;
-    struct ParseState Before;
+    Value *LexValue;
+    struct ParseState Before{};
     *Identifier = Parser->pc->StrEmpty;
     *Type = BasicType;
     ParserCopy(&Before, Parser);
@@ -682,9 +682,9 @@ void
 TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct ValueType **Typ, char **Identifier,
                    int *IsConst)
 {
-    struct ParseState Before;
+    struct ParseState Before{};
     enum LexToken Token;
-    struct Value *LexValue;
+    Value *LexValue;
     int Done = FALSE;
     *Typ = BasicTyp;
     *Identifier = Parser->pc->StrEmpty;
@@ -742,7 +742,7 @@ void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identif
     if (!TypeParseFunctionPointer(Parser, BasicType, Typ, Identifier)){
         TypeParseIdentPart(Parser, BasicType, Typ, Identifier, IsConst);
     } else {
-        struct Value * FuncValue = ParseFunctionDefinition(Parser, BasicType, *Identifier, TRUE);
+        Value * FuncValue = ParseFunctionDefinition(Parser, BasicType, *Identifier, TRUE);
         if (FuncValue != nullptr) VariableFree(Parser->pc, FuncValue);
 
     }

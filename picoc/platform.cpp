@@ -56,7 +56,7 @@ void PicocCleanup(Picoc *pc)
 void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(struct ParseState *), int argc, char **argv)
 {
     /* check if the program wants arguments */
-    struct Value *FuncValue = nullptr;
+    Value *FuncValue = nullptr;
 
     if (!VariableDefined(pc, TableStrRegister(pc, "main")))
         ProgramFailNoParser(pc, "main() is not defined");
