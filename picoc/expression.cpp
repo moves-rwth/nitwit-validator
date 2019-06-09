@@ -168,17 +168,17 @@ long long ExpressionCoerceLongLong(Value *Val)
         case TypeShort:           return (long long)Val->Val->ShortInteger;
         case TypeLong:            return (long long)Val->Val->LongInteger;
         case TypeLongLong:        return (long long)Val->Val->LongLongInteger;
-        case TypeUnsignedInt:     return (long long)Val->Val->UnsignedInteger;
-        case TypeUnsignedShort:   return (long long)Val->Val->UnsignedShortInteger;
-        case TypeUnsignedLong:    return (long long)Val->Val->UnsignedLongInteger;
-        case TypeUnsignedLongLong:return (long long)Val->Val->UnsignedLongLongInteger;
-        case TypeUnsignedChar:    return (long long)Val->Val->UnsignedCharacter;
+        case TypeUnsignedInt:     return (long long)Val->Val->Integer;
+        case TypeUnsignedShort:   return (long long)Val->Val->ShortInteger;
+        case TypeUnsignedLong:    return (long long)Val->Val->LongInteger;
+        case TypeUnsignedLongLong:return (long long)Val->Val->LongLongInteger;
+        case TypeUnsignedChar:    return (long long)Val->Val->Character;
         case TypePointer:         return (long) Val->Val->Pointer;
 #ifndef NO_FP
         case TypeDouble:              return (long long)Val->Val->Double;
         case TypeFloat:              return (long long)Val->Val->Float;
 #endif
-        default:                  return Val->Val->UnsignedLongLongInteger;
+        default:                  return Val->Val->LongLongInteger;
     }
 }
 
@@ -186,11 +186,11 @@ unsigned long long ExpressionCoerceUnsignedLongLong(Value *Val)
 {
     switch (Val->Typ->Base)
     {
-        case TypeInt:             return (unsigned long long)Val->Val->Integer;
-        case TypeChar:            return (unsigned long long)Val->Val->Character;
-        case TypeShort:           return (unsigned long long)Val->Val->ShortInteger;
-        case TypeLong:            return (unsigned long long)Val->Val->LongInteger;
-        case TypeLongLong:        return (unsigned long long)Val->Val->LongLongInteger;
+        case TypeInt:             return (unsigned long long)Val->Val->UnsignedInteger;
+        case TypeChar:            return (unsigned long long)Val->Val->UnsignedCharacter;
+        case TypeShort:           return (unsigned long long)Val->Val->UnsignedShortInteger;
+        case TypeLong:            return (unsigned long long)Val->Val->UnsignedLongInteger;
+        case TypeLongLong:        return (unsigned long long)Val->Val->UnsignedLongLongInteger;
         case TypeUnsignedInt:     return (unsigned long long)Val->Val->UnsignedInteger;
         case TypeUnsignedShort:   return (unsigned long long)Val->Val->UnsignedShortInteger;
         case TypeUnsignedLong:    return (unsigned long long)Val->Val->UnsignedLongInteger;
@@ -934,8 +934,8 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
     else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_NUMERIC_COERCIBLE(BottomValue))
     {
         /* integer operation */
-        long long TopInt = ExpressionCoerceLongLong(TopValue);
-        long long BottomInt = ExpressionCoerceLongLong(BottomValue);
+        long long TopInt = TypeIsUnsigned(BottomValue->Typ)? ExpressionCoerceUnsignedLongLong(TopValue) : ExpressionCoerceLongLong(TopValue);
+        long long BottomInt = TypeIsUnsigned(BottomValue->Typ)? ExpressionCoerceUnsignedLongLong(BottomValue) :ExpressionCoerceLongLong(BottomValue);
         if (TypeIsNonDeterministic(TopValue->Typ))
             if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != nullptr)
                 BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->Typ);

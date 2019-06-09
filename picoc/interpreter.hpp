@@ -601,6 +601,7 @@ int TypeIsForwardDeclared(struct ParseState *Parser, struct ValueType *Typ);
 int TypeIsNonDeterministic(struct ValueType *Typ);
 struct ValueType* TypeGetDeterministic(struct ParseState * Parser, struct ValueType * Typ);
 struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct ValueType * Typ);
+int TypeIsUnsigned(struct ValueType * Typ);
 
 /* heap.c */
 void HeapInit(Picoc *pc, int StackSize);

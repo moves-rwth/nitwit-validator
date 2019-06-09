@@ -11,6 +11,17 @@ int TypeIsNonDeterministic(struct ValueType *Typ) {
     return Typ->IsNonDet;
 }
 
+int TypeIsUnsigned(struct ValueType * Typ) {
+    switch (Typ->Base){
+        case TypeUnsignedInt: return true;
+        case TypeUnsignedShort: return true;
+        case TypeUnsignedLong: return true;
+        case TypeUnsignedLongLong: return true;
+        case TypeUnsignedChar: return true;
+        default: return false;
+    }
+}
+
 struct ValueType* TypeGetDeterministic(struct ParseState * Parser, struct ValueType * Typ) {
     if (!TypeIsNonDeterministic(Typ))
         return Typ;
