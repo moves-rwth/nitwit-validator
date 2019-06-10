@@ -48,6 +48,7 @@
 # include <stdarg.h>
 # include <setjmp.h>
 #include <string>
+#include <iostream>
 using namespace std;
 # ifndef NO_FP
 #  include <math.h>

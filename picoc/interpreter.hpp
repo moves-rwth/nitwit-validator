@@ -50,7 +50,7 @@ typedef FILE IOFILE;
 #define IS_INTEGER_NUMERIC(v) IS_INTEGER_NUMERIC_TYPE((v)->Typ)
 #define IS_NUMERIC_COERCIBLE(v) (IS_INTEGER_NUMERIC(v) || IS_FP(v))
 #define IS_NUMERIC_COERCIBLE_PLUS_POINTERS(v,ap) (IS_NUMERIC_COERCIBLE(v) || IS_POINTER_COERCIBLE(v,ap))
-
+#define IS_LONG_LONG(v) (v->Typ->Base == TypeLongLong || v->Typ->Base == TypeUnsignedLongLong)
 
 struct Table;
 struct Picoc_Struct;
@@ -565,22 +565,24 @@ void ConditionCallback(struct ParseState *Parser, int Condition);
 int ExpressionParse(struct ParseState *Parser, Value **Result);
 long long ExpressionParseLongLong(struct ParseState *Parser);
 void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *SourceValue, int Force, const char *FuncName, int ParamNo, int AllowPointerCoercion);
-long long ExpressionCoerceLongLong(Value *Val);
-unsigned long long ExpressionCoerceUnsignedLongLong(Value *Val);
+
+/* values.c */
+unsigned long long CoerceUnsignedLongLong(Value *Val);
+unsigned long CoerceUnsignedInteger(Value *Val);
+long long CoerceLongLong(Value *Val);
+long CoerceInteger(Value *Val);
+long AssignInt(struct ParseState *Parser, struct Value *DestValue, long FromInt, int After);
+long long AssignLongLong(struct ParseState *Parser, Value *DestValue, long long FromInt, int After);
 #ifndef NO_FP
-double ExpressionCoerceDouble(Value *Val);
+double CoerceDouble(Value *Val);
+float CoerceFloat(Value *Val);
+double AssignFP(struct ParseState *Parser, Value *DestValue, double FromFP);
 #endif
 
 /* assumption_expr.c */
 int AssumptionExpressionParse(struct ParseState *Parser, Value **Result);
 long long AssumptionExpressionParseLongLong(struct ParseState *Parser);
 void AssumptionExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *SourceValue, int Force, const char *FuncName, int ParamNo, int AllowPointerCoercion);
-long long AssumptionExpressionCoerceLongLong(Value *Val);
-unsigned long long AssumptionExpressionCoerceUnsignedLongLong(Value *Val);
-#ifndef NO_FP
-double AssumptionExpressionCoerceDouble(Value *Val);
-float ExpressionCoerceFloat(Value *Val);
-#endif
 
 /* type.c */
 void TypeInit(Picoc *pc);

@@ -268,7 +268,7 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                     {
                         /* show a signed integer */
                         if (IS_NUMERIC_COERCIBLE(ThisArg))
-                            StdioFprintfWord(&SOStream, OneFormatBuf, ExpressionCoerceUnsignedLongLong(ThisArg));
+                            StdioFprintfWord(&SOStream, OneFormatBuf, CoerceUnsignedLongLong(ThisArg));
                         else
                             StdioOutPuts("XXX", &SOStream);
                     }
@@ -277,7 +277,7 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                     {
                         /* show a floating point number */
                         if (IS_NUMERIC_COERCIBLE(ThisArg))
-                            StdioFprintfFP(&SOStream, OneFormatBuf, ExpressionCoerceDouble(ThisArg));
+                            StdioFprintfFP(&SOStream, OneFormatBuf, CoerceDouble(ThisArg));
                         else
                             StdioOutPuts("XXX", &SOStream);
                     }
@@ -285,7 +285,7 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                     {
                         /* show a floating point number */
                         if (IS_NUMERIC_COERCIBLE(ThisArg))
-                            StdioFprintfFP(&SOStream, OneFormatBuf, ExpressionCoerceFloat(ThisArg));
+                            StdioFprintfFP(&SOStream, OneFormatBuf, CoerceFloat(ThisArg));
                         else
                             StdioOutPuts("XXX", &SOStream);
                     }
