@@ -142,7 +142,7 @@ enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, Value *Value)
     long long Result = 0;
     long Base = 10;
     enum LexToken ResultToken;
-    char Unsigned = FALSE, Long = FALSE;
+    char Unsigned = FALSE, LongLong = FALSE;
 #ifndef NO_FP
     double FPResult;
     double FPDiv;
@@ -171,39 +171,38 @@ enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, Value *Value)
     for (; Lexer->Pos != Lexer->End && IS_BASE_DIGIT(*Lexer->Pos, Base); LEXER_INC(Lexer))
         Result = Result * Base + GET_BASE_DIGIT(*Lexer->Pos);
 
-    Value->Typ = &pc->LongLongType;
+    Value->Typ = &pc->LongType;
     if (*Lexer->Pos == 'u' || *Lexer->Pos == 'U')
     {
         LEXER_INC(Lexer);
         Unsigned = TRUE;
-        Value->Typ = &pc->UnsignedLongLongType;
+        Value->Typ = &pc->UnsignedLongType;
     }
     if (*Lexer->Pos == 'l' || *Lexer->Pos == 'L')
     {
         LEXER_INC(Lexer);
-        Long = TRUE;
     }
     if (*Lexer->Pos == 'l' || *Lexer->Pos == 'L')
     {
         LEXER_INC(Lexer);
-        Long = FALSE;
+        LongLong = TRUE;
     }
 
     if (Unsigned){
-        if (Long){
-            Value->Val->UnsignedLongInteger = (unsigned long) Result;
-            ResultToken = TokenUnsignedIntConstanst;
-        } else {
+        if (LongLong){
             Value->Val->UnsignedLongLongInteger = Result;
             ResultToken = TokenUnsignedLLConstanst;
+        } else {
+            Value->Val->UnsignedLongInteger = (unsigned long) Result;
+            ResultToken = TokenUnsignedIntConstanst;
         }
     } else {
-        if (Long){
-            Value->Val->LongInteger = (long) Result;
-            ResultToken = TokenIntegerConstant;
-        } else {
+        if (LongLong){
             Value->Val->LongLongInteger = Result;
             ResultToken = TokenLLConstanst;
+        } else {
+            Value->Val->LongInteger = (long) Result;
+            ResultToken = TokenIntegerConstant;
         }
     }
 
