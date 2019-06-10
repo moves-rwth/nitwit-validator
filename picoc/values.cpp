@@ -4,20 +4,20 @@ long CoerceInteger(struct Value *Val)
 {
     switch (Val->Typ->Base)
     {
-        case TypeInt:             return (long)Val->Val->Integer;
-        case TypeChar:            return (long)Val->Val->Character;
-        case TypeShort:           return (long)Val->Val->ShortInteger;
-        case TypeLong:            return (long)Val->Val->LongInteger;
-        case TypeLongLong:            return (long)Val->Val->LongLongInteger;
-        case TypeUnsignedInt:     return (long)Val->Val->UnsignedInteger;
-        case TypeUnsignedShort:   return (long)Val->Val->UnsignedShortInteger;
-        case TypeUnsignedLong:    return (long)Val->Val->UnsignedLongInteger;
-        case TypeUnsignedLongLong:    return (long)Val->Val->UnsignedLongLongInteger;
-        case TypeUnsignedChar:    return (long)Val->Val->UnsignedCharacter;
+        case TypeInt:             return Val->Val->Integer;
+        case TypeChar:            return Val->Val->Character;
+        case TypeShort:           return Val->Val->ShortInteger;
+        case TypeLong:            return Val->Val->LongInteger;
+        case TypeLongLong:        return Val->Val->LongLongInteger;
+        case TypeUnsignedInt:     return Val->Val->UnsignedInteger;
+        case TypeUnsignedChar:    return Val->Val->UnsignedCharacter;
+        case TypeUnsignedShort:   return Val->Val->UnsignedShortInteger;
+        case TypeUnsignedLong:    return Val->Val->UnsignedLongInteger;
+        case TypeUnsignedLongLong:return (long long)Val->Val->UnsignedLongLongInteger;
         case TypePointer:         return (long)Val->Val->Pointer;
 #ifndef NO_FP
-        case TypeDouble:              return (long)Val->Val->Double;
-        case TypeFloat:              return (long)Val->Val->Float;
+        case TypeDouble:          return (long)Val->Val->Double;
+        case TypeFloat:           return (long)Val->Val->Float;
 #endif
         default:                  return 0;
     }
@@ -27,20 +27,20 @@ unsigned long CoerceUnsignedInteger(struct Value *Val)
 {
     switch (Val->Typ->Base)
     {
-        case TypeInt:             return (unsigned long)Val->Val->Integer;
-        case TypeChar:            return (unsigned long)Val->Val->Character;
-        case TypeShort:           return (unsigned long)Val->Val->ShortInteger;
-        case TypeLong:            return (unsigned long)Val->Val->LongInteger;
-        case TypeLongLong:        return (long long)Val->Val->LongLongInteger;
-        case TypeUnsignedInt:     return (unsigned long)Val->Val->UnsignedInteger;
-        case TypeUnsignedShort:   return (unsigned long)Val->Val->UnsignedShortInteger;
-        case TypeUnsignedLong:    return (unsigned long)Val->Val->UnsignedLongInteger;
-        case TypeUnsignedChar:    return (unsigned long)Val->Val->UnsignedCharacter;
-        case TypeUnsignedLongLong:return (unsigned long)Val->Val->UnsignedLongLongInteger;
-        case TypePointer:         return (unsigned long)Val->Val->Pointer;
+        case TypeInt:             return Val->Val->Integer;
+        case TypeChar:            return (long)Val->Val->Character;
+        case TypeShort:           return (long)Val->Val->ShortInteger;
+        case TypeLong:            return Val->Val->LongInteger;
+        case TypeLongLong:        return Val->Val->LongLongInteger;
+        case TypeUnsignedInt:     return Val->Val->UnsignedInteger;
+        case TypeUnsignedShort:   return Val->Val->UnsignedShortInteger;
+        case TypeUnsignedLong:    return Val->Val->UnsignedLongInteger;
+        case TypeUnsignedChar:    return Val->Val->UnsignedCharacter;
+        case TypeUnsignedLongLong:return Val->Val->UnsignedLongLongInteger;
+        case TypePointer:         return (unsigned long) Val->Val->Pointer;
 #ifndef NO_FP
-        case TypeDouble:              return (unsigned long)Val->Val->Double;
-        case TypeFloat:              return (unsigned long)Val->Val->Float;
+        case TypeDouble:          return (unsigned long)Val->Val->Double;
+        case TypeFloat:           return (unsigned long)Val->Val->Float;
 
 #endif
         default:                  return 0;
@@ -58,15 +58,15 @@ long long CoerceLongLong(Value *Val)
         case TypeShort:           return Val->Val->ShortInteger;
         case TypeLong:            return Val->Val->LongInteger;
         case TypeLongLong:        return Val->Val->LongLongInteger;
-        case TypeUnsignedInt:     return (int)Val->Val->UnsignedInteger;
-        case TypeUnsignedChar:    return (char)Val->Val->UnsignedCharacter;
-        case TypeUnsignedShort:   return (short)Val->Val->UnsignedShortInteger;
-        case TypeUnsignedLong:    return (long)Val->Val->UnsignedLongInteger;
+        case TypeUnsignedInt:     return Val->Val->UnsignedInteger;
+        case TypeUnsignedChar:    return Val->Val->UnsignedCharacter;
+        case TypeUnsignedShort:   return Val->Val->UnsignedShortInteger;
+        case TypeUnsignedLong:    return Val->Val->UnsignedLongInteger;
         case TypeUnsignedLongLong:return (long long)Val->Val->UnsignedLongLongInteger;
         case TypePointer:         return (long) Val->Val->Pointer;
 #ifndef NO_FP
-        case TypeDouble:              return (long long)Val->Val->Double;
-        case TypeFloat:              return (long long)Val->Val->Float;
+        case TypeDouble:          return (long long)Val->Val->Double;
+        case TypeFloat:           return (long long)Val->Val->Float;
 #endif
         default:                  return Val->Val->LongLongInteger;
     }
@@ -76,11 +76,11 @@ unsigned long long CoerceUnsignedLongLong(Value *Val)
 {
     switch (Val->Typ->Base)
     {
-        case TypeInt:             return (unsigned int)Val->Val->Integer;
-        case TypeChar:            return (unsigned char)Val->Val->Character;
-        case TypeShort:           return (unsigned int)Val->Val->ShortInteger;
+        case TypeInt:             return (unsigned long)Val->Val->Integer;
+        case TypeChar:            return (unsigned long)Val->Val->Character;
+        case TypeShort:           return (unsigned long)Val->Val->ShortInteger;
         case TypeLong:            return (unsigned long)Val->Val->LongInteger;
-        case TypeLongLong:        return (unsigned long long)Val->Val->LongLongInteger;
+        case TypeLongLong:        return Val->Val->LongLongInteger;
         case TypeUnsignedInt:     return Val->Val->UnsignedInteger;
         case TypeUnsignedShort:   return Val->Val->UnsignedShortInteger;
         case TypeUnsignedLong:    return Val->Val->UnsignedLongInteger;
@@ -88,8 +88,8 @@ unsigned long long CoerceUnsignedLongLong(Value *Val)
         case TypeUnsignedChar:    return Val->Val->UnsignedCharacter;
         case TypePointer:         return (unsigned long) Val->Val->Pointer;
 #ifndef NO_FP
-        case TypeDouble:              return (unsigned long long)Val->Val->Double;
-        case TypeFloat:              return (unsigned long long)Val->Val->Float;
+        case TypeDouble:          return (unsigned long long)Val->Val->Double;
+        case TypeFloat:           return (unsigned long long)Val->Val->Float;
 #endif
         default:                  return Val->Val->UnsignedLongLongInteger;
     }
@@ -114,10 +114,10 @@ double CoerceDouble(Value *Val)
         case TypeUnsignedInt:     UnsignedVal = Val->Val->UnsignedInteger; return (double)UnsignedVal;
         case TypeUnsignedShort:   UnsignedVal = Val->Val->UnsignedShortInteger; return (double)UnsignedVal;
         case TypeUnsignedLong:    UnsignedVal = Val->Val->UnsignedLongInteger; return (double)UnsignedVal;
-        case TypeUnsignedLongLong:    ULLVal= Val->Val->UnsignedLongLongInteger; return (double)ULLVal;
+        case TypeUnsignedLongLong:ULLVal= Val->Val->UnsignedLongLongInteger; return (double)ULLVal;
         case TypeUnsignedChar:    UnsignedVal = Val->Val->UnsignedCharacter; return (double)UnsignedVal;
-        case TypeDouble:              return Val->Val->Double;
-        case TypeFloat:              return (double) Val->Val->Float;
+        case TypeDouble:          return Val->Val->Double;
+        case TypeFloat:           return (double) Val->Val->Float;
         default:                  return 0.0;
     }
 #else
@@ -154,10 +154,10 @@ float CoerceFloat(Value *Val)
         case TypeUnsignedInt:     UnsignedVal = Val->Val->UnsignedInteger; return (float)UnsignedVal;
         case TypeUnsignedShort:   UnsignedVal = Val->Val->UnsignedShortInteger; return (float)UnsignedVal;
         case TypeUnsignedLong:    UnsignedVal = Val->Val->UnsignedLongInteger; return (float)UnsignedVal;
-        case TypeUnsignedLongLong:    ULLVal= Val->Val->UnsignedLongLongInteger; return (float)ULLVal;
+        case TypeUnsignedLongLong:ULLVal= Val->Val->UnsignedLongLongInteger; return (float)ULLVal;
         case TypeUnsignedChar:    UnsignedVal = Val->Val->UnsignedCharacter; return (float)UnsignedVal;
-        case TypeDouble:              return (float) Val->Val->Double;
-        case TypeFloat:              return Val->Val->Float;
+        case TypeDouble:          return (float) Val->Val->Double;
+        case TypeFloat:           return Val->Val->Float;
         default:                  return 0.0;
     }
 #else
