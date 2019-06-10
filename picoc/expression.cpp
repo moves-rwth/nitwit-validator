@@ -10,7 +10,7 @@
 /* If the destination is not float, we can't assign a floating value to it, we need to convert it to integer instead */
 #define ASSIGN_FP_OR_INT(value) \
         if (IS_FP(BottomValue)) { ResultFP = AssignFP(Parser, BottomValue, value); } \
-        else { ResultInt = AssignLongLong(Parser, BottomValue, (long)(value), FALSE); ResultIsInt = TRUE; } \
+        else { ResultLLInt = AssignLongLong(Parser, BottomValue, (long)(value), FALSE); ResultIsInt = TRUE; } \
 
 #define DEEP_PRECEDENCE (BRACKET_PRECEDENCE*1000)
 #ifdef DEBUG_EXPRESSIONS
@@ -559,17 +559,17 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
             }
             else
 #endif
-            if (IS_NUMERIC_COERCIBLE(TopValue) && !IS_LONG_LONG(TopValue))
+            if (IS_NUMERIC_COERCIBLE(TopValue) && !IS_UNSIGNED(TopValue))
             {
                 /* integer prefix arithmetic */
-                long ResultInt = 0;
-                long TopInt = CoerceInteger(TopValue);
+                long long ResultInt = 0;
+                long long TopInt = CoerceInteger(TopValue);
                 switch (Op)
                 {
                     case TokenPlus:         ResultInt = TopInt; break;
                     case TokenMinus:        ResultInt = -TopInt; break;
-                    case TokenIncrement:    ResultInt = AssignInt(Parser, TopValue, TopInt + 1, FALSE); break;
-                    case TokenDecrement:    ResultInt = AssignInt(Parser, TopValue, TopInt - 1, FALSE); break;
+                    case TokenIncrement:    ResultInt = AssignLongLong(Parser, TopValue, TopInt + 1, FALSE); break;
+                    case TokenDecrement:    ResultInt = AssignLongLong(Parser, TopValue, TopInt - 1, FALSE); break;
                     case TokenUnaryNot:     ResultInt = !TopInt; break;
                     case TokenUnaryExor:    ResultInt = ~TopInt; break;
                     default:                ProgramFail(Parser, "invalid operation"); break;
@@ -577,11 +577,11 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
 
                 ExpressionPushInt(Parser, StackTop, ResultInt);
             }
-            else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_LONG_LONG(TopValue))
+            else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_UNSIGNED(TopValue)) // todo unsigned assign+push
             {
                 /* integer prefix arithmetic */
-                long long ResultInt = 0;
-                long long TopInt = CoerceLongLong(TopValue);
+                unsigned long long ResultInt = 0;
+                unsigned long long TopInt = CoerceUnsignedLongLong(TopValue);
                 switch (Op)
                 {
                     case TokenPlus:         ResultInt = TopInt; break;
@@ -660,20 +660,20 @@ void ExpressionPostfixOperator(struct ParseState *Parser, struct ExpressionStack
     }
     else
 #endif
-    if (IS_NUMERIC_COERCIBLE(TopValue) && !IS_LONG_LONG(TopValue))
+    if (IS_NUMERIC_COERCIBLE(TopValue) && !IS_UNSIGNED(TopValue))
     {
-         long ResultInt = 0;
-         long TopInt = CoerceInteger(TopValue);
+        unsigned long long ResultInt = 0;
+        unsigned long long TopInt = CoerceUnsignedLongLong(TopValue);
         switch (Op)
         {
-            case TokenIncrement:            ResultInt = AssignInt(Parser, TopValue, TopInt + 1, TRUE); break;
-            case TokenDecrement:            ResultInt = AssignInt(Parser, TopValue, TopInt - 1, TRUE); break;
+            case TokenIncrement:            ResultInt = AssignLongLong(Parser, TopValue, TopInt + 1, TRUE); break;
+            case TokenDecrement:            ResultInt = AssignLongLong(Parser, TopValue, TopInt - 1, TRUE); break;
             case TokenRightSquareBracket:   ProgramFail(Parser, "not supported"); break;  /* XXX */
             case TokenCloseBracket:         ProgramFail(Parser, "not supported"); break;  /* XXX */
             default:                        ProgramFail(Parser, "invalid operation"); break;
         }
 
-        ExpressionPushInt(Parser, StackTop, ResultInt);
+        ExpressionPushLongLong(Parser, StackTop, ResultInt);
     }
     else if (IS_NUMERIC_COERCIBLE(TopValue))
     {
@@ -720,7 +720,6 @@ void ExpressionPostfixOperator(struct ParseState *Parser, struct ExpressionStack
 /* evaluate an infix operator */
 void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack **StackTop, enum LexToken Op, Value *BottomValue, Value *TopValue)
 {
-    long ResultInt = 0;
     long long ResultLLInt = 0;
     Value *StackValue;
     void *Pointer;
@@ -795,12 +794,12 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
             case TokenSubtractAssign:       ASSIGN_FP_OR_INT(BottomFP - TopFP); break;
             case TokenMultiplyAssign:       ASSIGN_FP_OR_INT(BottomFP * TopFP); break;
             case TokenDivideAssign:         ASSIGN_FP_OR_INT(BottomFP / TopFP); break;
-            case TokenEqual:                ResultInt = BottomFP == TopFP; ResultIsInt = TRUE; break;
-            case TokenNotEqual:             ResultInt = BottomFP != TopFP; ResultIsInt = TRUE; break;
-            case TokenLessThan:             ResultInt = BottomFP < TopFP; ResultIsInt = TRUE; break;
-            case TokenGreaterThan:          ResultInt = BottomFP > TopFP; ResultIsInt = TRUE; break;
-            case TokenLessEqual:            ResultInt = BottomFP <= TopFP; ResultIsInt = TRUE; break;
-            case TokenGreaterEqual:         ResultInt = BottomFP >= TopFP; ResultIsInt = TRUE; break;
+            case TokenEqual:                ResultLLInt = BottomFP == TopFP; ResultIsInt = TRUE; break;
+            case TokenNotEqual:             ResultLLInt = BottomFP != TopFP; ResultIsInt = TRUE; break;
+            case TokenLessThan:             ResultLLInt = BottomFP < TopFP; ResultIsInt = TRUE; break;
+            case TokenGreaterThan:          ResultLLInt = BottomFP > TopFP; ResultIsInt = TRUE; break;
+            case TokenLessEqual:            ResultLLInt = BottomFP <= TopFP; ResultIsInt = TRUE; break;
+            case TokenGreaterEqual:         ResultLLInt = BottomFP >= TopFP; ResultIsInt = TRUE; break;
             case TokenPlus:                 ResultFP = BottomFP + TopFP; break;
             case TokenMinus:                ResultFP = BottomFP - TopFP; break;
             case TokenAsterisk:             ResultFP = BottomFP * TopFP; break;
@@ -809,82 +808,82 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         }
 
         if (ResultIsInt)
-            ExpressionPushLongLong(Parser, StackTop, ResultInt);
+            ExpressionPushLongLong(Parser, StackTop, ResultLLInt);
         else
             ExpressionPushDouble(Parser, StackTop, ResultFP);
     }
 #endif
-    else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_NUMERIC_COERCIBLE(BottomValue) && (!IS_LONG_LONG(TopValue) && !IS_LONG_LONG(BottomValue)))
+    else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_NUMERIC_COERCIBLE(BottomValue) && !IS_UNSIGNED(TopValue) && !IS_UNSIGNED(BottomValue))
     {
         /* integer operation */     // todo same in assumptions
-        long TopInt = CoerceInteger(TopValue);
-        long BottomInt = CoerceInteger(BottomValue);
+        long long TopInt = CoerceLongLong(TopValue);
+        long long BottomInt = CoerceLongLong(BottomValue);
         if (TypeIsNonDeterministic(TopValue->Typ))
             if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != nullptr)
                 BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->Typ);
         switch (Op)
         {
-            case TokenAssign:               ResultInt = AssignInt(Parser, BottomValue, TopInt, FALSE); break;
-            case TokenAddAssign:            ResultInt = AssignInt(Parser, BottomValue,
+            case TokenAssign:               ResultLLInt = AssignLongLong(Parser, BottomValue, TopInt, FALSE); break;
+            case TokenAddAssign:            ResultLLInt = AssignLongLong(Parser, BottomValue,
                                                                   BottomInt + TopInt,
                                                                   FALSE); break;
-            case TokenSubtractAssign:       ResultInt = AssignInt(Parser, BottomValue,
+            case TokenSubtractAssign:       ResultLLInt = AssignLongLong(Parser, BottomValue,
                                                                   BottomInt - TopInt,
                                                                   FALSE); break;
-            case TokenMultiplyAssign:       ResultInt = AssignInt(Parser, BottomValue,
+            case TokenMultiplyAssign:       ResultLLInt = AssignLongLong(Parser, BottomValue,
                                                                   BottomInt * TopInt,
                                                                   FALSE); break;
-            case TokenDivideAssign:         ResultInt = AssignInt(Parser, BottomValue,
+            case TokenDivideAssign:         ResultLLInt = AssignLongLong(Parser, BottomValue,
                                                                   BottomInt / TopInt,
                                                                   FALSE); break;
 #ifndef NO_MODULUS
-            case TokenModulusAssign:        ResultInt = AssignInt(Parser, BottomValue,
+            case TokenModulusAssign:        ResultLLInt = AssignLongLong(Parser, BottomValue,
                                                                   BottomInt % TopInt,
                                                                   FALSE); break;
 #endif
-            case TokenShiftLeftAssign:      ResultInt = AssignInt(Parser, BottomValue,
+            case TokenShiftLeftAssign:      ResultLLInt = AssignLongLong(Parser, BottomValue,
                                                                   BottomInt << TopInt, FALSE); break;
-            case TokenShiftRightAssign:     ResultInt = AssignInt(Parser, BottomValue,
+            case TokenShiftRightAssign:     ResultLLInt = AssignLongLong(Parser, BottomValue,
                                                                   BottomInt >> TopInt, FALSE); break;
-            case TokenArithmeticAndAssign:  ResultInt = AssignInt(Parser, BottomValue,
+            case TokenArithmeticAndAssign:  ResultLLInt = AssignLongLong(Parser, BottomValue,
                                                                   BottomInt & TopInt,
                                                                   FALSE); break;
-            case TokenArithmeticOrAssign:   ResultInt = AssignInt(Parser, BottomValue,
+            case TokenArithmeticOrAssign:   ResultLLInt = AssignLongLong(Parser, BottomValue,
                                                                   BottomInt | TopInt,
                                                                   FALSE); break;
-            case TokenArithmeticExorAssign: ResultInt = AssignInt(Parser, BottomValue,
+            case TokenArithmeticExorAssign: ResultLLInt = AssignLongLong(Parser, BottomValue,
                                                                   BottomInt ^ TopInt,
                                                                   FALSE); break;
-            case TokenLogicalOr:            ResultInt = BottomInt || TopInt; break;
-            case TokenLogicalAnd:           ResultInt = BottomInt && TopInt; break;
-            case TokenArithmeticOr:         ResultInt = BottomInt | TopInt; break;
-            case TokenArithmeticExor:       ResultInt = BottomInt ^ TopInt; break;
-            case TokenAmpersand:            ResultInt = BottomInt & TopInt; break;
-            case TokenEqual:                ResultInt = BottomInt == TopInt; break;
-            case TokenNotEqual:             ResultInt = BottomInt != TopInt; break;
-            case TokenLessThan:             ResultInt = BottomInt < TopInt; break;
-            case TokenGreaterThan:          ResultInt = BottomInt > TopInt; break;
-            case TokenLessEqual:            ResultInt = BottomInt <= TopInt; break;
-            case TokenGreaterEqual:         ResultInt = BottomInt >= TopInt; break;
-            case TokenShiftLeft:            ResultInt = BottomInt << TopInt; break;
-            case TokenShiftRight:           ResultInt = BottomInt >> TopInt; break;
-            case TokenPlus:                 ResultInt = BottomInt + TopInt; break;
-            case TokenMinus:                ResultInt = BottomInt - TopInt; break;
-            case TokenAsterisk:             ResultInt = BottomInt * TopInt; break;
-            case TokenSlash:                ResultInt = BottomInt / TopInt; break;
+            case TokenLogicalOr:            ResultLLInt = BottomInt || TopInt; break;
+            case TokenLogicalAnd:           ResultLLInt = BottomInt && TopInt; break;
+            case TokenArithmeticOr:         ResultLLInt = BottomInt | TopInt; break;
+            case TokenArithmeticExor:       ResultLLInt = BottomInt ^ TopInt; break;
+            case TokenAmpersand:            ResultLLInt = BottomInt & TopInt; break;
+            case TokenEqual:                ResultLLInt = BottomInt == TopInt; break;
+            case TokenNotEqual:             ResultLLInt = BottomInt != TopInt; break;
+            case TokenLessThan:             ResultLLInt = BottomInt < TopInt; break;
+            case TokenGreaterThan:          ResultLLInt = BottomInt > TopInt; break;
+            case TokenLessEqual:            ResultLLInt = BottomInt <= TopInt; break;
+            case TokenGreaterEqual:         ResultLLInt = BottomInt >= TopInt; break;
+            case TokenShiftLeft:            ResultLLInt = BottomInt << TopInt; break;
+            case TokenShiftRight:           ResultLLInt = BottomInt >> TopInt; break;
+            case TokenPlus:                 ResultLLInt = BottomInt + TopInt; break;
+            case TokenMinus:                ResultLLInt = BottomInt - TopInt; break;
+            case TokenAsterisk:             ResultLLInt = BottomInt * TopInt; break;
+            case TokenSlash:                ResultLLInt = BottomInt / TopInt; break;
 #ifndef NO_MODULUS
-            case TokenModulus:              ResultInt = BottomInt % TopInt; break;
+            case TokenModulus:              ResultLLInt = BottomInt % TopInt; break;
 #endif
             default:                        ProgramFail(Parser, "invalid operation"); break;
         }
 
-        ExpressionPushInt(Parser, StackTop, ResultInt);
+        ExpressionPushLongLong(Parser, StackTop, ResultLLInt);
     }
     else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_NUMERIC_COERCIBLE(BottomValue))
     {
         /* integer operation */     // todo same in assumptions
-        long long TopInt = CoerceLongLong(TopValue);
-        long long BottomInt = CoerceLongLong(BottomValue);
+        unsigned long long TopInt = CoerceUnsignedLongLong(TopValue);
+        unsigned long long BottomInt = CoerceUnsignedLongLong(BottomValue);
         if (TypeIsNonDeterministic(TopValue->Typ))
             if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != nullptr)
                 BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->Typ);

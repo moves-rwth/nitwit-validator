@@ -11,10 +11,7 @@ void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } r
     (Value)->Typ->Base == TypeChar ? Value->Val->Character : (\
     (Value)->Typ->Base == TypeShort ? Value->Val->ShortInteger : (\
     (Value)->Typ->Base == TypeLong ? Value->Val->LongInteger : (\
-    (Value)->Typ->Base == TypeUnsignedInt ? Value->Val->UnsignedInteger : (\
-    (Value)->Typ->Base == TypeUnsignedChar ? Value->Val->UnsignedCharacter : (\
-    (Value)->Typ->Base == TypeUnsignedShort ? Value->Val->UnsignedShortInteger : (\
-    (Value)->Typ->Base == TypeUnsignedLong ? Value->Val->UnsignedLongInteger : 0 ))))))))
+    (Value)->Typ->Base == TypeLongLong ? Value->Val->LongLongInteger : Value->Val->LongInteger )))))
 
 
 /* values */
@@ -123,6 +120,11 @@ struct Value
     char ConstQualifier;            /* true if it's a const */
 };
 
+union di {
+    long l;
+    long long ll;
+};
+
 int main() {
     struct ValueType l, ul;
     l.Base = TypeLong;
@@ -131,14 +133,25 @@ int main() {
     t.Typ = &ul;
     b.Typ = &l;
     union AnyValue lv, ulv;
-    lv.LongInteger = -1;
+    lv.LongInteger = -3128;
     ulv.LongInteger = 4294967295UL;
     t.Val = &ulv;
     b.Val = &lv;
 
+    union di udi;
+    udi.ll = 4294967296LL;
+    printf("%ld\n", udi.l);
+    udi.ll = -4294967296LL;
+    printf("%ld\n", udi.l);
+    udi.ll = -1;
+    printf("%ld\n", udi.l);
+    udi.ll = -3294967296LL;
+    printf("%ld\n", udi.l);
+    udi.ll = 3294967296LL;
+    printf("%ld\n", udi.l);
+
     struct Value * tp = &t, *bp = &b;
-    printf("Equal? %d, %d, %d\n", GET_VALUE(tp) == GET_VALUE(bp), GET_VALUE(bp) == GET_VALUE(tp),
-            tp->Val->UnsignedLongInteger == bp->Val->LongInteger);
+    printf("Holds? %d\n", GET_VALUE(bp) >= -10000 && GET_VALUE(bp) <= 10000);
 
     return (0);
     ERROR: __VERIFIER_error();

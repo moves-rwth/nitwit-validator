@@ -508,7 +508,7 @@ void AssumptionExpressionPrefixOperator(struct ParseState *Parser, struct Expres
             }
             else
 #endif
-            if (IS_NUMERIC_COERCIBLE(TopValue) && !IS_LONG_LONG(TopValue))
+            if (IS_NUMERIC_COERCIBLE(TopValue) && !IS_UNSIGNED(TopValue))
             {
                 /* integer prefix arithmetic */
                 long ResultInt = 0;
@@ -526,7 +526,7 @@ void AssumptionExpressionPrefixOperator(struct ParseState *Parser, struct Expres
 
                 AssumptionExpressionPushInt(Parser, StackTop, ResultInt);
             }
-            else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_LONG_LONG(TopValue))
+            else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_UNSIGNED(TopValue))
             {
                 /* integer prefix arithmetic */
                 long long ResultInt = 0;
@@ -595,7 +595,7 @@ void AssumptionExpressionPostfixOperator(struct ParseState *Parser, struct Expre
     }
     else
 #endif
-    if (IS_NUMERIC_COERCIBLE(TopValue) && !IS_LONG_LONG(TopValue))
+    if (IS_NUMERIC_COERCIBLE(TopValue) && !IS_UNSIGNED(TopValue))
     {
         long ResultInt = 0;
         long TopInt = CoerceInteger(TopValue);
@@ -790,7 +790,7 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
             AssumptionExpressionPushDouble(Parser, StackTop, ResultFP);
     }
 #endif
-    else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_NUMERIC_COERCIBLE(BottomValue) && (!IS_LONG_LONG(TopValue) && !IS_LONG_LONG(BottomValue)))
+    else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_NUMERIC_COERCIBLE(BottomValue) && (!IS_UNSIGNED(TopValue) && !IS_UNSIGNED(BottomValue)))
     {
         /* integer operation */     // todo same in assumptions
         if (TypeIsNonDeterministic(TopValue->Typ) != TypeIsNonDeterministic(BottomValue->Typ)) {

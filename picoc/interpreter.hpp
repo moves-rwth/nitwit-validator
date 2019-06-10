@@ -50,7 +50,27 @@ typedef FILE IOFILE;
 #define IS_INTEGER_NUMERIC(v) IS_INTEGER_NUMERIC_TYPE((v)->Typ)
 #define IS_NUMERIC_COERCIBLE(v) (IS_INTEGER_NUMERIC(v) || IS_FP(v))
 #define IS_NUMERIC_COERCIBLE_PLUS_POINTERS(v,ap) (IS_NUMERIC_COERCIBLE(v) || IS_POINTER_COERCIBLE(v,ap))
-#define IS_LONG_LONG(v) (v->Typ->Base == TypeLongLong || v->Typ->Base == TypeUnsignedLongLong)
+#define IS_UNSIGNED(v) (v->Typ->Base >= TypeUnsignedInt && v->Typ->Base <= TypeUnsignedLongLong)
+
+#ifndef GET_VALUE
+#define GET_VALUE(Value)\
+    ((Value)->Typ->Base == TypeInt ? Value->Val->Integer : (\
+    (Value)->Typ->Base == TypeChar ? Value->Val->Character : (\
+    (Value)->Typ->Base == TypeShort ? Value->Val->ShortInteger : (\
+    (Value)->Typ->Base == TypeLong ? Value->Val->LongInteger : (\
+    (Value)->Typ->Base == TypeUnsignedInt ? Value->Val->UnsignedInteger : (\
+    (Value)->Typ->Base == TypeUnsignedChar ? Value->Val->UnsignedCharacter : (\
+    (Value)->Typ->Base == TypeUnsignedShort ? Value->Val->UnsignedShortInteger : (\
+    (Value)->Typ->Base == TypeUnsignedLong ? Value->Val->UnsignedLongInteger :  Value->Val->LongInteger))))))))
+#endif
+
+#ifndef GET_LL_VALUE
+#define GET_LL_VALUE(Value)\
+    ((Value)->Typ->Base == TypeLongLong ? Value->Val->LongLongInteger : (\
+    (Value)->Typ->Base == TypeUnsignedLongLong ? Value->Val->UnsignedLongLongInteger :  Value->Val->LongLongInteger))
+#endif
+
+
 
 struct Table;
 struct Picoc_Struct;
