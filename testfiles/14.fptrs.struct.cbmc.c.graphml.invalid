@@ -57,14 +57,14 @@
     <edge source="25.38" target="26.39">
       <data key="originfile">14.fptrs.struct.c</data>
       <data key="startline">26</data>
-      <data key="assumption">dynamic_object1.a = 0; dynamic_object1.b = 0; dynamic_object1.fp = ((const void * (*)(struct JoinPoint *))NULL);</data>
+      <data key="assumption">dynamic_object1.a = 0; dynamic_object1.b = 0; dynamic_object1.fp = ((const void * (*)(struct JoinPoint *))nullptr);</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="26.39"/>
     <edge source="26.39" target="27.40">
       <data key="originfile">14.fptrs.struct.c</data>
       <data key="startline">27</data>
-      <data key="assumption">dynamic_object1.a = 0; dynamic_object1.b = 0; dynamic_object1.fp = ((const void * (*)(struct JoinPoint *))NULL);</data>
+      <data key="assumption">dynamic_object1.a = 0; dynamic_object1.b = 0; dynamic_object1.fp = ((const void * (*)(struct JoinPoint *))nullptr);</data>
       <data key="assumption.scope">main</data>
     </edge>
     <node id="27.40"/>
@@ -91,14 +91,14 @@
     <edge source="171.68" target="172.69">
       <data key="originfile">14.fptrs.struct.c</data>
       <data key="startline">13</data>
-      <data key="assumption">dynamic_object2.a = 1; dynamic_object2.b = 0; dynamic_object2.fp = ((const void * (*)(struct JoinPoint *))NULL);</data>
+      <data key="assumption">dynamic_object2.a = 1; dynamic_object2.b = 0; dynamic_object2.fp = ((const void * (*)(struct JoinPoint *))nullptr);</data>
       <data key="assumption.scope">func1</data>
     </edge>
     <node id="172.69"/>
     <edge source="172.69" target="40.73">
       <data key="originfile">14.fptrs.struct.c</data>
       <data key="startline">14</data>
-      <data key="assumption">dynamic_object2.a = 1; dynamic_object2.b = 1; dynamic_object2.fp = ((const void * (*)(struct JoinPoint *))NULL);</data>
+      <data key="assumption">dynamic_object2.a = 1; dynamic_object2.b = 1; dynamic_object2.fp = ((const void * (*)(struct JoinPoint *))nullptr);</data>
       <data key="assumption.scope">func1</data>
     </edge>
     <node id="40.73"/>

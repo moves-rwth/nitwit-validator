@@ -2,9 +2,7 @@
 #include <cstring>
 #include <cstdlib>
 
-extern "C" {
-#include "picoc/picoc.h"
-}
+#include "picoc/picoc.hpp"
 #undef min
 
 #include "utils/files.hpp"
@@ -94,7 +92,7 @@ int validate(const char *source_filename) {
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
 
-    struct Value *MainFuncValue = nullptr;
+    Value *MainFuncValue = nullptr;
     VariableGet(&pc, nullptr, TableStrRegister(&pc, "main"), &MainFuncValue);
 
     if (MainFuncValue->Typ->Base != TypeFunction)
