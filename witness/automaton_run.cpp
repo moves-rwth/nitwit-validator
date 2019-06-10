@@ -77,10 +77,10 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             Value *val;
             VariableGet(state->pc, state, I->Identifier, &val);
             if (IS_FP(val)) {
-                double fp = AssumptionExpressionCoerceDouble(val);
+                double fp = CoerceDouble(val);
                 cw_verbose("Resolved var: %s: ---> %2.20f\n", I->Identifier, fp);
             } else {
-                int i = AssumptionExpressionCoerceLongLong(val);
+                int i = CoerceLongLong(val);
                 cw_verbose("Resolved var: %s: ---> %d\n", I->Identifier, i);
             }
 #endif
