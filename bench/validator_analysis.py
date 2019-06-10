@@ -144,8 +144,9 @@ def analyze_times(matching: Dict[str, dict]):
 		print(f"Validator {VALIDATORS[i]}:")
 		print_stats(times)
 		print("-" * 40)
-		ax = sns.distplot(reject_outliers(times), kde=True, rug=True, ax=axs[i % 2][math.floor(i / 2)], color="green")
+		ax = sns.distplot(reject_outliers(times), kde=False, rug=True, ax=axs[i % 2][math.floor(i / 2)], color="green")
 		ax.set_title(VALIDATORS[i])
+		ax.set_xlabel("Time [s]")
 
 	fig.delaxes(axs[1, 2])  # The indexing is zero-based here
 
@@ -177,9 +178,9 @@ def main():
 		return 1
 
 	matching = get_matching(all, validators['byWitnessHash'], args.outputmatched)
-	# analyze(matching)
-	#
-	# analyze_by_producer(matching)
+	analyze(matching)
+
+	analyze_by_producer(matching)
 
 	analyze_times(matching)
 
