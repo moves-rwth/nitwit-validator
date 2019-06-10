@@ -26,7 +26,7 @@ def process_results(results: List[Tuple[int, str, str, float]], executable: str,
 	non_validated = []
 	badly_parsed = []
 	for ret_code, info_file, err_msg, time in results:
-		if ret_code is None:
+		if ret_code is None or ret_code == -9:
 			non_validated.append((9, os.path.basename(info_file), err_msg, time))
 		elif ret_code == 0 or ret_code == 245:
 			validated.append((ret_code, os.path.basename(info_file), err_msg, time))

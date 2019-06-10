@@ -56,7 +56,7 @@ VALIDATORS_LIST = ["CPAChecker",
                    "CProver",
                    "CWValidator"]
 
-CPU_MULTIPLIER = 2.1 / 3.4
+CPU_MULTIPLIER = 1.8/3.4
 
 
 def adjust_to_cpu(time: float) -> float:
@@ -154,6 +154,7 @@ def print_stats(times):
 	print(f"Mean: {np.mean(times)}")
 	print(f"Median: {np.median(times)}")
 	print(f"Std dev: {np.std(times)}")
+	print(f"In total: {np.sum(times)}")
 
 
 def main():
@@ -176,9 +177,9 @@ def main():
 		return 1
 
 	matching = get_matching(all, validators['byWitnessHash'], args.outputmatched)
-	analyze(matching)
-
-	analyze_by_producer(matching)
+	# analyze(matching)
+	#
+	# analyze_by_producer(matching)
 
 	analyze_times(matching)
 
