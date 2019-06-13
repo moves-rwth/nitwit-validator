@@ -15,7 +15,9 @@ void StdboolSetupFunc(Picoc *pc)
 {
     /* defines */
     VariableDefinePlatformVar(pc, nullptr, "true", &pc->IntType, (union AnyValue *)&trueValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "TRUE", &pc->IntType, (union AnyValue *)&trueValue, FALSE);
     VariableDefinePlatformVar(pc, nullptr, "false", &pc->IntType, (union AnyValue *)&falseValue, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "FALSE", &pc->IntType, (union AnyValue *)&falseValue, FALSE);
     VariableDefinePlatformVar(pc, nullptr, "__bool_true_false_are_defined", &pc->IntType, (union AnyValue *)&trueValue, FALSE);
 }
 

@@ -92,7 +92,7 @@ void PrintType(struct ValueType *Typ, IOFILE *Stream)
  *
  * A more complete standard library for larger computers is in the library_XXX.c files.
  */
- 
+
 static int TRUEValue = 1;
 static int ZeroValue = 0;
 

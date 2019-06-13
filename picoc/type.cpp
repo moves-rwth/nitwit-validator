@@ -443,8 +443,8 @@ void TypeParseEnum(struct ParseState *Parser, struct ValueType **Typ)
             LexGetToken(Parser, nullptr, TRUE);
             EnumValue = ExpressionParseLongLong(Parser);
         }
-        
-        VariableDefine(pc, Parser, EnumIdentifier, &InitValue, nullptr, FALSE);
+
+        VariableDefine(pc, Parser, EnumIdentifier, &InitValue, nullptr, FALSE, false);
             
         Token = LexGetToken(Parser, nullptr, TRUE);
         if (Token != TokenComma && Token != TokenRightBrace)

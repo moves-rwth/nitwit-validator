@@ -718,9 +718,9 @@ void StdioSetupFunc(Picoc *pc)
     VariableDefinePlatformVar(pc, nullptr, "stdout", FilePtrType, (union AnyValue *)&stdoutValue, FALSE);
     VariableDefinePlatformVar(pc, nullptr, "stderr", FilePtrType, (union AnyValue *)&stderrValue, FALSE);
 
-    /* define nullptr, TRUE and FALSE */
-    if (!VariableDefined(pc, TableStrRegister(pc, "nullptr")))
-        VariableDefinePlatformVar(pc, nullptr, "nullptr", &pc->IntType, (union AnyValue *)&Stdio_ZeroValue, FALSE);
+    /* define NULL, TRUE and FALSE */
+    if (!VariableDefined(pc, TableStrRegister(pc, "NULL")))
+        VariableDefinePlatformVar(pc, nullptr, "NULL", &pc->IntType, (union AnyValue *)&Stdio_ZeroValue, FALSE);
 }
 
 /* portability-related I/O calls */

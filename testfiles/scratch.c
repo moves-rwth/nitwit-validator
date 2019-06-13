@@ -6,12 +6,6 @@ int __VERIFIER_nondet_int(void){return 0;}
 void __VERIFIER_assume(int expression){printf("Assume %d\n", expression);}
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
-#define GET_VALUE(Value)\
-    ((Value)->Typ->Base == TypeInt ? Value->Val->Integer : (\
-    (Value)->Typ->Base == TypeChar ? Value->Val->Character : (\
-    (Value)->Typ->Base == TypeShort ? Value->Val->ShortInteger : (\
-    (Value)->Typ->Base == TypeLong ? Value->Val->LongInteger : (\
-    (Value)->Typ->Base == TypeLongLong ? Value->Val->LongLongInteger : Value->Val->LongInteger )))))
 
 
 /* values */
@@ -28,10 +22,8 @@ enum BaseType
     TypeUnsignedChar,           /* unsigned 8-bit number */ /* must be before unsigned long */
     TypeUnsignedLong,           /* unsigned long integer */
     TypeUnsignedLongLong,           /* unsigned long long integer */
-#ifndef NO_FP
     TypeDouble,                     /* floating point */
     TypeFloat,                     /* floating point */
-#endif
     TypeFunction,               /* a function */
     TypeFunctionPtr,               /* a function pointer*/
     TypeMacro,                  /* a macro */
@@ -41,7 +33,7 @@ enum BaseType
     TypeUnion,                  /* merged type */
     TypeEnum,                   /* enumerated integer type */
     TypeGotoLabel,              /* a label we can "goto" */
-    Type_Type,                   /* a type for storing types */
+    Type_Type                   /* a type for storing types */
 };
 
 /* data type */
@@ -92,10 +84,8 @@ union AnyValue
     unsigned long UnsignedLongInteger;
     unsigned long UnsignedLongLongInteger;
     unsigned char UnsignedCharacter;
-#ifndef NO_FP
     double Double;
     float Float;
-#endif
     void *Pointer;                  /* unsafe native pointers */
     char *Identifier;
     char ArrayMem[2];               /* placeholder for where the data starts, doesn't point to it */
@@ -149,9 +139,6 @@ int main() {
     printf("%ld\n", udi.l);
     udi.ll = 3294967296LL;
     printf("%ld\n", udi.l);
-
-    struct Value * tp = &t, *bp = &b;
-    printf("Holds? %d\n", GET_VALUE(bp) >= -10000 && GET_VALUE(bp) <= 10000);
 
     return (0);
     ERROR: __VERIFIER_error();

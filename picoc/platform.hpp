@@ -16,7 +16,7 @@
 #if defined(__hppa__) || defined(__sparc__)
 #define ALIGN_TYPE double                   /* the default data type to use for alignment */
 #else
-#define ALIGN_TYPE long long                   /* the default data type to use for alignment */
+#define ALIGN_TYPE double                   /* the default data type to use for alignment */
 #endif
 
 #define GLOBAL_TABLE_SIZE 97                /* global variable table */
@@ -49,6 +49,8 @@
 # include <setjmp.h>
 #include <string>
 #include <iostream>
+#include <map>
+#include <memory>
 using namespace std;
 # ifndef NO_FP
 #  include <math.h>

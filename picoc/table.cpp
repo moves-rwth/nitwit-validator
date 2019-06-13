@@ -98,6 +98,7 @@ int TableGet(struct Table *Tbl, const char *Key, Value **Val, const char **DeclF
     return TRUE;
 }
 
+
 /* remove an entry from the table */
 Value *TableDelete(Picoc *pc, struct Table *Tbl, const char *Key)
 {

@@ -181,8 +181,8 @@ struct LibraryFunction StringFunctions[] =
 void StringSetupFunc(Picoc *pc)
 {
     /* define nullptr */
-    if (!VariableDefined(pc, TableStrRegister(pc, "nullptr")))
-        VariableDefinePlatformVar(pc, nullptr, "nullptr", &pc->IntType, (union AnyValue *)&String_ZeroValue, FALSE);
+    if (!VariableDefined(pc, TableStrRegister(pc, "NULL")))
+        VariableDefinePlatformVar(pc, nullptr, "NULL", &pc->IntType, (union AnyValue *)&String_ZeroValue, FALSE);
 }
 
 #endif /* !BUILTIN_MINI_STDLIB */

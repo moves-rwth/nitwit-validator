@@ -1074,7 +1074,7 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
     else if (Op == TokenAssign)
     {
         /* assign a non-numeric type */
-        HeapUnpopStack(Parser->pc, sizeof(Value));   /* XXX - possible bug if lvalue is a temp value and takes more than sizeof(Value) */
+        HeapUnpopStack(Parser->pc, MEM_ALIGN(sizeof(Value)));   /* XXX - possible bug if lvalue is a temp value and takes more than sizeof(Value) */
         AssumptionExpressionAssign(Parser, BottomValue, TopValue, FALSE, nullptr, 0, FALSE);
         if (BottomValue->Typ->Base == TypeFunctionPtr) {
             AssumptionExpressionPushInt(Parser, StackTop,
@@ -1131,7 +1131,7 @@ void AssumptionExpressionStackCollapse(struct ParseState *Parser, struct Express
                     TopValue = TopStackNode->Val;
 
                     /* pop the value and then the prefix operator - assume they'll still be there until we're done */
-                    HeapPopStack(Parser->pc, nullptr, sizeof(struct ExpressionStack) + sizeof(Value) + TypeStackSizeValue(TopValue));
+                    HeapPopStack(Parser->pc, nullptr, sizeof(struct ExpressionStack) + MEM_ALIGN(sizeof(Value)) + TypeStackSizeValue(TopValue));
                     HeapPopStack(Parser->pc, TopOperatorNode, sizeof(struct ExpressionStack));
                     *StackTop = TopOperatorNode->Next;
 
@@ -1155,7 +1155,7 @@ void AssumptionExpressionStackCollapse(struct ParseState *Parser, struct Express
 
                     /* pop the postfix operator and then the value - assume they'll still be there until we're done */
                     HeapPopStack(Parser->pc, nullptr, sizeof(struct ExpressionStack));
-                    HeapPopStack(Parser->pc, TopValue, sizeof(struct ExpressionStack) + sizeof(Value) + TypeStackSizeValue(TopValue));
+                    HeapPopStack(Parser->pc, TopValue, sizeof(struct ExpressionStack) + MEM_ALIGN(sizeof(Value)) + TypeStackSizeValue(TopValue));
                     *StackTop = TopStackNode->Next->Next;
 
                     /* do the postfix operation */
@@ -1180,9 +1180,9 @@ void AssumptionExpressionStackCollapse(struct ParseState *Parser, struct Express
                         BottomValue = TopOperatorNode->Next->Val;
 
                         /* pop a value, the operator and another value - assume they'll still be there until we're done */
-                        HeapPopStack(Parser->pc, nullptr, sizeof(struct ExpressionStack) + sizeof(Value) + TypeStackSizeValue(TopValue));
+                        HeapPopStack(Parser->pc, nullptr, sizeof(struct ExpressionStack) + MEM_ALIGN(sizeof(Value)) + TypeStackSizeValue(TopValue));
                         HeapPopStack(Parser->pc, nullptr, sizeof(struct ExpressionStack));
-                        HeapPopStack(Parser->pc, BottomValue, sizeof(struct ExpressionStack) + sizeof(Value) + TypeStackSizeValue(BottomValue));
+                        HeapPopStack(Parser->pc, BottomValue, sizeof(struct ExpressionStack) + MEM_ALIGN(sizeof(Value)) + TypeStackSizeValue(BottomValue));
                         *StackTop = TopOperatorNode->Next->Next;
 
                         /* do the infix operation */
@@ -1277,7 +1277,7 @@ void AssumptionExpressionGetStructElement(struct ParseState *Parser, struct Expr
             ProgramFail(Parser, "doesn't have a member called '%s'", Ident->Val->Identifier);
 
         /* pop the value - assume it'll still be there until we're done */
-        HeapPopStack(Parser->pc, ParamVal, sizeof(struct ExpressionStack) + sizeof(Value) + TypeStackSizeValue(StructVal));
+        HeapPopStack(Parser->pc, ParamVal, sizeof(struct ExpressionStack) + MEM_ALIGN(sizeof(Value)) + TypeStackSizeValue(StructVal));
         *StackTop = (*StackTop)->Next;
 
         /* make the result value for this member only */
@@ -1573,7 +1573,7 @@ int AssumptionExpressionParse(struct ParseState *Parser, Value **Result)
             HeapPopStack(Parser->pc, StackTop, sizeof(struct ExpressionStack));
         }
         else
-            HeapPopStack(Parser->pc, StackTop->Val, sizeof(struct ExpressionStack) + sizeof(Value) + TypeStackSizeValue(StackTop->Val));
+            HeapPopStack(Parser->pc, StackTop->Val, sizeof(struct ExpressionStack) + MEM_ALIGN(sizeof(Value)) + TypeStackSizeValue(StackTop->Val));
     }
 
 //    debugff("AssumptionExpressionParse() done\n\n");
@@ -1657,7 +1657,7 @@ void AssumptionExpressionParseMacroCall(struct ParseState *Parser, struct Expres
         Parser->pc->TopStackFrame->NumParams = ArgCount;
         Parser->pc->TopStackFrame->ReturnValue = ReturnValue;
         for (Count = 0; Count < MDef->NumParams; Count++)
-            VariableDefine(Parser->pc, Parser, MDef->ParamName[Count], ParamArray[Count], nullptr, TRUE);
+            VariableDefine(Parser->pc, Parser, MDef->ParamName[Count], ParamArray[Count], nullptr, TRUE, false);
 
         AssumptionExpressionParse(&MacroParser, &EvalValue);
         AssumptionExpressionAssign(Parser, ReturnValue, EvalValue, TRUE, MacroName, 0, FALSE);
@@ -1768,7 +1768,8 @@ void AssumptionExpressionParseFunctionCall(struct ParseState *Parser, struct Exp
             Parser->ScopeID = -1;
 
             for (Count = 0; Count < FuncValue->Val->FuncDef.NumParams; Count++)
-                VariableDefine(Parser->pc, Parser, FuncValue->Val->FuncDef.ParamName[Count], ParamArray[Count], nullptr, TRUE);
+                VariableDefine(Parser->pc, Parser, FuncValue->Val->FuncDef.ParamName[Count], ParamArray[Count], nullptr,
+                               TRUE, false);
 
             Parser->ScopeID = OldScopeID;
 

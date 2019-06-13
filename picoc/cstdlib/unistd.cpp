@@ -491,8 +491,8 @@ struct LibraryFunction UnistdFunctions[] =
 void UnistdSetupFunc(Picoc *pc)
 {
     /* define nullptr */
-    if (!VariableDefined(pc, TableStrRegister(pc, "nullptr")))
-        VariableDefinePlatformVar(pc, nullptr, "nullptr", &pc->IntType, (union AnyValue *)&ZeroValue, FALSE);
+    if (!VariableDefined(pc, TableStrRegister(pc, "NULL")))
+        VariableDefinePlatformVar(pc, nullptr, "NULL", &pc->IntType, (union AnyValue *)&ZeroValue, FALSE);
 
     /* define optarg and friends */
     VariableDefinePlatformVar(pc, nullptr, "optarg", pc->CharPtrType, (union AnyValue *)&optarg, TRUE);

@@ -360,7 +360,13 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
     int IsStatic = FALSE;
     int IsConst = FALSE;
     int FirstVisit = FALSE;
+    int GotoMode = FALSE;
     Picoc *pc = Parser->pc;
+
+//    if (Parser->Mode == RunModeGoto) {
+//        Parser->Mode = RunModeSkip;
+//        GotoMode = TRUE;
+//    }
 
     TypeParseFront(Parser, &BasicType, &IsStatic, &IsConst);
     do
@@ -414,6 +420,10 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
             LexGetToken(Parser, nullptr, TRUE);
 
     } while (Token == TokenComma);
+
+//    if (GotoMode){
+//        Parser->Mode = RunModeGoto;
+//    }
 
     return TRUE;
 }
@@ -645,7 +655,7 @@ void ParseTypedef(struct ParseState *Parser)
             }
         }
 
-        VariableDefine(Parser->pc, Parser, TypeName, &InitValue, nullptr, FALSE);
+        VariableDefine(Parser->pc, Parser, TypeName, &InitValue, nullptr, FALSE, false);
     }
 }
 

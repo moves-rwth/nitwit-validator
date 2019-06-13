@@ -51,7 +51,8 @@ void VariableTableCleanup(Picoc *pc, struct Table *HashTable)
         for (Entry = HashTable->HashTable[Count]; Entry != nullptr; Entry = NextEntry)
         {
             NextEntry = Entry->Next;
-            VariableFree(pc, Entry->p.v.Val);
+//            VariableFree(pc, Entry->p.v.Val);
+            delete Entry->p.v.ValShadows;
                 
             /* free the hash table entry */
             HeapFreeMem(pc, Entry);
@@ -105,6 +106,7 @@ VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, in
     NewValue->OutOfScope = 0;
     NewValue->VarIdentifier = VarIdentifier;
     NewValue->ConstQualifier = FALSE;
+    NewValue->ShadowedVal = nullptr;
     return NewValue;
 }
 
@@ -142,7 +144,7 @@ Value *
 VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *Typ, union AnyValue *FromValue,
                                    int IsLValue, Value *LValueFrom, char *VarIdentifier)
 {
-    Value *NewValue = static_cast<Value *>(VariableAlloc(Parser->pc, Parser, sizeof(Value), FALSE));
+    Value *NewValue = static_cast<Value *>(VariableAlloc(Parser->pc, Parser, MEM_ALIGN(sizeof(Value)), FALSE));
     NewValue->Typ = Typ;
     NewValue->Val = FromValue;
     NewValue->ValOnHeap = FALSE;
@@ -152,6 +154,7 @@ VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *
     NewValue->LValueFrom = LValueFrom;
     NewValue->VarIdentifier = VarIdentifier;
     NewValue->ConstQualifier = LValueFrom == nullptr ? FALSE : LValueFrom->ConstQualifier;
+    NewValue->ShadowedVal = LValueFrom == nullptr ? FALSE : LValueFrom->ShadowedVal;
 
     return NewValue;
 }
@@ -199,8 +202,15 @@ int VariableScopeBegin(struct ParseState * Parser, int* OldScopeID)
         for (Entry = HashTable->HashTable[Count]; Entry != nullptr; Entry = NextEntry)
         {
             NextEntry = Entry->Next;
-            if (Entry->p.v.Val->ScopeID == Parser->ScopeID && Entry->p.v.Val->OutOfScope)
-            {
+            if (Entry->p.v.Val->ScopeID != Parser->ScopeID && Entry->p.v.ValShadows != nullptr){ // todo is shadows always initiated?
+                auto shadow = Entry->p.v.ValShadows->shadows.find(Parser->ScopeID);
+                if (shadow != Entry->p.v.ValShadows->shadows.end()){
+                    shadow->second->ShadowedVal = Entry->p.v.Val; // save which value was shadowed
+                    Entry->p.v.Val = shadow->second; // take the shadow as the current value
+                    Entry->p.v.Val->OutOfScope = FALSE;
+                    printf(">>> shadow back into scope: %s %x %d\n", Entry->p.v.Key, Entry->p.v.Val->ScopeID, Entry->p.v.Val->Val->Integer);
+                }
+            } else if (Entry->p.v.Val->ScopeID == Parser->ScopeID && Entry->p.v.Val->OutOfScope) {
                 Entry->p.v.Val->OutOfScope = FALSE;
                 Entry->p.v.Key = (char*)((intptr_t)Entry->p.v.Key & ~1);
                 #ifdef VAR_SCOPE_DEBUG
@@ -242,7 +252,12 @@ void VariableScopeEnd(struct ParseState * Parser, int ScopeID, int PrevScopeID)
                 printf(">>> out of scope: %s %x %d\n", Entry->p.v.Key, Entry->p.v.Val->ScopeID, Entry->p.v.Val->Val->Integer);
                 #endif
                 Entry->p.v.Val->OutOfScope = TRUE;
-                Entry->p.v.Key = (char*)((intptr_t)Entry->p.v.Key | 1); /* alter the key so it won't be found by normal searches */
+                if (Entry->p.v.Val->ShadowedVal == nullptr){
+                    Entry->p.v.Key = (char*)((intptr_t)Entry->p.v.Key | 1); /* alter the key so it won't be found by normal searches */
+                } else {
+                    Entry->p.v.Val = Entry->p.v.Val->ShadowedVal;
+                    printf(">>> shadowed variable back into scope: %s %x %d\n", Entry->p.v.Key, Entry->p.v.Val->ScopeID, Entry->p.v.Val->Val->Integer);
+                }
             }
         }
     }
@@ -268,7 +283,8 @@ int VariableDefinedAndOutOfScope(Picoc * pc, const char* Ident)
 }
 
 /* define a variable. Ident must be registered */
-Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, Value *InitValue, struct ValueType *Typ, int MakeWritable)
+Value *
+VariableDefine(Picoc *pc, ParseState *Parser, char *Ident, Value *InitValue, ValueType *Typ, int MakeWritable, bool MakeShadow)
 {
     Value * AssignValue;
     struct Table * currentTable = (pc->TopStackFrame == nullptr) ? &(pc->GlobalTable) : &(pc->TopStackFrame)->LocalTable;
@@ -288,9 +304,21 @@ Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, Value *
     AssignValue->IsLValue = MakeWritable;
     AssignValue->ScopeID = ScopeID;
     AssignValue->OutOfScope = FALSE;
-    if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
-        ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
-    
+
+    unsigned AddAt;
+    if (MakeShadow) {
+//         shadowing
+        TableEntry * FoundEntry = TableSearch(currentTable, Ident, &AddAt);
+        FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(ScopeID, AssignValue));
+        FoundEntry->p.v.Val = AssignValue;
+    } else {
+        if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
+            ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
+        TableEntry * FoundEntry = TableSearch(currentTable, Ident, &AddAt);
+        FoundEntry->p.v.ValShadows = new Shadows();
+        FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(ScopeID, AssignValue));
+    }
+
     return AssignValue;
 }
 
@@ -348,11 +376,13 @@ Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *Ident, 
     }
     else
     {
-        if (Parser->Line != 0 && TableGet((pc->TopStackFrame == nullptr) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable, Ident, &ExistingValue, &DeclFileName, &DeclLine, &DeclColumn)
-                && DeclFileName == Parser->FileName && DeclLine == Parser->Line && DeclColumn == Parser->CharacterPos)
+        int DidExist = TableGet((pc->TopStackFrame == nullptr) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable,
+                                Ident, &ExistingValue, &DeclFileName, &DeclLine, &DeclColumn);
+        if (Parser->Line != 0 && DidExist && DeclFileName == Parser->FileName && DeclLine == Parser->Line && DeclColumn == Parser->CharacterPos) {
             return ExistingValue;
-        else
-            return VariableDefine(Parser->pc, Parser, Ident, nullptr, Typ, TRUE);
+        } else {
+            return VariableDefine(Parser->pc, Parser, Ident, nullptr, Typ, TRUE, (Parser->Line != 0 && DidExist && pc->TopStackFrame != nullptr));
+        }
     }
 }
 
@@ -411,12 +441,12 @@ void VariableStackPop(struct ParseState *Parser, Value *Var)
         if (Var->Val != nullptr)
             HeapFreeMem(Parser->pc, Var->Val);
             
-        Success = HeapPopStack(Parser->pc, Var, sizeof(Value));                       /* free from heap */
+        Success = HeapPopStack(Parser->pc, Var, MEM_ALIGN(sizeof(Value)));                       /* free from heap */
     }
     else if (Var->ValOnStack)
-        Success = HeapPopStack(Parser->pc, Var, sizeof(Value) + TypeSizeValue(Var, FALSE));  /* free from stack */
+        Success = HeapPopStack(Parser->pc, Var, MEM_ALIGN(sizeof(Value)) + TypeSizeValue(Var, FALSE));  /* free from stack */
     else
-        Success = HeapPopStack(Parser->pc, Var, sizeof(Value));                       /* value isn't our problem */
+        Success = HeapPopStack(Parser->pc, Var, MEM_ALIGN(sizeof(Value)));                       /* value isn't our problem */
         
     if (!Success)
         ProgramFail(Parser, "stack underrun");

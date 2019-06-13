@@ -112,6 +112,17 @@ enum LexToken
     /* 0x61 */ TokenEOF, TokenEndOfLine, TokenEndOfFunction,
 };
 
+class Shadows {
+public:
+    Shadows(): shadows(){
+    }
+    ~Shadows() {
+        for (auto& v: shadows)
+            free(v.second);
+    }
+    map<int, Value*> shadows;
+};
+
 /* hash table data structure */
 struct TableEntry
 {
@@ -125,7 +136,8 @@ struct TableEntry
         struct ValueEntry
         {
             char *Key;              /* points to the shared string table */
-            Value *Val;      /* the value we're storing */
+            Value *Val;             /* the value we're storing */
+            Shadows * ValShadows; /* shadowed values mapped by ScopeID */ // TODO the TableEntries are memset to 0, is that ok?
         } v;                        /* used for tables of values */
 
         char Key[1];                /* dummy size - used for the shared string table */
@@ -303,15 +315,18 @@ struct Value
     struct ValueType *Typ;          /* the type of this value */
     union AnyValue *Val;            /* pointer to the AnyValue which holds the actual content */
     Value *LValueFrom;       /* if an LValue, this is a Value our LValue is contained within (or nullptr) */
+    int ScopeID;                    /* to know when it goes out of scope */
     char ValOnHeap;                 /* this Value is on the heap */
     char ValOnStack;                /* the AnyValue is on the stack along with this Value */
     char AnyValOnHeap;              /* the AnyValue is separately allocated from the Value on the heap */
     char IsLValue;                  /* is modifiable and is allocated somewhere we can usefully modify it */
-    int ScopeID;                    /* to know when it goes out of scope */
     char OutOfScope;
     // jsv
+    Value * ShadowedVal;             /* value that has been shadowed by it */
     char * VarIdentifier;           /* keeps track of the name of the variable this value belongs to */
     char ConstQualifier;            /* true if it's a const */
+    int * dummy; // fixme : the MEM_ALIGN macro probably does not work, or I dont know... anyway - Values have to
+                // fixme:   to be aligned so that the sizeof(Value) is divisible by ALIGN_TYPE macro
 };
 
 
@@ -652,7 +667,8 @@ Value *
 VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *Typ, union AnyValue *FromValue,
                                    int IsLValue, Value *LValueFrom, char *VarIdentifier);
 Value *VariableAllocValueShared(struct ParseState *Parser, Value *FromValue);
-Value *VariableDefine(Picoc *pc, struct ParseState *Parser, char *Ident, Value *InitValue, struct ValueType *Typ, int MakeWritable);
+Value *
+VariableDefine(Picoc *pc, ParseState *Parser, char *Ident, Value *InitValue, ValueType *Typ, int MakeWritable, bool b);
 Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *Ident, struct ValueType *Typ, int IsStatic, int *FirstVisit);
 int VariableDefined(Picoc *pc, const char *Ident);
 int VariableDefinedAndOutOfScope(Picoc *pc, const char *Ident);
@@ -689,6 +705,7 @@ void LibPrintf(struct ParseState *Parser, Value *ReturnValue, Value **Param, int
  * void PicocCleanup();
  * void PicocPlatformScanFile(const char *FileName);
  * extern int PicocExitValue; */
+void PrintSourceTextErrorLine(IOFILE *Stream, const char *FileName, const char *SourceText, int Line, int CharacterPos);
 void ProgramFail(struct ParseState *Parser, const char *Message, ...);
 void ProgramFailWithExitCode(struct ParseState *Parser, int exitCode, const char *Message, ...);
 void ProgramFailNoParser(Picoc *pc, const char *Message, ...);

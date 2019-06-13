@@ -167,8 +167,8 @@ struct LibraryFunction StdlibFunctions[] =
 void StdlibSetupFunc(Picoc *pc)
 {
     /* define nullptr, TRUE and FALSE */
-    if (!VariableDefined(pc, TableStrRegister(pc, "nullptr")))
-        VariableDefinePlatformVar(pc, nullptr, "nullptr", &pc->IntType, (union AnyValue *)&Stdlib_ZeroValue, FALSE);
+    if (!VariableDefined(pc, TableStrRegister(pc, "NULL")))
+        VariableDefinePlatformVar(pc, nullptr, "NULL", &pc->IntType, (union AnyValue *)&Stdlib_ZeroValue, FALSE);
 }
 
 #endif /* !BUILTIN_MINI_STDLIB */

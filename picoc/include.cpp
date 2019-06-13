@@ -75,7 +75,7 @@ void IncludeFile(Picoc *pc, char *FileName) {
         if (strcmp(LInclude->IncludeName, FileName) == 0) {
             /* found it - protect against multiple inclusion */
             if (!VariableDefined(pc, FileName)) {
-                VariableDefine(pc, nullptr, FileName, nullptr, &pc->VoidType, FALSE);
+                VariableDefine(pc, nullptr, FileName, nullptr, &pc->VoidType, FALSE, false);
 
                 /* run an extra startup function if there is one */
                 if (LInclude->SetupFunction != nullptr)
