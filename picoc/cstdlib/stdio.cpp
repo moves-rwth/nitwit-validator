@@ -626,6 +626,9 @@ void StdioVsscanf(struct ParseState *Parser, Value *ReturnValue, Value **Param, 
     ReturnValue->Val->Integer = StdioBaseScanf(Parser, nullptr, (char*)Param[0]->Val->Pointer, (char*)Param[1]->Val->Pointer, (StdVararg*)Param[2]->Val->Pointer);
 }
 
+void NoOp(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs){
+
+}
 /* handy structure definitions */
 const char StdioDefs[] = "\
 typedef struct __va_listStruct va_list; \
@@ -658,30 +661,53 @@ struct LibraryFunction StdioFunctions[] =
     { StdioFsetpos, "int fsetpos(FILE *, int *);" },
     { StdioFtell,   "int ftell(FILE *);" },
     { StdioFseek,   "int fseek(FILE *, int, int);" },
+#ifdef VERBOSE
     { StdioPerror,  "void perror(char *);" },
     { StdioPutc,    "int putc(char *, FILE *);" },
     { StdioPutchar, "int putchar(int);" },
     { StdioPutchar, "int fputchar(int);" },
+#else
+    { NoOp,  "void perror(char *);" },
+    { NoOp,    "int putc(char *, FILE *);" },
+    { NoOp, "int putchar(int);" },
+    { NoOp, "int fputchar(int);" },
+#endif
     { StdioSetbuf,  "void setbuf(FILE *, char *);" },
     { StdioSetvbuf, "void setvbuf(FILE *, char *, int, int);" },
     { StdioUngetc,  "int ungetc(int, FILE *);" },
     { StdioPuts,    "int puts(char *);" },
     { StdioGets,    "char *gets(char *);" },
     { StdioGetchar, "int getchar();" },
+#ifdef VERBOSE
     { StdioPrintf,  "int printf(char *, ...);" },
     { StdioFprintf, "int fprintf(FILE *, char *, ...);" },
     { StdioSprintf, "int sprintf(char *, char *, ...);" },
     { StdioSnprintf,"int snprintf(char *, int, char *, ...);" },
+#else
+    { NoOp,  "int printf(char *, ...);" },
+    { NoOp, "int fprintf(FILE *, char *, ...);" },
+    { NoOp, "int sprintf(char *, char *, ...);" },
+    { NoOp,"int snprintf(char *, int, char *, ...);" },
+#endif
     { StdioScanf,   "int scanf(char *, ...);" },
     { StdioFscanf,  "int fscanf(FILE *, char *, ...);" },
     { StdioSscanf,  "int sscanf(char *, char *, ...);" },
+#ifdef VERBOSE
     { StdioVprintf, "int vprintf(char *, va_list);" },
     { StdioVfprintf,"int vfprintf(FILE *, char *, va_list);" },
     { StdioVsprintf,"int vsprintf(char *, char *, va_list);" },
     { StdioVsnprintf,"int vsnprintf(char *, int, char *, va_list);" },
+#else
+    { NoOp, "int vprintf(char *, va_list);" },
+    { NoOp,"int vfprintf(FILE *, char *, va_list);" },
+    { NoOp,"int vsprintf(char *, char *, va_list);" },
+    { NoOp,"int vsnprintf(char *, int, char *, va_list);" },
+#endif
     { StdioVscanf,   "int vscanf(char *, va_list);" },
     { StdioVfscanf,  "int vfscanf(FILE *, char *, va_list);" },
     { StdioVsscanf,  "int vsscanf(char *, char *, va_list);" },
+
+
     { nullptr,         nullptr }
 };
 
