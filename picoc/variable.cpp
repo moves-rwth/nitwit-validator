@@ -208,7 +208,9 @@ int VariableScopeBegin(struct ParseState * Parser, int* OldScopeID)
                     shadow->second->ShadowedVal = Entry->p.v.Val; // save which value was shadowed
                     Entry->p.v.Val = shadow->second; // take the shadow as the current value
                     Entry->p.v.Val->OutOfScope = FALSE;
+                #ifdef VAR_SCOPE_DEBUG
                     printf(">>> shadow back into scope: %s %x %d\n", Entry->p.v.Key, Entry->p.v.Val->ScopeID, Entry->p.v.Val->Val->Integer);
+                #endif
                 }
             } else if (Entry->p.v.Val->ScopeID == Parser->ScopeID && Entry->p.v.Val->OutOfScope) {
                 Entry->p.v.Val->OutOfScope = FALSE;
@@ -254,7 +256,9 @@ void VariableScopeEnd(struct ParseState * Parser, int ScopeID, int PrevScopeID)
                     Value * shadow = Entry->p.v.Val;
                     Entry->p.v.Val = shadow->ShadowedVal;
                     shadow->ShadowedVal = nullptr;
+#ifdef VAR_SCOPE_DEBUG
                     printf(">>> shadowed variable back into scope: %s %x %d\n", Entry->p.v.Key, Entry->p.v.Val->ScopeID, Entry->p.v.Val->Val->Integer);
+#endif
                 }
             }
         }
@@ -310,7 +314,9 @@ VariableDefine(Picoc *pc, ParseState *Parser, char *Ident, Value *InitValue, Val
         FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(ScopeID, AssignValue));
         AssignValue->ShadowedVal = FoundEntry->p.v.Val;
         FoundEntry->p.v.Val = AssignValue;
+#ifdef VAR_SCOPE_DEBUG
         printf(">>> shadow the variable %s\n", Ident);
+#endif
     } else {
         if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
             ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
