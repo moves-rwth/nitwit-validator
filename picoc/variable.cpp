@@ -214,8 +214,6 @@ int VariableScopeBegin(struct ParseState * Parser, int* OldScopeID)
                 Entry->p.v.Val->OutOfScope = FALSE;
                 Entry->p.v.Key = (char*)((intptr_t)Entry->p.v.Key & ~1);
                 #ifdef VAR_SCOPE_DEBUG
-                if (!FirstPrint) { PRINT_SOURCE_POS; }
-                FirstPrint = 1;
                 printf(">>> back into scope: %s %x %d\n", Entry->p.v.Key, Entry->p.v.Val->ScopeID, Entry->p.v.Val->Val->Integer);
                 #endif
             }
@@ -247,15 +245,15 @@ void VariableScopeEnd(struct ParseState * Parser, int ScopeID, int PrevScopeID)
             if (Entry->p.v.Val->ScopeID == ScopeID && !Entry->p.v.Val->OutOfScope)
             {
                 #ifdef VAR_SCOPE_DEBUG
-                if (!FirstPrint) { PRINT_SOURCE_POS; }
-                FirstPrint = 1;
                 printf(">>> out of scope: %s %x %d\n", Entry->p.v.Key, Entry->p.v.Val->ScopeID, Entry->p.v.Val->Val->Integer);
                 #endif
                 Entry->p.v.Val->OutOfScope = TRUE;
                 if (Entry->p.v.Val->ShadowedVal == nullptr){
                     Entry->p.v.Key = (char*)((intptr_t)Entry->p.v.Key | 1); /* alter the key so it won't be found by normal searches */
                 } else {
-                    Entry->p.v.Val = Entry->p.v.Val->ShadowedVal;
+                    Value * shadow = Entry->p.v.Val;
+                    Entry->p.v.Val = shadow->ShadowedVal;
+                    shadow->ShadowedVal = nullptr;
                     printf(">>> shadowed variable back into scope: %s %x %d\n", Entry->p.v.Key, Entry->p.v.Val->ScopeID, Entry->p.v.Val->Val->Integer);
                 }
             }
@@ -310,7 +308,9 @@ VariableDefine(Picoc *pc, ParseState *Parser, char *Ident, Value *InitValue, Val
 //         shadowing
         TableEntry * FoundEntry = TableSearch(currentTable, Ident, &AddAt);
         FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(ScopeID, AssignValue));
+        AssignValue->ShadowedVal = FoundEntry->p.v.Val;
         FoundEntry->p.v.Val = AssignValue;
+        printf(">>> shadow the variable %s\n", Ident);
     } else {
         if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
             ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
