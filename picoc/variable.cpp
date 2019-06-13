@@ -307,22 +307,29 @@ VariableDefine(Picoc *pc, ParseState *Parser, char *Ident, Value *InitValue, Val
     AssignValue->ScopeID = ScopeID;
     AssignValue->OutOfScope = FALSE;
 
-    unsigned AddAt;
-    if (MakeShadow) {
-//         shadowing
-        TableEntry * FoundEntry = TableSearch(currentTable, Ident, &AddAt);
-        FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(ScopeID, AssignValue));
-        AssignValue->ShadowedVal = FoundEntry->p.v.Val;
-        FoundEntry->p.v.Val = AssignValue;
-#ifdef VAR_SCOPE_DEBUG
-        printf(">>> shadow the variable %s\n", Ident);
-#endif
-    } else {
-        if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
+    if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0)){
+        unsigned AddAt; TableEntry * FoundEntry = TableSearch(currentTable, Ident, &AddAt);
+        if (MakeShadow) {
+            // shadowing
+            if (pc->TopStackFrame == nullptr) {
+                // most probably redefinition of an included global variable
+                VariableFree(pc, FoundEntry->p.v.Val);
+                FoundEntry->p.v.Val = AssignValue;
+                return AssignValue;
+            }
+            if (!FoundEntry->p.v.ValShadows){ // save the current variable
+                FoundEntry->p.v.ValShadows = new Shadows();
+                FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(FoundEntry->p.v.Val->ScopeID, FoundEntry->p.v.Val));
+            }
+            FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(ScopeID, AssignValue));
+            AssignValue->ShadowedVal = FoundEntry->p.v.Val;
+            FoundEntry->p.v.Val = AssignValue;
+    #ifdef VAR_SCOPE_DEBUG
+            printf(">>> shadow the variable %s\n", Ident);
+    #endif
+        } else {
             ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
-        TableEntry * FoundEntry = TableSearch(currentTable, Ident, &AddAt);
-        FoundEntry->p.v.ValShadows = new Shadows();
-        FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(ScopeID, AssignValue));
+        }
     }
 
     return AssignValue;
@@ -387,7 +394,7 @@ Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *Ident, 
         if (Parser->Line != 0 && DidExist && DeclFileName == Parser->FileName && DeclLine == Parser->Line && DeclColumn == Parser->CharacterPos) {
             return ExistingValue;
         } else {
-            return VariableDefine(Parser->pc, Parser, Ident, nullptr, Typ, TRUE, (Parser->Line != 0 && DidExist && pc->TopStackFrame != nullptr));
+            return VariableDefine(Parser->pc, Parser, Ident, nullptr, Typ, TRUE, (Parser->Line != 0 && DidExist));
         }
     }
 }
@@ -430,6 +437,12 @@ void VariableDefinePlatformVar(Picoc *pc, struct ParseState *Parser, const char 
     
     if (!TableSet(pc, (pc->TopStackFrame == nullptr) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable, TableStrRegister(pc, Ident), SomeValue, Parser ? Parser->FileName : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
         ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
+    unsigned AddAt;
+    TableEntry * FoundEntry = TableSearch((pc->TopStackFrame == nullptr) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable, Ident, &AddAt);
+    if (FoundEntry){
+        FoundEntry->p.v.ValShadows = new Shadows();
+        FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(-1, SomeValue));
+    }
 }
 
 /* free and/or pop the top value off the stack. Var must be the top value on the stack! */
