@@ -117,8 +117,8 @@ public:
     Shadows(): shadows(){
     }
     ~Shadows() {
-        for (auto& v: shadows)
-            free(v.second);
+//        for (auto& v: shadows)
+//            free(v.second);
     }
     map<int, Value*> shadows;
 };
@@ -137,7 +137,7 @@ struct TableEntry
         {
             char *Key;              /* points to the shared string table */
             Value *Val;             /* the value we're storing */
-            Shadows * ValShadows; /* shadowed values mapped by ScopeID */ // TODO the TableEntries are memset to 0, is that ok?
+            unique_ptr<Shadows> ValShadows; /* shadowed values mapped by ScopeID */ // TODO the TableEntries are memset to 0, is that ok?
         } v;                        /* used for tables of values */
 
         char Key[1];                /* dummy size - used for the shared string table */

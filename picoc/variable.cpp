@@ -51,8 +51,8 @@ void VariableTableCleanup(Picoc *pc, struct Table *HashTable)
         for (Entry = HashTable->HashTable[Count]; Entry != nullptr; Entry = NextEntry)
         {
             NextEntry = Entry->Next;
-//            VariableFree(pc, Entry->p.v.Val);
-            delete Entry->p.v.ValShadows;
+            VariableFree(pc, Entry->p.v.Val);
+//            delete Entry->p.v.ValShadows.get();
                 
             /* free the hash table entry */
             HeapFreeMem(pc, Entry);
@@ -318,7 +318,7 @@ VariableDefine(Picoc *pc, ParseState *Parser, char *Ident, Value *InitValue, Val
                 return AssignValue;
             }
             if (!FoundEntry->p.v.ValShadows){ // save the current variable
-                FoundEntry->p.v.ValShadows = new Shadows();
+                FoundEntry->p.v.ValShadows = make_unique<Shadows>();
                 FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(FoundEntry->p.v.Val->ScopeID, FoundEntry->p.v.Val));
             }
             FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(ScopeID, AssignValue));
@@ -437,12 +437,6 @@ void VariableDefinePlatformVar(Picoc *pc, struct ParseState *Parser, const char 
     
     if (!TableSet(pc, (pc->TopStackFrame == nullptr) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable, TableStrRegister(pc, Ident), SomeValue, Parser ? Parser->FileName : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
         ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
-    unsigned AddAt;
-    TableEntry * FoundEntry = TableSearch((pc->TopStackFrame == nullptr) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable, Ident, &AddAt);
-    if (FoundEntry){
-        FoundEntry->p.v.ValShadows = new Shadows();
-        FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(-1, SomeValue));
-    }
 }
 
 /* free and/or pop the top value off the stack. Var must be the top value on the stack! */
