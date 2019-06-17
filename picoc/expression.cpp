@@ -1516,7 +1516,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                         ExpressionStackPushLValue(Parser, &StackTop, VariableValue, 0); /* it's a value variable */
                 }
                 else /* push a dummy value */
-                    ExpressionPushLongLong(Parser, &StackTop, 0);
+                    ExpressionPushInt(Parser, &StackTop, 0);
 
             }
 

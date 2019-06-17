@@ -16,13 +16,16 @@ string baseFileName(const string &s) {
 vector<string> split(string str, char delimiter) {
     int begin = 0;
     size_t n = count(str.begin(), str.end(), delimiter);
-    if (n == 0) {
-        return vector<string>();
-    }
     auto result = vector<string>();
+    if (n == 0 && str.empty()) {
+        return result;
+    } else if (n == 0) {
+        result.push_back(str);
+        return result;
+    }
     result.reserve(n);
-    for (size_t d = str.find_first_of(delimiter); d != string::npos; d = str.find_first_of(delimiter, d+1)) {
-        if (0 < d && d + 1 < str.length() && str[d-1] == '\'' && str[d+1] == '\''){
+    for (size_t d = str.find_first_of(delimiter); d != string::npos; d = str.find_first_of(delimiter, d + 1)) {
+        if (0 < d && d + 1 < str.length() && str[d - 1] == '\'' && str[d + 1] == '\'') {
             continue;
         }
         string ass = str.substr(begin, d - begin);

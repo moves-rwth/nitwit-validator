@@ -22,7 +22,7 @@ int main() {
 
     }
 
-    if (f == 27.7 && i == 7)
+    if (f == 27.0 && i == 7)
         __VERIFIER_error();
 
     return 0;

@@ -50,7 +50,7 @@
   <node id="A2"/>
   <edge source="A1" target="A2">
    <data key="startline">16</data>
-   <data key="assumption">f == 27.7</data>
+   <data key="assumption">f = 27.0</data>
   </edge>
 
 

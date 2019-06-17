@@ -229,10 +229,10 @@ void TypeInit(Picoc *pc)
 
 #ifndef NO_FP
     TypeAddBaseType(pc, &pc->DoubleType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, FALSE);
-    TypeAddBaseType(pc, &pc->FloatType, TypeFloat, sizeof(double), (char *) &fa.y - &fa.x, FALSE);
+    TypeAddBaseType(pc, &pc->FloatType, TypeFloat, sizeof(float), (char *) &fa.y - &fa.x, FALSE);
     // NDs
     TypeAddBaseType(pc, &pc->DoubleNDType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, TRUE);
-    TypeAddBaseType(pc, &pc->FloatNDType, TypeFloat, sizeof(double), (char *) &fa.y - &fa.x, TRUE);
+    TypeAddBaseType(pc, &pc->FloatNDType, TypeFloat, sizeof(float), (char *) &fa.y - &fa.x, TRUE);
 #else
     TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(struct ValueType *), PointerAlignBytes);
 #endif
