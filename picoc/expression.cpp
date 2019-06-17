@@ -225,11 +225,25 @@ void ExpressionPushLongLong(struct ParseState *Parser, struct ExpressionStack **
     ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
 
+void ExpressionPushUnsignedLongLong(struct ParseState *Parser, struct ExpressionStack **StackTop, unsigned long long IntValue)
+{
+    Value *ValueLoc = VariableAllocValueFromType(Parser->pc, Parser, &Parser->pc->UnsignedLongLongType, FALSE, nullptr, FALSE);
+    ValueLoc->Val->UnsignedLongLongInteger = IntValue;
+    ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
+}
+
 
 void ExpressionPushInt(struct ParseState *Parser, struct ExpressionStack **StackTop, long IntValue)
 {
     struct Value *ValueLoc = VariableAllocValueFromType(Parser->pc, Parser, &Parser->pc->LongType, FALSE, nullptr, FALSE);
     ValueLoc->Val->LongInteger = IntValue;
+    ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
+}
+
+void ExpressionPushUnsignedInt(struct ParseState *Parser, struct ExpressionStack **StackTop, unsigned long IntValue)
+{
+    struct Value *ValueLoc = VariableAllocValueFromType(Parser->pc, Parser, &Parser->pc->UnsignedLongType, FALSE, nullptr, FALSE);
+    ValueLoc->Val->UnsignedLongInteger = IntValue;
     ExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
 
@@ -878,7 +892,14 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
             default:                        ProgramFail(Parser, "invalid operation"); break;
         }
 
-        ExpressionPushLongLong(Parser, StackTop, ResultLLInt);
+        if (TopValue->Typ->Base == TypeLongLong ||
+            TopValue->Typ->Base == TypeUnsignedLongLong ||
+            BottomValue->Typ->Base == TypeLongLong ||
+            BottomValue->Typ->Base == TypeUnsignedLongLong){
+            ExpressionPushLongLong(Parser, StackTop, ResultLLInt);
+        } else {
+            ExpressionPushInt(Parser, StackTop, ResultLLInt);
+        }
     }
     else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_NUMERIC_COERCIBLE(BottomValue))
     {
@@ -944,7 +965,14 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
             default:                        ProgramFail(Parser, "invalid operation"); break;
         }
 
-        ExpressionPushLongLong(Parser, StackTop, ResultLLInt);
+        if (TopValue->Typ->Base == TypeLongLong ||
+                TopValue->Typ->Base == TypeUnsignedLongLong ||
+                BottomValue->Typ->Base == TypeLongLong ||
+                BottomValue->Typ->Base == TypeUnsignedLongLong){
+            ExpressionPushUnsignedLongLong(Parser, StackTop, ResultLLInt);
+        } else {
+            ExpressionPushUnsignedInt(Parser, StackTop, ResultLLInt);
+        }
     }
     else if (BottomValue->Typ->Base == TypePointer && IS_NUMERIC_COERCIBLE(TopValue))
     {
