@@ -260,7 +260,7 @@ enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, Value *Value)
 
     Value->Val->Double = FPResult;
 
-    if (*Lexer->Pos == 'f' || *Lexer->Pos == 'F')
+    if (*Lexer->Pos == 'f' || *Lexer->Pos == 'F' || *Lexer->Pos == 'l' || *Lexer->Pos == 'L')
         LEXER_INC(Lexer);
 
     return TokenFPConstant;

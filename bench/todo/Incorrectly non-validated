@@ -1,3 +1,6 @@
 Info files:
 
 72294c05d4350de6f5d89ee4f596001d22578a847fc46dd3fe2d807863b0a572.json -- NaN double for nondet. Parsing of nondet vars
+
+'bbe8e3308792a78c58c805270d9158137809ba9f4cc2d474fdbf1857ce6ffe5e.json' - overflow in conversion of constant
+'721b6c7ade3817b8199dd69646ee630ffe9281b7b13e1dd2531f793ec50bb8d4.json' - 1.00l

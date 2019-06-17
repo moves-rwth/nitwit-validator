@@ -8,13 +8,13 @@ void __VERIFIER_assume(int expression){printf("Assume %d\n", expression);}
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
 int main() {
-    int i = __VERIFIER_nondet_int();
+    double i = 1.000002l;
 
     {
-        int i = 1;
-        printf("%d", i);
+        double i = 1;
+        printf("%f\n", i);
     }
 
-    printf("%d", i);
+    printf("%f\n", i);
     return 0;
 }
