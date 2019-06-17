@@ -39,6 +39,8 @@ void PicocCleanup(Picoc *pc)
     ParseCleanup(pc);
     LexCleanup(pc);
     VariableCleanup(pc);
+    if (pc->TopStackFrame != nullptr)
+        ShadowTableCleanup(pc, &pc->TopStackFrame->LocalTable);
     TypeCleanup(pc);
     TableStrFree(pc);
     HeapCleanup(pc);

@@ -45,17 +45,34 @@ void VariableTableCleanup(Picoc *pc, struct Table *HashTable)
     struct TableEntry *Entry;
     struct TableEntry *NextEntry;
     int Count;
-    
+
     for (Count = 0; Count < HashTable->Size; Count++)
     {
         for (Entry = HashTable->HashTable[Count]; Entry != nullptr; Entry = NextEntry)
         {
             NextEntry = Entry->Next;
             VariableFree(pc, Entry->p.v.Val);
-//            delete Entry->p.v.ValShadows.get();
-                
+//            delete Entry->p.v.ValShadows;
+
             /* free the hash table entry */
             HeapFreeMem(pc, Entry);
+        }
+    }
+}
+
+/* deallocate the global table and the string literal table */
+void ShadowTableCleanup(Picoc *pc, struct Table *HashTable)
+{
+    struct TableEntry *Entry;
+    struct TableEntry *NextEntry;
+    int Count;
+
+    for (Count = 0; Count < HashTable->Size; Count++)
+    {
+        for (Entry = HashTable->HashTable[Count]; Entry != nullptr; Entry = NextEntry)
+        {
+            NextEntry = Entry->Next;
+            delete Entry->p.v.ValShadows;
         }
     }
 }
@@ -318,7 +335,7 @@ VariableDefine(Picoc *pc, ParseState *Parser, char *Ident, Value *InitValue, Val
                 return AssignValue;
             }
             if (!FoundEntry->p.v.ValShadows){ // save the current variable
-                FoundEntry->p.v.ValShadows = make_unique<Shadows>();
+                FoundEntry->p.v.ValShadows = new Shadows();
                 FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(FoundEntry->p.v.Val->ScopeID, FoundEntry->p.v.Val));
             }
             FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(ScopeID, AssignValue));
@@ -492,6 +509,7 @@ void VariableStackFramePop(struct ParseState *Parser)
         ProgramFail(Parser, "stack is empty - can't go back");
         
     ParserCopy(Parser, &Parser->pc->TopStackFrame->ReturnParser);
+    ShadowTableCleanup(Parser->pc, &Parser->pc->TopStackFrame->LocalTable);
     Parser->pc->TopStackFrame = Parser->pc->TopStackFrame->PreviousStackFrame;
     HeapPopStackFrame(Parser->pc);
 }

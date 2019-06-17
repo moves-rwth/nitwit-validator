@@ -137,7 +137,7 @@ struct TableEntry
         {
             char *Key;              /* points to the shared string table */
             Value *Val;             /* the value we're storing */
-            unique_ptr<Shadows> ValShadows; /* shadowed values mapped by ScopeID */ // TODO the TableEntries are memset to 0, is that ok?
+            Shadows * ValShadows; /* shadowed values mapped by ScopeID */ // TODO the TableEntries are memset to 0, is that ok?
         } v;                        /* used for tables of values */
 
         char Key[1];                /* dummy size - used for the shared string table */
@@ -682,7 +682,7 @@ void VariableStringLiteralDefine(Picoc *pc, char *Ident, Value *Val);
 void *VariableDereferencePointer(struct ParseState *Parser, Value *PointerValue, Value **DerefVal, int *DerefOffset, struct ValueType **DerefType, int *DerefIsLValue);
 int VariableScopeBegin(struct ParseState * Parser, int* PrevScopeID);
 void VariableScopeEnd(struct ParseState * Parser, int ScopeID, int PrevScopeID);
-
+void ShadowTableCleanup(Picoc *pc, struct Table *HashTable);
 /* clibrary.c */
 void BasicIOInit(Picoc *pc);
 void LibraryInit(Picoc *pc);
