@@ -220,10 +220,22 @@ void AssumptionExpressionPushLongLong(struct ParseState *Parser, struct Expressi
     ValueLoc->Val->LongLongInteger = IntValue;
     AssumptionExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
+void AssumptionExpressionPushUnsignedLongLong(struct ParseState *Parser, struct ExpressionStack **StackTop, unsigned long long IntValue)
+{
+    Value *ValueLoc = VariableAllocValueFromType(Parser->pc, Parser, &Parser->pc->UnsignedLongLongType, FALSE, nullptr, FALSE);
+    ValueLoc->Val->UnsignedLongLongInteger = IntValue;
+    AssumptionExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
+}
 void AssumptionExpressionPushInt(struct ParseState *Parser, struct ExpressionStack **StackTop, long IntValue)
 {
     Value *ValueLoc = VariableAllocValueFromType(Parser->pc, Parser, &Parser->pc->LongType, FALSE, nullptr, FALSE);
     ValueLoc->Val->LongInteger = IntValue;
+    AssumptionExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
+}
+void AssumptionExpressionPushUnsignedInt(struct ParseState *Parser, struct ExpressionStack **StackTop, unsigned long IntValue)
+{
+    Value *ValueLoc = VariableAllocValueFromType(Parser->pc, Parser, &Parser->pc->UnsignedLongType, FALSE, nullptr, FALSE);
+    ValueLoc->Val->UnsignedLongInteger = IntValue;
     AssumptionExpressionStackPushValueNode(Parser, StackTop, ValueLoc);
 }
 
@@ -876,7 +888,15 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
             }
     
         }
-        AssumptionExpressionPushLongLong(Parser, StackTop, ResultInt);
+
+        if (TopValue->Typ->Base == TypeLongLong ||
+            TopValue->Typ->Base == TypeUnsignedLongLong ||
+            BottomValue->Typ->Base == TypeLongLong ||
+            BottomValue->Typ->Base == TypeUnsignedLongLong){
+            AssumptionExpressionPushLongLong(Parser, StackTop, ResultLLInt);
+        } else {
+            AssumptionExpressionPushInt(Parser, StackTop, ResultLLInt);
+        }
     }
     else if (IS_NUMERIC_COERCIBLE(TopValue) && IS_NUMERIC_COERCIBLE(BottomValue))
     {
@@ -964,7 +984,15 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
             }
         }
 
-        AssumptionExpressionPushLongLong(Parser, StackTop, ResultLLInt);
+
+        if (TopValue->Typ->Base == TypeLongLong ||
+            TopValue->Typ->Base == TypeUnsignedLongLong ||
+            BottomValue->Typ->Base == TypeLongLong ||
+            BottomValue->Typ->Base == TypeUnsignedLongLong){
+            AssumptionExpressionPushUnsignedLongLong(Parser, StackTop, ResultLLInt);
+        } else {
+            AssumptionExpressionPushUnsignedInt(Parser, StackTop, ResultLLInt);
+        }
     } else if (BottomValue->Typ->Base == TypeFunctionPtr && TopValue->Typ->Base == TypeFunctionPtr) {
         AssumptionExpressionPushLongLong(Parser, StackTop, BottomValue->Val->Identifier == TopValue->Val->Identifier);
     }
