@@ -7,17 +7,14 @@ float __VERIFIER_nondet_float(void){return 27;}
 void __VERIFIER_assume(int expression){printf("Assume %d\n", expression);}
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
-
-int blah() {
-    printf("Blah should not print\n");
-    return 7;
-}
-
 int main() {
+    int i = __VERIFIER_nondet_int();
 
-    int i = 1 ? 0 : blah();
-    int j = 0 ? blah() : 0;
+    {
+        int i = 1;
+        printf("%d", i);
+    }
 
-    printf("i: %d, j: %d\n", i, j);
+    printf("%d", i);
     return 0;
 }

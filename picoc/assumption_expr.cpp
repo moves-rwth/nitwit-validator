@@ -655,7 +655,7 @@ void AssumptionExpressionPostfixOperator(struct ParseState *Parser, struct Expre
 }
 
 void ResolvedVariable(struct ParseState *Parser, const char *Identifier, Value *VariableValue) {
-    auto * vl = static_cast<ValueList *>(malloc(sizeof(ValueList*)));
+    auto * vl = static_cast<ValueList *>(malloc(sizeof(ValueList)));
     vl->Identifier = Identifier;
     vl->Next = Parser->ResolvedNonDetVars;
     Parser->ResolvedNonDetVars = vl;
