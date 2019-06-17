@@ -56,7 +56,7 @@ VALIDATORS_LIST = ["CPAChecker",
                    "CProver",
                    "CWValidator"]
 
-CPU_MULTIPLIER = 1.8/3.4
+CPU_MULTIPLIER = 1.8 / 3.4
 
 
 def adjust_to_cpu(time: float) -> float:
@@ -80,7 +80,7 @@ def get_matching(all_results: List, validators: dict, outputmatched: str = None)
 	return {k: v for k, v in validators.items() if k in matched_keys}
 
 
-def analyze(matching: Dict[str, dict]):
+def analyze_output_messages(matching: Dict[str, dict]):
 	print(f"Analyze {len(matching)}")
 	fig, axs = plt.subplots(nrows=2, ncols=2)
 	for i in range(4):
@@ -131,6 +131,36 @@ def analyze_by_producer(matching: Dict[str, dict]):
 	print(df.to_latex())
 
 
+def validator_result_selector(results: list, predicate_others, predicate_cwv) -> bool:
+	for i in range(4):
+		if not predicate_others(STATUSES[results[i]['status']]):
+			return False
+	if predicate_cwv(STATUSES[results[4]['status']]):
+		return True
+
+
+def analyze_unique_by_producer(matching: Dict[str, dict]):
+	print(f"Analyze unique results by producer for {len(matching)} witnesses")
+	others_uval = []
+	cwv_uval = []
+	none_val = []
+	all_val = []
+	for w, c in matching.items():
+		if validator_result_selector(c['results'], lambda x: x == 0, lambda x: x != 0):
+			others_uval.append(w)
+		if validator_result_selector(c['results'], lambda x: x != 0, lambda x: x == 0):
+			cwv_uval.append(w)
+		if validator_result_selector(c['results'], lambda x: x == 0, lambda x: x == 0):
+			all_val.append(w)
+		if validator_result_selector(c['results'], lambda x: x != 0, lambda x: x != 0):
+			none_val.append(w)
+
+	print(f"Uniquely validated by *others*: {len(others_uval)}")
+	print(f"Uniquely validated by *CWValidator*: {len(cwv_uval)}")
+	print(f"Validated by all: {len(all_val)}")
+	print(f"Validated by none: {len(none_val)}\n")
+
+
 def reject_outliers(data, m=2):
 	return data[abs(data - np.mean(data)) < m * np.std(data)]
 
@@ -178,11 +208,16 @@ def main():
 		return 1
 
 	matching = get_matching(all, validators['byWitnessHash'], args.outputmatched)
-	analyze(matching)
+
+	######### ANALYSES ###########
+
+	# analyze_output_messages(matching)
 
 	analyze_by_producer(matching)
 
 	analyze_times(matching)
+
+	analyze_unique_by_producer(matching)
 
 	plt.show()
 
