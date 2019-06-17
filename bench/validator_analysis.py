@@ -147,13 +147,13 @@ def analyze_unique_by_producer(matching: Dict[str, dict]):
 	all_val = []
 	for w, c in matching.items():
 		if validator_result_selector(c['results'], lambda x: x == 0, lambda x: x != 0):
-			others_uval.append(w)
+			others_uval.append(w + '.json')
 		if validator_result_selector(c['results'], lambda x: x != 0, lambda x: x == 0):
-			cwv_uval.append(w)
+			cwv_uval.append(w + '.json')
 		if validator_result_selector(c['results'], lambda x: x == 0, lambda x: x == 0):
-			all_val.append(w)
+			all_val.append(w + '.json')
 		if validator_result_selector(c['results'], lambda x: x != 0, lambda x: x != 0):
-			none_val.append(w)
+			none_val.append(w + '.json')
 
 	print(f"Uniquely validated by *others*: {len(others_uval)}")
 	print(f"Uniquely validated by *CWValidator*: {len(cwv_uval)}")
@@ -213,9 +213,9 @@ def main():
 
 	# analyze_output_messages(matching)
 
-	analyze_by_producer(matching)
+	# analyze_by_producer(matching)
 
-	analyze_times(matching)
+	# analyze_times(matching)
 
 	analyze_unique_by_producer(matching)
 

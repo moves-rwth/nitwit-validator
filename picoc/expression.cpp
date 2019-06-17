@@ -57,7 +57,7 @@ static struct OpPrecedence OperatorPrecedence[] =
     /* TokenMultiplyAssign, */ { 0, 0, 2, "*=" }, /* TokenDivideAssign, */ { 0, 0, 2, "/=" }, /* TokenModulusAssign, */ { 0, 0, 2, "%=" },
     /* TokenShiftLeftAssign, */ { 0, 0, 2, "<<=" }, /* TokenShiftRightAssign, */ { 0, 0, 2, ">>=" }, /* TokenArithmeticAndAssign, */ { 0, 0, 2, "&=" },
     /* TokenArithmeticOrAssign, */ { 0, 0, 2, "|=" }, /* TokenArithmeticExorAssign, */ { 0, 0, 2, "^=" },
-    /* TokenQuestionMark, */ { 0, 0, 3, "?" }, /* TokenColon, */ { 0, 0, 3, ":" },
+    /* TokenQuestionMark, */ { 0, 3, 0, "?" }, /* TokenColon, */ { 0, 0, 3, ":" },
     /* TokenLogicalOr, */ { 0, 0, 4, "||" },
     /* TokenLogicalAnd, */ { 0, 0, 5, "&&" },
     /* TokenArithmeticOr, */ { 0, 0, 6, "|" },
@@ -441,7 +441,7 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
 }
 
 /* evaluate the first half of a ternary operator x ? y : z */
-void ExpressionQuestionMarkOperator(struct ParseState *Parser, struct ExpressionStack **StackTop, Value *BottomValue, Value *TopValue)
+void ExpressionQuestionMarkOperator(struct ParseState *Parser, struct ExpressionStack **StackTop, Value *TopValue)
 {
     if (!IS_NUMERIC_COERCIBLE(TopValue))
         ProgramFail(Parser, "first argument to '?' should be a number");
@@ -450,7 +450,7 @@ void ExpressionQuestionMarkOperator(struct ParseState *Parser, struct Expression
     {
         /* the condition's true, return the BottomValue */
         ConditionCallback(Parser, TRUE);
-        ExpressionStackPushValue(Parser, StackTop, BottomValue);
+        ExpressionStackPushValue(Parser, StackTop, TopValue);
     }
     else
     {
@@ -629,6 +629,9 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
 void ExpressionPostfixOperator(struct ParseState *Parser, struct ExpressionStack **StackTop, enum LexToken Op, Value *TopValue)
 {
     debugf("ExpressionPostfixOperator()\n");
+    if (Op == TokenQuestionMark)
+        ExpressionQuestionMarkOperator(Parser, StackTop, TopValue);
+    else
 #ifndef NO_FP
     if (TopValue->Typ->Base == TypeDouble)
     {
@@ -763,8 +766,6 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
 
         ExpressionStackPushValueNode(Parser, StackTop, Result);
     }
-    else if (Op == TokenQuestionMark)
-        ExpressionQuestionMarkOperator(Parser, StackTop, TopValue, BottomValue);
 
     else if (Op == TokenColon)
         ExpressionColonOperator(Parser, StackTop, TopValue, BottomValue);
@@ -1092,7 +1093,7 @@ void ExpressionStackCollapse(struct ParseState *Parser, struct ExpressionStack *
                     else
                     {
                         /* we're not running it so just return 0 */
-                        ExpressionPushLongLong(Parser, StackTop, 0);
+                        ExpressionPushInt(Parser, StackTop, 0);
                     }
                     break;
 
@@ -1115,7 +1116,7 @@ void ExpressionStackCollapse(struct ParseState *Parser, struct ExpressionStack *
                     else
                     {
                         /* we're not running it so just return 0 */
-                        ExpressionPushLongLong(Parser, StackTop, 0);
+                        ExpressionPushInt(Parser, StackTop, 0);
                     }
                     break;
 
@@ -1142,7 +1143,7 @@ void ExpressionStackCollapse(struct ParseState *Parser, struct ExpressionStack *
                         else
                         {
                             /* we're not running it so just return 0 */
-                            ExpressionPushLongLong(Parser, StackTop, 0);
+                            ExpressionPushInt(Parser, StackTop, 0);
                         }
                     }
                     else
@@ -1351,6 +1352,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                 /* expect an infix or postfix operator */
                 if (OperatorPrecedence[(int)Token].PostfixPrecedence != 0)
                 {
+                    Value * TopValue;
                     switch (Token)
                     {
                         case TokenCloseBracket:
@@ -1368,7 +1370,20 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                                 BracketPrecedence -= BRACKET_PRECEDENCE;
                             }
                             break;
+                        case TokenQuestionMark:
+                            Precedence = BracketPrecedence + OperatorPrecedence[(int)Token].PostfixPrecedence;
 
+                            ExpressionStackCollapse(Parser, &StackTop, Precedence, &IgnorePrecedence);
+                            ExpressionStackPushOperator(Parser, &StackTop, OrderPostfix, Token, Precedence);
+                            ExpressionStackCollapse(Parser, &StackTop, Precedence, &IgnorePrecedence);
+                            PrefixState = TRUE;
+                            TernaryDepth++;
+                            TopValue = StackTop->Val;
+                            HeapPopStack(Parser->pc, TopValue, sizeof(struct ExpressionStack) + MEM_ALIGN(sizeof(Value)) + TypeStackSizeValue(TopValue));
+                            StackTop = StackTop->Next;
+                            if (!CoerceInteger(TopValue))
+                                IgnorePrecedence = Precedence;
+                            break;
                         default:
                             /* scan and collapse the stack to the precedence of this operator, then push */
                             Precedence = BracketPrecedence + OperatorPrecedence[(int)Token].PostfixPrecedence;
@@ -1399,8 +1414,8 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                         if ( (Token == TokenLogicalOr || Token == TokenLogicalAnd) && IS_NUMERIC_COERCIBLE(StackTop->Val))
                         {
                             long LHSInt = CoerceLongLong(StackTop->Val);
-                            if ( ( (Token == TokenLogicalOr && LHSInt) || (Token == TokenLogicalAnd && !LHSInt) ) &&
-                                 (IgnorePrecedence > Precedence) )
+                            if ( ( (Token == TokenLogicalOr && LHSInt) || (Token == TokenLogicalAnd && !LHSInt))
+                                 && (IgnorePrecedence > Precedence) )
                                 IgnorePrecedence = Precedence;
                         }
 
@@ -1408,11 +1423,10 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                         ExpressionStackPushOperator(Parser, &StackTop, OrderInfix, Token, Precedence);
                         PrefixState = TRUE;
 
-                        switch (Token)
-                        {
-                            case TokenQuestionMark: TernaryDepth++; break;
-                            case TokenColon: TernaryDepth--; break;
-                            default: break;
+                        if (Token == TokenColon){
+                            TernaryDepth--;
+                            if (StackTop->Next->Val->Typ->Base != TypeVoid)
+                                IgnorePrecedence = Precedence;
                         }
                     }
 
@@ -1704,7 +1718,7 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
     }
     else
     {
-        ExpressionPushLongLong(Parser, StackTop, 0);
+        ExpressionPushInt(Parser, StackTop, 0);
 //        Parser->Mode = RunModeSkip;
         Parser->Mode = Parser->Mode == RunModeGoto ? RunModeGoto : RunModeSkip;
     }

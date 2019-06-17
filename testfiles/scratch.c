@@ -8,22 +8,16 @@ void __VERIFIER_assume(int expression){printf("Assume %d\n", expression);}
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
 
+int blah() {
+    printf("Blah should not print\n");
+    return 7;
+}
+
 int main() {
-    int i = 7;
-    double d = 2.1;
-    float f = __VERIFIER_nondet_float();
 
-    {
-        int i = 1;
-        i = 230920;
-        float f = d * i;
+    int i = 1 ? 0 : blah();
+    int j = 0 ? blah() : 0;
 
-    }
-
-    if (f == 27 && i == 7)
-        __VERIFIER_error();
-
-    printf("i: %d, f: %f", i, f);
-
+    printf("i: %d, j: %d\n", i, j);
     return 0;
 }
