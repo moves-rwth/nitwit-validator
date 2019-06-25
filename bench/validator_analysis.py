@@ -139,26 +139,45 @@ def validator_result_selector(results: list, predicate_others, predicate_cwv) ->
 		return True
 
 
-def analyze_unique_by_producer(matching: Dict[str, dict]):
+def analyze_unique_by_producer(matching: Dict[str, dict], diff_matching: Dict[str, dict] = None) -> Tuple[
+	set, set, set, set]:
 	print(f"Analyze unique results by producer for {len(matching)} witnesses")
-	others_uval = []
-	cwv_uval = []
-	none_val = []
-	all_val = []
+	others_uval = set()
+	cwv_uval = set()
+	none_val = set()
+	all_val = set()
 	for w, c in matching.items():
 		if validator_result_selector(c['results'], lambda x: x == 0, lambda x: x != 0):
-			others_uval.append(w + '.json')
+			others_uval.add(w + '.json')
 		if validator_result_selector(c['results'], lambda x: x != 0, lambda x: x == 0):
-			cwv_uval.append(w + '.json')
+			cwv_uval.add(w + '.json')
 		if validator_result_selector(c['results'], lambda x: x == 0, lambda x: x == 0):
-			all_val.append(w + '.json')
+			all_val.add(w + '.json')
 		if validator_result_selector(c['results'], lambda x: x != 0, lambda x: x != 0):
-			none_val.append(w + '.json')
+			none_val.add(w + '.json')
 
 	print(f"Uniquely validated by *others*: {len(others_uval)}")
 	print(f"Uniquely validated by *CWValidator*: {len(cwv_uval)}")
 	print(f"Validated by all: {len(all_val)}")
 	print(f"Validated by none: {len(none_val)}\n")
+
+	if diff_matching is not None:
+		print(f"\nResults for diff:")
+		diff_others, diff_cwv, diff_none, diff_all = analyze_unique_by_producer(diff_matching)
+		print('-' * 40)
+		print('Not in diff')
+		print(f"Others: {others_uval.difference(diff_others)}")
+		print(f"CWV: {cwv_uval.difference(diff_cwv)}")
+		print(f"None: {none_val.difference(diff_none)}")
+		print(f"All: {all_val.difference(diff_all)}")
+		print()
+		print('Not in original')
+		print(f"Others: {diff_others.difference(others_uval)}")
+		print(f"CWV: {diff_cwv.difference(cwv_uval)}")
+		print(f"None: {diff_none.difference(none_val)}")
+		print(f"All: {diff_all.difference(all_val)}")
+
+	return others_uval, cwv_uval, none_val, all_val
 
 
 def reject_outliers(data, m=2):
@@ -196,6 +215,8 @@ def main():
 	                    help="The directory with validation results of CWValidator.")
 	parser.add_argument("-om", "--outputmatched", required=False, type=str,
 	                    help="File where to write the matched files config.")
+	parser.add_argument("-df", "--diff", required=False, type=str,
+	                    help="Directory with other results to compare.")
 
 	args = parser.parse_args()
 
@@ -208,6 +229,13 @@ def main():
 		return 1
 
 	matching = get_matching(all, validators['byWitnessHash'], args.outputmatched)
+	diff_matching = None
+	if args.diff is not None:
+		diff_results = load_result_files(args.diff)
+		dfval, dfnval, dfbpar = diff_results
+		diff_all = dfval + dfnval + dfbpar
+		diff_validators = load_validators_result_file(args.validators)
+		diff_matching = get_matching(diff_all, diff_validators['byWitnessHash'], args.outputmatched)
 
 	######### ANALYSES ###########
 
@@ -217,7 +245,7 @@ def main():
 
 	# analyze_times(matching)
 
-	analyze_unique_by_producer(matching)
+	analyze_unique_by_producer(matching, diff_matching)
 
 	plt.show()
 
