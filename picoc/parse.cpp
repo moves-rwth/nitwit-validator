@@ -819,7 +819,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                     if (Parser->Mode == RunModeContinue)
                         Parser->Mode = PreMode == RunModeGoto && Parser->SearchGotoLabel == nullptr ? RunModeRun : PreMode;
 
-                } while (Parser->Mode == RunModeRun && Condition);
+                } while (Parser->Mode == RunModeRun && (Condition || (PreMode == RunModeGoto && Parser->SearchGotoLabel == nullptr)));
 
                 if (Parser->Mode == RunModeBreak)
                     Parser->Mode = PreMode == RunModeGoto && Parser->SearchGotoLabel == nullptr ? RunModeRun : PreMode;

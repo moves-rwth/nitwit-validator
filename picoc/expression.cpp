@@ -1863,7 +1863,7 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
 /* parse an expression */
 long long ExpressionParseLongLong(struct ParseState *Parser)
 {
-    Value *Val;
+    Value *Val = nullptr;
     long long Result = 0;
 
     if (!ExpressionParse(Parser, &Val))

@@ -12,18 +12,18 @@ jmp_buf PicocExitBuf;
 #ifndef NO_DEBUGGER
 #include <signal.h>
 
-Picoc *break_pc = nullptr;
+//Picoc *break_pc = nullptr;
 
-static void BreakHandler(int Signal)
-{
-    break_pc->DebugManualBreak = TRUE;
-}
+//static void BreakHandler(int Signal)
+//{
+//    break_pc->DebugManualBreak = TRUE;
+//}
 
 void PlatformInit(Picoc *pc)
 {
     /* capture the break signal and pass it to the debugger */
-    break_pc = pc;
-    signal(SIGINT, BreakHandler);
+//    break_pc = pc;
+//    signal(SIGINT, BreakHandler);
 }
 #else
 void PlatformInit(Picoc *pc)
