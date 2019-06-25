@@ -1,6 +1,35 @@
 Info files:
 
 72294c05d4350de6f5d89ee4f596001d22578a847fc46dd3fe2d807863b0a572.json -- NaN double for nondet. Parsing of nondet vars
+  - witness does not determine the value of a nondet variable, which should be NaN. So it's fine...
 
 'bbe8e3308792a78c58c805270d9158137809ba9f4cc2d474fdbf1857ce6ffe5e.json' - overflow in conversion of constant
-'721b6c7ade3817b8199dd69646ee630ffe9281b7b13e1dd2531f793ec50bb8d4.json' - 1.00l
+'721b6c7ade3817b8199dd69646ee630ffe9281b7b13e1dd2531f793ec50bb8d4.json' - 1.00l -> done
+
+
+Interesting unique validations:
+'1d4ed542e9c6350dade9f2c5ade1eeb3a590453b90f492b72773dd0def10a193.json' and '281cc797958c936ae96426e25d985e8cf42094786075dc7ca4aa8202e9d21314.json'
+           --> CPA has: Problem with value 'sv-benchmarks/c/seq-mthreaded-reduced/pals_floodmax.5_false-unreach-call.2.ufo.BOUNDED-10.pals.c.v lhb-reducer.c' for parameter 'programName'.
+           --> others also some kind of error
+
+Resolved:
+a248433a0a3aa3adb94fadc5ee81fcd30f918f9df0bc13a77b202aef5d52e055.json -- ternary op was not turning execution on again
+6230c36fe3b181f3d11bb9ccffd1d104263a533425deb7e604dc7d264ca3f0ef.json
+6ccb9ec9ee2486a4e1f738ed6730b4dafb8b0781e0130c95a955320997acdb4c.json
+50db823f72b63356c8897663938349dc58adead2c196e133ec769fab8c37f7bf.json
+......
+
+
+Results of unique comparison: (misshaps due to T/O filtered)
+----------------------------------------
+Not in diff
+OK: Others: {}
+CWV: {'b06724339a80e9e73d91f81a97bf1a464305e505418868e5b74f94f7598786ee.json'}
+None: set()
+All: {'', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''}
+
+Not in original
+Others: {'a248433a0a3aa3adb94fadc5ee81fcd30f918f9df0bc13a77b202aef5d52e055.json', 'bd3ef0f1cafce6a70bb6a4206294220886dc70e3ad3fbd6cd9ec55b00661e5c1.json', '6230c36fe3b181f3d11bb9ccffd1d104263a533425deb7e604dc7d264ca3f0ef.json', '50db823f72b63356c8897663938349dc58adead2c196e133ec769fab8c37f7bf.json', '6ccb9ec9ee2486a4e1f738ed6730b4dafb8b0781e0130c95a955320997acdb4c.json', 'a6e9cacba9c4e207b873e4a6f4c8c122d1366ae732b559492dbca8df01f88f0c.json', 'f046014a86bc772279a89ab198853e97a167b7768e8d3b33fadc8dce69c5c65e.json', '55e8e90ae4928849b89528db6923507226d64e681c75e95702a5cedc40e649fd.json', '5eb9f5d72dcbd3b1d524417e40ed9d03fe0de5a77d503795eba4c05f52bf6d0d.json', '25ad9ab2323b60ecaef9a2e6c61fe15ab942c849bb68d86289359a2fa3434ccf.json', '82389293f4ab29be644b964b7cce63ce99ae0cda59394bf9c56afec70e87c988.json', '6691cf0db39e617f7e52e89f157702f6e6f3587acb36cd41b979f98e95cd5e9f.json', '4e62e12d85a8406c92f46f61abf5fa5f915e732d6d9fc941d35d24240e2264a2.json', 'a3452a59199635d3c891fbc966d5bed462f265f8e93471450a8cd973e707874d.json', '138c94136d1014509cad813524d5b1dc285ca1392dbdea4d41689883fe50299e.json', 'dd7d4f66e1d6ed085788f22b0a823b0e0fe160ab9ed23bcd08b48abc900c8b2d.json', '1333d0e8f19ad241d42cd365cc616f2bdf00493967568251fc5f4c8d4f227139.json'}
+CWV: set()
+None: {'281cc797958c936ae96426e25d985e8cf42094786075dc7ca4aa8202e9d21314.json', 'b06724339a80e9e73d91f81a97bf1a464305e505418868e5b74f94f7598786ee.json', '1d4ed542e9c6350dade9f2c5ade1eeb3a590453b90f492b72773dd0def10a193.json'}
+All: {'fcac3e1c0d76aa4da982e5ba6126595bc686389fdecd417acf63ea8e24ff0911.json', '985b6a21644366d7806c590523cf653b06a97fa79f938ecf55bc1befba6a6514.json', 'c58f7e82e3d1c8d54f97e3a50d5db6ff50ad407ba678fe34b2334b3b322a3567.json', '721b6c7ade3817b8199dd69646ee630ffe9281b7b13e1dd2531f793ec50bb8d4.json'}

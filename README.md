@@ -5,3 +5,4 @@
 # Changing behaviour with compiler options
 - VERBOSE
 - NO_HEADER_INCLUDE
+- REQUIRE_MATCHING_ORIGINFILENAME

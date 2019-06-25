@@ -144,9 +144,11 @@ void Automaton::consumeState(ParseState *state) {
 
     bool could_go_to_sink = false;
     for (const auto &edge: successor_rel.find(current_state->id)->second) {
+#ifdef REQUIRE_MATCHING_ORIGINFILENAME
         if (!edge->origin_file.empty() && baseFileName(edge->origin_file) != baseFileName(string(state->FileName))) {
             continue;
         }
+#endif
         if (!(edge->start_line <= state->Line && state->Line <= edge->end_line)) {
             if (!(edge->start_line == 0 && edge->end_line == 0)) continue;
         }

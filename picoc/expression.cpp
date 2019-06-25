@@ -1497,7 +1497,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                         Parser->SkipIntrinsic = TRUE;
                     }
                 }
-                if (Parser->DebugMode && Parser->Mode == RunModeRun) {
+                if (Parser->DebugMode && RunIt) {
                     Parser->EnterFunction = FuncName;
                     DebugCheckStatement(Parser);
                     Parser->EnterFunction = nullptr;
