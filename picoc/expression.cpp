@@ -1113,7 +1113,7 @@ void ExpressionStackCollapse(struct ParseState *Parser, struct ExpressionStack *
                     *StackTop = TopOperatorNode->Next;
 
                     /* do the prefix operation */
-                    if (Parser->Mode == RunModeRun /* && FoundPrecedence < *IgnorePrecedence */)
+                    if (Parser->Mode == RunModeRun && FoundPrecedence < *IgnorePrecedence )
                     {
                         /* run the operator */
                         ExpressionPrefixOperator(Parser, StackTop, TopOperatorNode->Op, TopValue);
@@ -1136,7 +1136,7 @@ void ExpressionStackCollapse(struct ParseState *Parser, struct ExpressionStack *
                     *StackTop = TopStackNode->Next->Next;
 
                     /* do the postfix operation */
-                    if (Parser->Mode == RunModeRun /* && FoundPrecedence < *IgnorePrecedence */)
+                    if (Parser->Mode == RunModeRun && FoundPrecedence < *IgnorePrecedence)
                     {
                         /* run the operator */
                         ExpressionPostfixOperator(Parser, StackTop, TopOperatorNode->Op, TopValue);
@@ -1163,7 +1163,7 @@ void ExpressionStackCollapse(struct ParseState *Parser, struct ExpressionStack *
                         *StackTop = TopOperatorNode->Next->Next;
 
                         /* do the infix operation */
-                        if (Parser->Mode == RunModeRun /* && FoundPrecedence <= *IgnorePrecedence */)
+                        if (Parser->Mode == RunModeRun && FoundPrecedence <= *IgnorePrecedence)
                         {
                             /* run the operator */
                             ExpressionInfixOperator(Parser, StackTop, TopOperatorNode->Op, BottomValue, TopValue);
