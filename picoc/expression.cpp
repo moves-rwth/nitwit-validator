@@ -1455,6 +1455,8 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                             TernaryDepth--;
                             if (StackTop->Next->Val->Typ->Base != TypeVoid)
                                 IgnorePrecedence = Precedence;
+                            else
+                                IgnorePrecedence = DEEP_PRECEDENCE; // enable execution again
                         }
                     }
 
@@ -1561,7 +1563,10 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                 ProgramFail(Parser, "value not expected here");
 
             PrefixState = FALSE;
-            ExpressionStackPushValue(Parser, &StackTop, LexValue);
+            if (IgnorePrecedence <= Precedence)
+                ExpressionStackPushValueByType(Parser, &StackTop, &Parser->pc->VoidType);
+            else
+                ExpressionStackPushValue(Parser, &StackTop, LexValue);
         }
         else if (IsTypeToken(Parser, Token, LexValue))
         {
