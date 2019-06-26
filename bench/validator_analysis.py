@@ -139,8 +139,7 @@ def validator_result_selector(results: list, predicate_others, predicate_cwv) ->
 		return True
 
 
-def analyze_unique_by_producer(matching: Dict[str, dict], diff_matching: Dict[str, dict] = None) -> Tuple[
-	set, set, set, set]:
+def analyze_unique_by_producer(matching: Dict[str, dict], diff_matching: Dict[str, dict] = None) -> Tuple[set, set, set, set]:
 	print(f"Analyze unique results by producer for {len(matching)} witnesses")
 	others_uval = set()
 	cwv_uval = set()

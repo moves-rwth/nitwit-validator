@@ -8,13 +8,9 @@ void __VERIFIER_assume(int expression){printf("Assume %d\n", expression);}
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
 int main() {
-    double i = 1.000002l;
-
-    {
-        double i = 1;
-        printf("%f\n", i);
-    }
-
-    printf("%f\n", i);
+    int s = 4;
+    s = 3;
+    int arr[s];
+    arr[1] = 9;
     return 0;
 }

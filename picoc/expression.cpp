@@ -798,9 +798,9 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
 
         if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != nullptr && Op >= TokenAssign && Op <= TokenModulusAssign){
             if (TypeIsNonDeterministic(TopValue->Typ))
-                BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->Typ);
+                BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->LValueFrom->Typ);
             else if (TypeIsNonDeterministic(BottomValue->Typ)) //topvalue is deterministic, but don't change structs/unions
-                BottomValue->LValueFrom->Typ = TypeGetDeterministic(Parser, BottomValue->Typ);
+                BottomValue->LValueFrom->Typ = TypeGetDeterministic(Parser, BottomValue->LValueFrom->Typ);
         }
         switch (Op)
         {
@@ -835,7 +835,7 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         long long BottomInt = CoerceLongLong(BottomValue);
         if (TypeIsNonDeterministic(TopValue->Typ))
             if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != nullptr)
-                BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->Typ);
+                BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->LValueFrom->Typ);
         switch (Op)
         {
             case TokenAssign:               ResultLLInt = AssignLongLong(Parser, BottomValue, TopInt, FALSE); break;
@@ -908,7 +908,7 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         unsigned long long BottomInt = CoerceUnsignedLongLong(BottomValue);
         if (TypeIsNonDeterministic(TopValue->Typ))
             if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != nullptr)
-                BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->Typ);
+                BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->LValueFrom->Typ);
         switch (Op)
         {
             case TokenAssign:               ResultLLInt = AssignLongLong(Parser, BottomValue, TopInt, FALSE); break;

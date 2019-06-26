@@ -828,9 +828,6 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
         } else {
             long long TopInt = CoerceLongLong(TopValue);
             long long BottomInt = CoerceLongLong(BottomValue);
-            if (TypeIsNonDeterministic(TopValue->Typ))
-                if (BottomValue->IsLValue == TRUE && BottomValue->LValueFrom != nullptr)
-                    BottomValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, BottomValue->Typ);
             switch (Op)
             {
                 case TokenAssign:               ResultLLInt = AssignLongLong(Parser, BottomValue, TopInt, FALSE); break;

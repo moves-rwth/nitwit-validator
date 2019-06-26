@@ -621,12 +621,12 @@ struct ValueType *TypeParseBack(struct ParseState *Parser, struct ValueType *Fro
         }
         else
         {
-            /* get a numeric array size */
-            enum RunMode OldMode = Parser->Mode;
+            /* get a numeric array size, dont resolve size when not running */
+//            enum RunMode OldMode = Parser->Mode;
             int ArraySize;
-            Parser->Mode = RunModeRun;
+//            Parser->Mode = RunModeRun;
             ArraySize = ExpressionParseLongLong(Parser);
-            Parser->Mode = OldMode;
+//            Parser->Mode = OldMode;
             
             if (LexGetToken(Parser, nullptr, TRUE) != TokenRightSquareBracket)
                 ProgramFail(Parser, "']' expected");
