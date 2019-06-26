@@ -328,8 +328,15 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     TableInitTable((*Typ)->Members, (struct TableEntry **)((char *)(*Typ)->Members + sizeof(struct Table)), STRUCT_TABLE_SIZE, TRUE);
 
     int IsConst;
+    char ParseOnlyIdent = FALSE;
+    ValueType* BasicType = nullptr;
     do {
-        TypeParse(Parser, &MemberType, &MemberIdentifier, nullptr, &IsConst);
+        if (ParseOnlyIdent){
+            TypeParseIdentPart(Parser, BasicType, &MemberType, &MemberIdentifier, &IsConst);
+            ParseOnlyIdent = FALSE;
+        } else {
+            BasicType = TypeParse(Parser, &MemberType, &MemberIdentifier, nullptr, &IsConst);
+        }
 
         if (MemberType == nullptr || MemberIdentifier == nullptr)
             ProgramFail(Parser, "invalid type in struct");
@@ -362,8 +369,11 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
         /* define it */
         if (!TableSet(pc, (*Typ)->Members, MemberIdentifier, MemberValue, Parser->FileName, Parser->Line, Parser->CharacterPos))
             ProgramFail(Parser, "member '%s' already defined", &MemberIdentifier);
-            
-        if (LexGetToken(Parser, nullptr, TRUE) != TokenSemicolon)
+
+        LexToken NextToken = LexGetToken(Parser, nullptr, TRUE);
+        if (NextToken == TokenComma){
+            ParseOnlyIdent = TRUE;
+        } else if (NextToken != TokenSemicolon)
             ProgramFail(Parser, "semicolon expected");
                     
     } while (LexGetToken(Parser, nullptr, FALSE) != TokenRightBrace);
@@ -744,7 +754,7 @@ TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct
 }
 
 /* parse a type - a complete declaration including identifier */
-void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identifier, int *IsStatic, int *IsConst)
+ValueType* TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identifier, int *IsStatic, int *IsConst)
 {
     struct ValueType *BasicType;
 
@@ -757,7 +767,7 @@ void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identif
         if (FuncValue != nullptr) VariableFree(Parser->pc, FuncValue);
 
     }
-
+    return BasicType;
 }
 
 /* check if a type has been fully defined - otherwise it's just a forward declaration */

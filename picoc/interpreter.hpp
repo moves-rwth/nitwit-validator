@@ -629,9 +629,9 @@ int TypeLastAccessibleOffset(Picoc *pc, Value *Val);
 int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsStatic, int *pInt);
 void
 TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct ValueType **Typ, char **Identifier,
-                   int *pInt);
+                   int *IsConst);
 int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicType, struct ValueType **Type, char **Identifier);
-void TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identifier, int *IsStatic, int *pInt);
+ValueType* TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identifier, int *IsStatic, int *pInt);
 struct ValueType *TypeGetMatching(Picoc *pc, struct ParseState *Parser, struct ValueType *ParentType, enum BaseType Base, int ArraySize, const char *Identifier, int AllowDuplicates);
 struct ValueType *TypeCreateOpaqueStruct(Picoc *pc, struct ParseState *Parser, const char *StructName, int Size);
 int TypeIsForwardDeclared(struct ParseState *Parser, struct ValueType *Typ);

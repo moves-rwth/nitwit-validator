@@ -675,7 +675,11 @@ struct LibraryFunction StdioFunctions[] =
     { StdioSetbuf,  "void setbuf(FILE *, char *);" },
     { StdioSetvbuf, "void setvbuf(FILE *, char *, int, int);" },
     { StdioUngetc,  "int ungetc(int, FILE *);" },
+#ifdef VERBOSE
     { StdioPuts,    "int puts(char *);" },
+#else
+    { NoOp,    "int puts(char *);" },
+#endif
     { StdioGets,    "char *gets(char *);" },
     { StdioGetchar, "int getchar();" },
 #ifdef VERBOSE

@@ -7,10 +7,12 @@ float __VERIFIER_nondet_float(void){return 27;}
 void __VERIFIER_assume(int expression){printf("Assume %d\n", expression);}
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
+struct Blah {
+    int a, b;
+    unsigned * asdf, *kk, k;
+};
+
 int main() {
-    int s = 4;
-    s = 3;
-    int arr[s];
-    arr[1] = 9;
+
     return 0;
 }
