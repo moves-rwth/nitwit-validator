@@ -688,13 +688,12 @@ int TypeParseFunctionPointer(ParseState *Parser, ValueType *BasicType, ValueType
     else if (Token == TokenIdentifier) {
         *Identifier = LexValue->Val->Identifier;
         *Type = TypeParseBack(Parser, *Type);
+        Token = LexGetToken(Parser, nullptr, BracketsAsterisk);
     } else goto ERROR;
 
-    Token = LexGetToken(Parser, nullptr, FALSE);
     if (BracketsAsterisk) {
         if (Token != TokenCloseBracket)
             ProgramFail(Parser, ") expected after function pointer identifier");
-        LexGetToken(Parser, nullptr, TRUE);
     } else {
         if (Token != TokenOpenBracket)
             goto ERROR;

@@ -75,8 +75,8 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float]:
         return process.returncode, info_file, errmsg, children.ru_utime + children.ru_stime - (children_before.ru_utime + children_before.ru_stime)
 
 
-def run_bench_parallel(configs: List[Tuple[str, str, str]]) -> List[Tuple[int, str, str, float]]:
-    with multiprocessing.Pool(48) as pool:
+def run_bench_parallel(configs: List[Tuple[str, str, str]], n_processes: int) -> List[Tuple[int, str, str, float]]:
+    with multiprocessing.Pool(n_processes) as pool:
         results = pool.map(run_validator, configs)
     return results
 
@@ -97,6 +97,7 @@ def main():
     parser.add_argument("-sv", "--sv_benchmark", required=True, type=str, help="The SV-COMP benchmark source files.")
     parser.add_argument("-to", "--timeout", required=False, type=float, default=300, help="Timeout for a validation.")
     parser.add_argument("-l", "--limit", required=False, type=int, default=None, help="How many configurations to run.")
+    parser.add_argument("-p", "--processes", required=False, type=int, default=48, help="Size of the process pool.")
     parser.add_argument("-c", "--config", required=True, type=str, help="The executions configuration file.")
 
     args = parser.parse_args()
@@ -106,7 +107,7 @@ def main():
     configs = get_bench_configs(args.config)
     if args.limit is not None:
         configs = configs[:args.limit]
-    results = run_bench_parallel(configs)
+    results = run_bench_parallel(configs, args.processes)
     process_results(results, VALIDATOR_EXECUTABLE, True)
 
 

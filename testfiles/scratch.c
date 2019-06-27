@@ -22,7 +22,7 @@ void f(int a, int b){
 
 int main() {
     blah(f);
-    fr = &f;
+    fr = (void (*)(int, int)) &f;
 //    frr = &fr;
     fr(1, 2);
 //    (*frr)(1, 2);
