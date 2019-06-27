@@ -32,7 +32,7 @@ int main()
     int (*x)(char);
 
     y('2');
-    x = &func1;
+    x = (int (*)(char)) &func1;
     x('1');
     x = &func2;
     x('2');
