@@ -6,12 +6,11 @@ Info files:
 'bbe8e3308792a78c58c805270d9158137809ba9f4cc2d474fdbf1857ce6ffe5e.json' - overflow in conversion of constant
 '721b6c7ade3817b8199dd69646ee630ffe9281b7b13e1dd2531f793ec50bb8d4.json' - 1.00l -> done
 
-2a3d608746db6f7efc41908d8aa7b5fdc5e693cac51337e4051465516e15074f.json - fptr arguments for functions
 'bea6d1a72f835fb1b03fe24fb5eca1bb0bcd1a462171004000595d378caa7ad6.json' - sizeof *x not working because of dereferencing a nullptr
 0fb324c9bc8269856d7e9f64caa562f61c6ead9dc5f67c7546170d368289f183.json - nondets in arrays
 '4853bc729f21d7811a5211390cc13a159a5d0e42ef83d04ce43cce6e2dd5e7fc.json' - non-terminating?
 '709fda8e85d44d563e46e4e0f63038be7e22bb0ea963da5efd364c0c985beb8d.json' - invalid op
-
+'fe8b607971f832adfe17837236e3577220f85a4357e1d1d9efcc88167587b5fc.json' - the struct hasn't been initialized yet
 
 
 Interesting unique validations:
@@ -25,6 +24,7 @@ a248433a0a3aa3adb94fadc5ee81fcd30f918f9df0bc13a77b202aef5d52e055.json -- ternary
 6ccb9ec9ee2486a4e1f738ed6730b4dafb8b0781e0130c95a955320997acdb4c.json
 50db823f72b63356c8897663938349dc58adead2c196e133ec769fab8c37f7bf.json
 ......
+2a3d608746db6f7efc41908d8aa7b5fdc5e693cac51337e4051465516e15074f.json - fptr arguments for functions
 
 'b06724339a80e9e73d91f81a97bf1a464305e505418868e5b74f94f7598786ee.json'} -> this was previously wrongly validated
 '1222fe85cb2470b19f826b4abcfb6d4558a84d75a7611692c1d4bc5b43411a63.json' -> \result (skink)
@@ -34,11 +34,6 @@ a248433a0a3aa3adb94fadc5ee81fcd30f918f9df0bc13a77b202aef5d52e055.json -- ternary
 all of the others validated but not CWValidator:
 'fb7c1afd7d1eaaa3d5a629600933d898b606dd2401652528c3bec8a5ee17d41a.json'
 
-'ee0a62080c0128efa1154c822809009f893468e2be4c81b7c5c2d73348172b5a.json'
-'1b8100b7e80ffef8ee47cd2008280b1f08031c53de79b21637b0e010b3c5a700.json'
-'4e62e12d85a8406c92f46f61abf5fa5f915e732d6d9fc941d35d24240e2264a2.json'
-'84d4bf060636a9e828c1958a269be7ca383ac5e7f2941b9a5e394e87aac805e2.json'
-'fe8b607971f832adfe17837236e3577220f85a4357e1d1d9efcc88167587b5fc.json'
 'a6e9cacba9c4e207b873e4a6f4c8c122d1366ae732b559492dbca8df01f88f0c.json'
 '2467ce7feea4fe14c5f70bfee9c08f19e4f445041653cbb60adc57e7ad37ef84.json'
 '138c94136d1014509cad813524d5b1dc285ca1392dbdea4d41689883fe50299e.json'

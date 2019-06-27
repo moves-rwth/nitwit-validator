@@ -1364,7 +1364,7 @@ int AssumptionExpressionParse(struct ParseState *Parser, Value **Result)
                         char *CastIdentifier;
                         Value *CastTypeValue;
 
-                        TypeParse(Parser, &CastType, &CastIdentifier, nullptr, nullptr);
+                        TypeParse(Parser, &CastType, &CastIdentifier, nullptr, nullptr, 0);
                         if (LexGetToken(Parser, &LexValue, TRUE) != TokenCloseBracket)
                             ProgramFail(Parser, "brackets not closed");
 
@@ -1564,7 +1564,7 @@ int AssumptionExpressionParse(struct ParseState *Parser, Value **Result)
 
             PrefixState = FALSE;
             ParserCopy(Parser, &PreState);
-            TypeParse(Parser, &Typ, &Identifier, nullptr, nullptr);
+            TypeParse(Parser, &Typ, &Identifier, nullptr, nullptr, 0);
             TypeValue = VariableAllocValueFromType(Parser->pc, Parser, &Parser->pc->TypeType, FALSE, nullptr, FALSE);
             TypeValue->Val->Typ = Typ;
             AssumptionExpressionStackPushValueNode(Parser, &StackTop, TypeValue);

@@ -335,7 +335,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
             TypeParseIdentPart(Parser, BasicType, &MemberType, &MemberIdentifier, &IsConst);
             ParseOnlyIdent = FALSE;
         } else {
-            BasicType = TypeParse(Parser, &MemberType, &MemberIdentifier, nullptr, &IsConst);
+            BasicType = TypeParse(Parser, &MemberType, &MemberIdentifier, nullptr, &IsConst, 0);
         }
 
         if (MemberType == nullptr || MemberIdentifier == nullptr)
@@ -652,13 +652,13 @@ struct ValueType *TypeParseBack(struct ParseState *Parser, struct ValueType *Fro
     }
 }
 
-int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicType, struct ValueType **Type,
-                             char **Identifier) {
+int TypeParseFunctionPointer(ParseState *Parser, ValueType *BasicType, ValueType **Type, char **Identifier, bool IsArgument) {
     Value *LexValue;
     struct ParseState Before{};
     *Identifier = Parser->pc->StrEmpty;
     *Type = BasicType;
     ParserCopy(&Before, Parser);
+    bool BracketsAsterisk = true;
 
     while (LexGetToken(Parser, nullptr, FALSE) == TokenAsterisk){
         LexGetToken(Parser, nullptr, TRUE);
@@ -666,29 +666,41 @@ int TypeParseFunctionPointer(struct ParseState *Parser, struct ValueType *BasicT
             ProgramFail(Parser, "bad type declaration");
         *Type = TypeGetMatching(Parser->pc, Parser, *Type, TypePointer, 0, Parser->pc->StrEmpty, TRUE);
     }
-    enum LexToken Token = LexGetToken(Parser, nullptr, TRUE);
-    if (Token != TokenOpenBracket) goto ERROR;
-    Token = LexGetToken(Parser, nullptr, TRUE);
-    if (Token != TokenAsterisk) goto ERROR;
+    enum LexToken Token;
     Token = LexGetToken(Parser, &LexValue, TRUE);
-
-    *Type = &Parser->pc->FunctionPtrType;
-    while (Token == TokenAsterisk){
-        *Type = TypeGetMatching(Parser->pc, Parser, *Type, TypePointer, 0, Parser->pc->StrEmpty, TRUE);
+    if (Token == TokenOpenBracket){
+        Token = LexGetToken(Parser, nullptr, TRUE);
+        if (Token != TokenAsterisk) goto ERROR;
         Token = LexGetToken(Parser, &LexValue, TRUE);
-    }
 
-    if (Token != TokenIdentifier)
+        *Type = &Parser->pc->FunctionPtrType;
+        while (Token == TokenAsterisk){
+            *Type = TypeGetMatching(Parser->pc, Parser, *Type, TypePointer, 0, Parser->pc->StrEmpty, TRUE);
+            Token = LexGetToken(Parser, &LexValue, TRUE);
+        }
+    } else if (IsArgument) {
+        BracketsAsterisk = false;
+    } else goto ERROR;
+
+    if (Token == TokenCloseBracket && !IsArgument)
         // a cast
         *Identifier = Parser->pc->StrEmpty;
-    else {
+    else if (Token == TokenIdentifier) {
         *Identifier = LexValue->Val->Identifier;
         *Type = TypeParseBack(Parser, *Type);
-        Token = LexGetToken(Parser, &LexValue, TRUE);
-    }
+    } else goto ERROR;
 
-    if (Token != TokenCloseBracket)
-        ProgramFail(Parser, ") expected after function pointer identifier");
+    Token = LexGetToken(Parser, nullptr, FALSE);
+    if (BracketsAsterisk) {
+        if (Token != TokenCloseBracket)
+            ProgramFail(Parser, ") expected after function pointer identifier");
+        LexGetToken(Parser, nullptr, TRUE);
+    } else {
+        if (Token != TokenOpenBracket)
+            goto ERROR;
+        else
+            *Type = &Parser->pc->FunctionPtrType;
+    }
 
     return TRUE;
 
@@ -720,7 +732,7 @@ TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct
                 if (*Typ != nullptr)
                     ProgramFail(Parser, "bad type declaration");
 
-                TypeParse(Parser, Typ, Identifier, nullptr, IsConst);
+                TypeParse(Parser, Typ, Identifier, nullptr, IsConst, 0);
                 if (LexGetToken(Parser, nullptr, TRUE) != TokenCloseBracket)
                     ProgramFail(Parser, "')' expected");
                 break;
@@ -754,18 +766,18 @@ TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct
 }
 
 /* parse a type - a complete declaration including identifier */
-ValueType* TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identifier, int *IsStatic, int *IsConst)
+ValueType *TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **Identifier, int *IsStatic, int *IsConst,
+                     bool IsArgument)
 {
     struct ValueType *BasicType;
 
     TypeParseFront(Parser, &BasicType, IsStatic, IsConst);
 
-    if (!TypeParseFunctionPointer(Parser, BasicType, Typ, Identifier)){
+    if (!TypeParseFunctionPointer(Parser, BasicType, Typ, Identifier, IsArgument)){
         TypeParseIdentPart(Parser, BasicType, Typ, Identifier, IsConst);
     } else {
         Value * FuncValue = ParseFunctionDefinition(Parser, BasicType, *Identifier, TRUE);
         if (FuncValue != nullptr) VariableFree(Parser->pc, FuncValue);
-
     }
     return BasicType;
 }
