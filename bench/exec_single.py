@@ -19,14 +19,25 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float]:
 	with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
 	                      stdout=subprocess.PIPE,
 	                      stderr=subprocess.PIPE) as process:
+		errmsg = ''
 		try:
-			outs, errs = process.communicate(timeout=EXECUTION_TIMEOUT)
+			out, errs = process.communicate(timeout=EXECUTION_TIMEOUT)
 
 			print(f"{'-' * 20}Stdout{'-' * 20}")
-			print(outs.decode("utf-8"))
+			print(out.decode("utf-8"))
 			print('=' * 46)
 			print(f"{'-' * 20}Stderr{'-' * 20}")
 			print(errs.decode("utf-8"))
+			if process.returncode != 0 and out is not None:
+				outs = str(out)
+				pos = outs.rfind(' ### ')
+				if pos != -1:
+					endpos = outs.find('\\n', pos)
+					if endpos == -1:
+						endpos = len(outs) - 1
+					errmsg = outs[(pos + 5):endpos]
+				else:
+					errmsg = 'Msg not parsed'
 		except subprocess.TimeoutExpired:
 			process.kill()
 
@@ -35,11 +46,11 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float]:
 			print(f"Process {process.pid} still running!")
 			process.kill()
 
-	# outs, errs = process.communicate()
+	# out, errs = process.communicate()
 	times = os.times()
 	print(' '.join([witness, source]))
 	print(' '.join([witness[3:], source[3:]]))
-	return process.returncode, info_file, '', times[2] + times[3]
+	return process.returncode, info_file, errmsg, times[2] + times[3]
 
 
 def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:

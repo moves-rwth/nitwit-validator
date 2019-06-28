@@ -56,13 +56,15 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float]:
         try:
             out, _ = process.communicate(timeout=EXECUTION_TIMEOUT)
             if process.returncode != 0 and out is not None:
-                errmsg = out.splitlines()
-                errmsg = '' if len(errmsg) < 3 else str(errmsg[-1])
-                pos = errmsg.find('#')
+                outs = str(out)
+                pos = outs.rfind(' ### ')
                 if pos != -1:
-                    errmsg = errmsg[pos + 1:]
+                    endpos = outs.find('\\n', pos)
+                    if endpos == -1:
+                        endpos = len(outs) - 1
+                    errmsg = outs[(pos + 5):endpos]
                 else:
-                    errmsg = str(out).strip()
+                    errmsg = 'Msg not parsed'
         except subprocess.TimeoutExpired:
             process.kill()
         finally:
