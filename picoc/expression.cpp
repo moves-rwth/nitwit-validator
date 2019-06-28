@@ -208,8 +208,8 @@ void ExpressionStackPushDereference(struct ParseState *Parser, struct Expression
     struct ValueType *DerefType;
     int DerefIsLValue;
     void *DerefDataLoc = VariableDereferencePointer(Parser, DereferenceValue, &DerefVal, &Offset, &DerefType, &DerefIsLValue);
-    if (DerefDataLoc == nullptr)
-        ProgramFail(Parser, "nullptr pointer dereference");
+//    if (DerefDataLoc == nullptr)
+//        ProgramFail(Parser, "nullptr pointer dereference");
 
     ValueLoc = VariableAllocValueFromExistingData(Parser, DerefType, (union AnyValue *) DerefDataLoc, DerefIsLValue,
                                                   DerefVal, nullptr);
@@ -1047,9 +1047,18 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
                 ExpressionPushInt(Parser, StackTop, BottomLoc == TopLoc); break;
             case TokenNotEqual:
                 ExpressionPushInt(Parser, StackTop, BottomLoc != TopLoc); break;
+            case TokenLessEqual:
+                ExpressionPushInt(Parser, StackTop, BottomLoc <= TopLoc); break;
+            case TokenLessThan:
+                ExpressionPushInt(Parser, StackTop, BottomLoc < TopLoc); break;
+            case TokenGreaterEqual:
+                ExpressionPushInt(Parser, StackTop, BottomLoc >= TopLoc); break;
+            case TokenGreaterThan:
+                ExpressionPushInt(Parser, StackTop, BottomLoc > TopLoc); break;
             case TokenMinus:
                 ExpressionPushInt(Parser, StackTop, BottomLoc - TopLoc); break;
-            default:                        ProgramFail(Parser, "invalid operation"); break;
+            default:
+                ProgramFail(Parser, "invalid operation"); break;
         }
     }
     else if (Op == TokenAssign)
@@ -1068,8 +1077,35 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
     } else if (Op == TokenOpenBracket){
         // called a function
         ExpressionStackPushValue(Parser, StackTop, TopValue);
-    }
-    else
+    } else if ((BottomValue->Typ->Base == TypeArray && IS_INTEGER_NUMERIC(TopValue))
+            || (TopValue->Typ->Base == TypeArray && IS_INTEGER_NUMERIC(BottomValue))
+//            || (BottomValue->Typ->Base == TypePointer && IS_INTEGER_NUMERIC(TopValue))
+//            || (TopValue->Typ->Base == TypePointer && IS_INTEGER_NUMERIC(BottomValue))
+            ) {
+
+        Value *ArrayValue = BottomValue->Typ->Base == TypeArray || BottomValue->Typ->Base == TypePointer ? BottomValue : TopValue;
+        long long ArrayIndex = BottomValue->Typ->Base != TypeArray && BottomValue->Typ->Base != TypePointer
+                    ? CoerceLongLong(BottomValue) : CoerceLongLong(TopValue);
+
+        int Size = TypeSize(ArrayValue->Typ->FromType, 0, TRUE);
+
+        Pointer = (void*)&(ArrayValue->Val->ArrayMem[0]);
+        if (Pointer == nullptr)
+            ProgramFail(Parser, "invalid use of a nullptr pointer");
+
+        switch (Op)
+        {
+            case TokenPlus:
+                Pointer = (void *)((char *)Pointer + ArrayIndex * Size); break;
+            case TokenMinus:
+                Pointer = (void *)((char *)Pointer - ArrayIndex * Size); break;
+            default:
+                ProgramFail(Parser, "invalid pointer operation");
+        }
+        StackValue = ExpressionStackPushValueByType(Parser, StackTop,
+                TypeGetMatching(Parser->pc, Parser, ArrayValue->Typ->FromType, TypePointer, 0, Parser->pc->StrEmpty, TRUE));
+        StackValue->Val->Pointer = Pointer;
+    } else
         ProgramFail(Parser, "invalid operation");
 }
 

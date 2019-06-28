@@ -7,24 +7,33 @@ float __VERIFIER_nondet_float(void){return 27;}
 void __VERIFIER_assume(int expression){printf("Assume %d\n", expression);}
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
-void (**frr)(int, int);
-void (*fr)(int, int);
+typedef int Char;
 
-void blah (void asdf(int, int)) {
-    asdf(1, 2);
-    return;
+
+Char *tmp;
+
+int glob2 (Char *pathbuf, Char *pathlim)
+{
+    Char *p;
+
+    for (p = pathbuf; p <= pathlim; p++) {
+
+        __VERIFIER_assert(p<=tmp);
+        *p = 1;
+    }
+
+    return 0;
 }
 
-void f(int a, int b){
-    printf("blah\n");
-    return;
-}
+int main ()
+{
+    Char pathbuf[1 +1];
 
-int main() {
-    blah(f);
-    fr = (void (*)(int, int)) &f;
-//    frr = &fr;
-    fr(1, 2);
-//    (*frr)(1, 2);
+    Char *bound = pathbuf + sizeof(pathbuf) - 1;
+
+    tmp = pathbuf + sizeof(pathbuf)/sizeof(*pathbuf) - 1;
+
+    glob2 (pathbuf, bound);
+
     return 0;
 }
