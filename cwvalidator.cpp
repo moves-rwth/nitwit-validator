@@ -57,13 +57,13 @@ void handleDebugBreakpoint(struct ParseState *ps) {
         return;
     }
     if (wit_aut->isInSinkState()) {
-        ProgramFailWithExitCode(ps, WITNESS_IN_SINK, "Witness automaton reached sink state without a violation.");
-        return;
+//        ProgramFailWithExitCode(ps, WITNESS_IN_SINK, "Witness automaton reached sink state without a violation.");
+//        return;
     }
 
     wit_aut->consumeState(ps);
 
-    if (wit_aut->isInViolationState() && wit_aut->wasVerifierErrorCalled()) {
+    if (wit_aut->wasVerifierErrorCalled()) {
         PlatformExit(ps->pc, 0);
         return;
     }
@@ -130,28 +130,32 @@ int main(int argc, char **argv) {
         (exit_value >= NO_WITNESS_CODE && exit_value <= ALREADY_DEFINED)) {
         cw_verbose("Automaton finished in state %s, with error code %d.\n", wit_aut->getCurrentState()->id.c_str(),
                    exit_value);
-        cw_verbose("FAILED: Wasn't able to validate the witness. ");
+        printf("FAILED: Wasn't able to validate the witness. ");
         if (wit_aut->isInViolationState()) {
-            cw_verbose("Witness violation state reached");
+            printf("Witness violation state reached");
             exit_value = UNVALIDATED_VIOLATION;
         } else{
-            cw_verbose("Witness violation state NOT reached");
+            printf("Witness violation state NOT reached");
         }
         if (wit_aut->wasVerifierErrorCalled()) {
-            cw_verbose(", __VERIFIER_error was called.\n");
+            printf(", __VERIFIER_error was called.\n");
             exit_value = PROGRAM_FINISHED_WITH_VIOLATION;
         } else {
-            cw_verbose(", __VERIFIER_error was never called.\n");
+            printf(", __VERIFIER_error was never called.\n");
         }
         return exit_value;
     } else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
-        cw_verbose("FAILED: __VERIFIER_error was never called, even though witness IS in violation state.\n");
+        printf("FAILED: __VERIFIER_error was never called, even though witness IS in violation state.\n");
         return 5;
-    } else if (wit_aut->isInViolationState() && wit_aut->wasVerifierErrorCalled()) {
-        printf("\nVALIDATED: The violation state: %s has been reached.\n", wit_aut->getCurrentState()->id.c_str());
+    } else if (wit_aut->wasVerifierErrorCalled()) {
+        printf("\nVALIDATED: The state: %s has been reached.", wit_aut->getCurrentState()->id.c_str());
+        if (wit_aut->isInViolationState())
+            printf(" It is a violation state.\n");
+        else
+            printf(" However, it is NOT a violation state.\n");
         return 0;
     } else {
-        cw_verbose("UNKNOWN: A different error occurred, probably a parsing error or program exited.\n");
+        printf("UNKNOWN: A different error occurred, probably a parsing error or program exited.\n");
         return 4;
     }
 }
