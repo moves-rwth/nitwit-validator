@@ -77,14 +77,18 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         ValueList *Next = Parser.ResolvedNonDetVars;
         for (ValueList *I = Next; I != nullptr; I = Next) {
 #ifdef VERBOSE
-            Value *val;
-            VariableGet(state->pc, state, I->Identifier, &val);
-            if (IS_FP(val)) {
-                double fp = CoerceDouble(val);
-                cw_verbose("Resolved var: %s: ---> %2.20f\n", I->Identifier, fp);
+            if (I->Identifier == nullptr){
+                cw_verbose("Resolved array element\n");
             } else {
-                int i = CoerceLongLong(val);
-                cw_verbose("Resolved var: %s: ---> %d\n", I->Identifier, i);
+                Value *val;
+                VariableGet(state->pc, state, I->Identifier, &val);
+                if (IS_FP(val)) {
+                    double fp = CoerceDouble(val);
+                    cw_verbose("Resolved var: %s: ---> %2.20f\n", I->Identifier, fp);
+                } else {
+                    int i = CoerceLongLong(val);
+                    cw_verbose("Resolved var: %s: ---> %d\n", I->Identifier, i);
+                }
             }
 #endif
             Next = Next->Next;

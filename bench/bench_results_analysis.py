@@ -60,7 +60,7 @@ def print_error_msgs(m: Dict[str, int]):
 		print(f"\t{k}: {v}")
 
 
-def analyze_bench_output(results: list, name: str, search_string: str):
+def analyze_bench_output(results: list, name: str, search_string: str, producer: str):
 	'''
 	Analyzes the producers and wrong results of the C Witness Validator
 	:param results: List of witness info files.
@@ -79,9 +79,11 @@ def analyze_bench_output(results: list, name: str, search_string: str):
 	false_positives = 0
 
 	for witness in results:
-		increase_count_in_dict(result_map, witness[0])
 		with open(os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, witness[1]), 'r') as fp:
 			info_jObj = json.load(fp)
+			if producer is not None and not str(info_jObj['producer']).startswith(producer):
+				continue
+			increase_count_in_dict(result_map, witness[0])
 			if 'producer' in info_jObj:
 				increase_count_in_dict(prod_map, info_jObj['producer'])
 			else:
@@ -92,6 +94,7 @@ def analyze_bench_output(results: list, name: str, search_string: str):
 				false_positives = false_positives + 1
 		increase_count_in_dict(err_msg_map, f"({witness[0]}) {witness[2]}")
 
+	n_results = sum(result_map.values())
 	print('-' * 20 + ' ', name.capitalize(), ' ' + '-' * 20)
 	print(f"Producer summary: {prod_map}")
 	print(f"Result summary:")
@@ -100,9 +103,9 @@ def analyze_bench_output(results: list, name: str, search_string: str):
 	print_error_msgs(err_msg_map)
 	if unknown > 0:
 		print(f"Unknown producers for {unknown} witnesses.")
-	fp_rate = 0 if len(results) == 0 else false_positives / len(results) * 100
+	fp_rate = 0 if len(results) == 0 else false_positives / n_results * 100
 	print(f"Incorrect results for {name}: {false_positives}, i.e. {fp_rate}%.")
-	print(f"In total {name} {len(results)}.")
+	print(f"In total {name} {n_results}.")
 
 
 def get_differences(a: List[str], b: List[str]) -> Tuple[List[str], List[str]]:
@@ -128,8 +131,8 @@ def main():
 	parser.add_argument("-w", "--witnesses", required=True, type=str, help="The directory with unzipped witnesses.")
 	parser.add_argument("-r", "--results", required=True, type=str, default=None,
 	                    help="The directory with resulting files about validated witnesses.")
-	# parser.add_argument("-dv", "--dvalidated", required=False, type=str, default=None,
-	#                     help="The file with info about validated witnesses of the second result.")
+	parser.add_argument("-p", "--producer", required=False, type=str, default=None,
+	                    help="Restrict analysis to this producer.")
 	# parser.add_argument("-nv", "--nonvalidated", required=False, type=str, default=None,
 	#                     help="The file with info about non-validated witnesses.")
 	# parser.add_argument("-bp", "--badlyparsed", required=False, type=str, default=None,
@@ -142,27 +145,9 @@ def main():
 		return 1
 
 	validated, nonvalidated, badlyparsed = load_result_files(args.results)
-	analyze_bench_output(validated, 'validated', '_false-unreach-call')
-	analyze_bench_output(nonvalidated, 'non-validated', '_true-unreach-call')
-	analyze_bench_output(badlyparsed, 'badly parsed', '')
-
-
-# if args.validated and args.dvalidated:
-# 	not_in_d, not_in_v = get_differences(load_result_files(args.validated),
-# 	                                     load_result_files(args.dvalidated))
-# 	print(f"Witnesses not in {args.validated}: {len(not_in_v)}")
-# 	analyze_bench_output(not_in_v, 'validated by second, but not by first', '_false-unreach-call')
-# 	print('=' * 80)
-# 	print(f"Witnesses not in {args.dvalidated}: {len(not_in_d)}")
-# 	analyze_bench_output(not_in_d, 'validated by first, but not by second', '_false-unreach-call')
-# 	print('=' * 80)
-# print(get_info_files_for_producer(not_in_d, 'CPAchecker 1.7-svn b8d6131600+'))
-
-# if args.nonvalidated:
-# 	analyze_bench_output(args.nonvalidated, 'non-validated', '_true-unreach-call')
-#
-# if args.badlyparsed:
-# 	analyze_bench_output(args.badlyparsed, 'badly parsed', '')
+	analyze_bench_output(validated, 'validated', '_false-unreach-call', args.producer)
+	analyze_bench_output(nonvalidated, 'non-validated', '_true-unreach-call', args.producer)
+	analyze_bench_output(badlyparsed, 'badly parsed', '', args.producer)
 
 
 if __name__ == "__main__":

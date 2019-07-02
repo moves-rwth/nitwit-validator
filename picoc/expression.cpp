@@ -270,15 +270,16 @@ void ExpressionAssignToPointer(struct ParseState *Parser, Value *ToValue, Value 
 {
     struct ValueType *PointedToType = ToValue->Typ->FromType;
 
-    if (FromValue->Typ == ToValue->Typ || FromValue->Typ == Parser->pc->VoidPtrType || (ToValue->Typ == Parser->pc->VoidPtrType && FromValue->Typ->Base == TypePointer)
-        || (FromValue->Typ->FromType != nullptr && TypeIsNonDeterministic(FromValue->Typ->FromType)
-            && ToValue->Typ->FromType->Base == FromValue->Typ->FromType->Base)
+    if (FromValue->Typ->Base == ToValue->Typ->Base || FromValue->Typ == Parser->pc->VoidPtrType
+        || (ToValue->Typ == Parser->pc->VoidPtrType && FromValue->Typ->Base == TypePointer)
+//        || (FromValue->Typ->FromType != nullptr && TypeIsNonDeterministic(FromValue->Typ->FromType)
+//            && ToValue->Typ->FromType->Base == FromValue->Typ->FromType->Base && FromValue->Typ->Base != TypeArray)
         )
     {
         ToValue->Val->Pointer = FromValue->Val->Pointer;      /* plain old pointer assignment */
     }
 
-    else if (FromValue->Typ->Base == TypeArray && (PointedToType == FromValue->Typ->FromType || ToValue->Typ == Parser->pc->VoidPtrType))
+    else if (FromValue->Typ->Base == TypeArray && (PointedToType->Base == FromValue->Typ->FromType->Base || ToValue->Typ == Parser->pc->VoidPtrType))
     {
         /* the form is: blah *x = array of blah */
         ToValue->Val->Pointer = (void *)&FromValue->Val->ArrayMem[0];
@@ -409,7 +410,8 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
                     PRINT_SOURCE_POS;
                     fprintf(stderr, "str size: %d\n", Size);
                     #endif
-                    DestValue->Typ = TypeGetMatching(Parser->pc, Parser, DestValue->Typ->FromType, DestValue->Typ->Base, Size, DestValue->Typ->Identifier, TRUE);
+                    DestValue->Typ = TypeGetMatching(Parser->pc, Parser, DestValue->Typ->FromType, DestValue->Typ->Base,
+                                                     Size, DestValue->Typ->Identifier, TRUE, nullptr);
                     VariableRealloc(Parser, DestValue, TypeSizeValue(DestValue, FALSE));
                 }
                 /* else, it's char x[10] = "abcd" */
@@ -509,7 +511,9 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
             } else {
                 ValPtr = TopValue->Val;
                 Result = VariableAllocValueFromType(Parser->pc, Parser,
-                        TypeGetMatching(Parser->pc, Parser, TopValue->Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE),
+                                                    TypeGetMatching(Parser->pc, Parser, TopValue->Typ, TypePointer, 0,
+                                                                    Parser->pc->StrEmpty, TRUE,
+                                                                    nullptr),
                         FALSE, TopValue->LValueFrom, FALSE);
                 Result->Val->Pointer = (void *)ValPtr;
             }
@@ -759,22 +763,23 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         /* make the array element result */
         switch (BottomValue->Typ->Base)
         {
-            case TypeArray:   Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType,
-                                                                          (union AnyValue *) (
-                                                                                  &BottomValue->Val->ArrayMem[0] +
-                                                                                  TypeSize(BottomValue->Typ, ArrayIndex,
-                                                                                           TRUE)),
-                                                                          BottomValue->IsLValue,
-                                                                          BottomValue->LValueFrom, nullptr); break;
+            case TypeArray:   Result = VariableAllocValueFromExistingData(Parser,
+                                  TypeIsNonDeterministic(BottomValue->Typ) ? TypeGetNonDeterministic(Parser, BottomValue->Typ->FromType) : BottomValue->Typ->FromType,
+                                  (union AnyValue *) (
+                                          &BottomValue->Val->ArrayMem[0] +
+                                          TypeSize(BottomValue->Typ, ArrayIndex,
+                                                   TRUE)),
+                                  BottomValue->IsLValue,
+                                  BottomValue->LValueFrom, nullptr); break;
             //todo nondet pointer
             case TypePointer: Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType,
-                                                                          (union AnyValue *) (
-                                                                                  (char *) BottomValue->Val->Pointer +
-                                                                                  TypeSize(BottomValue->Typ->FromType,
-                                                                                           0, TRUE) * ArrayIndex),
-                                                                          BottomValue->LValueFrom != nullptr ? TRUE: BottomValue->IsLValue,
-                                                                          BottomValue->LValueFrom, nullptr); break;
-                                                                          // allow to change to LValue later ((unsigned*)&dmax)[0] = 0x47efffff;
+                                  (union AnyValue *) (
+                                          (char *) BottomValue->Val->Pointer +
+                                          TypeSize(BottomValue->Typ->FromType,
+                                                   0, TRUE) * ArrayIndex),
+                                  BottomValue->LValueFrom != nullptr ? TRUE: BottomValue->IsLValue,
+                                  BottomValue->LValueFrom, nullptr); break;
+                                  // allow to change to LValue later ((unsigned*)&dmax)[0] = 0x47efffff;
             default:          ProgramFail(Parser, "this %t is not an array", BottomValue->Typ);
         }
 
@@ -1103,7 +1108,9 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
                 ProgramFail(Parser, "invalid pointer operation");
         }
         StackValue = ExpressionStackPushValueByType(Parser, StackTop,
-                TypeGetMatching(Parser->pc, Parser, ArrayValue->Typ->FromType, TypePointer, 0, Parser->pc->StrEmpty, TRUE));
+                                                    TypeGetMatching(Parser->pc, Parser, ArrayValue->Typ->FromType,
+                                                                    TypePointer, 0, Parser->pc->StrEmpty,
+                                                                    TRUE, nullptr));
         StackValue->Val->Pointer = Pointer;
     } else
         ProgramFail(Parser, "invalid operation");
@@ -1445,8 +1452,16 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                             TopValue = StackTop->Val;
                             HeapPopStack(Parser->pc, TopValue, sizeof(struct ExpressionStack) + MEM_ALIGN(sizeof(Value)) + TypeStackSizeValue(TopValue));
                             StackTop = StackTop->Next;
-                            if (!CoerceInteger(TopValue))
-                                IgnorePrecedence = Precedence;
+                            if (!CoerceInteger(TopValue)){
+                                LexToken NextToken = LexGetToken(Parser, nullptr, TRUE);
+                                int depth = 1;
+                                while (depth > 0 && NextToken != TokenEOF){
+                                    if (NextToken == TokenQuestionMark) ++depth;
+                                    else if (NextToken == TokenColon) --depth;
+                                    if (depth > 0)
+                                        NextToken = LexGetToken(Parser, nullptr, TRUE);
+                                }
+                            }
                             break;
                         default:
                             /* scan and collapse the stack to the precedence of this operator, then push */
@@ -1489,10 +1504,10 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
 
                         if (Token == TokenColon){
                             TernaryDepth--;
-                            if (StackTop->Next->Val->Typ->Base != TypeVoid)
-                                IgnorePrecedence = Precedence;
-                            else
+                            if (IgnorePrecedence <= Precedence)
                                 IgnorePrecedence = DEEP_PRECEDENCE; // enable execution again
+                            else
+                                IgnorePrecedence = Precedence;
                         }
                     }
 

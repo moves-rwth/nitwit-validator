@@ -55,6 +55,7 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
         return Typ;
     else {
         struct ValueType * Base;
+        bool nondet = true;
         switch (Typ->Base){
             case TypeInt: Base = &Parser->pc->IntNDType; break;
             case TypeShort: Base = &Parser->pc->ShortNDType; break;
@@ -72,8 +73,12 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
             case TypeDouble: Base = &Parser->pc->DoubleNDType; break;
             case TypeFloat: Base = &Parser->pc->FloatNDType; break;
 #endif
-            // function ptrs aren't supported to be ND - not even in SV-COMP
+            case TypeArray:
+                    Base = TypeGetMatching(Parser->pc, Parser,
+                            TypeGetNonDeterministic(Parser, Typ->FromType),
+                            Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet); break;
             case TypeFunctionPtr: Base = &Parser->pc->FunctionPtrType; break;
+            // function ptrs aren't supported to be ND - not even in SV-COMP
             default:
                 fprintf(stderr, "Unsupported non-deterministic type conversion.\n");
                 Base = Typ;
@@ -105,12 +110,14 @@ struct ValueType *TypeAdd(Picoc *pc, struct ParseState *Parser, struct ValueType
 
 /* given a parent type, get a matching derived type and make one if necessary.
  * Identifier should be registered with the shared string table. */
-struct ValueType *TypeGetMatching(Picoc *pc, struct ParseState *Parser, struct ValueType *ParentType, enum BaseType Base, int ArraySize, const char *Identifier, int AllowDuplicates)
+ValueType *TypeGetMatching(Picoc *pc, ParseState *Parser, ValueType *ParentType, BaseType Base, int ArraySize,
+                           const char *Identifier, int AllowDuplicates, bool* Nondet)
 {
     int Sizeof;
     int AlignBytes;
     struct ValueType *ThisType = ParentType->DerivedTypeList;
-    while (ThisType != nullptr && (ThisType->Base != Base || ThisType->ArraySize != ArraySize || ThisType->Identifier != Identifier))
+    while (ThisType != nullptr && (ThisType->Base != Base || ThisType->ArraySize != ArraySize ||
+                        ThisType->Identifier != Identifier || (Nondet != nullptr && ThisType->IsNonDet == *Nondet)))
         ThisType = ThisType->Next;
     
     if (ThisType != nullptr)
@@ -298,7 +305,8 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
         StructIdentifier = PlatformMakeTempName(pc, TempNameBuf);
     }
 
-    *Typ = TypeGetMatching(pc, Parser, &Parser->pc->UberType, IsStruct ? TypeStruct : TypeUnion, 0, StructIdentifier, TRUE);
+    *Typ = TypeGetMatching(pc, Parser, &Parser->pc->UberType, IsStruct ? TypeStruct : TypeUnion, 0, StructIdentifier,
+                           TRUE, nullptr);
     if (Token == TokenLeftBrace && (*Typ)->Members != nullptr){
         fprintf(stderr, "Warning: data type '%s' is already defined. Will skip this.", StructIdentifier);
         while (LexGetToken(Parser, nullptr, FALSE) != TokenRightBrace)
@@ -389,7 +397,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
 /* create a system struct which has no user-visible members */
 struct ValueType *TypeCreateOpaqueStruct(Picoc *pc, struct ParseState *Parser, const char *StructName, int Size)
 {
-    struct ValueType *Typ = TypeGetMatching(pc, Parser, &pc->UberType, TypeStruct, 0, StructName, FALSE);
+    struct ValueType *Typ = TypeGetMatching(pc, Parser, &pc->UberType, TypeStruct, 0, StructName, FALSE, nullptr);
     
     /* create the (empty) table */
     Typ->Members = static_cast<Table *>(VariableAlloc(pc, Parser, sizeof(struct Table) +
@@ -424,7 +432,7 @@ void TypeParseEnum(struct ParseState *Parser, struct ValueType **Typ)
         EnumIdentifier = PlatformMakeTempName(pc, TempNameBuf);
     }
 
-    TypeGetMatching(pc, Parser, &pc->UberType, TypeEnum, 0, EnumIdentifier, Token != TokenLeftBrace);
+    TypeGetMatching(pc, Parser, &pc->UberType, TypeEnum, 0, EnumIdentifier, Token != TokenLeftBrace, nullptr);
     *Typ = &pc->IntType;
     if (Token != TokenLeftBrace)
     { 
@@ -627,7 +635,8 @@ struct ValueType *TypeParseBack(struct ParseState *Parser, struct ValueType *Fro
         {
             /* an unsized array */
             LexGetToken(Parser, nullptr, TRUE);
-            return TypeGetMatching(Parser->pc, Parser, TypeParseBack(Parser, FromType), TypeArray, 0, Parser->pc->StrEmpty, TRUE);
+            return TypeGetMatching(Parser->pc, Parser, TypeParseBack(Parser, FromType), TypeArray, 0,
+                                   Parser->pc->StrEmpty, TRUE, nullptr);
         }
         else
         {
@@ -641,7 +650,8 @@ struct ValueType *TypeParseBack(struct ParseState *Parser, struct ValueType *Fro
             if (LexGetToken(Parser, nullptr, TRUE) != TokenRightSquareBracket)
                 ProgramFail(Parser, "']' expected");
             
-            return TypeGetMatching(Parser->pc, Parser, TypeParseBack(Parser, FromType), TypeArray, ArraySize, Parser->pc->StrEmpty, TRUE);
+            return TypeGetMatching(Parser->pc, Parser, TypeParseBack(Parser, FromType), TypeArray, ArraySize,
+                                   Parser->pc->StrEmpty, TRUE, nullptr);
         }
     }
     else
@@ -664,7 +674,7 @@ int TypeParseFunctionPointer(ParseState *Parser, ValueType *BasicType, ValueType
         LexGetToken(Parser, nullptr, TRUE);
         if (*Type == nullptr)
             ProgramFail(Parser, "bad type declaration");
-        *Type = TypeGetMatching(Parser->pc, Parser, *Type, TypePointer, 0, Parser->pc->StrEmpty, TRUE);
+        *Type = TypeGetMatching(Parser->pc, Parser, *Type, TypePointer, 0, Parser->pc->StrEmpty, TRUE, nullptr);
     }
     enum LexToken Token;
     Token = LexGetToken(Parser, &LexValue, TRUE);
@@ -675,7 +685,7 @@ int TypeParseFunctionPointer(ParseState *Parser, ValueType *BasicType, ValueType
 
         *Type = &Parser->pc->FunctionPtrType;
         while (Token == TokenAsterisk){
-            *Type = TypeGetMatching(Parser->pc, Parser, *Type, TypePointer, 0, Parser->pc->StrEmpty, TRUE);
+            *Type = TypeGetMatching(Parser->pc, Parser, *Type, TypePointer, 0, Parser->pc->StrEmpty, TRUE, nullptr);
             Token = LexGetToken(Parser, &LexValue, TRUE);
         }
     } else if (IsArgument) {
@@ -739,7 +749,7 @@ TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct
                 if (*Typ == nullptr)
                     ProgramFail(Parser, "bad type declaration");
 
-                *Typ = TypeGetMatching(Parser->pc, Parser, *Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE);
+                *Typ = TypeGetMatching(Parser->pc, Parser, *Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE, nullptr);
                 break;
             
             case TokenIdentifier:

@@ -238,11 +238,11 @@ def main():
 
 	######### ANALYSES ###########
 
-	# analyze_output_messages(matching)
+	analyze_output_messages(matching)
 
-	# analyze_by_producer(matching)
+	analyze_by_producer(matching)
 
-	# analyze_times(matching)
+	analyze_times(matching)
 
 	analyze_unique_by_producer(matching, diff_matching)
 

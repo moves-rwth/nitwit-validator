@@ -32,6 +32,30 @@ a248433a0a3aa3adb94fadc5ee81fcd30f918f9df0bc13a77b202aef5d52e055.json -- ternary
 
 'b06724339a80e9e73d91f81a97bf1a464305e505418868e5b74f94f7598786ee.json'} -> this was previously wrongly validated
 '1222fe85cb2470b19f826b4abcfb6d4558a84d75a7611692c1d4bc5b43411a63.json' -> \result (skink)
+'0287a967a3d86f0a3c8014ec87b16e5628dc893b8e10e8c017825c8d42b86bf6.json' -> missing ')' after if
+
+
+
+ESBMC errors
+7b39cbc04ac2e4c226e9419abe4dfe55d39132c1bf16d3c946bee6dff6b1c47b ->  has a lot of wrong counterexamples,
+ >>>>>>>> <edge id="E5" source="N5" target="N6">
+      <data key="startline">314</data>
+      <data key="assumption">a4 = -31;</data> // assumption should be -56, (by calculator + CPAChecker)
+      <data key="threadId">0</data>
+    </edge>
+    <edge id="E6" source="N6" target="N7">
+      <data key="startline">315</data>
+      <data key="assumption">a0 = -273140;</data> // should be -300116
+      <data key="threadId">0</data>
+    </edge>
+'cbecf4d31b895d37b8e3c689bb8dafee7b298ee80444be8ddf75c6784ac6cac2.json' -> weird assumptions. d1.a is an int
+      <data key="assumption">d1.a = { .a=nondet_symbol(symex::nondet92), .b=0, .array=ARRAY_OF(0) };</data>
+'18ff212289fdb1ad99efb09a4f6a85503efe13b8ecc5c8bd5a5305247249f92e.json' -> tmp is not defined at that place. In global scope it's an array
+    <edge id="E216" source="N216" target="N217">
+      <data key="startline">1950</data>
+      <data key="assumption">tmp = 0;</data>
+      <data key="threadId">0</data>
+    </edge>
 
 
 

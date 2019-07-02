@@ -223,7 +223,8 @@ int ParseArrayInitialiser(struct ParseState *Parser, Value *NewVariable, int DoA
 
         if (NewVariable->Typ->ArraySize == 0)
         {
-            NewVariable->Typ = TypeGetMatching(Parser->pc, Parser, NewVariable->Typ->FromType, NewVariable->Typ->Base, NumElements, NewVariable->Typ->Identifier, TRUE);
+            NewVariable->Typ = TypeGetMatching(Parser->pc, Parser, NewVariable->Typ->FromType, NewVariable->Typ->Base,
+                                               NumElements, NewVariable->Typ->Identifier, TRUE, nullptr);
             VariableRealloc(Parser, NewVariable, TypeSizeValue(NewVariable, FALSE));
         }
         #ifdef DEBUG_ARRAY_INITIALIZER

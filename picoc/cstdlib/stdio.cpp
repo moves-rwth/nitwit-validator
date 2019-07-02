@@ -725,7 +725,7 @@ void StdioSetupFunc(Picoc *pc)
     StructFileType = TypeCreateOpaqueStruct(pc, nullptr, TableStrRegister(pc, "__FILEStruct"), sizeof(FILE));
     
     /* get a FILE * type */
-    FilePtrType = TypeGetMatching(pc, nullptr, StructFileType, TypePointer, 0, pc->StrEmpty, TRUE);
+    FilePtrType = TypeGetMatching(pc, nullptr, StructFileType, TypePointer, 0, pc->StrEmpty, TRUE, nullptr);
 
     /* make a "struct __va_listStruct" which is the same size as our struct StdVararg */
     TypeCreateOpaqueStruct(pc, nullptr, TableStrRegister(pc, "__va_listStruct"), sizeof(FILE));

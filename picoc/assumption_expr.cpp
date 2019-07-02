@@ -359,7 +359,8 @@ void AssumptionExpressionAssign(struct ParseState *Parser, Value *DestValue, Val
                     PRINT_SOURCE_POS;
                     fprintf(stderr, "str size: %d\n", Size);
                     #endif
-                    DestValue->Typ = TypeGetMatching(Parser->pc, Parser, DestValue->Typ->FromType, DestValue->Typ->Base, Size, DestValue->Typ->Identifier, TRUE);
+                    DestValue->Typ = TypeGetMatching(Parser->pc, Parser, DestValue->Typ->FromType, DestValue->Typ->Base,
+                                                     Size, DestValue->Typ->Identifier, TRUE, nullptr);
                     VariableRealloc(Parser, DestValue, TypeSizeValue(DestValue, FALSE));
                 }
                 /* else, it's char x[10] = "abcd" */
@@ -456,7 +457,10 @@ void AssumptionExpressionPrefixOperator(struct ParseState *Parser, struct Expres
                 Result->Val->Identifier = id;
             } else {
                 ValPtr = TopValue->Val;
-                Result = VariableAllocValueFromType(Parser->pc, Parser, TypeGetMatching(Parser->pc, Parser, TopValue->Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE), FALSE, nullptr, FALSE);
+                Result = VariableAllocValueFromType(Parser->pc, Parser, TypeGetMatching(Parser->pc, Parser,
+                                                                                        TopValue->Typ, TypePointer, 0,
+                                                                                        Parser->pc->StrEmpty, TRUE,
+                                                                                        nullptr), FALSE, nullptr, FALSE);
                 Result->Val->Pointer = (void *)ValPtr;
             }
             AssumptionExpressionStackPushValueNode(Parser, StackTop, Result);
@@ -706,7 +710,8 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
         /* make the array element result */
         switch (BottomValue->Typ->Base)
         {
-            case TypeArray:   Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType,
+            case TypeArray:   Result = VariableAllocValueFromExistingData(Parser,
+                    TypeIsNonDeterministic(BottomValue->Typ) ? TypeGetNonDeterministic(Parser, BottomValue->Typ->FromType) : BottomValue->Typ->FromType,
                                                                           (union AnyValue *) (
                                                                                   &BottomValue->Val->ArrayMem[0] +
                                                                                   TypeSize(BottomValue->Typ, ArrayIndex,
@@ -750,7 +755,9 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
                                                   : (TopValue->Typ == &Parser->pc->DoubleType) ? TopValue->Val->Double : (double) CoerceLongLong(
                             TopValue);
 
-            if (NonDetValue->IsLValue && NonDetValue->LValueFrom != nullptr)
+            if (NonDetValue->IsLValue && NonDetValue->LValueFrom != nullptr
+                                         && NonDetValue->LValueFrom->Typ->Base != TypeArray)
+
                 NonDetValue = NonDetValue->LValueFrom;
 
             if (IS_FP(NonDetValue)) {
@@ -813,7 +820,9 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
             long long AssignedInt = TypeIsNonDeterministic(TopValue->Typ) ? CoerceLongLong(BottomValue)
                                                                           : CoerceLongLong(TopValue);
 
-            if (NonDetValue->IsLValue && NonDetValue->LValueFrom != nullptr)
+            if (NonDetValue->IsLValue && NonDetValue->LValueFrom != nullptr
+                          && NonDetValue->LValueFrom->Typ->Base != TypeArray)
+
                 NonDetValue = NonDetValue->LValueFrom;
 
             AssignLongLong(Parser, NonDetValue, AssignedInt, FALSE);
@@ -907,7 +916,8 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
                     BottomValue)
                     : CoerceUnsignedLongLong(TopValue);
 
-            if (NonDetValue->IsLValue && NonDetValue->LValueFrom != nullptr)
+            if (NonDetValue->IsLValue && NonDetValue->LValueFrom != nullptr
+                    && NonDetValue->LValueFrom->Typ->Base != TypeArray)
                 NonDetValue = NonDetValue->LValueFrom;
 
             AssignLongLong(Parser, NonDetValue, AssignedInt, FALSE);
