@@ -424,7 +424,8 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
                 break;
             }
 
-            if (DestValue->Typ != SourceValue->Typ)
+            if (DestValue->Typ->Base != SourceValue->Typ->Base
+                && DestValue->Typ->FromType->Base != SourceValue->Typ->FromType->Base) // FIXME : comparing array type is not safe this way
                 AssignFail(Parser, "%t from %t", DestValue->Typ, SourceValue->Typ, 0, 0, FuncName, ParamNo);
 
             if (DestValue->Typ->ArraySize != SourceValue->Typ->ArraySize)

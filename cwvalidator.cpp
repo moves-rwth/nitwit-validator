@@ -21,7 +21,7 @@ int WITNESS_IN_SINK = 241;
 int PROGRAM_FINISHED = 242;
 int WITNESS_IN_ILLEGAL_STATE = 243;
 int IDENTIFIER_UNDEFINED = 244;
-int PROGRAM_FINISHED_WITH_VIOLATION = 245;
+int PROGRAM_FINISHED_WITH_VIOLATION_THOUGH_NOT_IN_VIOLATION_STATE = 245;
 int ALREADY_DEFINED = 246;
 int UNSUPPORTED_NONDET_RESOLUTION_OP = 247;
 int ASSERTION_FAILED = 248;
@@ -37,7 +37,7 @@ void printProgramState(ParseState *ps) {
     if (ps->ReturnFromFunction != nullptr)
         printf(", Return: %s", ps->ReturnFromFunction);
     printf("\n");
-    if (ps->Line == 29 && ps->CharacterPos == 18) {
+    if (ps->Line == 32 && ps->CharacterPos == 15) {
         printf("debug\n");
     }
 }
@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
         }
         if (wit_aut->wasVerifierErrorCalled()) {
             printf(", __VERIFIER_error was called.\n");
-            exit_value = PROGRAM_FINISHED_WITH_VIOLATION;
+//            exit_value = PROGRAM_FINISHED_WITH_VIOLATION_THOUGH_NOT_IN_VIOLATION_STATE;
         } else {
             printf(", __VERIFIER_error was never called.\n");
         }
@@ -149,11 +149,13 @@ int main(int argc, char **argv) {
         return 5;
     } else if (wit_aut->wasVerifierErrorCalled()) {
         printf("\nVALIDATED: The state: %s has been reached.", wit_aut->getCurrentState()->id.c_str());
-        if (wit_aut->isInViolationState())
+        if (wit_aut->isInViolationState()) {
             printf(" It is a violation state.\n");
-        else
+            return 0;
+        } else {
             printf(" However, it is NOT a violation state.\n");
-        return 0;
+            return PROGRAM_FINISHED_WITH_VIOLATION_THOUGH_NOT_IN_VIOLATION_STATE;
+        }
     } else {
         printf("UNKNOWN: A different error occurred, probably a parsing error or program exited.\n");
         return 4;

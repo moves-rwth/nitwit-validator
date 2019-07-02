@@ -1,5 +1,4 @@
-Info files:
-
+TODOs:
 72294c05d4350de6f5d89ee4f596001d22578a847fc46dd3fe2d807863b0a572.json -- NaN double for nondet. Parsing of nondet vars
   - witness does not determine the value of a nondet variable, which should be NaN. So it's fine...
 
@@ -16,6 +15,7 @@ Info files:
 5229f5de8bbedc1e1d7ca2dda0a4a0c3e9ea672f20da42eeb17babbca89c25a2.json - \result; skink
 6c5890b5a5dbe21b6e6e324f0d9fb022a464b8ff6dee7e9ae3e5688bc80c11f7.json - struct init
 
+d790f58c8408f96954ec886742c6e3d17af6d04b7929251dfe5f261ad5052845.json - problems with nondets in Structs (uninitialized values).
 
 Interesting unique validations:
 '1d4ed542e9c6350dade9f2c5ade1eeb3a590453b90f492b72773dd0def10a193.json' and '281cc797958c936ae96426e25d985e8cf42094786075dc7ca4aa8202e9d21314.json'
@@ -30,7 +30,7 @@ a248433a0a3aa3adb94fadc5ee81fcd30f918f9df0bc13a77b202aef5d52e055.json -- ternary
 ......
 2a3d608746db6f7efc41908d8aa7b5fdc5e693cac51337e4051465516e15074f.json - fptr arguments for functions
 
-'b06724339a80e9e73d91f81a97bf1a464305e505418868e5b74f94f7598786ee.json'} -> this was previously wrongly validated
+'b06724339a80e9e73d91f81a97bf1a464305e505418868e5b74f94f7598786ee.json' -> this was previously wrongly validated
 '1222fe85cb2470b19f826b4abcfb6d4558a84d75a7611692c1d4bc5b43411a63.json' -> \result (skink)
 '0287a967a3d86f0a3c8014ec87b16e5628dc893b8e10e8c017825c8d42b86bf6.json' -> missing ')' after if
 
@@ -59,35 +59,17 @@ ESBMC errors
 
 
 
-all of the others validated but not CWValidator: -> \result, struct init, cbmc scope
-709fda8e85d44d563e46e4e0f63038be7e22bb0ea963da5efd364c0c985beb8d.json
-84d2da14525382ecef1acf37f37c2572f450f7f9259fecf493853f33bce8ae80.json
-fb7c1afd7d1eaaa3d5a629600933d898b606dd2401652528c3bec8a5ee17d41a.json
-a394814de346180a2a4d953e4dedd2ceb01aa96d728992123242fe4783896af1.json
-4853bc729f21d7811a5211390cc13a159a5d0e42ef83d04ce43cce6e2dd5e7fc.json
-cd1153307177af310281b50b3708125efd2df38d4f698c681c0162d594307e5b.json
-1222fe85cb2470b19f826b4abcfb6d4558a84d75a7611692c1d4bc5b43411a63.json
-5b6ae1db445ce5730079da95db5426422ab1422cb3eb31cf02cb589de642d1fa.json
-df2b2b2c4e689bb5ec5b6ba05db7949a3992248d99c146826508e17eebb4bf49.json
-47af040c897301c369ccc3e490113c33582e8b4defcda40bc25063f5dce2c8da.json
-bbe8e3308792a78c58c805270d9158137809ba9f4cc2d474fdbf1857ce6ffe5e.json
-bfea717cebc75001199c50b4c64aa743deae4af13f440c8a1f351657e701830f.json
-7cef3e9029bee1e9d7dad42b41a81ed8c83e9d62709e3d126b22a4f9453cafb6.json
-17d15b0eadc227545532db8e2fcc7d74108928d981347f15543e3ee67810b3b1.json
-7719c132b7aff5d83266cf0ceae4d23d2ef62605d7dbbcc08e1f069327567016.json
-6c5890b5a5dbe21b6e6e324f0d9fb022a464b8ff6dee7e9ae3e5688bc80c11f7.json
-9ab25b08e53070b0b7a0f219ee609c4ac2a56363f9e486b1783b2bc0fccddf3e.json
-30c9e2a0adbeb1ea9a442c1fd635f46fa98c67a7286727912e5bf8df00d733bc.json
-55e6791dd6fd9dcab16f8595234b37e7668670b653ab5f51360f9f637740d8f2.json
-ed4bd31e77e3c8420d416d61bd91d0fd4a06e5151e5a148d1e53167da1aaabdb.json
-7ac8b93088f72420c1eef0e65a681df1e6650c14dcc34b8070946b110374e223.json
-bc45e18f2191e79a2d8b27ff097ce88e1c31d4572748cdce5ec73d2649cfb655.json
-4729a5ce6b0314d2daf9563e86416926d361dd345359b5a8442e59347a994733.json
-0894fb98203040fc1e86729c32cc037374a8723a3f34e59ac41c17e085405024.json
-ff8f43ed15700ee97c34bdb85bc0a5bb63376dc05be0b5aa82149e624580acf7.json
-fe8b607971f832adfe17837236e3577220f85a4357e1d1d9efcc88167587b5fc.json
-9bc37fdf4b10582d6d01a8edaaefc37cdc5136bacdc595b0cf603b2c9e2270b0.json
-5229f5de8bbedc1e1d7ca2dda0a4a0c3e9ea672f20da42eeb17babbca89c25a2.json
-1fc5f0fc3965a10c99256db438d5094cf4e42de3e3618b4be14be55f9bfa72de.json
-39961e83072e52830947baa1b225eba1fd8483316fdadc5b840930048c5f1331.json
-d4ff4885f52f589bfba98a8dcdf2fd013c0e777fd7106a764cfd1d7983b3ba11.json
+Interesting cases for when CWValidtor doesn't validate but others do. Mostly -> \result, struct init (quite a lot), cbmc scope
+9bc37fdf4b10582d6d01a8edaaefc37cdc5136bacdc595b0cf603b2c9e2270b0.json - struct init
+5229f5de8bbedc1e1d7ca2dda0a4a0c3e9ea672f20da42eeb17babbca89c25a2.json - \result
+709fda8e85d44d563e46e4e0f63038be7e22bb0ea963da5efd364c0c985beb8d.json - validated, but CPA has a wrong witness
+      - 84d2da14525382ecef1acf37f37c2572f450f7f9259fecf493853f33bce8ae80.json - also
+fb7c1afd7d1eaaa3d5a629600933d898b606dd2401652528c3bec8a5ee17d41a.json - cbmc scope
+4853bc729f21d7811a5211390cc13a159a5d0e42ef83d04ce43cce6e2dd5e7fc.json - non terminating CBMC, probably doesn't resolve enough determinism to end
+      - ed4bd31e77e3c8420d416d61bd91d0fd4a06e5151e5a148d1e53167da1aaabdb.json
+cd1153307177af310281b50b3708125efd2df38d4f698c681c0162d594307e5b.json - cbmc, validated though not in violation state
+bbe8e3308792a78c58c805270d9158137809ba9f4cc2d474fdbf1857ce6ffe5e.json - overflow in constant conversion
+7ac8b93088f72420c1eef0e65a681df1e6650c14dcc34b8070946b110374e223.json - nondet struct members + resolving
+      - ff8f43ed15700ee97c34bdb85bc0a5bb63376dc05be0b5aa82149e624580acf7.json
+      - fe8b607971f832adfe17837236e3577220f85a4357e1d1d9efcc88167587b5fc.json
+      - 1fc5f0fc3965a10c99256db438d5094cf4e42de3e3618b4be14be55f9bfa72de.json
