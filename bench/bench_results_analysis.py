@@ -22,7 +22,7 @@ EXIT_CODE_DICT = {
 	242: 'program finished before violation node reached',
 	243: 'witness got into an illegal state',
 	244: 'identifier undefined',
-	245: '__VERIFIER_error called, but witness not in sink',
+	245: '__VERIFIER_error called, but witness not in violation state',
 	246: 'identifier already defined',
 	247: 'unsupported nondet operation',
 	248: 'assertion failed',

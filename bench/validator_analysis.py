@@ -155,10 +155,10 @@ def analyze_unique_by_producer(matching: Dict[str, dict], diff_matching: Dict[st
 		if validator_result_selector(c['results'], lambda x: x != 0, lambda x: x != 0):
 			none_val.add(w + '.json')
 
-	print(f"Uniquely validated by *others*: {len(others_uval)}")
+	print(f"Uniquely validated by *others*, i.e., CWV probably buggy: {len(others_uval)}")
 	print(f"Uniquely validated by *CWValidator*: {len(cwv_uval)}")
-	print(f"Validated by all: {len(all_val)}")
-	print(f"Validated by none: {len(none_val)}\n")
+	print(f"Validated by all, i.e. pretty sure these witnesses are correct: {len(all_val)}")
+	print(f"Validated by none, i.e. pretty sure these witnesses are not correct: {len(none_val)}\n")
 
 	if diff_matching is not None:
 		print(f"\nResults for diff:")
