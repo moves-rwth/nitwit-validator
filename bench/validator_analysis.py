@@ -185,6 +185,7 @@ def reject_outliers(data, m=2):
 
 def analyze_times(matching: Dict[str, dict]):
 	fig, axs = plt.subplots(nrows=2, ncols=3)
+	figsc, axsc = plt.subplots()
 	# take just the successful ones
 	for i in range(5):
 		times = np.asarray(list(map(lambda x: float(x['results'][i]['cpu']),
@@ -195,8 +196,11 @@ def analyze_times(matching: Dict[str, dict]):
 		ax = sns.distplot(reject_outliers(times), kde=False, rug=True, ax=axs[i % 2][math.floor(i / 2)], color="green")
 		ax.set_title(VALIDATORS[i])
 		ax.set_xlabel("Time [s]")
+		sns.scatterplot(ax=axsc, y=sorted(times), x=range(len(times)), label=VALIDATORS[i], marker='x')
 
 	fig.delaxes(axs[1, 2])  # The indexing is zero-based here
+	axsc.set_ylabel("Time [s]")
+	axsc.set_xlabel("#Validated Witnesses")
 
 
 def print_stats(times):
