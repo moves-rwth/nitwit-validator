@@ -9,7 +9,10 @@ import seaborn as sns
 from common.utils import *
 
 sns.set()
-
+FIGSIZE = (20, 11.25)
+DPI = 300
+FORMAT = 'pdf'
+BBOX = 'tight'
 STATUSES = {
 	'false(unreach-call)': 0,
 	'unknown': 1,
@@ -82,7 +85,7 @@ def get_matching(all_results: List, validators: dict, outputmatched: str = None)
 
 def analyze_output_messages(matching: Dict[str, dict]):
 	print(f"Analyze {len(matching)}")
-	fig, axs = plt.subplots(nrows=2, ncols=2)
+	fig, axs = plt.subplots(nrows=2, ncols=2, figsize=FIGSIZE)
 	for i in range(4):
 		heatmap = np.zeros((6, 7), dtype=int)
 		for w, c in matching.items():
@@ -90,6 +93,7 @@ def analyze_output_messages(matching: Dict[str, dict]):
 		dataframe = pd.DataFrame(data=heatmap, index=row_names, columns=col_names)
 		ax = sns.heatmap(dataframe, annot=True, fmt="d", ax=axs[math.floor(i / 2)][i % 2], cmap="BuGn")
 		ax.set_title(VALIDATORS[i])
+	fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/output_msgs.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
 
 
 def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
@@ -184,8 +188,8 @@ def reject_outliers(data, m=2):
 
 
 def analyze_times(matching: Dict[str, dict]):
-	fig, axs = plt.subplots(nrows=2, ncols=3)
-	figsc, axsc = plt.subplots()
+	fig, axs = plt.subplots(nrows=2, ncols=3, figsize=FIGSIZE)
+	figsc, axsc = plt.subplots(figsize=FIGSIZE)
 	# take just the successful ones
 	for i in range(5):
 		times = np.asarray(list(map(lambda x: float(x['results'][i]['cpu']),
@@ -199,8 +203,10 @@ def analyze_times(matching: Dict[str, dict]):
 		sns.scatterplot(ax=axsc, y=sorted(times), x=range(len(times)), label=VALIDATORS[i], marker='x')
 
 	fig.delaxes(axs[1, 2])  # The indexing is zero-based here
+	fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/histo_times.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
 	axsc.set_ylabel("Time [s]")
 	axsc.set_xlabel("#Validated Witnesses")
+	figsc.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/scatter_times.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
 
 
 def print_stats(times):
@@ -250,7 +256,7 @@ def main():
 
 	analyze_unique_by_producer(matching, diff_matching)
 
-	plt.show()
+	# plt.show()
 
 
 if __name__ == "__main__":
