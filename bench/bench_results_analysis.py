@@ -16,6 +16,7 @@ EXIT_CODE_DICT = {
 	3: 'usage error',
 	4: 'unspecified error, probably parsing C',
 	5: '__VERIFIER_error not called',
+	-6: '',
 	9: 'killed',
 	240: 'no witness code',
 	241: 'witness got to sink',
@@ -81,11 +82,11 @@ def analyze_bench_output(results: list, name: str, search_string: str, producer:
 	for witness in results:
 		with open(os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, witness[1]), 'r') as fp:
 			info_jObj = json.load(fp)
-			if producer is not None and not str(info_jObj['producer']).startswith(producer):
+			if producer is not None and not str(witness[4]).startswith(producer):
 				continue
 			increase_count_in_dict(result_map, witness[0])
 			if 'producer' in info_jObj:
-				increase_count_in_dict(prod_map, info_jObj['producer'])
+				increase_count_in_dict(prod_map, witness[4])
 			else:
 				unknown = unknown + 1
 

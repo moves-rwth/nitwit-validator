@@ -35,13 +35,14 @@ def process_results(results: List[Tuple[int, str, str, float, str]], executable:
 		elif ret_code == 244 or ret_code == 246:
 			badly_parsed.append((ret_code, os.path.basename(info_file), err_msg, time, prod))
 		elif ret_code == 2:
-			print(f"Witness parse error: {info_file}")
+			badly_parsed.append((ret_code, os.path.basename(info_file), err_msg, time, prod))
 		elif ret_code == 3:
 			print(f"Bad usage: {info_file}")
 		elif ret_code == 4 or ret_code == 5:
 			non_validated.append((ret_code, os.path.basename(info_file), err_msg, time, prod))
 		else:
 			print(f"Other error: {ret_code}, {info_file}")
+			badly_parsed.append((ret_code, os.path.basename(info_file), err_msg, time, prod))
 
 	if out:
 		time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
