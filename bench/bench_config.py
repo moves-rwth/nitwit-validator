@@ -102,7 +102,10 @@ def extract_config_from_extracted_data(json_data: str, limit: int) -> List[Tuple
         raise Exception("Data file doesn't exist.")
     with open(json_data) as fp:
         witnesses = json.load(fp)['byWitnessHash']
-    result = [(os.path.join(WITNESS_FILE_BY_HASH_DIR, f"{w}.graphml"), os.path.join(SV_BENCHMARK_DIR, v['benchmark']), f"{w}.json") for w, v in witnesses.items()]
+    result = [(os.path.join(WITNESS_FILE_BY_HASH_DIR, f"{w}.graphml"),
+               os.path.join(SV_BENCHMARK_DIR, v['benchmark']),
+               f"{w}.json",
+               v['tool']) for w, v in witnesses.items()]
     if limit is not None:
         result = result[:limit]
     return result

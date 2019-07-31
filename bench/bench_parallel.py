@@ -46,8 +46,8 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
     return True
 
 
-def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float]:
-    witness, source, info_file = config
+def run_validator(config: Tuple[str, str, str, str]) -> Tuple[int, str, str, float, str]:
+    witness, source, info_file, producer = config
     children_before = resource.getrusage(resource.RUSAGE_CHILDREN)
     with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
                           stdout=subprocess.PIPE,
@@ -74,16 +74,16 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float]:
                 _, _ = process.communicate()
 
         children = resource.getrusage(resource.RUSAGE_CHILDREN)
-        return process.returncode, info_file, errmsg, children.ru_utime + children.ru_stime - (children_before.ru_utime + children_before.ru_stime)
+        return process.returncode, info_file, errmsg, children.ru_utime + children.ru_stime - (children_before.ru_utime + children_before.ru_stime), producer
 
 
-def run_bench_parallel(configs: List[Tuple[str, str, str]], n_processes: int) -> List[Tuple[int, str, str, float]]:
+def run_bench_parallel(configs: List[Tuple[str, str, str, str]], n_processes: int) -> List[Tuple[int, str, str, float, str]]:
     with multiprocessing.Pool(n_processes) as pool:
         results = pool.map(run_validator, configs)
     return results
 
 
-def get_bench_configs(path_to_configs: str) -> List[Tuple[str, str, str]]:
+def get_bench_configs(path_to_configs: str) -> List[Tuple[str, str, str, str]]:
     if not os.path.exists(path_to_configs) or not os.path.isfile(path_to_configs):
         print(f"Could not read from {path_to_configs}. Does the file exist?")
         raise
