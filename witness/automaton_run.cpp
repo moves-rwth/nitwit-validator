@@ -3,6 +3,7 @@
 //
 
 #include "automaton.hpp"
+//#include "../picoc/picoc.hpp"
 
 #ifndef VERBOSE
 void cw_verbose(const string& Format, ...){}
@@ -65,7 +66,22 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         Tokens = LexAnalyse(state->pc, RegFileName, ass.c_str(), ass.length(), nullptr);
         ParseState Parser{};
         LexInitParser(&Parser, state->pc, ass.c_str(), Tokens, RegFileName, TRUE, FALSE, nullptr);
-        int ret = AssumptionExpressionParseLongLong(&Parser);
+        int ret = 0;
+        if (state->SkipIntrinsic && state->LastNonDetValue != nullptr && LexGetToken(&Parser, nullptr, FALSE) == TokenWitnessResult){
+            // handling \result in witnesses
+            LexGetToken(&Parser, nullptr, TRUE);
+            LexGetToken(&Parser, nullptr, TRUE);
+            Value * value;
+            LexGetToken(&Parser, &value, TRUE);
+            state->LastNonDetValue->Val = value->Val; // TODO mem leak?
+            state->LastNonDetValue->Typ = TypeGetDeterministic(state, state->LastNonDetValue->Typ);
+            state->LastNonDetValue = nullptr;
+            ret = 1;
+        } else if (state->SkipIntrinsic) {
+            ret = 0;
+        } else {
+            ret = AssumptionExpressionParseLongLong(&Parser);
+        }
         free(Tokens);
         HeapCleanup(state->pc);
         state->pc->IsInAssumptionMode = FALSE;

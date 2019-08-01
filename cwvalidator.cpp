@@ -47,8 +47,8 @@ void handleDebugBreakpoint(struct ParseState *ps) {
 #ifdef VERBOSE
     printProgramState(ps);
 #endif
-    if (ps->SkipIntrinsic == TRUE)
-        return;
+//    if (ps->SkipIntrinsic == TRUE)
+//        return;
     if (wit_aut == nullptr) {
         ProgramFailWithExitCode(ps, NO_WITNESS_CODE, "No witness automaton to validate against.");
         return;

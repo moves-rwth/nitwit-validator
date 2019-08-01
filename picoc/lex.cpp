@@ -94,6 +94,7 @@ static struct ReservedWord ReservedWords[] =
     { "__builtin_va_list", TokenIgnore },
     { "volatile", TokenIgnore },
     { "#pragma", TokenPragma },
+    { "\\result", TokenWitnessResult },
 };
 
 
@@ -513,7 +514,7 @@ enum LexToken LexScanGetToken(Picoc *pc, struct LexState *Lexer, Value **Value)
 
 
         ThisChar = *Lexer->Pos;
-        if (isCidstart((int)ThisChar))
+        if (isCidstart((int)ThisChar) || ThisChar == '\\')
             return LexGetWord(pc, Lexer, *Value);
 
         if (isdigit((int)ThisChar))
@@ -683,7 +684,7 @@ void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText,
     Parser->ResolvedNonDetVars = nullptr;
     Parser->FreshGotoSearch = FALSE;
     Parser->SkipIntrinsic = FALSE;
-    // todo : what about copying these parser properties?
+    Parser->LastNonDetValue = nullptr;
 }
 
 /* get the next token, without pre-processing */

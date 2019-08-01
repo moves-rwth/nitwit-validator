@@ -501,6 +501,7 @@ void ParserCopyPos(struct ParseState *To, struct ParseState *From)
     To->CharacterPos = From->CharacterPos;
     To->FreshGotoSearch = From->FreshGotoSearch;
     To->SkipIntrinsic = From->SkipIntrinsic;
+    To->LastNonDetValue = From->LastNonDetValue;
 }
 
 /* parse a "for" statement */

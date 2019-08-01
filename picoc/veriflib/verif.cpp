@@ -26,7 +26,6 @@ struct LibraryFunction VerifFunctions[] =
         {
                 {VerifierError,  "void __VERIFIER_error();"},
                 {VerifierAssume, "void __VERIFIER_assume(int a);"},
-
                 {VerifierNonDet, "int __VERIFIER_nondet_int();"},
                 {VerifierNonDet, "unsigned int __VERIFIER_nondet_uint();"},
                 {VerifierNonDet, "unsigned short __VERIFIER_nondet_ushort();"},
