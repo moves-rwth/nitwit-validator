@@ -15,6 +15,7 @@ void VerifierAssume(struct ParseState *Parser, Value *ReturnValue, Value **Param
 
 void VerifierNonDet(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
     ReturnValue->Typ = TypeGetNonDeterministic(Parser, ReturnValue->Typ);
+    Parser->LastNonDetValue = ReturnValue;
 }
 /* handy structure definitions */
 const char VerifDefs[] = "typedef unsigned short _Bool;"

@@ -214,6 +214,7 @@ struct ParseState
     struct ValueList * ResolvedNonDetVars;
     char FreshGotoSearch;
     char SkipIntrinsic;
+    Value *LastNonDetValue;
 };
 
 

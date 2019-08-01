@@ -98,22 +98,20 @@ def run_single_config(witness_info_file: str) -> Tuple[int, str, str, float, str
 
 			if 'programfile' in jObj and 'programhash' in jObj:
 				programfile = str(jObj['programfile'])
-				if not str(
-					jObj['specification']) == "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )":
-					raise Exception("Not a violation reachability verification file")
+				# if not str(
+				# 	jObj['specification']) == "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )":
+				# 	raise Exception("Not a violation reachability verification file")
 
-				sv_regexp_location = programfile.find("sv-benchmarks/c/")
-				if not sv_regexp_location == -1:
-					path_to_source_code = os.path.join(SV_BENCHMARK_DIR, programfile[
-					                                                     sv_regexp_location + len(
-						                                                     "sv-benchmarks/c/"):])
-					if os.path.isfile(path_to_source_code):
-						# run the validator with the found witness and source code
-						return run_validator((path_to_witness_file, path_to_source_code, witness_info_file))
-					else:
-						raise Exception(f"SV-COMP file {path_to_source_code} not found!")
+				# sv_regexp_location = programfile.find("sv-benchmarks/c/")
+				# if not sv_regexp_location == -1:
+				path_to_source_code = os.path.join(SV_BENCHMARK_DIR, '/'.join(programfile.split('/')[-2:]))
+				if os.path.isfile(path_to_source_code):
+					# run the validator with the found witness and source code
+					return run_validator((path_to_witness_file, path_to_source_code, witness_info_file))
 				else:
-					raise Exception("No programfile property")
+					raise Exception(f"SV-COMP file {path_to_source_code} not found!")
+				# else:
+				# 	raise Exception("No programfile property")
 		else:
 			raise Exception("No witness-sha256 property")
 

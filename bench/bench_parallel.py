@@ -73,8 +73,11 @@ def run_validator(config: Tuple[str, str, str, str]) -> Tuple[int, str, str, flo
                 process.kill()
                 _, _ = process.communicate()
 
+        returncode = process.returncode
+        if errmsg == 'out of memory':  # hack around no special exit code for o/m
+            returncode = 251
         children = resource.getrusage(resource.RUSAGE_CHILDREN)
-        return process.returncode, info_file, errmsg, children.ru_utime + children.ru_stime - (children_before.ru_utime + children_before.ru_stime), producer
+        return returncode, info_file, errmsg, children.ru_utime + children.ru_stime - (children_before.ru_utime + children_before.ru_stime), producer
 
 
 def run_bench_parallel(configs: List[Tuple[str, str, str, str]], n_processes: int) -> List[Tuple[int, str, str, float, str]]:

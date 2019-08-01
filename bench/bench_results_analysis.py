@@ -16,8 +16,9 @@ EXIT_CODE_DICT = {
 	3: 'usage error',
 	4: 'unspecified error, probably parsing C',
 	5: '__VERIFIER_error not called',
-	-6: '',
+	-6: 'PicoC error',
 	9: 'killed',
+	-11: 'witness parse error',
 	240: 'no witness code',
 	241: 'witness got to sink',
 	242: 'program finished before violation node reached',
@@ -28,7 +29,8 @@ EXIT_CODE_DICT = {
 	247: 'unsupported nondet operation',
 	248: 'assertion failed',
 	249: 'bad function definition',
-	250: 'witness in violation state, though no violation occurred'
+	250: 'witness in violation state, though no violation occurred',
+	251: 'out of memory'
 }
 
 
@@ -91,7 +93,7 @@ def analyze_bench_output(results: list, name: str, search_string: str, producer:
 				unknown = unknown + 1
 
 			pf = str(info_jObj['programfile'])
-			if pf.find(search_string) == -1:
+			if pf.find(search_string) == -1 and pf.find(search_string.replace('-', '_')) == -1: # TODO : ../../data/sv-benchmarks/c/array-examples/standard_copyInitSum2_false-unreach-call_ground.i and ../../data/sv-witnesses/witnessFileByHash/7c3c32092db5f1244316ec1ba8a003a398d5bd486b220b2d4a148e6cdfc52aa4.graphml have a problem
 				false_positives = false_positives + 1
 		increase_count_in_dict(err_msg_map, f"({witness[0]}) {witness[2]}")
 

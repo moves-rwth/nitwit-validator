@@ -131,7 +131,14 @@ class Automaton {
 public:
     Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<shared_ptr<Edge>> &edges,
               shared_ptr<Data> &data);
-
+    Automaton(){
+        shared_ptr<Node> n = make_shared<Node>();
+        n->id = "node";
+        n->is_entry = true;
+        n->is_violation = false;
+        nodes.insert(make_pair("node", n));
+    }
+    
     void printData() const;
 
     void printRelations() const;

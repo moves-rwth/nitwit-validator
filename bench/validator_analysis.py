@@ -2,6 +2,8 @@ import argparse
 
 import math
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
+plt.rcParams.update({'font.size': 36})
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -15,48 +17,50 @@ FORMAT = 'pdf'
 BBOX = 'tight'
 STATUSES = {
 	'false(unreach-call)': 0,
+	'timeout (false(unreach-call))': 0,
 	'unknown': 1,
+	'-': 1,  # TODO: should be 'not run'?
 	'true': 2,
+	'timeout (true)': 2,
 	'timeout': 3,
-	'timeout (true)': 3,
-	'timeout (error (7))': 3,
-	'timeout (false(unreach-call))': 3,
+	'timeout (error (7))': 4,
 	'exception': 4,
 	'error (1)': 4,
-	'error (2)': 4,
 	'error (7)': 4,
-	'error (invalid witness file)': 4,
 	'assertion': 4,
 	'out of memory': 5,
-	'-': 6,
+	'error (2)': 6,
+	'error (invalid witness file)': 6,
 	0: 0,  # false
 	245: 0,  # false, but not totally correct witness
 	4: 1,  # parse error
+	-6: 1,  # picoc error
 	246: 1,  #
-	244: 1,  # identifier undefined
-	5: 2,  # error not reached
-	250: 2,  # error not reached, witness in violation state
 	9: 3,  # timeout
 	241: 4,  # error, witness in sink
-	242: 5,  # program finished, witness not in violation state
+	242: 4,  # program finished, witness not in violation state
+	5: 4,  # error not reached
+	250: 4,  # error not reached, witness in violation state
+	251: 5, # out of memory
+	-11: 6,  # witness parse error
+	2: 6,  # witness parse error
+	244: 6,  # identifier undefined
 }
-col_names = ['false', 'unknown', 'true', 't/o', 'error', 'o/m', 'not run']
+col_names = ['false', 'unknown', 'true', 't/o', 'error', 'o/m', 'bad witness']  # , 'not run']
 
-RESULT_CODES = {
-}
-row_names = ['false', 'unknown', 'not reached', 't/o', 'sink', 'not in violation state']
+row_names = ['false', 'unknown', 'true', 't/o', 'error', 'o/m', 'bad witness']  # , 'sink', 'not in violation state']
 
 VALIDATORS = {
 	0: "CPAChecker",
 	1: "Ultimate Automizer",
 	2: "CPA-witness2test",
-	3: "CProver",
+	3: "FShell-witness2test",
 	4: "CWValidator"
 }
 VALIDATORS_LIST = ["CPAChecker",
                    "Ultimate Automizer",
                    "CPA-witness2test",
-                   "CProver",
+                   "FShell-witness2test",
                    "CWValidator"]
 
 CPU_MULTIPLIER = 1.8 / 3.4
@@ -77,23 +81,25 @@ def get_matching(all_results: List, validators: dict, outputmatched: str = None)
 		with open(outputmatched, 'w') as fp:
 			json.dump(matched, fp)
 	for w in matched:
-		validators[w[1].partition('.json')[0]]['results'] \
+		wit_key = w[1].partition('.json')[0]
+		validators[wit_key]['results'] \
 			.insert(4, dict({'cpu': adjust_to_cpu(w[3]), 'tool': 'CWValidator', 'status': w[0]}))
+		validators[wit_key]['creator'] = w[4]
 	print(f"I could match {len(matched)} out of {len(all_results)} witnesses")
 	return {k: v for k, v in validators.items() if k in matched_keys}
 
 
 def analyze_output_messages(matching: Dict[str, dict]):
 	print(f"Analyze {len(matching)}")
-	fig, axs = plt.subplots(nrows=2, ncols=2, figsize=FIGSIZE)
-	for i in range(4):
-		heatmap = np.zeros((6, 7), dtype=int)
+	data = np.zeros((7, 5), dtype=int)
+	for i in range(5):
 		for w, c in matching.items():
-			heatmap[STATUSES[c['results'][4]['status']], STATUSES[c['results'][i]['status']]] += 1
-		dataframe = pd.DataFrame(data=heatmap, index=row_names, columns=col_names)
-		ax = sns.heatmap(dataframe, annot=True, fmt="d", ax=axs[math.floor(i / 2)][i % 2], cmap="BuGn")
-		ax.set_title(VALIDATORS[i])
-	fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/output_msgs.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
+			data[STATUSES[c['results'][i]['status']], i] += 1
+
+	df = pd.DataFrame(columns=VALIDATORS_LIST, data=data, index=row_names)
+	ax = df.T.sort_values(by=['false']).plot(kind='bar', stacked=True, colormap=ListedColormap(sns.color_palette("colorblind")), figsize=FIGSIZE, rot=0, fontsize=20)
+
+	ax.get_figure().savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/output_msgs.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
 
 
 def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
@@ -143,7 +149,8 @@ def validator_result_selector(results: list, predicate_others, predicate_cwv) ->
 		return True
 
 
-def analyze_unique_by_producer(matching: Dict[str, dict], diff_matching: Dict[str, dict] = None) -> Tuple[set, set, set, set]:
+def analyze_unique_by_producer(matching: Dict[str, dict], diff_matching: Dict[str, dict] = None) -> Tuple[
+	set, set, set, set]:
 	print(f"Analyze unique results by producer for {len(matching)} witnesses")
 	others_uval = set()
 	cwv_uval = set()
@@ -256,7 +263,7 @@ def main():
 
 	analyze_unique_by_producer(matching, diff_matching)
 
-	# plt.show()
+	plt.show()
 
 
 if __name__ == "__main__":

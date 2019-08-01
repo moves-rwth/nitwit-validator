@@ -27,6 +27,7 @@ int UNSUPPORTED_NONDET_RESOLUTION_OP = 247;
 int ASSERTION_FAILED = 248;
 int BAD_FUNCTION_DEF = 249;
 int UNVALIDATED_VIOLATION = 250;
+int OUT_OF_MEMORY = 251;
 
 void printProgramState(ParseState *ps) {
     printf("--- Line: %zu, Pos: %d", ps->Line, ps->CharacterPos);
@@ -72,7 +73,7 @@ void handleDebugBreakpoint(struct ParseState *ps) {
 int validate(const char *source_filename) {
 
     Picoc pc;
-    PicocInitialise(&pc, 8388608); // stack size of 8 MiB
+    PicocInitialise(&pc, 52428800); // stack size of 50 MiB
 
     // the interpreter will jump here after finding a violation
     if (PicocPlatformSetExitPoint(&pc)) {
