@@ -35,6 +35,7 @@ STATUSES = {
 	245: 0,  # false, but not totally correct witness
 	4: 1,  # parse error
 	-6: 1,  # picoc error
+	6: 1,  # picoc error
 	246: 1,  #
 	9: 3,  # timeout
 	241: 4,  # error, witness in sink
@@ -43,6 +44,7 @@ STATUSES = {
 	250: 4,  # error not reached, witness in violation state
 	251: 5, # out of memory
 	-11: 6,  # witness parse error
+	11: 6,  # witness parse error
 	2: 6,  # witness parse error
 	244: 6,  # identifier undefined
 }

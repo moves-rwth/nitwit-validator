@@ -109,7 +109,7 @@ def get_benchmark_file_path(benchmark: str):
         return b
 
 
-def extract_config_from_extracted_data(json_data: str, limit: int) -> List[Tuple[str, str, str]]:
+def extract_config_from_extracted_data(json_data: str, limit: int, should_include, should_exclude) -> List[Tuple[str, str, str]]:
     if not os.path.isfile(json_data):
         raise Exception("Data file doesn't exist.")
     with open(json_data) as fp:
@@ -117,7 +117,7 @@ def extract_config_from_extracted_data(json_data: str, limit: int) -> List[Tuple
     result = [(os.path.join(WITNESS_FILE_BY_HASH_DIR, f"{w}.graphml"),
                get_benchmark_file_path(v['benchmark']),
                f"{w}.json",
-               v['tool']) for w, v in witnesses.items()]
+               v['tool']) for w, v in witnesses.items() if should_include(f"{w}.json") and not should_exclude(f"{w}.json")]
     if limit is not None:
         result = result[:limit]
     return result
@@ -151,7 +151,7 @@ def main():
         should_exclude = lambda s: s in excluded
 
     if args.extracted_data is not None:
-        configs = extract_config_from_extracted_data(args.extracted_data, args.limit)
+        configs = extract_config_from_extracted_data(args.extracted_data, args.limit, should_include, should_exclude)
     else:
         configs = get_bench_params(args.limit, should_include, should_exclude)
     with open(args.input, 'w') as fp:

@@ -33,7 +33,7 @@ class Node;
 
 class Edge;
 
-class Automaton;
+class WitnessAutomaton;
 
 class DefaultKeyValues;
 
@@ -117,7 +117,7 @@ struct Data {
     void print() const;
 };
 
-class Automaton {
+class WitnessAutomaton {
 
     map<string, shared_ptr<Node>> nodes;
     vector<shared_ptr<Edge>> edges;
@@ -129,15 +129,9 @@ class Automaton {
     bool illegal_state = false;
     bool verifier_error_called = false;
 public:
-    Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<shared_ptr<Edge>> &edges,
-              shared_ptr<Data> &data);
-    Automaton(){
-        shared_ptr<Node> n = make_shared<Node>();
-        n->id = "node";
-        n->is_entry = true;
-        n->is_violation = false;
-        nodes.insert(make_pair("node", n));
-    }
+    WitnessAutomaton(const map<string, shared_ptr<Node>> &nodes, const vector<shared_ptr<Edge>> &edges,
+                     shared_ptr<Data> &data);
+    WitnessAutomaton();
     
     void printData() const;
 
@@ -147,7 +141,7 @@ public:
 
     bool isInIllegalState() const;
 
-    static shared_ptr<Automaton> automatonFromWitness(const shared_ptr<pugi::xml_document> &doc);
+    static shared_ptr<WitnessAutomaton> automatonFromWitness(const shared_ptr<pugi::xml_document> &doc);
 
     bool isInViolationState() const;
 

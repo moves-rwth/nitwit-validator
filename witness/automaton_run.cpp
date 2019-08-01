@@ -67,11 +67,12 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         ParseState Parser{};
         LexInitParser(&Parser, state->pc, ass.c_str(), Tokens, RegFileName, TRUE, FALSE, nullptr);
         int ret = 0;
-        if (state->SkipIntrinsic && state->LastNonDetValue != nullptr && LexGetToken(&Parser, nullptr, FALSE) == TokenWitnessResult){
+        if (state->SkipIntrinsic && state->LastNonDetValue != nullptr &&
+            LexGetToken(&Parser, nullptr, FALSE) == TokenWitnessResult) {
             // handling \result in witnesses
             LexGetToken(&Parser, nullptr, TRUE);
             LexGetToken(&Parser, nullptr, TRUE);
-            Value * value;
+            Value *value;
             LexGetToken(&Parser, &value, TRUE);
             state->LastNonDetValue->Val = value->Val; // TODO mem leak?
             state->LastNonDetValue->Typ = TypeGetDeterministic(state, state->LastNonDetValue->Typ);
@@ -93,7 +94,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         ValueList *Next = Parser.ResolvedNonDetVars;
         for (ValueList *I = Next; I != nullptr; I = Next) {
 #ifdef VERBOSE
-            if (I->Identifier == nullptr){
+            if (I->Identifier == nullptr) {
                 cw_verbose("Resolved array element\n");
             } else {
                 Value *val;
@@ -119,7 +120,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
 }
 
 
-void Automaton::try_resolve_variables(ParseState *state) {
+void WitnessAutomaton::try_resolve_variables(ParseState *state) {
     if (!canTransitionFurther()) return;
     vector<shared_ptr<Edge>> possible_edges;
     for (const auto &edge: successor_rel.find(current_state->id)->second) {
@@ -138,7 +139,7 @@ void Automaton::try_resolve_variables(ParseState *state) {
     }
 }
 
-bool Automaton::canTransitionFurther() {
+bool WitnessAutomaton::canTransitionFurther() {
     if (current_state == nullptr || this->isInIllegalState()) {
         this->illegal_state = true;
         return false;
@@ -155,7 +156,7 @@ bool Automaton::canTransitionFurther() {
     return true;
 }
 
-void Automaton::consumeState(ParseState *state) {
+void WitnessAutomaton::consumeState(ParseState *state) {
     if (state->VerifierErrorCalled && !this->verifier_error_called) {
         this->verifier_error_called = true;
         cw_verbose("__VERIFIER_error has been called!\n");

@@ -11,7 +11,7 @@
 
 using namespace std;
 
-shared_ptr<Automaton> wit_aut;
+shared_ptr<WitnessAutomaton> wit_aut;
 
 // the values shouldn't conflict with any real program exit value as validation ends before returning for these error codes
 // Only if program finishes with value PROGRAM_FINISHED, then it still doesn't matter, because this would mean
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
     if (doc == nullptr) {
         return 2;
     }
-    wit_aut = Automaton::automatonFromWitness(doc);
+    wit_aut = WitnessAutomaton::automatonFromWitness(doc);
 
     if (wit_aut && !wit_aut->isInIllegalState()) {
 //        wit_aut->printData();
@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
     int exit_value = validate(argv[2]);
     if ((!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) &&
         (exit_value >= NO_WITNESS_CODE && exit_value <= ALREADY_DEFINED)) {
-        cw_verbose("Automaton finished in state %s, with error code %d.\n", wit_aut->getCurrentState()->id.c_str(),
+        cw_verbose("WitnessAutomaton finished in state %s, with error code %d.\n", wit_aut->getCurrentState()->id.c_str(),
                    exit_value);
         printf("FAILED: Wasn't able to validate the witness. ");
         if (wit_aut->isInViolationState()) {

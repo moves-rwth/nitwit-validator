@@ -26,23 +26,25 @@ def process_results(results: List[Tuple[int, str, str, float, str]], executable:
 	non_validated = []
 	badly_parsed = []
 	for ret_code, info_file, err_msg, time, prod in results:
+		result_record = (abs(ret_code), os.path.basename(info_file), err_msg, time, prod)
 		if ret_code is None or ret_code == -9:
-			non_validated.append((9, os.path.basename(info_file), err_msg, time, prod))
+			non_validated.append(result_record)
 		elif ret_code == 0 or ret_code == 245:
-			validated.append((ret_code, os.path.basename(info_file), err_msg, time, prod))
+			validated.append(result_record)
 		elif 240 <= ret_code <= 243 or ret_code == 250:
-			non_validated.append((ret_code, os.path.basename(info_file), err_msg, time, prod))
+			non_validated.append(result_record)
 		elif ret_code == 244 or ret_code == 246:
-			badly_parsed.append((ret_code, os.path.basename(info_file), err_msg, time, prod))
+			badly_parsed.append(result_record)
 		elif ret_code == 2:
-			badly_parsed.append((ret_code, os.path.basename(info_file), err_msg, time, prod))
+			badly_parsed.append(result_record)
 		elif ret_code == 3:
 			print(f"Bad usage: {info_file}")
+			badly_parsed.append(result_record)
 		elif ret_code == 4 or ret_code == 5:
-			non_validated.append((ret_code, os.path.basename(info_file), err_msg, time, prod))
+			non_validated.append(result_record)
 		else:
-			print(f"Other error: {ret_code}, {info_file}")
-			badly_parsed.append((ret_code, os.path.basename(info_file), err_msg, time, prod))
+			# print(f"Other error: {ret_code}, {info_file}")
+			badly_parsed.append(result_record)
 
 	if out:
 		time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

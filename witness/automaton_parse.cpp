@@ -20,46 +20,46 @@ parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &
 
 shared_ptr<Data> parseData(const pugi::xpath_node_set &set);
 
-shared_ptr<Automaton> Automaton::automatonFromWitness(const shared_ptr<pugi::xml_document> &doc) {
+shared_ptr<WitnessAutomaton> WitnessAutomaton::automatonFromWitness(const shared_ptr<pugi::xml_document> &doc) {
     pugi::xml_node root = doc->root().first_child();
     if (!root || strcmp(root.name(), "graphml") != 0) {
-        fprintf(stderr, " ### No graphml root element."); 
-        return make_shared<Automaton>();
+        fprintf(stderr, " ### No graphml root element.");
+        return make_shared<WitnessAutomaton>();
     }
     string xpath = "/graphml/key"; // TODO add attributes
     auto key_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
 
     if (key_result.empty()) {
         fprintf(stderr, " ### No graphml keys found!");
-        return make_shared<Automaton>();
+        return make_shared<WitnessAutomaton>();
     }
 
     xpath = "/graphml/graph/node[@id]";
     auto node_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
     if (node_result.empty()) {
         fprintf(stderr, " ### There should be at least 1 node!");
-        return make_shared<Automaton>();
+        return make_shared<WitnessAutomaton>();
     }
 
     xpath = "/graphml/graph/edge[@source and @target]";
     auto edge_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
     if (edge_result.empty()) {
         fprintf(stderr, " ### There are no edges!");
-        return make_shared<Automaton>(); // TODO Could there be witnesses with no edges?
+        return make_shared<WitnessAutomaton>(); // TODO Could there be witnesses with no edges?
     }
 
     xpath = "/graphml/graph/data[@key]";
     auto graph_data_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
     if (graph_data_result.empty()) {
         fprintf(stderr, " ### There are graph data!");
-        return make_shared<Automaton>();
+        return make_shared<WitnessAutomaton>();
     }
 
     auto default_key_values = parseKeys(key_result);
     auto nodes = parseNodes(node_result, default_key_values);
     auto edges = parseEdges(edge_result, default_key_values);
     auto data = parseData(graph_data_result);
-    auto aut = make_shared<Automaton>(nodes, edges, data);
+    auto aut = make_shared<WitnessAutomaton>(nodes, edges, data);
 
     return aut;
 }
@@ -340,16 +340,14 @@ void DefaultKeyValues::print() const {
     }
 }
 
-Automaton::Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<shared_ptr<Edge>> &edges,
-                     shared_ptr<Data> &data) :
+WitnessAutomaton::WitnessAutomaton(const map<string, shared_ptr<Node>> &nodes, const vector<shared_ptr<Edge>> &edges,
+                                   shared_ptr<Data> &data) :
         nodes((nodes)), edges((edges)), data(*data), current_state(nullptr), successor_rel(), predecessor_rel() {
 
     for (const auto &n: nodes) {
         auto succ_set = set<shared_ptr<Edge>>();
-//        succ_set.insert(make_shared<Node>(n.second));
         successor_rel.emplace(n.first, succ_set);
         auto pred_set = set<shared_ptr<Edge>>();
-//        pred_set.insert(make_shared<Node>(n.second));
         predecessor_rel.emplace(n.first, pred_set);
 
         if (n.second->is_entry) {
@@ -386,11 +384,34 @@ Automaton::Automaton(const map<string, shared_ptr<Node>> &nodes, const vector<sh
     }
 }
 
-void Automaton::printData() const {
+WitnessAutomaton::WitnessAutomaton() {
+    shared_ptr<Node> n = make_shared<Node>();
+    n->id = "node";
+    n->is_entry = true;
+    n->is_violation = false;
+    nodes.insert(make_pair("node", n));
+    auto e = make_shared<Edge>();
+    e->start_line = 1;
+    e->end_line = (unsigned long) -1;
+    e->source_id = "node";
+    e->target_id = "node";
+
+    current_state = n;
+
+    auto succ_set = set<shared_ptr<Edge>>();
+    succ_set.insert(e);
+    successor_rel.emplace(n->id, succ_set);
+    auto pred_set = set<shared_ptr<Edge>>();
+    pred_set.insert(e);
+    predecessor_rel.emplace(n->id, pred_set);
+
+}
+
+void WitnessAutomaton::printData() const {
     this->data.print();
 }
 
-void Automaton::printRelations() const {
+void WitnessAutomaton::printRelations() const {
     printf("Successor relation (%u):\n", successor_rel.size());
     for (const auto &n: successor_rel) {
         printf("%s\t ----> \t", n.first.c_str());
@@ -409,23 +430,23 @@ void Automaton::printRelations() const {
     }
 }
 
-bool Automaton::isInIllegalState() const {
+bool WitnessAutomaton::isInIllegalState() const {
     return this->illegal_state;
 }
 
-bool Automaton::isInViolationState() const {
+bool WitnessAutomaton::isInViolationState() const {
     return current_state != nullptr && current_state->is_violation;
 }
 
-bool Automaton::isInSinkState() const {
+bool WitnessAutomaton::isInSinkState() const {
     return current_state != nullptr && current_state->is_sink;
 }
 
-const shared_ptr<Node> &Automaton::getCurrentState() const {
+const shared_ptr<Node> &WitnessAutomaton::getCurrentState() const {
     return this->current_state;
 }
 
-bool Automaton::wasVerifierErrorCalled() const {
+bool WitnessAutomaton::wasVerifierErrorCalled() const {
     return this->verifier_error_called;
 }
 
