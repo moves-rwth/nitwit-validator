@@ -72,12 +72,34 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             // handling \result in witnesses
             LexGetToken(&Parser, nullptr, TRUE);
             LexGetToken(&Parser, nullptr, TRUE);
-            Value *value;
+            Value *value = nullptr;
+            bool positive = true;
+            if (LexGetToken(&Parser, nullptr, FALSE) == TokenMinus){
+                LexGetToken(&Parser, nullptr, TRUE);
+                positive = false;
+            }
             LexGetToken(&Parser, &value, TRUE);
-            state->LastNonDetValue->Val = value->Val; // TODO mem leak?
-            state->LastNonDetValue->Typ = TypeGetDeterministic(state, state->LastNonDetValue->Typ);
-            state->LastNonDetValue = nullptr;
-            ret = 1;
+            if (value != nullptr) {
+                if (!positive){
+                    switch (value->Typ->Base){
+//                        case TypeFloat: value->Val->Float = -value->Val->Float; break;
+                        case TypeDouble: value->Val->Double = -value->Val->Double; break;
+                        case TypeChar: value->Val->Character = -value->Val->Character; break;
+//                        case TypeUnsignedChar: value->Val->UnsignedCharacter = -value->Val->UnsignedCharacter; break;
+//                        case TypeInt: value->Val->Integer = -value->Val->Integer; break;
+//                        case TypeUnsignedInt: value->Val->UnsignedInteger = -value->Val->UnsignedInteger; break;
+                        case TypeLong: value->Val->LongInteger = -value->Val->LongInteger; break;
+                        case TypeUnsignedLong: value->Val->UnsignedLongInteger = -value->Val->UnsignedLongInteger; break;
+                        case TypeLongLong: value->Val->LongLongInteger = -value->Val->LongLongInteger; break;
+                        case TypeUnsignedLongLong: value->Val->UnsignedLongLongInteger = -value->Val->UnsignedLongLongInteger; break;
+                        default: fprintf(stderr, "Type not found in parsing constant from assumption.\n"); break;
+                    }
+                }
+                state->LastNonDetValue->Val = value->Val; // TODO mem leak?
+                state->LastNonDetValue->Typ = TypeGetDeterministic(state, state->LastNonDetValue->Typ);
+                state->LastNonDetValue = nullptr;
+                ret = 1;
+            }
         } else if (state->SkipIntrinsic) {
             ret = 0;
         } else {
