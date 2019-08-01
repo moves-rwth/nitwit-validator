@@ -23,7 +23,7 @@ shared_ptr<Data> parseData(const pugi::xpath_node_set &set);
 shared_ptr<Automaton> Automaton::automatonFromWitness(const shared_ptr<pugi::xml_document> &doc) {
     pugi::xml_node root = doc->root().first_child();
     if (!root || strcmp(root.name(), "graphml") != 0) {
-        fprintf(stderr, " ### No graphml root element.");
+        fprintf(stderr, " ### No graphml root element."); 
         return make_shared<Automaton>();
     }
     string xpath = "/graphml/key"; // TODO add attributes
