@@ -71,7 +71,7 @@ void *HeapAllocStack(Picoc *pc, int Size)
 #ifdef DEBUG_HEAP
     printf("HeapAllocStack(%ld) at 0x%lx\n", (unsigned long)MEM_ALIGN(Size), (unsigned long)pc->HeapStackTop);
 #endif
-    if (NewTop > (char *)pc->HeapBottom)
+    if (NewTop > (char *)pc->HeapBottom || NewTop < NewMem)
         return nullptr;
         
     pc->HeapStackTop = (void *)NewTop;

@@ -73,7 +73,7 @@ void handleDebugBreakpoint(struct ParseState *ps) {
 int validate(const char *source_filename) {
 
     Picoc pc;
-    PicocInitialise(&pc, 52428800); // stack size of 50 MiB
+    PicocInitialise(&pc, 104857600); // stack size of 100 MiB
 
     // the interpreter will jump here after finding a violation
     if (PicocPlatformSetExitPoint(&pc)) {

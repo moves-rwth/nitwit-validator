@@ -7,28 +7,16 @@ float __VERIFIER_nondet_float(void){return 27;}
 void __VERIFIER_assume(int expression){printf("Assume %d\n", expression);}
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
-struct dummy {
-    int a, b;
+void init (int x[3]) {
+    x[0] = 1;
+    x[1] = 2;
+    x[2] = 3;
 };
 
 
 int main ()
 {
-    struct dummy d1, d2;
-    int n = 0;
-    struct dummy *pd = n ? &d1 : &d2;
-    if (pd == &d2) {
-        pd->a = 0;
-    } else {
-        pd->b = 0;
-    }
-    if (pd == &d2 && d2.b != 0) {
-        goto ERROR;
-    }
-
-    return 0;
-
-    ERROR: __VERIFIER_error();
-    return 1;
-
+    int x[3];
+    init(x);
+    printf("%d, %d, %d\n", x[0], x[1], x[2]);
 }

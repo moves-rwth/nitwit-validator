@@ -431,7 +431,9 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
             if (DestValue->Typ->ArraySize != SourceValue->Typ->ArraySize)
                 AssignFail(Parser, "from an array of size %d to one of size %d", nullptr, nullptr, DestValue->Typ->ArraySize, SourceValue->Typ->ArraySize, FuncName, ParamNo);
 
-            memcpy((void *)DestValue->Val, (void *)SourceValue->Val, TypeSizeValue(DestValue, FALSE));
+//            memcpy((void *)DestValue->Val, (void *)SourceValue->Val, TypeSizeValue(DestValue, FALSE));
+            // Instead of copying just point to same memory. Like in C! FIXME But may lose the memory in DestValue :/
+            DestValue->Val = SourceValue->Val;
             break;
 
         case TypeStruct:
@@ -1870,10 +1872,13 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
             /* Function parameters should not go out of scope */
             Parser->ScopeID = -1;
 
-            for (Count = 0; Count < FuncValue->Val->FuncDef.NumParams; Count++)
-                VariableDefine(Parser->pc, Parser, FuncValue->Val->FuncDef.ParamName[Count], ParamArray[Count], nullptr,
-                               TRUE, false);
-
+            for (Count = 0; Count < FuncValue->Val->FuncDef.NumParams; Count++) {
+                Value * defined = VariableDefine(Parser->pc, Parser, FuncValue->Val->FuncDef.ParamName[Count],
+                        ParamArray[Count], nullptr, TRUE, false);
+                if (ParamArray[Count]->Typ->Base == TypeArray){
+                    defined->Val = ParamArray[Count]->Val;
+                }
+            }
             Parser->ScopeID = OldScopeID;
 
             // track the function
