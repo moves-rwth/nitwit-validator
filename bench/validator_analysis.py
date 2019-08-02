@@ -139,6 +139,7 @@ def analyze_by_producer(matching: Dict[str, dict]):
 		for k, v in d.items():
 			df.at[k, (VALIDATORS_LIST[i], 'val')] = v[0]
 			df.at[k, (VALIDATORS_LIST[i], 'nval')] = v[1]
+	df = df.sort_index()
 	df.loc["Total"] = df.sum()
 	print(df.to_latex())
 
@@ -257,15 +258,15 @@ def main():
 
 	######### ANALYSES ###########
 
-	analyze_output_messages(matching)
+	# analyze_output_messages(matching)
 
 	analyze_by_producer(matching)
 
-	analyze_times(matching)
+	# analyze_times(matching)
 
-	analyze_unique_by_producer(matching, diff_matching)
+	# analyze_unique_by_producer(matching, diff_matching)
 
-	plt.show()
+	# plt.show()
 
 
 if __name__ == "__main__":

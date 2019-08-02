@@ -73,3 +73,10 @@ bbe8e3308792a78c58c805270d9158137809ba9f4cc2d474fdbf1857ce6ffe5e.json - overflow
       - ff8f43ed15700ee97c34bdb85bc0a5bb63376dc05be0b5aa82149e624580acf7.json
       - fe8b607971f832adfe17837236e3577220f85a4357e1d1d9efcc88167587b5fc.json
       - 1fc5f0fc3965a10c99256db438d5094cf4e42de3e3618b4be14be55f9bfa72de.json
+
+
+FShell is wrong here:
+   https://sv-comp.sosy-lab.org/2019/results/witnessFileByHash/f0099bb9779a53ac0b24da2b723ee2889e0bd93b2db82b57b8083896b672a3a2.graphml
+
+Bug because Array elements remain nondet and wrong assumptions mess them up
+../cmake-build-debug/cwvalidator ../../data/sv-witnesses/witnessFileByHash/c0c53e09167714151d40168f5955dd953039164a828a6bb12ec8a871fb09ef65.graphml ../../data/sv-benchmarks/c/reducercommutativity/rangesum20_false-unreach-call.i

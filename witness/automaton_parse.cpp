@@ -7,6 +7,7 @@
 
 
 shared_ptr<DefaultKeyValues> parseKeys(const pugi::xpath_node_set &keyNodeSet);
+shared_ptr<DefaultKeyValues> getDefaultKeys();
 
 map<string, shared_ptr<Node>>
 parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues);
@@ -29,9 +30,12 @@ shared_ptr<WitnessAutomaton> WitnessAutomaton::automatonFromWitness(const shared
     string xpath = "/graphml/key"; // TODO add attributes
     auto key_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
 
+    shared_ptr<DefaultKeyValues> default_key_values;
     if (key_result.empty()) {
         fprintf(stderr, " ### No graphml keys found!");
-        return make_shared<WitnessAutomaton>();
+        default_key_values = getDefaultKeys();
+    } else {
+        default_key_values = parseKeys(key_result);
     }
 
     xpath = "/graphml/graph/node[@id]";
@@ -51,11 +55,10 @@ shared_ptr<WitnessAutomaton> WitnessAutomaton::automatonFromWitness(const shared
     xpath = "/graphml/graph/data[@key]";
     auto graph_data_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
     if (graph_data_result.empty()) {
-        fprintf(stderr, " ### There are graph data!");
-        return make_shared<WitnessAutomaton>();
+        fprintf(stderr, " ### There are no graph data!");
+//        return make_shared<WitnessAutomaton>();
     }
 
-    auto default_key_values = parseKeys(key_result);
     auto nodes = parseNodes(node_result, default_key_values);
     auto edges = parseEdges(edge_result, default_key_values);
     auto data = parseData(graph_data_result);
@@ -319,6 +322,35 @@ shared_ptr<DefaultKeyValues> parseKeys(const pugi::xpath_node_set &keyNodeSet) {
         dkv->addKey(k);
     }
 
+    return dkv;
+}
+
+shared_ptr<DefaultKeyValues> getDefaultKeys() {
+    auto dkv = make_shared<DefaultKeyValues>();
+    dkv->addKey(Key("violatedProperty", "string", "node", "violatedProperty", ""));
+    dkv->addKey(Key("sourcecodeLanguage", "string", "graph", "sourcecodelang", ""));
+    dkv->addKey(Key("programFile", "string", "graph", "programfile", ""));
+    dkv->addKey(Key("programHash", "string", "graph", "programhash", ""));
+    dkv->addKey(Key("specification", "string", "graph", "specification", ""));
+    dkv->addKey(Key("architecture", "string", "graph", "architecture", ""));
+    dkv->addKey(Key("producer", "string", "graph", "producer", ""));
+    dkv->addKey(Key("creationTime", "string", "graph", "creationtime", ""));
+    dkv->addKey(Key("startline", "int", "edge", "startline", ""));
+    dkv->addKey(Key("endline", "int", "edge", "endline", ""));
+    dkv->addKey(Key("startoffset", "int", "edge", "startoffset", ""));
+    dkv->addKey(Key("endoffset", "int", "edge", "endoffset", ""));
+    dkv->addKey(Key("control", "string", "edge", "control", ""));
+    dkv->addKey(Key("assumption", "string", "edge", "assumption", ""));
+    dkv->addKey(Key("assumption.scope", "string", "edge", "assumption.scope", ""));
+    dkv->addKey(Key("enterFunction", "string", "edge", "enterFunction", ""));
+    dkv->addKey(Key("returnFromFunction", "string", "edge", "returnFrom", ""));
+    dkv->addKey(Key("witness-type", "string", "graph", "witness-type", ""));
+    dkv->addKey(Key("inputWitnessHash", "string", "graph", "inputwitnesshash", ""));
+    dkv->addKey(Key("originFileName", "string", "edge", "originfile", "./00.basic.c"));
+    dkv->addKey(Key("isViolationNode", "boolean", "node", "violation", "false"));
+    dkv->addKey(Key("isEntryNode", "boolean", "node", "entry", "false"));
+    dkv->addKey(Key("isSinkNode", "boolean", "node", "sink", "false"));
+    dkv->addKey(Key("enterLoopHead", "boolean", "edge", "enterLoopHead", "false"));
     return dkv;
 }
 

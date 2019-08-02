@@ -6,12 +6,14 @@
 #define CWVALIDATOR_AUTOMATON_HPP
 
 #include "../picoc/picoc.hpp"
+
 #undef min
 
 #include <cstddef>
 #include "../utils/pugixml/pugixml.hpp"
 #include <string>
 #include <deque>
+#include <utility>
 #include <vector>
 #include <map>
 #include <set>
@@ -88,6 +90,10 @@ struct Key {
 
     Key() : name(""), type(""), for_(""), id(""), default_val("") {}
 
+    Key(string name, string type, string for_, string id, string defaultVal) :
+            name(std::move(name)), type(std::move(type)), for_(std::move(for_)),
+            id(std::move(id)), default_val(std::move(defaultVal)) {}
+
     static void printKey(Key *k) {
         printf("name: %s\ttype: %s\tfor: %s\tid: %s\tdef: %s\n", k->name.c_str(), k->type.c_str(), k->for_.c_str(),
                k->id.c_str(), k->default_val.c_str());
@@ -131,8 +137,9 @@ class WitnessAutomaton {
 public:
     WitnessAutomaton(const map<string, shared_ptr<Node>> &nodes, const vector<shared_ptr<Edge>> &edges,
                      shared_ptr<Data> &data);
+
     WitnessAutomaton();
-    
+
     void printData() const;
 
     void printRelations() const;
@@ -151,7 +158,7 @@ public:
 
     const shared_ptr<Node> &getCurrentState() const;
 
-    void try_resolve_variables(ParseState * state);
+    void try_resolve_variables(ParseState *state);
 
     bool canTransitionFurther();
 };
