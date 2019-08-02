@@ -67,12 +67,15 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         ParseState Parser{};
         LexInitParser(&Parser, state->pc, ass.c_str(), Tokens, RegFileName, TRUE, FALSE, nullptr);
         int ret = 0;
+        Value *value = nullptr;
         if (state->SkipIntrinsic && state->LastNonDetValue != nullptr &&
-            LexGetToken(&Parser, nullptr, FALSE) == TokenWitnessResult) {
+                (LexGetToken(&Parser, &value, FALSE) == TokenWitnessResult ||
+                        (value != nullptr && value->Val->Identifier == TableStrRegister(state->pc, "result"))
+                        // hack for VeriAbs - it outputs 'result' instead of '\result'
+                )) {
             // handling \result in witnesses
             LexGetToken(&Parser, nullptr, TRUE);
             LexGetToken(&Parser, nullptr, TRUE);
-            Value *value = nullptr;
             bool positive = true;
             if (LexGetToken(&Parser, nullptr, FALSE) == TokenMinus){
                 LexGetToken(&Parser, nullptr, TRUE);
