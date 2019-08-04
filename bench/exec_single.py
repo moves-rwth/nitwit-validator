@@ -5,6 +5,7 @@ import json
 from typing import Union, List, Tuple
 import common.utils
 import subprocess
+import resource
 
 WITNESSES_BY_PROGRAM_HASH_DIR = "witnessListByProgramHashJSON"
 WITNESS_INFO_BY_WITNESS_HASH_DIR = "witnessInfoByHash"
@@ -14,7 +15,7 @@ VALIDATOR_EXECUTABLE = ""
 EXECUTION_TIMEOUT = 0
 
 
-def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float, str]:
+def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float, str, int]:
 	witness, source, info_file = config
 	with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
 	                      stdout=subprocess.PIPE,
@@ -28,16 +29,7 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float, s
 			print('=' * 46)
 			print(f"{'-' * 20}Stderr{'-' * 20}")
 			print(errs.decode("utf-8"))
-			if process.returncode != 0 and out is not None:
-				outs = str(out)
-				pos = outs.rfind(' ### ')
-				if pos != -1:
-					endpos = outs.find('\\n', pos)
-					if endpos == -1:
-						endpos = len(outs) - 1
-					errmsg = outs[(pos + 5):endpos]
-				else:
-					errmsg = 'Msg not parsed'
+			errmsg = common.utils.parse_message(errmsg, out, process)
 		except subprocess.TimeoutExpired:
 			process.kill()
 
@@ -48,9 +40,10 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float, s
 
 	# out, errs = process.communicate()
 	times = os.times()
+	children = resource.getrusage(resource.RUSAGE_CHILDREN)
 	print(' '.join([witness, source]))
 	print(' '.join([witness[3:], source[3:]]))
-	return process.returncode, info_file, errmsg, times[2] + times[3], ''
+	return process.returncode, info_file, errmsg, times[2] + times[3], '', children.ru_maxrss
 
 
 def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
@@ -81,7 +74,7 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 	return True
 
 
-def run_single_config(witness_info_file: str) -> Tuple[int, str, str, float, str]:
+def run_single_config(witness_info_file: str) -> Tuple[int, str, str, float, str, int]:
 	witness_info_file = os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, witness_info_file)
 	if not os.path.isfile(witness_info_file):
 		raise FileNotFoundError(witness_info_file)
@@ -129,7 +122,7 @@ def main():
 		return 1
 
 	results = run_single_config(args.filename)
-	common.utils.process_results([results], VALIDATOR_EXECUTABLE, False)
+	print(results)
 
 
 if __name__ == "__main__":

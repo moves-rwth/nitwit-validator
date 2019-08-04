@@ -24,7 +24,7 @@ shared_ptr<Data> parseData(const pugi::xpath_node_set &set);
 shared_ptr<WitnessAutomaton> WitnessAutomaton::automatonFromWitness(const shared_ptr<pugi::xml_document> &doc) {
     pugi::xml_node root = doc->root().first_child();
     if (!root || strcmp(root.name(), "graphml") != 0) {
-        fprintf(stderr, " ### No graphml root element.");
+        fprintf(stderr, " ### No graphml root element.\n");
         return make_shared<WitnessAutomaton>();
     }
     string xpath = "/graphml/key"; // TODO add attributes
@@ -32,7 +32,7 @@ shared_ptr<WitnessAutomaton> WitnessAutomaton::automatonFromWitness(const shared
 
     shared_ptr<DefaultKeyValues> default_key_values;
     if (key_result.empty()) {
-        fprintf(stderr, " ### No graphml keys found!");
+        fprintf(stderr, " ### No graphml keys found!\n");
         default_key_values = getDefaultKeys();
     } else {
         default_key_values = parseKeys(key_result);
@@ -41,21 +41,21 @@ shared_ptr<WitnessAutomaton> WitnessAutomaton::automatonFromWitness(const shared
     xpath = "/graphml/graph/node[@id]";
     auto node_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
     if (node_result.empty()) {
-        fprintf(stderr, " ### There should be at least 1 node!");
+        fprintf(stderr, " ### There should be at least 1 node!\n");
         return make_shared<WitnessAutomaton>();
     }
 
     xpath = "/graphml/graph/edge[@source and @target]";
     auto edge_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
     if (edge_result.empty()) {
-        fprintf(stderr, " ### There are no edges!");
+        fprintf(stderr, " ### There are no edges!\n");
         return make_shared<WitnessAutomaton>(); // TODO Could there be witnesses with no edges?
     }
 
     xpath = "/graphml/graph/data[@key]";
     auto graph_data_result = doc->select_nodes(pugi::xpath_query(xpath.c_str()));
     if (graph_data_result.empty()) {
-        fprintf(stderr, " ### There are no graph data!");
+        fprintf(stderr, " ### There are no graph data!\n");
 //        return make_shared<WitnessAutomaton>();
     }
 

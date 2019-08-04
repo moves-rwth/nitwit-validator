@@ -1,13 +1,15 @@
 import argparse
-import os
-import resource
-import sys
 import json
-from typing import Union, List, Tuple, Callable, Set
 import multiprocessing
+import os
+import random
+import resource
 import subprocess
+import sys
+from typing import List, Tuple
 
 from common.utils import process_results
+from common.utils import parse_message
 
 WITNESSES_BY_PROGRAM_HASH_DIR = "witnessListByProgramHashJSON"
 WITNESS_INFO_BY_WITNESS_HASH_DIR = "witnessInfoByHash"
@@ -15,6 +17,9 @@ WITNESS_FILE_BY_HASH_DIR = "witnessFileByHash"
 SV_BENCHMARK_DIR = ""
 VALIDATOR_EXECUTABLE = ""
 EXECUTION_TIMEOUT = 0
+
+task_queue = multiprocessing.Queue()
+result_queue = multiprocessing.Queue()
 
 
 def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
@@ -46,30 +51,24 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
     return True
 
 
-def run_validator(config: Tuple[str, str, str, str]) -> Tuple[int, str, str, float, str]:
+def run_validator():
+    config = task_queue.get()
+    if config is None:
+        result_queue.put(None)
+        print(f"Sending kill pill")
+        return
     witness, source, info_file, producer = config
-    children_before = resource.getrusage(resource.RUSAGE_CHILDREN)
     with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
                           stdout=subprocess.PIPE,
                           stderr=subprocess.DEVNULL) as process:
         errmsg = ''
         try:
             out, _ = process.communicate(timeout=EXECUTION_TIMEOUT)
-            if process.returncode != 0 and out is not None:
-                outs = str(out)
-                pos = outs.rfind(' ### ')
-                if pos != -1:
-                    endpos = outs.find('\\n', pos)
-                    if endpos == -1:
-                        endpos = len(outs) - 1
-                    errmsg = outs[(pos + 5):endpos]
-                else:
-                    errmsg = 'Msg not parsed'
+            errmsg = parse_message(errmsg, out, process)
         except subprocess.TimeoutExpired:
             process.kill()
         finally:
             if process.poll() is None:
-                print(f"Process {process.pid} still running!")
                 process.kill()
                 _, _ = process.communicate()
 
@@ -77,12 +76,41 @@ def run_validator(config: Tuple[str, str, str, str]) -> Tuple[int, str, str, flo
         if errmsg == 'out of memory':  # hack around no special exit code for o/m
             returncode = 251
         children = resource.getrusage(resource.RUSAGE_CHILDREN)
-        return returncode, info_file, errmsg, children.ru_utime + children.ru_stime - (children_before.ru_utime + children_before.ru_stime), producer
+        result_queue.put((returncode,
+                          info_file,
+                          errmsg,
+                          children.ru_utime + children.ru_stime,  # - (children_before.ru_utime + children_before.ru_stime),
+                          producer,
+                          children.ru_maxrss))
 
 
-def run_bench_parallel(configs: List[Tuple[str, str, str, str]], n_processes: int) -> List[Tuple[int, str, str, float, str]]:
-    with multiprocessing.Pool(n_processes) as pool:
-        results = pool.map(run_validator, configs)
+def run_bench_parallel(configs: List[Tuple[str, str, str, str]], n_processes: int) -> List[Tuple[int, str, str, float, str, int]]:
+    # random.shuffle(configs)
+    # with multiprocessing.Pool(n_processes) as pool:
+    #     results = pool.map(run_validator, configs)
+
+    for i in range(n_processes):  # add kill pills, launch processes
+        configs.append(None)
+        multiprocessing.Process(target=run_validator, ).start()
+    for config in configs:  # add all tasks
+        task_queue.put(config)
+    pills = 0
+    results = []
+    print(f"Processing {len(configs) - n_processes} tasks:")
+    while True:
+        res = result_queue.get()
+        if res is None:
+            pills += 1
+            if pills == n_processes:
+                break
+            else:
+                continue
+        results.append(res)
+        if len(results) % 500 == 0:
+            print(f"...{len(results)}")
+        multiprocessing.Process(target=run_validator).start()
+
+    print("Done!")
     return results
 
 

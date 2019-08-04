@@ -258,15 +258,15 @@ def main():
 
 	######### ANALYSES ###########
 
-	# analyze_output_messages(matching)
+	analyze_output_messages(matching)
 
 	analyze_by_producer(matching)
 
-	# analyze_times(matching)
+	analyze_times(matching)
 
-	# analyze_unique_by_producer(matching, diff_matching)
+	analyze_unique_by_producer(matching, diff_matching)
 
-	# plt.show()
+	plt.show()
 
 
 if __name__ == "__main__":

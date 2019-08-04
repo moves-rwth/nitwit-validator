@@ -109,7 +109,7 @@ def get_benchmark_file_path(benchmark: str):
         return b
 
 
-def extract_config_from_extracted_data(json_data: str, limit: int, should_include, should_exclude) -> List[Tuple[str, str, str]]:
+def extract_config_from_extracted_data(json_data: str, limit: int, should_include, should_exclude) -> List[Tuple[str, str, str, str]]:
     if not os.path.isfile(json_data):
         raise Exception("Data file doesn't exist.")
     with open(json_data) as fp:
@@ -117,7 +117,10 @@ def extract_config_from_extracted_data(json_data: str, limit: int, should_includ
     result = [(os.path.join(WITNESS_FILE_BY_HASH_DIR, f"{w}.graphml"),
                get_benchmark_file_path(v['benchmark']),
                f"{w}.json",
-               v['tool']) for w, v in witnesses.items() if should_include(f"{w}.json") and not should_exclude(f"{w}.json")]
+               v['tool'])
+              for w, v in witnesses.items()
+              if str(v['benchmark']).find('false-unreach-call') != -1 and should_include(f"{w}.json") and not should_exclude(f"{w}.json")]
+
     if limit is not None:
         result = result[:limit]
     return result

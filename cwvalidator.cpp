@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <fstream>
 
 #include "picoc/picoc.hpp"
 #undef min
@@ -28,6 +29,8 @@ int ASSERTION_FAILED = 248;
 int BAD_FUNCTION_DEF = 249;
 int UNVALIDATED_VIOLATION = 250;
 int OUT_OF_MEMORY = 251;
+
+void process_resource_usage(double & mem, double & cpu);
 
 void printProgramState(ParseState *ps) {
     printf("--- Line: %zu, Pos: %d", ps->Line, ps->CharacterPos);
@@ -120,13 +123,13 @@ int main(int argc, char **argv) {
     wit_aut = WitnessAutomaton::automatonFromWitness(doc);
 
     if (wit_aut && !wit_aut->isInIllegalState()) {
-//        wit_aut->printData();
-//        wit_aut->printRelations();
+        cw_verbose("Witness automaton reconstructed\n");
     } else {
         printf("Reconstructing the witness automaton failed.\n");
         return 2;
     }
     int exit_value = validate(argv[2]);
+
     if ((!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) &&
         (exit_value >= NO_WITNESS_CODE && exit_value <= ALREADY_DEFINED)) {
         cw_verbose("WitnessAutomaton finished in state %s, with error code %d.\n", wit_aut->getCurrentState()->id.c_str(),
@@ -140,26 +143,46 @@ int main(int argc, char **argv) {
         }
         if (wit_aut->wasVerifierErrorCalled()) {
             printf(", __VERIFIER_error was called.\n");
-//            exit_value = PROGRAM_FINISHED_WITH_VIOLATION_THOUGH_NOT_IN_VIOLATION_STATE;
         } else {
             printf(", __VERIFIER_error was never called.\n");
         }
-        return exit_value;
     } else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
         printf("FAILED: __VERIFIER_error was never called, even though witness IS in violation state.\n");
-        return 5;
+        exit_value = 5;
     } else if (wit_aut->wasVerifierErrorCalled()) {
         printf("\nVALIDATED: The state: %s has been reached.", wit_aut->getCurrentState()->id.c_str());
         if (wit_aut->isInViolationState()) {
             printf(" It is a violation state.\n");
-            return 0;
+            exit_value = 0;
         } else {
             printf(" However, it is NOT a violation state.\n");
-            return PROGRAM_FINISHED_WITH_VIOLATION_THOUGH_NOT_IN_VIOLATION_STATE;
+            exit_value = PROGRAM_FINISHED_WITH_VIOLATION_THOUGH_NOT_IN_VIOLATION_STATE;
         }
     } else {
         printf("UNKNOWN: A different error occurred, probably a parsing error or program exited.\n");
-        return 4;
+        exit_value =  4;
     }
+    double mem, cpu; process_resource_usage(mem, cpu);
+    fprintf(stderr, " ##VM_PEAK## %f\n", mem);
+    fprintf(stderr, " ##CPU_TIME## %f\n", cpu);
+    return exit_value;
 }
-
+#include <sys/resource.h>
+/**
+ * Returns the peak (maximum so far) resident set size (physical
+ * memory use) measured in bytes, or zero if the value cannot be
+ * determined on this OS.
+ * See: https://stackoverflow.com/questions/669438/how-to-get-memory-usage-at-runtime-using-c
+ *
+ * mem => MB
+ * cpu => sec
+ */
+void process_resource_usage(double& mem, double & cpu)
+{
+    /* BSD, Linux, and OSX -------------------------------------- */
+    rusage rusage{};
+    getrusage( RUSAGE_SELF, &rusage );
+    mem = (rusage.ru_maxrss * 1000L) / (double) 1000000;
+    cpu = rusage.ru_utime.tv_sec + rusage.ru_stime.tv_sec +
+            (rusage.ru_utime.tv_usec + rusage.ru_stime.tv_usec) / (double) 1000000;
+}

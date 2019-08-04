@@ -5,9 +5,9 @@ from typing import Tuple, List, Dict, Optional
 
 
 def output(output_path: str,
-           validated: List[Tuple[int, str, str, float, str]],
-           non_validated: List[Tuple[int, str, str, float, str]],
-           badly_parsed: List[Tuple[int, str, str, float, str]]):
+           validated: List[Tuple[int, str, str, float, str, int]],
+           non_validated: List[Tuple[int, str, str, float, str, int]],
+           badly_parsed: List[Tuple[int, str, str, float, str, int]]):
 	if not os.path.exists(output_path):
 		os.makedirs(output_path)
 
@@ -21,12 +21,26 @@ def output(output_path: str,
 		json.dump(badly_parsed, badly_parsed_fp)
 
 
-def process_results(results: List[Tuple[int, str, str, float, str]], executable: str, out: bool):
+def parse_message(errmsg, out, process):
+	if process.returncode != 0 and out is not None:
+		outs = str(out)
+		pos = outs.rfind(' ### ')
+		if pos != -1:
+			endpos = outs.find('\\n', pos)
+			if endpos == -1:
+				endpos = len(outs) - 1
+			errmsg = outs[(pos + 5):endpos]
+		else:
+			errmsg = 'Msg not parsed'
+	return errmsg
+
+
+def process_results(results: List[Tuple[int, str, str, float, str, int]], executable: str, out: bool):
 	validated = []
 	non_validated = []
 	badly_parsed = []
-	for ret_code, info_file, err_msg, time, prod in results:
-		result_record = (abs(ret_code), os.path.basename(info_file), err_msg, time, prod)
+	for ret_code, info_file, err_msg, time, prod, mem in results:
+		result_record = (abs(ret_code), os.path.basename(info_file), err_msg, time, prod, mem)
 		if ret_code is None or ret_code == -9:
 			non_validated.append(result_record)
 		elif ret_code == 0 or ret_code == 245:
