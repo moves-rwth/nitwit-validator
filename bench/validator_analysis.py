@@ -85,7 +85,7 @@ def get_matching(all_results: List, validators: dict, outputmatched: str = None)
 	for w in matched:
 		wit_key = w[1].partition('.json')[0]
 		validators[wit_key]['results'] \
-			.insert(4, dict({'cpu': adjust_to_cpu(w[3]), 'tool': 'CWValidator', 'status': w[0]}))
+			.insert(4, dict({'cpu': adjust_to_cpu(w[3]), 'mem': int(w[5] if len(w) > 5 else 0) / 1000, 'tool': 'CWValidator', 'status': w[0]}))  # memory to MB, cpu in secs
 		validators[wit_key]['creator'] = w[4]
 	print(f"I could match {len(matched)} out of {len(all_results)} witnesses")
 	return {k: v for k, v in validators.items() if k in matched_keys}
@@ -198,6 +198,7 @@ def reject_outliers(data, m=2):
 
 
 def analyze_times(matching: Dict[str, dict]):
+	print('='*20 + ' CPU TIME (s) ' + '='*20)
 	fig, axs = plt.subplots(nrows=2, ncols=3, figsize=FIGSIZE)
 	figsc, axsc = plt.subplots(figsize=FIGSIZE)
 	# take just the successful ones
@@ -217,6 +218,23 @@ def analyze_times(matching: Dict[str, dict]):
 	axsc.set_ylabel("Time [s]")
 	axsc.set_xlabel("#Validated Witnesses")
 	figsc.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/scatter_times.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
+
+
+def analyze_memory(matching: Dict[str, dict]):
+	print('='*20 + ' MEMORY (MB) ' + '='*20)
+	figsc, axsc = plt.subplots(figsize=FIGSIZE)
+	# take just the successful ones
+	for i in range(5):
+		times = np.asarray(list(map(lambda x: float(x['results'][i]['mem']),
+		                            filter(lambda x: STATUSES[x['results'][i]['status']] == 0, matching.values()))))
+		print(f"Validator {VALIDATORS[i]}:")
+		print_stats(times)
+		print("-" * 40)
+		sns.scatterplot(ax=axsc, y=sorted(times), x=range(len(times)), label=VALIDATORS[i], marker='x')
+
+	axsc.set_ylabel("Memory [MB]")
+	axsc.set_xlabel("#Validated Witnesses")
+	figsc.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/scatter_memory.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
 
 
 def print_stats(times):
@@ -263,6 +281,8 @@ def main():
 	analyze_by_producer(matching)
 
 	analyze_times(matching)
+
+	analyze_memory(matching)
 
 	analyze_unique_by_producer(matching, diff_matching)
 

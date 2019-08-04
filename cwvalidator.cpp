@@ -162,9 +162,11 @@ int main(int argc, char **argv) {
         printf("UNKNOWN: A different error occurred, probably a parsing error or program exited.\n");
         exit_value =  4;
     }
+#ifdef VERBOSE
     double mem, cpu; process_resource_usage(mem, cpu);
     fprintf(stderr, " ##VM_PEAK## %f\n", mem);
     fprintf(stderr, " ##CPU_TIME## %f\n", cpu);
+#endif
     return exit_value;
 }
 #include <sys/resource.h>
