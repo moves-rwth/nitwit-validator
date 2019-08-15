@@ -77,17 +77,23 @@ def increase_count_in_dict(m: Dict[any, int], el: any):
 
 
 def load_result_files(results: str) -> Optional[Tuple[list, ...]]:
-	if not (os.path.exists(results) and os.path.isdir(results)):
+	if not (os.path.exists(results)):
 		print("Cannot load output directory with info about witnesses.")
 		return None
-	out = []
-	file_names = ['validated_witnesses.json', 'non_validated_witnesses.json', 'badly_parsed_witnesses.json']
-	for i, fn in enumerate(file_names):
-		with open(os.path.join(results, fn), 'r') as fp:
-			valid_jObj = json.load(fp)
-		out.append(list(valid_jObj))
-	return tuple(out)
-
+	if os.path.isdir(results):
+		out = []
+		file_names = ['validated_witnesses.json', 'non_validated_witnesses.json', 'badly_parsed_witnesses.json']
+		for i, fn in enumerate(file_names):
+			with open(os.path.join(results, fn), 'r') as fp:
+				jObj = json.load(fp)
+			out.append(list(jObj))
+		return tuple(out)
+	elif os.path.isfile(results):
+		with open(results, 'r') as fp:
+			jObj = json.load(fp)
+		return list(jObj), [], []
+	else:
+		raise Exception("What to do?")
 
 def load_result_file(results: str) -> Optional[list]:
 	if not (os.path.exists(results) and os.path.isfile(results)):

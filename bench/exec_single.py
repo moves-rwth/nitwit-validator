@@ -17,6 +17,8 @@ EXECUTION_TIMEOUT = 0
 
 def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float, str, int]:
 	witness, source, info_file = config
+	print(' '.join([witness, source]))
+	print(' '.join([witness[3:], source[3:]]))
 	with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
 	                      stdout=subprocess.PIPE,
 	                      stderr=subprocess.PIPE) as process:

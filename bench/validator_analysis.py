@@ -3,6 +3,7 @@ import argparse
 import math
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
+
 plt.rcParams.update({'font.size': 36})
 import numpy as np
 import pandas as pd
@@ -11,10 +12,19 @@ import seaborn as sns
 from common.utils import *
 
 sns.set()
-FIGSIZE = (20, 11.25)
+sns.set(font_scale=2)
+sns.set_palette("colorblind")
+sns.set_context("paper")  # talk/paper
+# FIGSIZE = (20, 11.25)
+# FONTSIZE = 26
 DPI = 300
 FORMAT = 'pdf'
 BBOX = 'tight'
+LEGEND_LOC_RIGHT = 'center right'
+# LEGEND_LOC_BOTTOM = 'center bottom'
+LEGEND_BBOX_ANCHOR = (1.25, 0.5)
+LEGEND_NCOL = 1
+
 STATUSES = {
 	'false(unreach-call)': 0,
 	'timeout (false(unreach-call))': 0,
@@ -33,24 +43,25 @@ STATUSES = {
 	'error (invalid witness file)': 6,
 	0: 0,  # false
 	245: 0,  # false, but not totally correct witness
-	4: 1,  # parse error
-	-6: 1,  # picoc error
-	6: 1,  # picoc error
-	246: 1,  #
+	241: 1,  # error, witness in sink
+	242: 1,  # program finished, witness not in violation state
+	5: 1,  # error not reached
+	250: 1,  # error not reached, witness in violation state
 	9: 3,  # timeout
-	241: 4,  # error, witness in sink
-	242: 4,  # program finished, witness not in violation state
-	5: 4,  # error not reached
-	250: 4,  # error not reached, witness in violation state
-	251: 5, # out of memory
+	4: 4,  # parse error
+	-6: 4,  # picoc error
+	6: 4,  # picoc error
+	246: 4,  #
+	251: 5,  # out of memory
 	-11: 6,  # witness parse error
 	11: 6,  # witness parse error
 	2: 6,  # witness parse error
 	244: 6,  # identifier undefined
 }
-col_names = ['false', 'unknown', 'true', 't/o', 'error', 'o/m', 'bad witness']  # , 'not run']
+col_names = ['False', 'Unknown', 'True', 'Timeout', 'Error', 'Out of memory', 'Bad witness']  # , 'not run']
 
-row_names = ['false', 'unknown', 'true', 't/o', 'error', 'o/m', 'bad witness']  # , 'sink', 'not in violation state']
+col_names_small = ['false', 'unknown', 'true', 'to', 'error', 'om',
+                   'bad witness']  # , 'sink', 'not in violation state']
 
 VALIDATORS = {
 	0: "CPAChecker",
@@ -59,13 +70,19 @@ VALIDATORS = {
 	3: "FShell-witness2test",
 	4: "CWValidator"
 }
-VALIDATORS_LIST = ["CPAChecker",
-                   "Ultimate Automizer",
-                   "CPA-witness2test",
-                   "FShell-witness2test",
-                   "CWValidator"]
+VALIDATORS_ABBR = {
+	0: "CPAChecker",
+	1: "Ult. Auto.",
+	2: "CPA-w2t",
+	3: "FShell-w2t",
+	4: "CWValidator"
+}
+VALIDATORS_LIST = ["CPAChecker", "Ultimate Automizer", "CPA-witness2test", "FShell-witness2test", "CWValidator"]
+VALIDATORS_LIST_ABBR = ["CPAChecker", "Ult. Auto.", "CPA-w2t", "FShell-w2t", "CWValidator"]
 
-CPU_MULTIPLIER = 1.8 / 3.4
+CPU_MULTIPLIER = 2.1 / 3.4
+
+SAVE_FIGURES = False
 
 
 def adjust_to_cpu(time: float) -> float:
@@ -85,7 +102,9 @@ def get_matching(all_results: List, validators: dict, outputmatched: str = None)
 	for w in matched:
 		wit_key = w[1].partition('.json')[0]
 		validators[wit_key]['results'] \
-			.insert(4, dict({'cpu': adjust_to_cpu(w[3]), 'mem': int(w[5] if len(w) > 5 else 0) / 1000, 'tool': 'CWValidator', 'status': w[0]}))  # memory to MB, cpu in secs
+			.insert(4, dict(
+			{'cpu': adjust_to_cpu(w[3]), 'mem': int(w[5] if len(w) > 5 else 0) / 1000, 'tool': VALIDATORS_LIST[4],
+			 'status': w[0]}))  # memory to MB, cpu in secs
 		validators[wit_key]['creator'] = w[4]
 	print(f"I could match {len(matched)} out of {len(all_results)} witnesses")
 	return {k: v for k, v in validators.items() if k in matched_keys}
@@ -98,10 +117,16 @@ def analyze_output_messages(matching: Dict[str, dict]):
 		for w, c in matching.items():
 			data[STATUSES[c['results'][i]['status']], i] += 1
 
-	df = pd.DataFrame(columns=VALIDATORS_LIST, data=data, index=row_names)
-	ax = df.T.sort_values(by=['false']).plot(kind='bar', stacked=True, colormap=ListedColormap(sns.color_palette("colorblind")), figsize=FIGSIZE, rot=0, fontsize=20)
+	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR, data=data, index=col_names)
+	ax = df.T.sort_values(by=col_names[0]).plot(kind='bar', stacked=True,
+	                                            # colormap=ListedColormap(sns.color_palette("colorblind")),
+	                                            # figsize=FIGSIZE,
+	                                            rot=0)
+	ax.legend(loc='lower right')
 
-	ax.get_figure().savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/output_msgs.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
+	if SAVE_FIGURES:
+		ax.get_figure().savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/output_msgs.{FORMAT}', dpi=DPI,
+		                        bbox_inches=BBOX)
 
 
 def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
@@ -120,7 +145,7 @@ def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
 
 def analyze_by_producer(matching: Dict[str, dict]):
 	print(f"Analyze by producer {len(matching)} witnesses")
-	mux = pd.MultiIndex.from_product([VALIDATORS_LIST, ['val', 'nval']])
+	mux = pd.MultiIndex.from_product([VALIDATORS_LIST_ABBR, ['val', 'nval']])
 	df = pd.DataFrame(columns=mux)
 	data = []
 	for i in range(5):
@@ -134,13 +159,15 @@ def analyze_by_producer(matching: Dict[str, dict]):
 		data.append(join_val_non_val(validated, nonvalidated))
 	rows = set(np.asarray(list(map(lambda x: list(x.keys()), data))).flatten())
 	for producer in rows:
-		df.loc[producer] = [float('nan')] * len(VALIDATORS_LIST) * 2
+		df.loc[producer] = [0] * len(VALIDATORS_LIST_ABBR) * 2
 	for i, d in enumerate(data):
 		for k, v in d.items():
-			df.at[k, (VALIDATORS_LIST[i], 'val')] = v[0]
-			df.at[k, (VALIDATORS_LIST[i], 'nval')] = v[1]
+			df.at[k, (VALIDATORS_LIST_ABBR[i], 'val')] = v[0]
+			df.at[k, (VALIDATORS_LIST_ABBR[i], 'nval')] = v[1]
 	df = df.sort_index()
-	df.loc["Total"] = df.sum()
+	df.loc["Total"] = df.sum().astype(int)
+	df['Total'] = df[VALIDATORS_ABBR[4]].sum(axis=1).astype(int)
+
 	print(df.to_latex())
 
 
@@ -172,7 +199,7 @@ def analyze_unique_by_producer(matching: Dict[str, dict], diff_matching: Dict[st
 	print(f"Uniquely validated by *others*, i.e., CWV probably buggy: {len(others_uval)}")
 	print(f"Uniquely validated by *CWValidator*: {len(cwv_uval)}")
 	print(f"Validated by all, i.e. pretty sure these witnesses are correct: {len(all_val)}")
-	print(f"Validated by none, i.e. pretty sure these witnesses are not correct: {len(none_val)}\n")
+	print(f"Validated by none, i.e. pretty sure these witnesses are incorrect or too complex: {len(none_val)}\n")
 
 	if diff_matching is not None:
 		print(f"\nResults for diff:")
@@ -197,54 +224,124 @@ def reject_outliers(data, m=2):
 	return data[abs(data - np.mean(data)) < m * np.std(data)]
 
 
-def analyze_times(matching: Dict[str, dict]):
-	print('='*20 + ' CPU TIME (s) ' + '='*20)
-	fig, axs = plt.subplots(nrows=2, ncols=3, figsize=FIGSIZE)
-	figsc, axsc = plt.subplots(figsize=FIGSIZE)
+def analyze_times(matching: Dict[str, dict], name: str, inclusion_predicate):
+	print('=' * 20 + ' CPU TIME (s) ' + name + '=' * 20)
+	# fig, axs = plt.subplots(nrows=2, ncols=3)
+	figsc, axsc = plt.subplots()
 	# take just the successful ones
 	for i in range(5):
 		times = np.asarray(list(map(lambda x: float(x['results'][i]['cpu']),
-		                            filter(lambda x: STATUSES[x['results'][i]['status']] == 0, matching.values()))))
-		print(f"Validator {VALIDATORS[i]}:")
-		print_stats(times)
-		print("-" * 40)
-		ax = sns.distplot(reject_outliers(times), kde=False, rug=True, ax=axs[i % 2][math.floor(i / 2)], color="green")
-		ax.set_title(VALIDATORS[i])
-		ax.set_xlabel("Time [s]")
-		sns.scatterplot(ax=axsc, y=sorted(times), x=range(len(times)), label=VALIDATORS[i], marker='x')
+		                            filter(lambda x: inclusion_predicate(STATUSES[x['results'][i]['status']]),
+		                                   matching.values()))))
+		# print(f"{VALIDATORS_ABBR[i]}: {get_stats(times)}")
+		# ax = sns.distplot(reject_outliers(times), kde=False, rug=True, ax=axs[i % 2][math.floor(i / 2)], color="green")
+		# ax.set_title(VALIDATORS_ABBR[i])
+		# ax.set_xlabel("Time [s]")
+		sns.lineplot(ax=axsc, y=sorted(times), x=range(len(times)), label=VALIDATORS_ABBR[i])
 
-	fig.delaxes(axs[1, 2])  # The indexing is zero-based here
-	fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/histo_times.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
+	# fig.delaxes(axs[1, 2])  # The indexing is zero-based here
+	# if SAVE_FIGURES:
+	# 	fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/histo_times.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
 	axsc.set_ylabel("Time [s]")
-	axsc.set_xlabel("#Validated Witnesses")
-	figsc.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/scatter_times.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
+	axsc.set_xlabel(f"Number of {name} Witnesses")
+	axsc.set(yscale='log')
+	axsc.grid(True, which='both')
+	# axsc.legend(loc=LEGEND_LOC_RIGHT, bbox_to_anchor=LEGEND_BBOX_ANCHOR, ncol=LEGEND_NCOL)
+	axsc.axhline(90, color='black', lw=1, linestyle='--')
+	# axsc.set_yticks([0, 20, 40, 60, 80, 90, 100])
+
+	if SAVE_FIGURES:
+		figsc.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/scatter_times_{name.lower()}.{FORMAT}', dpi=DPI,
+		              bbox_inches=BBOX)
+
+def get_shared_result(first: int, second: int):
+	if first == second:
+		return col_names[first]
+	else:
+		return 'Do not match'
 
 
-def analyze_memory(matching: Dict[str, dict]):
-	print('='*20 + ' MEMORY (MB) ' + '='*20)
-	figsc, axsc = plt.subplots(figsize=FIGSIZE)
+def compare_times(matching: Dict[str, dict]):
+	fig, axs = plt.subplots(nrows=2, ncols=2)
+	cwv = list(map(lambda x: (float(x['results'][4]['cpu']), int(STATUSES[x['results'][4]['status']])),
+	                            matching.values()))
+	for i in range(4):
+		times = list(map(lambda x: (float(x['results'][i]['cpu']), int(STATUSES[x['results'][i]['status']])),
+		                                   matching.values()))
+		filter_false = filter(lambda tup: tup[0][1] == tup[1][1] and (tup[0][1] == 0 or tup[0][1] == 3), zip(cwv, times))
+		data = list(map(lambda tup: [tup[0][0], tup[1][0], get_shared_result(tup[0][1], tup[1][1])], filter_false))
+		df = pd.DataFrame(data, columns=['x', 'y', 'Result'])
+		ax = sns.scatterplot(x='x', y='y', hue='Result', data=df, ax=axs[i % 2][math.floor(i / 2)])
+		ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c=".3")
+		ax.set_xlabel(f"{VALIDATORS_ABBR[4]} CPU Time [s]")
+		ax.set_ylabel(f"{VALIDATORS_ABBR[i]} CPU Time [s]")
+
+	if SAVE_FIGURES:
+		fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/quantile_times.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
+
+
+def compare_times_hex(matching: Dict[str, dict]):
+	# fig, axs = plt.subplots(nrows=2, ncols=2)
+	cwv = list(map(lambda x: (float(x['results'][4]['cpu']), int(STATUSES[x['results'][4]['status']])),
+	                            matching.values()))
+	for i in range(4):
+		times = list(map(lambda x: (float(x['results'][i]['cpu']), int(STATUSES[x['results'][i]['status']])),
+		                                   matching.values()))
+		filter_false = filter(lambda tup: tup[0][1] == tup[1][1] and (tup[0][1] == 0 or tup[0][1] == 3), zip(cwv, times))
+		data = list(map(lambda tup: [tup[0][0], tup[1][0], get_shared_result(tup[0][1], tup[1][1])], filter_false))
+		df = pd.DataFrame(data, columns=['x', 'y', 'Result'])
+		ax = sns.jointplot(x='x', y='y', data=df, kind='hex', ) #, ax=axs[i % 2][math.floor(i / 2)])
+		ax.set_axis_labels(f"{VALIDATORS_ABBR[4]} CPU Time [s]", f"{VALIDATORS_ABBR[i]} CPU Time [s]")
+		# ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c=".3")
+
+	# if SAVE_FIGURES:
+	# 	fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/quantile_times.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
+
+
+def analyze_memory(matching: Dict[str, dict], name: str, inclusion_predicate):
+	print('=' * 20 + ' MEMORY (MB) ' + name + '=' * 20)
+	figsc, axsc = plt.subplots()
 	# take just the successful ones
 	for i in range(5):
-		times = np.asarray(list(map(lambda x: float(x['results'][i]['mem']),
-		                            filter(lambda x: STATUSES[x['results'][i]['status']] == 0, matching.values()))))
-		print(f"Validator {VALIDATORS[i]}:")
-		print_stats(times)
-		print("-" * 40)
-		sns.scatterplot(ax=axsc, y=sorted(times), x=range(len(times)), label=VALIDATORS[i], marker='x')
+		mems = np.asarray(list(map(lambda x: float(x['results'][i]['mem']),
+		                           filter(lambda x: inclusion_predicate(STATUSES[x['results'][i]['status']]),
+		                                  matching.values()))))
+		# print(f"{VALIDATORS_ABBR[i]}: {get_stats(mems)}")
+		sns.lineplot(ax=axsc, y=sorted(mems), x=range(len(mems)), label=VALIDATORS_ABBR[i])
 
 	axsc.set_ylabel("Memory [MB]")
-	axsc.set_xlabel("#Validated Witnesses")
-	figsc.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/scatter_memory.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
+	axsc.set_xlabel(f"Number of {name} Witnesses")
+	axsc.set(yscale='log')
+	axsc.grid(True, which='both')
+	# axsc.legend(loc='upper left', bbox_to_anchor=(0.02, 0.9))
+	axsc.axhline(7000, color='black', lw=1, linestyle='--')
+	axsc.set_yticks([10, 100, 1000, 7000])
+	if SAVE_FIGURES:
+		figsc.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/scatter_memory_{name.lower()}.{FORMAT}', dpi=DPI,
+		              bbox_inches=BBOX)
 
 
-def print_stats(times):
-	print(f"Mean: {np.mean(times)}")
-	print(f"Median: {np.median(times)}")
-	print(f"Std dev: {np.std(times)}")
-	print(f"In total: {np.sum(times)}")
+def get_stats(times) -> str:
+	return f"Mean: {np.mean(times)} Median: {np.median(times)} Std dev: {np.std(times)} In total: {np.sum(times)}"
+
+
+def output_val_data(matching: Dict[str, dict]):
+	data = []
+	for w in matching.values():
+		# for i in range(len(VALIDATORS_LIST_ABBR)):
+		data.append(list(map(lambda i: STATUSES[w['results'][i]['status']], range(len(VALIDATORS_LIST_ABBR)))))
+
+	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR, data=data, dtype=int)
+	print(f"Validated at least once: {len(df[(df == 0).sum(1) > 0])}"
+	      f"  Once: {len(df[(df == 0).sum(1) == 1])},"
+	      f"  Twice: {len(df[(df == 0).sum(1) == 2])},"
+	      f"  Thrice: {len(df[(df == 0).sum(1) == 3])},"
+	      f"  4 times: {len(df[(df == 0).sum(1) == 4])},"
+	      f"  5 times: {len(df[(df == 0).sum(1) == 5])}")
 
 
 def main():
+	global SAVE_FIGURES
 	parser = argparse.ArgumentParser(description="Analyzes results of CWValidator and SV-COMP validators")
 	parser.add_argument("-v", "--validators", required=True, type=str,
 	                    help="The JSON file with results about SV-COMP validator runs.")
@@ -254,8 +351,11 @@ def main():
 	                    help="File where to write the matched files config.")
 	parser.add_argument("-df", "--diff", required=False, type=str,
 	                    help="Directory with other results to compare.")
-
+	parser.add_argument("-s", "--save", required=False, default=False, action='store_true',
+	                    help="Save figures into thesis directory.")
+	parser.add_argument("-g", "--graph", required=False, default=False, action='store_true', help="Show graphs.")
 	args = parser.parse_args()
+	SAVE_FIGURES = args.save
 
 	results = load_result_files(args.results)
 	val, nval, bpar = results
@@ -266,27 +366,25 @@ def main():
 		return 1
 
 	matching = get_matching(all, validators['byWitnessHash'], args.outputmatched)
-	diff_matching = None
-	if args.diff is not None:
-		diff_results = load_result_files(args.diff)
-		dfval, dfnval, dfbpar = diff_results
-		diff_all = dfval + dfnval + dfbpar
-		diff_validators = load_validators_result_file(args.validators)
-		diff_matching = get_matching(diff_all, diff_validators['byWitnessHash'], args.outputmatched)
+
+	if args.outputmatched:
+		output_val_data(matching)
 
 	######### ANALYSES ###########
-
-	analyze_output_messages(matching)
-
-	analyze_by_producer(matching)
-
-	analyze_times(matching)
-
-	analyze_memory(matching)
-
-	analyze_unique_by_producer(matching, diff_matching)
-
-	plt.show()
+	# analyze_output_messages(matching)
+	# analyze_by_producer(matching)
+	# analyze_unique_by_producer(matching, diff_matching)
+	# for i in (0, 1, 2):
+	# 	analyze_times(matching, col_names[i], lambda x: x == i)
+	# 	analyze_memory(matching, col_names[i], lambda x: x == i)
+	# analyze_times(matching, 'Other', lambda x: x > 2)
+	# analyze_memory(matching, 'Other', lambda x: x > 2)
+	# analyze_times(matching, 'All', lambda x: True)
+	# analyze_memory(matching, 'All', lambda x: True)
+	compare_times_hex(matching)
+	compare_times(matching)
+	if args.graph:
+		plt.show()
 
 
 if __name__ == "__main__":
