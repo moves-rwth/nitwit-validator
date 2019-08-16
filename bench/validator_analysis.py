@@ -15,6 +15,7 @@ sns.set()
 sns.set(font_scale=2)
 sns.set_palette("colorblind")
 sns.set_context("paper")  # talk/paper
+sns.set_style('whitegrid')
 # FIGSIZE = (20, 11.25)
 # FONTSIZE = 26
 DPI = 300
@@ -76,6 +77,13 @@ VALIDATORS_ABBR = {
 	2: "CPA-w2t",
 	3: "FShell-w2t",
 	4: "CWValidator"
+}
+VALIDATORS_FILES = {
+	0: "cpachecker",
+	1: "ua",
+	2: "cpaw2t",
+	3: "fsw2t",
+	4: "cwv"
 }
 VALIDATORS_LIST = ["CPAChecker", "Ultimate Automizer", "CPA-witness2test", "FShell-witness2test", "CWValidator"]
 VALIDATORS_LIST_ABBR = ["CPAChecker", "Ult. Auto.", "CPA-w2t", "FShell-w2t", "CWValidator"]
@@ -254,49 +262,6 @@ def analyze_times(matching: Dict[str, dict], name: str, inclusion_predicate):
 		figsc.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/scatter_times_{name.lower()}.{FORMAT}', dpi=DPI,
 		              bbox_inches=BBOX)
 
-def get_shared_result(first: int, second: int):
-	if first == second:
-		return col_names[first]
-	else:
-		return 'Do not match'
-
-
-def compare_times(matching: Dict[str, dict]):
-	fig, axs = plt.subplots(nrows=2, ncols=2)
-	cwv = list(map(lambda x: (float(x['results'][4]['cpu']), int(STATUSES[x['results'][4]['status']])),
-	                            matching.values()))
-	for i in range(4):
-		times = list(map(lambda x: (float(x['results'][i]['cpu']), int(STATUSES[x['results'][i]['status']])),
-		                                   matching.values()))
-		filter_false = filter(lambda tup: tup[0][1] == tup[1][1] and (tup[0][1] == 0 or tup[0][1] == 3), zip(cwv, times))
-		data = list(map(lambda tup: [tup[0][0], tup[1][0], get_shared_result(tup[0][1], tup[1][1])], filter_false))
-		df = pd.DataFrame(data, columns=['x', 'y', 'Result'])
-		ax = sns.scatterplot(x='x', y='y', hue='Result', data=df, ax=axs[i % 2][math.floor(i / 2)])
-		ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c=".3")
-		ax.set_xlabel(f"{VALIDATORS_ABBR[4]} CPU Time [s]")
-		ax.set_ylabel(f"{VALIDATORS_ABBR[i]} CPU Time [s]")
-
-	if SAVE_FIGURES:
-		fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/quantile_times.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
-
-
-def compare_times_hex(matching: Dict[str, dict]):
-	# fig, axs = plt.subplots(nrows=2, ncols=2)
-	cwv = list(map(lambda x: (float(x['results'][4]['cpu']), int(STATUSES[x['results'][4]['status']])),
-	                            matching.values()))
-	for i in range(4):
-		times = list(map(lambda x: (float(x['results'][i]['cpu']), int(STATUSES[x['results'][i]['status']])),
-		                                   matching.values()))
-		filter_false = filter(lambda tup: tup[0][1] == tup[1][1] and (tup[0][1] == 0 or tup[0][1] == 3), zip(cwv, times))
-		data = list(map(lambda tup: [tup[0][0], tup[1][0], get_shared_result(tup[0][1], tup[1][1])], filter_false))
-		df = pd.DataFrame(data, columns=['x', 'y', 'Result'])
-		ax = sns.jointplot(x='x', y='y', data=df, kind='hex', ) #, ax=axs[i % 2][math.floor(i / 2)])
-		ax.set_axis_labels(f"{VALIDATORS_ABBR[4]} CPU Time [s]", f"{VALIDATORS_ABBR[i]} CPU Time [s]")
-		# ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c=".3")
-
-	# if SAVE_FIGURES:
-	# 	fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/quantile_times.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
-
 
 def analyze_memory(matching: Dict[str, dict], name: str, inclusion_predicate):
 	print('=' * 20 + ' MEMORY (MB) ' + name + '=' * 20)
@@ -319,6 +284,82 @@ def analyze_memory(matching: Dict[str, dict], name: str, inclusion_predicate):
 	if SAVE_FIGURES:
 		figsc.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/scatter_memory_{name.lower()}.{FORMAT}', dpi=DPI,
 		              bbox_inches=BBOX)
+
+
+def get_shared_result(first: int, second: int):
+	res = ''
+	if first == 0:
+		res = f"{col_names[first]} (X)"
+	elif second == 0:
+		res = f"{col_names[second]} (Y)"
+	else:
+		res = 'Other'
+	if first == second == 0:
+		res = col_names[first]
+	return res
+
+
+res_labels = ['to', 'uk', 'tu', 'er', 'om', 'bw']
+
+
+def get_index_in_res_labels(return_code: int) -> int:
+	if return_code == 3:
+		return 0
+	elif return_code < 3:
+		return return_code
+	else:
+		return return_code - 1
+
+
+def adjust_to_scatter(tup: tuple):
+	time1 = tup[0][0]
+	time2 = tup[1][0]
+	if tup[0][1] != 0:
+		time1 = 90 + get_index_in_res_labels(tup[0][1]) * 4
+
+	if tup[1][1] != 0:
+		time2 = 90 + get_index_in_res_labels(tup[1][1]) * 4
+
+	return [[time1, tup[0][1]], [time2, tup[1][1]]]
+
+
+def compare_times(matching: Dict[str, dict]):
+	cwv = list(map(lambda x: (float(x['results'][4]['cpu']), int(STATUSES[x['results'][4]['status']])),
+	               matching.values()))
+	for i in range(4):
+		fig, ax = plt.subplots()
+		times = list(map(lambda x: (float(x['results'][i]['cpu']), int(STATUSES[x['results'][i]['status']])),
+		                 matching.values()))
+		# filter_false = filter(lambda tup: tup[0][1] == 0 or tup[1][1] == 0, zip(cwv, times))
+		put_on_level = map(adjust_to_scatter, zip(cwv, times))
+		data = list(map(lambda tup: [tup[0][0], tup[1][0], get_shared_result(tup[0][1], tup[1][1])], put_on_level))
+		df = pd.DataFrame(data, columns=['x', 'y', 'Result'])
+		df = df.sort_values(by='Result')
+		ax = sns.scatterplot(x='x', y='y', hue='Result', data=df, ax=ax, marker='x')
+
+		for j, label in enumerate(res_labels):
+			ax.axhline(90 + j * 4, color='black', lw=0.5, linestyle='--')
+			ax.axvline(90 + j * 4, color='black', lw=0.5, linestyle='--')
+			ax.annotate(label, xy=(115, 90 + j * 4), xycoords='data', xytext=(5, -5), textcoords='offset points', )
+		x_offsets = [-6, -7, -5, -5, -6, -3]
+		for j, label in enumerate(res_labels):
+			ax.annotate(label, xy=(90 + j * 4, 115), xycoords='data', xytext=(x_offsets[j], 5 + (j % 2) * 5), textcoords='offset points', )
+		# ax.annotate(res_labels[5], xy=(90 + 5 * 4, 115), xycoords='data', xytext=(0, 5),
+		#             textcoords='offset points', )  # so that the labels fit nicely
+
+		# ax.axhline(0, color='black', lw=1, linestyle='-')
+		# ax.axvline(0, color='black', lw=1, linestyle='-')
+		ax.plot((0, 90), (0, 90), ls="-", c=".3")
+		ax.plot((0, 81), (9, 90), ls="-", c=".3", lw=0.5)
+		ax.plot((9, 90), (0, 81), ls="-", c=".3", lw=0.5)
+		ax.set_xlabel(f"{VALIDATORS_ABBR[4]} CPU time [s]")
+		ax.set_ylabel(f"{VALIDATORS_ABBR[i]} CPU time [s]")
+		ax.set_yticks([0, 20, 40, 60, 80, 90])
+		ax.set_xticks([0, 20, 40, 60, 80, 90])
+
+		if SAVE_FIGURES:
+			fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/quantile_times_{VALIDATORS_FILES[i]}.{FORMAT}',
+			            dpi=DPI, bbox_inches=BBOX)
 
 
 def get_stats(times) -> str:
@@ -381,7 +422,6 @@ def main():
 	# analyze_memory(matching, 'Other', lambda x: x > 2)
 	# analyze_times(matching, 'All', lambda x: True)
 	# analyze_memory(matching, 'All', lambda x: True)
-	compare_times_hex(matching)
 	compare_times(matching)
 	if args.graph:
 		plt.show()
