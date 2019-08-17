@@ -6,6 +6,8 @@ from matplotlib.colors import ListedColormap
 
 plt.rcParams.update({'font.size': 36})
 import numpy as np
+from scipy.stats import wilcoxon
+from scipy.stats import ttest_ind
 import pandas as pd
 import seaborn as sns
 
@@ -330,9 +332,9 @@ def compare_times(matching: Dict[str, dict]):
 		fig, ax = plt.subplots()
 		times = list(map(lambda x: (float(x['results'][i]['cpu']), int(STATUSES[x['results'][i]['status']])),
 		                 matching.values()))
-		# filter_false = filter(lambda tup: tup[0][1] == 0 or tup[1][1] == 0, zip(cwv, times))
 		put_on_level = map(adjust_to_scatter, zip(cwv, times))
-		data = list(map(lambda tup: [tup[0][0], tup[1][0], get_shared_result(tup[0][1], tup[1][1])], put_on_level))
+		data_map = lambda tup: [tup[0][0], tup[1][0], get_shared_result(tup[0][1], tup[1][1])]
+		data = list(map(data_map, put_on_level))
 		df = pd.DataFrame(data, columns=['x', 'y', 'Result'])
 		df = df.sort_values(by='Result')
 		ax = sns.scatterplot(x='x', y='y', hue='Result', data=df, ax=ax, marker='x')
@@ -343,19 +345,29 @@ def compare_times(matching: Dict[str, dict]):
 			ax.annotate(label, xy=(115, 90 + j * 4), xycoords='data', xytext=(5, -5), textcoords='offset points', )
 		x_offsets = [-6, -7, -5, -5, -6, -3]
 		for j, label in enumerate(res_labels):
-			ax.annotate(label, xy=(90 + j * 4, 115), xycoords='data', xytext=(x_offsets[j], 5 + (j % 2) * 5), textcoords='offset points', )
-		# ax.annotate(res_labels[5], xy=(90 + 5 * 4, 115), xycoords='data', xytext=(0, 5),
-		#             textcoords='offset points', )  # so that the labels fit nicely
+			ax.annotate(label, xy=(90 + j * 4, 115), xycoords='data', xytext=(x_offsets[j], 5 + (j % 2) * 5),
+			            textcoords='offset points', )
 
-		# ax.axhline(0, color='black', lw=1, linestyle='-')
-		# ax.axvline(0, color='black', lw=1, linestyle='-')
 		ax.plot((0, 90), (0, 90), ls="-", c=".3")
-		ax.plot((0, 81), (9, 90), ls="-", c=".3", lw=0.5)
-		ax.plot((9, 90), (0, 81), ls="-", c=".3", lw=0.5)
+		ax.plot((0, 81), (0, 90), ls="-", c=".3", lw=0.5)
+		ax.plot((0, 90), (0, 81), ls="-", c=".3", lw=0.5)
 		ax.set_xlabel(f"{VALIDATORS_ABBR[4]} CPU time [s]")
 		ax.set_ylabel(f"{VALIDATORS_ABBR[i]} CPU time [s]")
 		ax.set_yticks([0, 20, 40, 60, 80, 90])
 		ax.set_xticks([0, 20, 40, 60, 80, 90])
+
+		df_all_no_adjust = pd.DataFrame(list(map(data_map, zip(cwv, times))), columns=['x', 'y', 'Result'])
+		one_or_both_false = df_all_no_adjust[df_all_no_adjust['Result'] != 'Other']
+		both_false = df_all_no_adjust[df_all_no_adjust['Result'] == 'False']
+		df_diffs = (one_or_both_false['x'] - one_or_both_false['y'])
+		df_diffs_both = (both_false['x'] - both_false['y'])
+		df_diffs_all = df_all_no_adjust['x'] - df_all_no_adjust['y']
+		o_w, o_p = wilcoxon(df_diffs, alternative='less')
+		b_w, b_p = wilcoxon(df_diffs_both, alternative='less')
+		a_w, a_p = wilcoxon(df_diffs_all, alternative='less')
+		print(
+			f"Similar results (+-1 s) with {VALIDATORS_ABBR[i]}: {df_diffs.apply(lambda x: -1 < x and x < 1).sum()}.\n\t"
+			f"Significance (Wilcoxon-median negative) of difference:\t(all results) {a_w, a_p}\t(>= one False) {o_w, o_p}\t(both False) {b_w, b_p}")
 
 		if SAVE_FIGURES:
 			fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/quantile_times_{VALIDATORS_FILES[i]}.{FORMAT}',
