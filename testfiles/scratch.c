@@ -7,16 +7,38 @@ float __VERIFIER_nondet_float(void){return 27;}
 void __VERIFIER_assume(int expression){printf("Assume %d\n", expression);}
 void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: __VERIFIER_error(); } return; }
 
-void init (int x[3]) {
-    x[0] = 1;
-    x[1] = 2;
-    x[2] = 3;
+struct bf {
+    int a: 1;
+    int b: 2;
+    int c: 3;
+    int d : 4, e: 4;
 };
-
 
 int main ()
 {
-    int x[3];
-    init(x);
-    printf("%d, %d, %d\n", x[0], x[1], x[2]);
+    struct bf s;
+    struct bf s2;
+    s.a = 9;
+    s.b = 9;
+    s.c = 9;
+    s.d = 9;
+    s.e = 9;
+    printf("%d, %d, %d, %d, %d\n", s.a, s.b, s.c, s.d, s.e);
+    s.a += 1;
+    s.b += 1;
+    s.c += 1;
+    s.d += 1;
+    s.e += 1;
+    printf("%d, %d, %d, %d, %d\n", s.a, s.b, s.c, s.d, s.e);
+    s.a += -2;
+    s.b += -2;
+    s.c += -2;
+    s.d += -2;
+    s.e += -2;
+    printf("%d, %d, %d, %d, %d\n", s.a, s.b, s.c, s.d, s.e);
+    s2 = s;
+    printf("%d, %d, %d, %d, %d\n", s2.a, s2.b, s2.c, s2.d, s2.e);
+    if (s.a + s.b == 0){
+        __VERIFIER_error();
+    }
 }

@@ -32,13 +32,15 @@ def main():
 	parser.add_argument("-c", "--code", required=False, type=int, help="Output code for the result.")
 	parser.add_argument("-m", "--match", required=False, type=str, help="Regex for matching the error output.")
 	parser.add_argument("-p", "--producer", required=False, type=str, help="Regex for matching the producer.")
-	parser.add_argument("-prp", "--property", required=False, type=str,	                    help="Regex for matching the property in program file.")
-	parser.add_argument("-exprp", "--excludeproperty", required=False, type=str,	                    help="Regex for not-matching the property in program file.")
+	parser.add_argument("-prp", "--property", required=False, type=str,
+	                    help="Regex for matching the property in program file.")
+	parser.add_argument("-exprp", "--excludeproperty", required=False, type=str,
+	                    help="Regex for not-matching the property in program file.")
 
 	args = parser.parse_args()
-	results = load_result_file(args.results)
+	f, nv, bv = load_result_files(args.results)
+	results = f + nv + bv
 	filtered = results_filter(results, args.code, args.match, args.producer, args.property, args.excludeproperty)
-	# print(f"Found {len(filtered)} results.")
 	print(json.dumps(filtered))
 
 

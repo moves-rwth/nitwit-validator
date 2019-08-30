@@ -124,6 +124,7 @@ VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, in
     NewValue->VarIdentifier = VarIdentifier;
     NewValue->ConstQualifier = FALSE;
     NewValue->ShadowedVal = nullptr;
+    NewValue->BitField = 0;
     return NewValue;
 }
 
@@ -172,6 +173,7 @@ VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *
     NewValue->VarIdentifier = VarIdentifier;
     NewValue->ConstQualifier = LValueFrom == nullptr ? FALSE : LValueFrom->ConstQualifier;
     NewValue->ShadowedVal = LValueFrom == nullptr ? FALSE : LValueFrom->ShadowedVal;
+    NewValue->BitField = LValueFrom == nullptr ? 0 : LValueFrom->BitField;
 
     return NewValue;
 }

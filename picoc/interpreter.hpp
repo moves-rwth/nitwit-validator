@@ -326,7 +326,9 @@ struct Value
     Value * ShadowedVal;             /* value that has been shadowed by it */
     char * VarIdentifier;           /* keeps track of the name of the variable this value belongs to */
     char ConstQualifier;            /* true if it's a const */
-    int * dummy; // fixme : the MEM_ALIGN macro probably does not work, or I dont know... anyway - Values have to
+    int BitField;                  /* either 0 for nonbitfields or the length of the value */
+
+//    int * dummy; // fixme : the MEM_ALIGN macro probably does not work, or I dont know... anyway - Values have to
                 // fixme:   to be aligned so that the sizeof(Value) is divisible by ALIGN_TYPE macro
 };
 

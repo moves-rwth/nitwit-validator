@@ -291,8 +291,8 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     enum LexToken Token;
     int AlignBoundary;
     Picoc *pc = Parser->pc;
-    
-    Token = LexGetToken(Parser, &LexValue, FALSE);
+
+    Token = LexGetToken(Parser, &LexValue, FALSE); // get name of struct
     if (Token == TokenIdentifier)
     {
         LexGetToken(Parser, &LexValue, TRUE);
@@ -304,10 +304,10 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
         static char TempNameBuf[7] = "^s0000";
         StructIdentifier = PlatformMakeTempName(pc, TempNameBuf);
     }
-
+    // create or fetch struct/union Type in PicoC type system
     *Typ = TypeGetMatching(pc, Parser, &Parser->pc->UberType, IsStruct ? TypeStruct : TypeUnion, 0, StructIdentifier,
                            TRUE, nullptr);
-    if (Token == TokenLeftBrace && (*Typ)->Members != nullptr){
+    if (Token == TokenLeftBrace && (*Typ)->Members != nullptr){ // consume the definition if struct already defined
         fprintf(stderr, "Warning: data type '%s' is already defined. Will skip this.", StructIdentifier);
         while (LexGetToken(Parser, nullptr, FALSE) != TokenRightBrace)
             LexGetToken(Parser, nullptr, TRUE);
@@ -327,7 +327,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     
     if (pc->TopStackFrame != nullptr)
         ProgramFail(Parser, "struct/union definitions can only be globals");
-        
+    // allocate structs member table
     LexGetToken(Parser, nullptr, TRUE);
     (*Typ)->Members = static_cast<Table *>(VariableAlloc(pc, Parser, sizeof(struct Table) +
                                                                      STRUCT_TABLE_SIZE * sizeof(struct TableEntry),
@@ -335,11 +335,13 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     (*Typ)->Members->HashTable = (struct TableEntry **)((char *)(*Typ)->Members + sizeof(struct Table));
     TableInitTable((*Typ)->Members, (struct TableEntry **)((char *)(*Typ)->Members + sizeof(struct Table)), STRUCT_TABLE_SIZE, TRUE);
 
+    // do the parsing of members
     int IsConst;
     char ParseOnlyIdent = FALSE;
+    char IsBitField = FALSE;
     ValueType* BasicType = nullptr;
     do {
-        if (ParseOnlyIdent){
+        if (ParseOnlyIdent){ // continue with the same type
             TypeParseIdentPart(Parser, BasicType, &MemberType, &MemberIdentifier, &IsConst);
             ParseOnlyIdent = FALSE;
         } else {
@@ -379,11 +381,28 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
             ProgramFail(Parser, "member '%s' already defined", &MemberIdentifier);
 
         LexToken NextToken = LexGetToken(Parser, nullptr, TRUE);
+        if (NextToken == TokenColon) { // it is a bit field!
+            IsBitField = TRUE;
+            Value * bitlen = nullptr; // get bit field length from constant
+            LexGetToken(Parser, &bitlen, TRUE); // number
+            if (IS_INTEGER_NUMERIC_TYPE(bitlen->Typ)){
+                long length = CoerceInteger(bitlen);
+                if (length < 0 || 8 * MemberValue->Typ->Sizeof < length){
+                    ProgramFail(Parser, "wrong size n: n > 0 and n <= sizeof");
+                }
+                MemberValue->BitField = length;
+            } else {
+                ProgramFail(Parser, "positive integer expected");
+            }
+            NextToken = LexGetToken(Parser, nullptr, TRUE); // semicolon
+        }
         if (NextToken == TokenComma){
             ParseOnlyIdent = TRUE;
-        } else if (NextToken != TokenSemicolon)
+        } else if (NextToken != TokenSemicolon){
             ProgramFail(Parser, "semicolon expected");
-                    
+        }
+
+
     } while (LexGetToken(Parser, nullptr, FALSE) != TokenRightBrace);
     
     /* now align the structure to the size of its largest member's alignment */

@@ -351,6 +351,7 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
                 break;
         }
     }
+
     switch (DestValue->Typ->Base)
     {
         case TypeInt:              DestValue->Val->Integer = CoerceInteger(SourceValue); break;
@@ -456,6 +457,12 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
         default:
             AssignFail(Parser, "%t", DestValue->Typ, nullptr, 0, 0, FuncName, ParamNo);
             break;
+    }
+
+    if (DestValue->BitField > 0){
+        unsigned typebits = DestValue->Typ->Sizeof * 8;
+        Result = ~(-1 & 1 << typebits) & Result;
+        printf("BF op\n");
     }
 }
 
