@@ -349,8 +349,8 @@ def compare_times(matching: Dict[str, dict]):
 			            textcoords='offset points', )
 
 		ax.plot((0, 90), (0, 90), ls="-", c=".3")
-		ax.plot((0, 81), (0, 90), ls="-", c=".3", lw=0.5)
-		ax.plot((0, 90), (0, 81), ls="-", c=".3", lw=0.5)
+		ax.plot((0, 63), (0, 90), ls="-", c=".3", lw=0.5)
+		ax.plot((0, 90), (0, 63), ls="-", c=".3", lw=0.5)
 		ax.set_xlabel(f"{VALIDATORS_ABBR[4]} CPU time [s]")
 		ax.set_ylabel(f"{VALIDATORS_ABBR[i]} CPU time [s]")
 		ax.set_yticks([0, 20, 40, 60, 80, 90])
@@ -366,7 +366,7 @@ def compare_times(matching: Dict[str, dict]):
 		b_w, b_p = wilcoxon(df_diffs_both, alternative='less')
 		a_w, a_p = wilcoxon(df_diffs_all, alternative='less')
 		print(
-			f"Similar results (+-1 s) with {VALIDATORS_ABBR[i]}: {df_diffs.apply(lambda x: -1 < x and x < 1).sum()}.\n\t"
+			f"Similar validations (+-1 s) with {VALIDATORS_ABBR[i]}: {df_diffs_both.apply(lambda x: -1 < x and x < 1).sum()}.\n\t"
 			f"Significance (Wilcoxon-median negative) of difference:\t(all results) {a_w, a_p}\t(>= one False) {o_w, o_p}\t(both False) {b_w, b_p}")
 
 		if SAVE_FIGURES:
