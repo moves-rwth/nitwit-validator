@@ -4,7 +4,7 @@
 
 if [[ -d $1 ]]
 then
-    cd $1 && make
+    cd $1 && make || exit 1
     cd ..
 else
     echo "Error: build path non-existent"
