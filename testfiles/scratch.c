@@ -14,6 +14,10 @@ struct bf {
     int d : 4, e: 4;
 };
 
+typedef struct node {
+    struct node* next;
+} *SLL;
+
 int main ()
 {
     struct bf s;
@@ -40,5 +44,9 @@ int main ()
     printf("%d, %d, %d, %d, %d\n", s2.a, s2.b, s2.c, s2.d, s2.e);
     if (s.a + s.b == 0){
         __VERIFIER_error();
+    }
+    SLL n = 0;
+    while (n){
+
     }
 }
