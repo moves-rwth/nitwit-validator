@@ -1,5 +1,25 @@
 #include "interpreter.hpp"
 
+void AdjustBitField(struct ParseState* Parser, struct Value *Val) {
+    if (Val->BitField > 0){
+        unsigned bits = Val->BitField;
+        long long mask = (1 << bits) - 1;
+        switch (Val->Typ->Base) {
+            case TypeLongLong:
+//                if (Val->Val->LongLongInteger % (1 << bits) == Val->Val->LongLongInteger){
+//                }
+                Val->Val->LongLongInteger %= 1 << bits;
+                if ((1 << (bits-1)) & Val->Val->LongLongInteger)
+                    Val->Val->LongLongInteger = -(((mask & (~Val->Val->LongLongInteger + 1)) % (1 << bits)));
+                break;
+            case TypeUnsignedLongLong:
+                Val->Val->UnsignedLongLongInteger %= 1 << bits; break;
+            default:
+                ProgramFail(Parser, "other than integral types can't be bit fields");
+        }
+    }
+}
+
 long CoerceInteger(struct Value *Val)
 {
     switch (Val->Typ->Base)
@@ -21,6 +41,7 @@ long CoerceInteger(struct Value *Val)
 #endif
         default:                  return 0;
     }
+
 }
 
 unsigned long CoerceUnsignedInteger(struct Value *Val)
@@ -41,7 +62,6 @@ unsigned long CoerceUnsignedInteger(struct Value *Val)
 #ifndef NO_FP
         case TypeDouble:          return (unsigned long)Val->Val->Double;
         case TypeFloat:           return (unsigned long)Val->Val->Float;
-
 #endif
         default:                  return 0;
     }
@@ -51,48 +71,62 @@ unsigned long CoerceUnsignedInteger(struct Value *Val)
 
 long long CoerceLongLong(Value *Val)
 {
+    long long Result;
     switch (Val->Typ->Base)
     {
-        case TypeInt:             return Val->Val->Integer;
-        case TypeChar:            return Val->Val->Character;
-        case TypeShort:           return Val->Val->ShortInteger;
-        case TypeLong:            return Val->Val->LongInteger;
-        case TypeLongLong:        return Val->Val->LongLongInteger;
-        case TypeUnsignedInt:     return Val->Val->UnsignedInteger;
-        case TypeUnsignedChar:    return Val->Val->UnsignedCharacter;
-        case TypeUnsignedShort:   return Val->Val->UnsignedShortInteger;
-        case TypeUnsignedLong:    return Val->Val->UnsignedLongInteger;
-        case TypeUnsignedLongLong:return (long long)Val->Val->UnsignedLongLongInteger;
-        case TypePointer:         return (long) Val->Val->Pointer;
+        case TypeInt:             Result = Val->Val->Integer; break;
+        case TypeChar:            Result = Val->Val->Character; break;
+        case TypeShort:           Result = Val->Val->ShortInteger; break;
+        case TypeLong:            Result = Val->Val->LongInteger; break;
+        case TypeLongLong:        Result = Val->Val->LongLongInteger; break;
+        case TypeUnsignedInt:     Result = Val->Val->UnsignedInteger; break;
+        case TypeUnsignedChar:    Result = Val->Val->UnsignedCharacter; break;
+        case TypeUnsignedShort:   Result = Val->Val->UnsignedShortInteger; break;
+        case TypeUnsignedLong:    Result = Val->Val->UnsignedLongInteger; break;
+        case TypeUnsignedLongLong:Result = (long long)Val->Val->UnsignedLongLongInteger; break;
+        case TypePointer:         Result = (long) Val->Val->Pointer; break;
 #ifndef NO_FP
-        case TypeDouble:          return (long long)Val->Val->Double;
-        case TypeFloat:           return (long long)Val->Val->Float;
+        case TypeDouble:          Result = (long long)Val->Val->Double; break;
+        case TypeFloat:           Result = (long long)Val->Val->Float; break;
 #endif
-        default:                  return Val->Val->LongLongInteger;
+        default:                  Result = Val->Val->LongLongInteger; break;
     }
+//    int bits = Val->BitField;
+//    if (bits > 0 && !IS_UNSIGNED(Val) && (1 << (bits-1)) & Val->Val->LongLongInteger){
+//        long long mask = (1 << bits) - 1;
+//        Result = -(~(mask & Result) + 1);
+//    }
+    return Result;
 }
 
 unsigned long long CoerceUnsignedLongLong(Value *Val)
 {
+    unsigned long long Result;
     switch (Val->Typ->Base)
     {
-        case TypeInt:             return (unsigned long)Val->Val->Integer;
-        case TypeChar:            return (unsigned long)Val->Val->Character;
-        case TypeShort:           return (unsigned long)Val->Val->ShortInteger;
-        case TypeLong:            return (unsigned long)Val->Val->LongInteger;
-        case TypeLongLong:        return Val->Val->LongLongInteger;
-        case TypeUnsignedInt:     return Val->Val->UnsignedInteger;
-        case TypeUnsignedShort:   return Val->Val->UnsignedShortInteger;
-        case TypeUnsignedLong:    return Val->Val->UnsignedLongInteger;
-        case TypeUnsignedLongLong:return Val->Val->UnsignedLongLongInteger;
-        case TypeUnsignedChar:    return Val->Val->UnsignedCharacter;
-        case TypePointer:         return (unsigned long) Val->Val->Pointer;
+        case TypeInt:             Result = (unsigned long)Val->Val->Integer; break;
+        case TypeChar:            Result = (unsigned long)Val->Val->Character; break;
+        case TypeShort:           Result = (unsigned long)Val->Val->ShortInteger; break;
+        case TypeLong:            Result = (unsigned long)Val->Val->LongInteger; break;
+        case TypeLongLong:        Result = Val->Val->LongLongInteger; break;
+        case TypeUnsignedInt:     Result = Val->Val->UnsignedInteger; break;
+        case TypeUnsignedShort:   Result = Val->Val->UnsignedShortInteger; break;
+        case TypeUnsignedLong:    Result = Val->Val->UnsignedLongInteger; break;
+        case TypeUnsignedLongLong:Result = Val->Val->UnsignedLongLongInteger; break;
+        case TypeUnsignedChar:    Result = Val->Val->UnsignedCharacter; break;
+        case TypePointer:         Result = (unsigned long) Val->Val->Pointer; break;
 #ifndef NO_FP
-        case TypeDouble:          return (unsigned long long)Val->Val->Double;
-        case TypeFloat:           return (unsigned long long)Val->Val->Float;
+        case TypeDouble:          Result = (unsigned long long)Val->Val->Double; break;
+        case TypeFloat:           Result = (unsigned long long)Val->Val->Float; break;
 #endif
-        default:                  return Val->Val->UnsignedLongLongInteger;
+        default:                  Result = Val->Val->UnsignedLongLongInteger; break;
     }
+//    int bits = Val->BitField;
+//    if (bits > 0 && !IS_UNSIGNED(Val) && (1 << (bits-1)) & Val->Val->LongLongInteger){
+//        long long mask = (1 << bits) - 1;
+//        Result = -(~(mask & Result) + 1);
+//    }
+    return Result;
 }
 
 #ifndef NO_FP
@@ -209,6 +243,7 @@ long AssignInt(struct ParseState *Parser, struct Value *DestValue, long FromInt,
         case TypeUnsignedLongLong:      DestValue->Val->UnsignedLongLongInteger = (unsigned long long)FromInt; break;
         default: break;
     }
+    AdjustBitField(Parser, DestValue);
     return Result;
 }
 
@@ -244,6 +279,7 @@ long long AssignLongLong(struct ParseState *Parser, Value *DestValue, long long 
         case TypeUnsignedChar:  DestValue->Val->UnsignedCharacter = (unsigned char)FromInt; break;
         default: break;
     }
+    AdjustBitField(Parser, DestValue);
     return Result;
 }
 

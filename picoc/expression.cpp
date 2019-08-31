@@ -459,11 +459,7 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
             break;
     }
 
-//    if (DestValue->BitField > 0){
-//        unsigned typebits = DestValue->Typ->Sizeof * 8;
-//        Result = ~(-1 & 1 << typebits) & Result;
-//        printf("BF op\n");
-//    }
+    AdjustBitField(Parser, DestValue);
 }
 
 /* evaluate the first half of a ternary operator x ? y : z */
@@ -1314,7 +1310,7 @@ void ExpressionGetStructElement(struct ParseState *Parser, struct ExpressionStac
         Result = VariableAllocValueFromExistingData(Parser, MemberValue->Typ,
                                                     (AnyValue *) (DerefDataLoc + MemberValue->Val->Integer), TRUE,
                                                     (StructVal != nullptr) ? StructVal->LValueFrom : nullptr, nullptr);
-
+        Result->BitField = MemberValue->BitField;                                                                        
         Result->ConstQualifier = MemberValue->ConstQualifier;
         ExpressionStackPushValueNode(Parser, StackTop, Result);
     }

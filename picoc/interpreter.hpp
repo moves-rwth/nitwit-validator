@@ -611,6 +611,7 @@ long long CoerceLongLong(Value *Val);
 long CoerceInteger(Value *Val);
 long AssignInt(struct ParseState *Parser, struct Value *DestValue, long FromInt, int After);
 long long AssignLongLong(struct ParseState *Parser, Value *DestValue, long long FromInt, int After);
+void AdjustBitField(struct ParseState* Parser, struct Value *Val);
 #ifndef NO_FP
 double CoerceDouble(Value *Val);
 float CoerceFloat(Value *Val);

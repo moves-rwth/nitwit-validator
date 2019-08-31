@@ -350,9 +350,30 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
 
         if (MemberType == nullptr || MemberIdentifier == nullptr)
             ProgramFail(Parser, "invalid type in struct");
-        
+
         MemberValue = VariableAllocValueAndData(pc, Parser, sizeof(int), FALSE, nullptr, TRUE, nullptr);
         MemberValue->Typ = MemberType;
+        LexToken NextToken = LexGetToken(Parser, nullptr, TRUE);
+        if (NextToken == TokenColon) { // it is a bit field!
+            IsBitField = TRUE;
+            Value * bitlen = nullptr; // get bit field length from constant
+            LexGetToken(Parser, &bitlen, TRUE); // number
+            if (IS_INTEGER_NUMERIC_TYPE(bitlen->Typ)){
+                long length = CoerceInteger(bitlen);
+                if (length < 0 || 8 * MemberValue->Typ->Sizeof < length){
+                    ProgramFail(Parser, "wrong size n: n > 0 and n <= sizeof");
+                }
+                MemberValue->BitField = length;
+                if (IS_UNSIGNED(MemberValue)) {
+                    MemberValue->Typ = &Parser->pc->UnsignedLongLongType;
+                } else {
+                    MemberValue->Typ = &Parser->pc->LongLongType;
+                }
+            } else {
+                ProgramFail(Parser, "positive integer expected");
+            }
+            NextToken = LexGetToken(Parser, nullptr, TRUE); // semicolon
+        }
         if (IsStruct)
         { 
             /* allocate this member's location in the struct */
@@ -380,22 +401,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
         if (!TableSet(pc, (*Typ)->Members, MemberIdentifier, MemberValue, Parser->FileName, Parser->Line, Parser->CharacterPos))
             ProgramFail(Parser, "member '%s' already defined", &MemberIdentifier);
 
-        LexToken NextToken = LexGetToken(Parser, nullptr, TRUE);
-        if (NextToken == TokenColon) { // it is a bit field!
-            IsBitField = TRUE;
-            Value * bitlen = nullptr; // get bit field length from constant
-            LexGetToken(Parser, &bitlen, TRUE); // number
-            if (IS_INTEGER_NUMERIC_TYPE(bitlen->Typ)){
-                long length = CoerceInteger(bitlen);
-                if (length < 0 || 8 * MemberValue->Typ->Sizeof < length){
-                    ProgramFail(Parser, "wrong size n: n > 0 and n <= sizeof");
-                }
-                MemberValue->BitField = length;
-            } else {
-                ProgramFail(Parser, "positive integer expected");
-            }
-            NextToken = LexGetToken(Parser, nullptr, TRUE); // semicolon
-        }
+
         if (NextToken == TokenComma){
             ParseOnlyIdent = TRUE;
         } else if (NextToken != TokenSemicolon){
