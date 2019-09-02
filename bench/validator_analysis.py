@@ -245,7 +245,7 @@ def analyze_times(matching: Dict[str, dict], name: str, inclusion_predicate):
 		sns.lineplot(ax=axsc, y=sorted(times), x=range(len(times)), label=VALIDATORS_ABBR[i])
 
 	axsc.set_ylabel("Time [s]")
-	axsc.set_xlabel(f"Number of {name} Witnesses")
+	axsc.set_xlabel(f"Number of Witnesses ({name})")
 	axsc.set(yscale='log')
 	axsc.grid(True, which='both')
 	# axsc.legend(loc=LEGEND_LOC_RIGHT, bbox_to_anchor=LEGEND_BBOX_ANCHOR, ncol=LEGEND_NCOL)
@@ -269,7 +269,7 @@ def analyze_memory(matching: Dict[str, dict], name: str, inclusion_predicate):
 		sns.lineplot(ax=axsc, y=sorted(mems), x=range(len(mems)), label=VALIDATORS_ABBR[i])
 
 	axsc.set_ylabel("Memory [MB]")
-	axsc.set_xlabel(f"Number of {name} Witnesses")
+	axsc.set_xlabel(f"Number of Witnesses ({name})")
 	axsc.set(yscale='log')
 	axsc.grid(True, which='both')
 	# axsc.legend(loc='upper left', bbox_to_anchor=(0.02, 0.9))
