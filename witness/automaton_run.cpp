@@ -50,13 +50,11 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         HeapInit(state->pc, 1048576); // 1 MB todo don't allocate every time new...
         char *RegFileName = TableStrRegister(state->pc, ("assumption " + ass).c_str());
 
-        state->pc->IsInAssumptionMode = TRUE;
         void *Tokens = nullptr;
         if (setjmp(state->pc->AssumptionPicocExitBuf)) {
             cw_verbose("Stopping assumption checker.\n");
             free(Tokens);
             HeapCleanup(state->pc);
-            state->pc->IsInAssumptionMode = FALSE;
             state->pc->HeapStackTop = heapstacktop_before;
             state->pc->HeapMemory = heapmemory_before;
             state->pc->HeapBottom = heapbottom_before;
@@ -110,7 +108,6 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         }
         free(Tokens);
         HeapCleanup(state->pc);
-        state->pc->IsInAssumptionMode = FALSE;
         state->pc->HeapStackTop = heapstacktop_before;
         state->pc->HeapMemory = heapmemory_before;
         state->pc->HeapBottom = heapbottom_before;
@@ -189,6 +186,7 @@ void WitnessAutomaton::consumeState(ParseState *state) {
     if (!canTransitionFurther()) return;
 
     bool could_go_to_sink = false;
+    state->pc->IsInAssumptionMode = TRUE;
     for (const auto &edge: successor_rel.find(current_state->id)->second) {
 #ifdef REQUIRE_MATCHING_ORIGINFILENAME
         if (!edge->origin_file.empty() && baseFileName(edge->origin_file) != baseFileName(string(state->FileName))) {
@@ -238,7 +236,7 @@ void WitnessAutomaton::consumeState(ParseState *state) {
         }
         current_state = nodes.find(edge->target_id)->second;
         cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
-
+        state->pc->IsInAssumptionMode = FALSE;
         return;
     }
 
@@ -246,4 +244,5 @@ void WitnessAutomaton::consumeState(ParseState *state) {
         cw_verbose("\tTaking edge: %s --> sink\n", current_state->id.c_str());
         current_state = nodes.find("sink")->second;
     }
+    state->pc->IsInAssumptionMode = FALSE;
 }

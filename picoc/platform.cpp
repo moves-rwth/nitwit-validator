@@ -32,6 +32,8 @@ void PicocInitialise(Picoc *pc, int StackSize)
 /* free memory */
 void PicocCleanup(Picoc *pc)
 {
+    if (pc->TopStackFrame != nullptr && pc->TopStackFrame != nullptr)
+        ShadowTableCleanup(pc, &pc->TopStackFrame->LocalTable);
     DebugCleanup(pc);
 #ifndef NO_HASH_INCLUDE
     IncludeCleanup(pc);
@@ -39,8 +41,6 @@ void PicocCleanup(Picoc *pc)
     ParseCleanup(pc);
     LexCleanup(pc);
     VariableCleanup(pc);
-    if (pc->TopStackFrame != nullptr)
-        ShadowTableCleanup(pc, &pc->TopStackFrame->LocalTable);
     TypeCleanup(pc);
     TableStrFree(pc);
     HeapCleanup(pc);

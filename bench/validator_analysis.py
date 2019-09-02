@@ -415,9 +415,9 @@ def main():
 		output_val_data(matching)
 
 	######### ANALYSES ###########
-	# analyze_output_messages(matching)
-	# analyze_by_producer(matching)
-	# analyze_unique_by_producer(matching)
+	analyze_output_messages(matching)
+	analyze_by_producer(matching)
+	analyze_unique_by_producer(matching)
 	for i in (0, 1, 2):
 		analyze_times(matching, col_names[i], lambda x: x == i)
 		analyze_memory(matching, col_names[i], lambda x: x == i)
