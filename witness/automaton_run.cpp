@@ -178,7 +178,13 @@ bool WitnessAutomaton::canTransitionFurther() {
     return true;
 }
 
+#define UNSUCCESSFUL_TRIES_LIMIT 1000
+int UnsuccessfullTries = 0;
 void WitnessAutomaton::consumeState(ParseState *state) {
+    ++UnsuccessfullTries;
+    if (UnsuccessfullTries > UNSUCCESSFUL_TRIES_LIMIT){
+        ProgramFail(state, "limit to unsuccessful transitions exceeded");
+    }
     if (state->VerifierErrorCalled && !this->verifier_error_called) {
         this->verifier_error_called = true;
         cw_verbose("__VERIFIER_error has been called!\n");
@@ -237,6 +243,7 @@ void WitnessAutomaton::consumeState(ParseState *state) {
         current_state = nodes.find(edge->target_id)->second;
         cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
         state->pc->IsInAssumptionMode = FALSE;
+        UnsuccessfullTries = 0; // reset counter
         return;
     }
 
