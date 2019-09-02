@@ -433,7 +433,7 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
                 AssignFail(Parser, "from an array of size %d to one of size %d", nullptr, nullptr, DestValue->Typ->ArraySize, SourceValue->Typ->ArraySize, FuncName, ParamNo);
 
 //            memcpy((void *)DestValue->Val, (void *)SourceValue->Val, TypeSizeValue(DestValue, FALSE));
-            // Instead of copying just point to same memory. Like in C! FIXME But may lose the memory in DestValue :/
+            // Instead of copying just point to same memory. Like in C!
             DestValue->Val = SourceValue->Val;
             break;
 

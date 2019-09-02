@@ -326,6 +326,72 @@ int ParseArrayInitialiser(struct ParseState *Parser, Value *NewVariable, int DoA
     return ArrayIndex;
 }
 
+/* parse an struct initialiser and assign to a variable */
+int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int DoAssignment)
+{
+    int ArrayIndex = 0;
+    enum LexToken Token;
+    Value *CValue;
+
+    /* parse the struct initialiser */
+    Token = LexGetToken(Parser, nullptr, FALSE);
+    ValueList * StructMember = NewVariable->Typ->MemberOrder;
+    while (StructMember)
+    {
+        if (LexGetToken(Parser, nullptr, FALSE) == TokenLeftBrace)
+        {
+            ProgramFail(Parser, "substruct initialization not supported");
+        }
+        else
+        {
+            Value *StructElement = nullptr, * MemberValue;
+            char *DerefDataLoc = (char *)NewVariable->Val;
+
+            if (Parser->Mode == RunModeRun && DoAssignment)
+            {
+                if (StructMember == nullptr)
+                    ProgramFail(Parser, "not that many elements in struct");
+                TableGet(NewVariable->Typ->Members, StructMember->Identifier, &MemberValue, nullptr, nullptr, nullptr);
+                StructMember = StructMember->Next; // move to next member in the next
+
+                /* make the result value for this member only */
+                StructElement = VariableAllocValueFromExistingData(Parser, MemberValue->Typ,
+                                                            (AnyValue *) (DerefDataLoc + MemberValue->Val->Integer), TRUE,
+                                                            NewVariable->LValueFrom, nullptr);
+                StructElement->BitField = MemberValue->BitField;
+                StructElement->ConstQualifier = MemberValue->ConstQualifier;
+            }
+
+            /* this is a normal expression initialiser */
+            if (!ExpressionParse(Parser, &CValue))
+                ProgramFail(Parser, "expression expected");
+
+            if (Parser->Mode == RunModeRun && DoAssignment)
+            {
+                ExpressionAssign(Parser, StructElement, CValue, FALSE, nullptr, 0, FALSE);
+                VariableStackPop(Parser, CValue);
+                VariableStackPop(Parser, StructElement);
+            }
+        }
+
+        Token = LexGetToken(Parser, nullptr, FALSE);
+        if (Token == TokenComma)
+        {
+            LexGetToken(Parser, nullptr, TRUE);
+            Token = LexGetToken(Parser, nullptr, FALSE);
+        }
+        else if (Token != TokenRightBrace)
+            ProgramFail(Parser, "comma expected");
+    }
+
+    if (Token == TokenRightBrace)
+        LexGetToken(Parser, nullptr, TRUE);
+    else
+        ProgramFail(Parser, "'}' expected");
+
+    return ArrayIndex;
+}
+
 /* assign an initial value to a variable */
 void ParseDeclarationAssignment(struct ParseState *Parser, Value *NewVariable, int DoAssignment)
 {
@@ -333,12 +399,13 @@ void ParseDeclarationAssignment(struct ParseState *Parser, Value *NewVariable, i
 
     if (LexGetToken(Parser, nullptr, FALSE) == TokenLeftBrace)
     {
-        /* this is an array initialiser */
+        /* this is an array or struct initialiser */
         LexGetToken(Parser, nullptr, TRUE);
-        ParseArrayInitialiser(Parser, NewVariable, DoAssignment);
-    }
-    else
-    {
+        if (NewVariable && NewVariable->Typ->Base == TypeStruct)
+            ParseStructInitialiser(Parser, NewVariable, DoAssignment); // todo new struct init
+        else
+            ParseArrayInitialiser(Parser, NewVariable, DoAssignment);
+    } else {
         /* this is a normal expression initialiser */
         if (!ExpressionParse(Parser, &CValue))
             ProgramFail(Parser, "expression expected");

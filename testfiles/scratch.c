@@ -16,13 +16,8 @@ struct bf {
 
 int main ()
 {
-    struct bf s;
+    struct bf s = {9, 9, 9, 9, 9};
     struct bf s2;
-    s.a = 9;
-    s.b = 9;
-    s.c = 9;
-    s.d = 9;
-    s.e = 9;
     if (s.a == -1 && s.b == 1 && s.c == 1 && s.d == -7 && s.e == -7){
         __VERIFIER_error();
     }

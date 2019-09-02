@@ -21,7 +21,7 @@
 
 #define MEM_ALIGN(x) (((x) + sizeof(ALIGN_TYPE) - 1) & ~(sizeof(ALIGN_TYPE)-1))
 
-#define GETS_BUF_MAX 256
+#define GETS_BUF_MAX 512
 
 /* for debugging */
 #define PRINT_SOURCE_POS ({ PrintSourceTextErrorLine(Parser->pc->CStdOut, Parser->FileName, Parser->SourceText, Parser->Line, Parser->CharacterPos); PlatformPrintf(Parser->pc->CStdOut, "\n"); })
@@ -186,6 +186,12 @@ enum ConditionControl {
 struct ValueList {
     struct ValueList * Next;
     const char * Identifier;
+
+    ValueList() {}
+    ValueList(ValueList *next, const char *identifier) : Next(next), Identifier(identifier) {}
+    virtual ~ValueList(){
+        delete Next;
+    }
 };
 
 /* parser state - has all this detail so we can parse nested files */
@@ -260,6 +266,7 @@ struct ValueType
     struct ValueType *DerivedTypeList;  /* first in a list of types derived from this one */
     struct ValueType *Next;         /* next item in the derived type list */
     struct Table *Members;          /* members of a struct or union */
+    ValueList *MemberOrder;         /* declaration order of members */
     int OnHeap;                     /* true if allocated on the heap */
     int StaticQualifier;            /* true if it's a static */
     // jsv

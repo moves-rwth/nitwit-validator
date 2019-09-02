@@ -129,8 +129,6 @@ def analyze_output_messages(matching: Dict[str, dict]):
 
 	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR, data=data, index=col_names)
 	ax = df.T.sort_values(by=col_names[0]).plot(kind='bar', stacked=True,
-	                                            # colormap=ListedColormap(sns.color_palette("colorblind")),
-	                                            # figsize=FIGSIZE,
 	                                            rot=0)
 	ax.legend(loc='lower right')
 
@@ -243,15 +241,9 @@ def analyze_times(matching: Dict[str, dict], name: str, inclusion_predicate):
 		times = np.asarray(list(map(lambda x: float(x['results'][i]['cpu']),
 		                            filter(lambda x: inclusion_predicate(STATUSES[x['results'][i]['status']]),
 		                                   matching.values()))))
-		# print(f"{VALIDATORS_ABBR[i]}: {get_stats(times)}")
-		# ax = sns.distplot(reject_outliers(times), kde=False, rug=True, ax=axs[i % 2][math.floor(i / 2)], color="green")
-		# ax.set_title(VALIDATORS_ABBR[i])
-		# ax.set_xlabel("Time [s]")
+		print(f"{VALIDATORS_ABBR[i]}: {get_stats(times)}")
 		sns.lineplot(ax=axsc, y=sorted(times), x=range(len(times)), label=VALIDATORS_ABBR[i])
 
-	# fig.delaxes(axs[1, 2])  # The indexing is zero-based here
-	# if SAVE_FIGURES:
-	# 	fig.savefig(f'/home/jan/Documents/thesis/doc/thesis/res/imgs/histo_times.{FORMAT}', dpi=DPI, bbox_inches=BBOX)
 	axsc.set_ylabel("Time [s]")
 	axsc.set_xlabel(f"Number of {name} Witnesses")
 	axsc.set(yscale='log')
@@ -273,7 +265,7 @@ def analyze_memory(matching: Dict[str, dict], name: str, inclusion_predicate):
 		mems = np.asarray(list(map(lambda x: float(x['results'][i]['mem']),
 		                           filter(lambda x: inclusion_predicate(STATUSES[x['results'][i]['status']]),
 		                                  matching.values()))))
-		# print(f"{VALIDATORS_ABBR[i]}: {get_stats(mems)}")
+		print(f"{VALIDATORS_ABBR[i]}: {get_stats(mems)}")
 		sns.lineplot(ax=axsc, y=sorted(mems), x=range(len(mems)), label=VALIDATORS_ABBR[i])
 
 	axsc.set_ylabel("Memory [MB]")
@@ -381,7 +373,6 @@ def get_stats(times) -> str:
 def output_val_data(matching: Dict[str, dict]):
 	data = []
 	for w in matching.values():
-		# for i in range(len(VALIDATORS_LIST_ABBR)):
 		data.append(list(map(lambda i: STATUSES[w['results'][i]['status']], range(len(VALIDATORS_LIST_ABBR)))))
 
 	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR, data=data, dtype=int)
@@ -426,15 +417,15 @@ def main():
 	######### ANALYSES ###########
 	# analyze_output_messages(matching)
 	# analyze_by_producer(matching)
-	# analyze_unique_by_producer(matching, diff_matching)
-	# for i in (0, 1, 2):
-	# 	analyze_times(matching, col_names[i], lambda x: x == i)
-	# 	analyze_memory(matching, col_names[i], lambda x: x == i)
-	# analyze_times(matching, 'Other', lambda x: x > 2)
-	# analyze_memory(matching, 'Other', lambda x: x > 2)
-	# analyze_times(matching, 'All', lambda x: True)
-	# analyze_memory(matching, 'All', lambda x: True)
-	compare_times(matching)
+	# analyze_unique_by_producer(matching)
+	for i in (0, 1, 2):
+		analyze_times(matching, col_names[i], lambda x: x == i)
+		analyze_memory(matching, col_names[i], lambda x: x == i)
+	analyze_times(matching, 'Other', lambda x: x > 2)
+	analyze_memory(matching, 'Other', lambda x: x > 2)
+	analyze_times(matching, 'All', lambda x: True)
+	analyze_memory(matching, 'All', lambda x: True)
+	# compare_times(matching)
 	if args.graph:
 		plt.show()
 

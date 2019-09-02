@@ -6,8 +6,6 @@ void AdjustBitField(struct ParseState* Parser, struct Value *Val) {
         long long mask = (1 << bits) - 1;
         switch (Val->Typ->Base) {
             case TypeLongLong:
-//                if (Val->Val->LongLongInteger % (1 << bits) == Val->Val->LongLongInteger){
-//                }
                 Val->Val->LongLongInteger %= 1 << bits;
                 if ((1 << (bits-1)) & Val->Val->LongLongInteger)
                     Val->Val->LongLongInteger = -(((mask & (~Val->Val->LongLongInteger + 1)) % (1 << bits)));

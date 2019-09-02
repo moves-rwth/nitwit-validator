@@ -267,6 +267,7 @@ void TypeCleanupNode(Picoc *pc, struct ValueType *Typ)
             {
                 VariableTableCleanup(pc, SubType->Members);
                 HeapFreeMem(pc, SubType->Members);
+                delete SubType->MemberOrder;
             }
 
             /* free this node */
@@ -402,6 +403,8 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
         /* define it */
         if (!TableSet(pc, (*Typ)->Members, MemberIdentifier, MemberValue, Parser->FileName, Parser->Line, Parser->CharacterPos))
             ProgramFail(Parser, "member '%s' already defined", &MemberIdentifier);
+         // add member id to list (is backwards, needs reverse)
+        (*Typ)->MemberOrder = new ValueList((*Typ)->MemberOrder, MemberIdentifier);
 
 
         if (NextToken == TokenComma){
@@ -417,7 +420,17 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     AlignBoundary = (*Typ)->AlignBytes;
     if (((*Typ)->Sizeof & (AlignBoundary-1)) != 0)
         (*Typ)->Sizeof += AlignBoundary - ((*Typ)->Sizeof & (AlignBoundary-1));
-    
+
+    // reverse member order
+    ValueList* elem = (*Typ)->MemberOrder, *prev = nullptr, *tmp;
+    while (elem){
+        tmp = elem->Next;
+        elem->Next = prev;
+        prev = elem;
+        elem = tmp;
+    }
+    (*Typ)->MemberOrder = prev;
+
     LexGetToken(Parser, nullptr, TRUE);
 }
 
