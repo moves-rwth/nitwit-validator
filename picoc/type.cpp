@@ -355,7 +355,9 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
         MemberValue->Typ = MemberType;
         LexToken NextToken = LexGetToken(Parser, nullptr, TRUE);
         if (NextToken == TokenColon) { // it is a bit field!
-            IsBitField = TRUE;
+            if (!IS_INTEGER_NUMERIC(MemberValue)){
+                ProgramFail(Parser, "only integral types allowed in bit fields");
+            }
             Value * bitlen = nullptr; // get bit field length from constant
             LexGetToken(Parser, &bitlen, TRUE); // number
             if (IS_INTEGER_NUMERIC_TYPE(bitlen->Typ)){

@@ -19,6 +19,7 @@ void VerifierNonDet(struct ParseState *Parser, Value *ReturnValue, Value **Param
 }
 /* handy structure definitions */
 const char VerifDefs[] = "typedef unsigned short _Bool;"
+                         "typedef void* __gnuc_va_list;"
                          ;
 
 /* all verif.h functions */

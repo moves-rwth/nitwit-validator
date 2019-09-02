@@ -691,6 +691,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         }
     }
 
+    int bracket = -1; bool end = false;
     switch (Token)
     {
         case TokenEOF:
@@ -897,8 +898,19 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         case TokenExternType:
             // just ignore the externs...
             for (Token = LexGetToken(Parser, nullptr, TRUE);
-                Token != TokenSemicolon && Token != TokenEOF;
-                Token = LexGetToken(Parser, nullptr, TRUE)) {}
+                ;
+                Token = LexGetToken(Parser, nullptr, TRUE)) {
+                if (Token == TokenOpenBracket) {
+                    if (bracket == -1) bracket = 0; // enable ignoring till end of block
+                    bracket++;
+                } else if (Token == TokenCloseBracket) {
+                    bracket--;
+                    if (bracket == 0) end = true; // finished block
+                }
+                else if (bracket == -1 && Token == TokenSemicolon) end = true; // use ; when not block to stop ignore
+                if (end || Token == TokenEOF)
+                    break;
+            }
             CheckTrailingSemicolon = FALSE;
             break;
 #endif
