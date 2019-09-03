@@ -70,7 +70,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
                 (LexGetToken(&Parser, &value, FALSE) == TokenWitnessResult ||
                         // hack for VeriAbs - it outputs 'result' instead of '\result'
                         (value != nullptr && value->Val->Identifier == TableStrRegister(state->pc, "result")) ||
-                        // hack for Automizer - it outputs
+                        // hack for Automizer - it outputs the nondet function instead of '\result'
                         (value != nullptr && string(value->Val->Identifier).substr(0, 17) == "__VERIFIER_nondet")
                         )
                 ) {
@@ -81,7 +81,6 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             if (Token == TokenEOF)
                 ret = 0;
             else {
-                LexGetToken(&Parser, nullptr, TRUE);
                 // handling \result in witnesses
                 bool positive = true;
                 if (LexGetToken(&Parser, nullptr, FALSE) == TokenMinus){
