@@ -64,51 +64,42 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         Tokens = LexAnalyse(state->pc, RegFileName, ass.c_str(), ass.length(), nullptr);
         ParseState Parser{};
         LexInitParser(&Parser, state->pc, ass.c_str(), Tokens, RegFileName, TRUE, FALSE, nullptr);
-        long long ret = 0;
+        int ret = 0;
         Value *value = nullptr;
         if (state->SkipIntrinsic && state->LastNonDetValue != nullptr &&
                 (LexGetToken(&Parser, &value, FALSE) == TokenWitnessResult ||
+                        (value != nullptr && value->Val->Identifier == TableStrRegister(state->pc, "result"))
                         // hack for VeriAbs - it outputs 'result' instead of '\result'
-                        (value != nullptr && value->Val->Identifier == TableStrRegister(state->pc, "result")) ||
-                        // hack for Automizer - it outputs the nondet function instead of '\result'
-                        (value != nullptr && string(value->Val->Identifier).substr(0, 17) == "__VERIFIER_nondet")
-                        )
-                ) {
-            // consume tokens
-            LexToken Token;
-            while ((Token = LexGetToken(&Parser, nullptr, TRUE))
-                    && Token != TokenEOF && Token != TokenEqual && Token != TokenAssign) {}
-            if (Token == TokenEOF)
-                ret = 0;
-            else {
-                // handling \result in witnesses
-                bool positive = true;
-                if (LexGetToken(&Parser, nullptr, FALSE) == TokenMinus){
-                    LexGetToken(&Parser, nullptr, TRUE);
-                    positive = false;
-                }
-                LexGetToken(&Parser, &value, TRUE);
-                if (value != nullptr) {
-                    if (!positive){
-                        switch (value->Typ->Base){
-    //                        case TypeFloat: value->Val->Float = -value->Val->Float; break;
-                            case TypeDouble: value->Val->Double = -value->Val->Double; break;
-                            case TypeChar: value->Val->Character = -value->Val->Character; break;
-    //                        case TypeUnsignedChar: value->Val->UnsignedCharacter = -value->Val->UnsignedCharacter; break;
-    //                        case TypeInt: value->Val->Integer = -value->Val->Integer; break;
-    //                        case TypeUnsignedInt: value->Val->UnsignedInteger = -value->Val->UnsignedInteger; break;
-                            case TypeLong: value->Val->LongInteger = -value->Val->LongInteger; break;
-                            case TypeUnsignedLong: value->Val->UnsignedLongInteger = -value->Val->UnsignedLongInteger; break;
-                            case TypeLongLong: value->Val->LongLongInteger = -value->Val->LongLongInteger; break;
-                            case TypeUnsignedLongLong: value->Val->UnsignedLongLongInteger = -value->Val->UnsignedLongLongInteger; break;
-                            default: fprintf(stderr, "Type not found in parsing constant from assumption.\n"); break;
-                        }
+                )) {
+            // handling \result in witnesses
+            LexGetToken(&Parser, nullptr, TRUE);
+            LexGetToken(&Parser, nullptr, TRUE);
+            bool positive = true;
+            if (LexGetToken(&Parser, nullptr, FALSE) == TokenMinus){
+                LexGetToken(&Parser, nullptr, TRUE);
+                positive = false;
+            }
+            LexGetToken(&Parser, &value, TRUE);
+            if (value != nullptr) {
+                if (!positive){
+                    switch (value->Typ->Base){
+//                        case TypeFloat: value->Val->Float = -value->Val->Float; break;
+                        case TypeDouble: value->Val->Double = -value->Val->Double; break;
+                        case TypeChar: value->Val->Character = -value->Val->Character; break;
+//                        case TypeUnsignedChar: value->Val->UnsignedCharacter = -value->Val->UnsignedCharacter; break;
+//                        case TypeInt: value->Val->Integer = -value->Val->Integer; break;
+//                        case TypeUnsignedInt: value->Val->UnsignedInteger = -value->Val->UnsignedInteger; break;
+                        case TypeLong: value->Val->LongInteger = -value->Val->LongInteger; break;
+                        case TypeUnsignedLong: value->Val->UnsignedLongInteger = -value->Val->UnsignedLongInteger; break;
+                        case TypeLongLong: value->Val->LongLongInteger = -value->Val->LongLongInteger; break;
+                        case TypeUnsignedLongLong: value->Val->UnsignedLongLongInteger = -value->Val->UnsignedLongLongInteger; break;
+                        default: fprintf(stderr, "Type not found in parsing constant from assumption.\n"); break;
                     }
-                    state->LastNonDetValue->Val = value->Val; // TODO mem leak?
-                    state->LastNonDetValue->Typ = TypeGetDeterministic(state, state->LastNonDetValue->Typ);
-                    state->LastNonDetValue = nullptr;
-                    ret = 1;
                 }
+                state->LastNonDetValue->Val = value->Val; // TODO mem leak?
+                state->LastNonDetValue->Typ = TypeGetDeterministic(state, state->LastNonDetValue->Typ);
+                state->LastNonDetValue = nullptr;
+                ret = 1;
             }
         } else if (state->SkipIntrinsic) {
             ret = 0;
