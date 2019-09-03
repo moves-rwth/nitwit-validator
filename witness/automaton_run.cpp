@@ -72,7 +72,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
                         // hack for VeriAbs - it outputs 'result' instead of '\result'
                 )) {
             // handling \result in witnesses
-            LexToken token;
+            LexToken token = TokenNone;
             while (token != TokenEOF){
                 token = LexGetToken(&Parser, nullptr, FALSE);
                 if ((!(token >= TokenIdentifier && token <= TokenCharacterConstant) &&
@@ -89,12 +89,8 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             if (value != nullptr) {
                 if (!positive){
                     switch (value->Typ->Base){
-//                        case TypeFloat: value->Val->Float = -value->Val->Float; break;
                         case TypeDouble: value->Val->Double = -value->Val->Double; break;
                         case TypeChar: value->Val->Character = -value->Val->Character; break;
-//                        case TypeUnsignedChar: value->Val->UnsignedCharacter = -value->Val->UnsignedCharacter; break;
-//                        case TypeInt: value->Val->Integer = -value->Val->Integer; break;
-//                        case TypeUnsignedInt: value->Val->UnsignedInteger = -value->Val->UnsignedInteger; break;
                         case TypeLong: value->Val->LongInteger = -value->Val->LongInteger; break;
                         case TypeUnsignedLong: value->Val->UnsignedLongInteger = -value->Val->UnsignedLongInteger; break;
                         case TypeLongLong: value->Val->LongLongInteger = -value->Val->LongLongInteger; break;
@@ -102,8 +98,9 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
                         default: fprintf(stderr, "Type not found in parsing constant from assumption.\n"); break;
                     }
                 }
-                state->LastNonDetValue->Val = value->Val; // TODO mem leak?
                 state->LastNonDetValue->Typ = TypeGetDeterministic(state, state->LastNonDetValue->Typ);
+                ExpressionAssign(&Parser, state->LastNonDetValue, value, TRUE, nullptr, 0, TRUE);
+//                state->LastNonDetValue->Val = value->Val; // TODO mem leak?
                 state->LastNonDetValue = nullptr;
                 ret = 1;
             }
@@ -146,7 +143,6 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
 
     return true;
 }
-
 
 void WitnessAutomaton::try_resolve_variables(ParseState *state) {
     if (!canTransitionFurther()) return;
