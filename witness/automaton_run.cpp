@@ -75,7 +75,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             LexToken token = TokenNone;
             while (token != TokenEOF){
                 token = LexGetToken(&Parser, nullptr, FALSE);
-                if ((!(token >= TokenIdentifier && token <= TokenCharacterConstant) &&
+                if ((!(token >= TokenIntegerConstant && token <= TokenCharacterConstant) &&
                      token != TokenMinus)) {
                     token = LexGetToken(&Parser, nullptr, TRUE);
                 } else break;
