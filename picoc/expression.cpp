@@ -624,9 +624,9 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
                 /* pointer prefix arithmetic */
                 int Size = TypeSize(TopValue->Typ->FromType, 0, TRUE);
                 Value *StackValue;
-                void *ResultPtr;
+                void *ResultPtr = nullptr;
 
-                if (TopValue->Val->Pointer == nullptr)
+                if (TopValue->Val->Pointer == nullptr && Op != TokenUnaryNot)
                     ProgramFail(Parser, "invalid use of a nullptr pointer");
 
                 if (!TopValue->IsLValue)
@@ -634,12 +634,15 @@ void ExpressionPrefixOperator(struct ParseState *Parser, struct ExpressionStack 
 
                 switch (Op)
                 {
-                    case TokenIncrement:    TopValue->Val->Pointer = (void *)((char *)TopValue->Val->Pointer + Size); break;
-                    case TokenDecrement:    TopValue->Val->Pointer = (void *)((char *)TopValue->Val->Pointer - Size); break;
+                    case TokenIncrement:    TopValue->Val->Pointer = (void *)((char *)TopValue->Val->Pointer + Size);
+                                            ResultPtr = TopValue->Val->Pointer; break;
+                    case TokenDecrement:    TopValue->Val->Pointer = (void *)((char *)TopValue->Val->Pointer - Size);
+                                            ResultPtr = TopValue->Val->Pointer; break;
+                    case TokenUnaryNot:     ResultPtr = reinterpret_cast<void *>(!TopValue->Val->Pointer); break;
                     default:                ProgramFail(Parser, "invalid operation"); break;
                 }
 
-                ResultPtr = TopValue->Val->Pointer;
+//                ResultPtr = TopValue->Val->Pointer;
                 StackValue = ExpressionStackPushValueByType(Parser, StackTop, TopValue->Typ);
                 StackValue->Val->Pointer = ResultPtr;
             }

@@ -72,8 +72,14 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
                         // hack for VeriAbs - it outputs 'result' instead of '\result'
                 )) {
             // handling \result in witnesses
-            LexGetToken(&Parser, nullptr, TRUE);
-            LexGetToken(&Parser, nullptr, TRUE);
+            LexToken token;
+            while (token != TokenEOF){
+                token = LexGetToken(&Parser, nullptr, FALSE);
+                if ((!(token >= TokenIdentifier && token <= TokenCharacterConstant) &&
+                     token != TokenMinus)) {
+                    token = LexGetToken(&Parser, nullptr, TRUE);
+                } else break;
+            }
             bool positive = true;
             if (LexGetToken(&Parser, nullptr, FALSE) == TokenMinus){
                 LexGetToken(&Parser, nullptr, TRUE);
