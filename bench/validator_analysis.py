@@ -425,7 +425,7 @@ def main():
 	analyze_memory(matching, 'Other', lambda x: x > 2)
 	analyze_times(matching, 'All', lambda x: True)
 	analyze_memory(matching, 'All', lambda x: True)
-	# compare_times(matching)
+	compare_times(matching)
 	if args.graph:
 		plt.show()
 
