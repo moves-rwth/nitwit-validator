@@ -180,7 +180,7 @@ bool WitnessAutomaton::canTransitionFurther() {
     return true;
 }
 
-#define UNSUCCESSFUL_TRIES_LIMIT 10000000
+#define UNSUCCESSFUL_TRIES_LIMIT 1000000
 int UnsuccessfullTries = 0;
 void WitnessAutomaton::consumeState(ParseState *state) {
     ++UnsuccessfullTries;

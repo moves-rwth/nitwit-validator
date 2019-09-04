@@ -4,7 +4,7 @@ project(cwvalidator CXX)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS "-Wall -pedantic -m32 -DUNIX_HOST -Wno-write-strings")
 set(CMAKE_CXX_FLAGS_DEBUG "-g3 -gdwarf-2 -O0 -DVERBOSE")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DENABLE_TRANSITION_LIMIT")
 
 file(GLOB P_C_FILES picoc/**/*.cpp picoc/*.cpp picoc/values.cpp)
 file(GLOB P_H_FILES picoc/**/*.hpp picoc/*.hpp)
