@@ -184,9 +184,9 @@ bool WitnessAutomaton::canTransitionFurther() {
 int UnsuccessfullTries = 0;
 void WitnessAutomaton::consumeState(ParseState *state) {
     ++UnsuccessfullTries;
-//    if (UnsuccessfullTries > UNSUCCESSFUL_TRIES_LIMIT){
-//        ProgramFail(state, "limit to unsuccessful transitions exceeded");
-//    }
+    if (UnsuccessfullTries > UNSUCCESSFUL_TRIES_LIMIT){
+        ProgramFail(state, "limit to unsuccessful transitions exceeded");
+    }
     if (state->VerifierErrorCalled && !this->verifier_error_called) {
         this->verifier_error_called = true;
         cw_verbose("__VERIFIER_error has been called!\n");

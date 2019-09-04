@@ -415,17 +415,18 @@ def main():
 		output_val_data(matching)
 
 	######### ANALYSES ###########
-	analyze_output_messages(matching)
-	analyze_by_producer(matching)
-	analyze_unique_by_producer(matching)
-	for i in (0, 1, 2):
-		analyze_times(matching, col_names[i], lambda x: x == i)
-		analyze_memory(matching, col_names[i], lambda x: x == i)
-	analyze_times(matching, 'Other', lambda x: x > 2)
-	analyze_memory(matching, 'Other', lambda x: x > 2)
-	analyze_times(matching, 'All', lambda x: True)
-	analyze_memory(matching, 'All', lambda x: True)
-	compare_times(matching)
+	# analyze_output_messages(matching)
+	# analyze_by_producer(matching)
+	# analyze_unique_by_producer(matching)
+	# for i in (0, 1, 2):
+	# 	analyze_times(matching, col_names[i], lambda x: x == i)
+	# 	analyze_memory(matching, col_names[i], lambda x: x == i)
+	# analyze_times(matching, 'Other', lambda x: x > 2)
+	# analyze_memory(matching, 'Other', lambda x: x > 2)
+	# analyze_times(matching, 'All', lambda x: True)
+	# analyze_memory(matching, 'All', lambda x: True)
+	# compare_times(matching)
+	output_val_data(matching)
 	if args.graph:
 		plt.show()
 
