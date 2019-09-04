@@ -15,6 +15,7 @@ void VerifierAssume(struct ParseState *Parser, Value *ReturnValue, Value **Param
 
 void VerifierNonDet(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
     ReturnValue->Typ = TypeGetNonDeterministic(Parser, ReturnValue->Typ);
+    ReturnValue->Val->Character = 1;
     Parser->LastNonDetValue = ReturnValue;
 }
 /* handy structure definitions */

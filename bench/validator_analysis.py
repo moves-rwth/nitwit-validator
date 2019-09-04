@@ -358,7 +358,7 @@ def compare_times(matching: Dict[str, dict]):
 		b_w, b_p = wilcoxon(df_diffs_both, alternative='less')
 		a_w, a_p = wilcoxon(df_diffs_all, alternative='less')
 		print(
-			f"Similar validations (+-1 s) with {VALIDATORS_ABBR[i]}: {df_diffs_both.apply(lambda x: -1 < x and x < 1).sum()}.\n\t"
+			f"Similar validations (+-1 s) with {VALIDATORS_ABBR[i]}: {df_diffs_both.apply(lambda x: -1 < x < 1).sum()}.\n\t"
 			f"Significance (Wilcoxon-median negative) of difference:\t(all results) {a_w, a_p}\t(>= one False) {o_w, o_p}\t(both False) {b_w, b_p}")
 
 		if SAVE_FIGURES:
@@ -415,7 +415,7 @@ def main():
 		output_val_data(matching)
 
 	######### ANALYSES ###########
-	# analyze_output_messages(matching)
+	analyze_output_messages(matching)
 	# analyze_by_producer(matching)
 	# analyze_unique_by_producer(matching)
 	# for i in (0, 1, 2):
@@ -425,8 +425,8 @@ def main():
 	# analyze_memory(matching, 'Other', lambda x: x > 2)
 	# analyze_times(matching, 'All', lambda x: True)
 	# analyze_memory(matching, 'All', lambda x: True)
-	# compare_times(matching)
-	output_val_data(matching)
+	compare_times(matching)
+	# output_val_data(matching)
 	if args.graph:
 		plt.show()
 
