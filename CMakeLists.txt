@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(cwvalidator CXX)
 
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_FLAGS "-Wall -pedantic -DUNIX_HOST -Wno-write-strings -DENABLE_TRANSITION_LIMIT")
+set(CMAKE_CXX_FLAGS "-Wall -pedantic -m32 -DUNIX_HOST -Wno-write-strings -DENABLE_TRANSITION_LIMIT")
 set(CMAKE_CXX_FLAGS_DEBUG "-g3 -gdwarf-2 -O0 -DVERBOSE")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
