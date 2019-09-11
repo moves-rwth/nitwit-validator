@@ -376,6 +376,8 @@ def output_val_data(matching: Dict[str, dict]):
 		data.append(list(map(lambda i: STATUSES[w['results'][i]['status']], range(len(VALIDATORS_LIST_ABBR)))))
 
 	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR, data=data, dtype=int)
+	with open('data.csv', 'w') as fp:
+		df.to_csv(fp)
 	print(f"Validated at least once: {len(df[(df == 0).sum(1) > 0])}"
 	      f"  Once: {len(df[(df == 0).sum(1) == 1])},"
 	      f"  Twice: {len(df[(df == 0).sum(1) == 2])},"
@@ -416,17 +418,17 @@ def main():
 
 	######### ANALYSES ###########
 	analyze_output_messages(matching)
-	# analyze_by_producer(matching)
-	# analyze_unique_by_producer(matching)
-	# for i in (0, 1, 2):
-	# 	analyze_times(matching, col_names[i], lambda x: x == i)
-	# 	analyze_memory(matching, col_names[i], lambda x: x == i)
-	# analyze_times(matching, 'Other', lambda x: x > 2)
-	# analyze_memory(matching, 'Other', lambda x: x > 2)
-	# analyze_times(matching, 'All', lambda x: True)
-	# analyze_memory(matching, 'All', lambda x: True)
+	analyze_by_producer(matching)
+	analyze_unique_by_producer(matching)
+	for i in (0, 1, 2):
+		analyze_times(matching, col_names[i], lambda x: x == i)
+		analyze_memory(matching, col_names[i], lambda x: x == i)
+	analyze_times(matching, 'Other', lambda x: x > 2)
+	analyze_memory(matching, 'Other', lambda x: x > 2)
+	analyze_times(matching, 'All', lambda x: True)
+	analyze_memory(matching, 'All', lambda x: True)
 	compare_times(matching)
-	# output_val_data(matching)
+	output_val_data(matching)
 	if args.graph:
 		plt.show()
 
