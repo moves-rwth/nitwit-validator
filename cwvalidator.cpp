@@ -50,8 +50,6 @@ void handleDebugBreakpoint(struct ParseState *ps) {
 #ifdef VERBOSE
     printProgramState(ps);
 #endif
-//    if (ps->SkipIntrinsic == TRUE)
-//        return;
     if (wit_aut == nullptr) {
         ProgramFailWithExitCode(ps, NO_WITNESS_CODE, "No witness automaton to validate against.");
         return;
@@ -61,8 +59,10 @@ void handleDebugBreakpoint(struct ParseState *ps) {
         return;
     }
     if (wit_aut->isInSinkState()) {
-//        ProgramFailWithExitCode(ps, WITNESS_IN_SINK, "Witness automaton reached sink state without a violation.");
-//        return;
+#ifdef STOP_IN_SINK
+        ProgramFailWithExitCode(ps, WITNESS_IN_SINK, "Witness automaton reached sink state without a violation.");
+        return;
+#endif
     }
 
     wit_aut->consumeState(ps);
@@ -169,6 +169,8 @@ int main(int argc, char **argv) {
 #endif
     return exit_value;
 }
+
+
 #include <sys/resource.h>
 /**
  * Returns the peak (maximum so far) resident set size (physical

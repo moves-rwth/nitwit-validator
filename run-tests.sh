@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Usage: ./test.sh <build-dir>
+# Usage: ./run-tests.sh <build-dir>
 
 if [[ -d $1 ]]
 then

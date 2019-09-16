@@ -180,6 +180,43 @@ def analyze_by_producer(matching: Dict[str, dict]):
 	print(df.to_latex())
 
 
+def analyze_virt_best(matching: Dict[str, dict]):
+	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR+['Virtual best'])
+	data = []
+	producers_virt = {}
+	for i in range(5):
+		validated = {}
+		for w, c in matching.items():
+			if STATUSES[c['results'][i]['status']] == 0:
+				if c['creator'] in producers_virt:
+					producers_virt[c['creator']].add(c['witnessSHA'])
+				else:
+					producers_virt[c['creator']] = {c['witnessSHA']}
+
+			if STATUSES[c['results'][i]['status']] == 0:
+				increase_count_in_dict(validated, c['creator'])
+		data.append(validated)
+	prods = np.asarray(list(map(lambda x: list(x.keys()), data)))
+	prods_set = set()
+	for l in prods:
+		for p in l:
+			prods_set.add(p)
+
+	for producer in prods_set:
+		df.loc[producer] = [0] * (len(VALIDATORS_LIST_ABBR) + 1)
+	for i, d in enumerate(data):
+		for k, v in d.items():
+			df.at[k, VALIDATORS_LIST_ABBR[i]] = v
+	df = df.sort_index()
+
+	for producer, val_set in producers_virt.items():
+		df.at[producer, 'Virtual best'] = len(val_set)
+	df.loc["Total"] = df.sum().astype(int)
+
+	print(df.to_latex())
+
+
+
 def validator_result_selector(results: list, predicate_others, predicate_cwv) -> bool:
 	for i in range(4):
 		if not predicate_others(STATUSES[results[i]['status']]):
@@ -418,9 +455,11 @@ def main():
 		output_val_data(matching)
 
 	######### ANALYSES ###########
-	analyze_output_messages(matching)
-	analyze_by_producer(matching)
-	analyze_unique_by_producer(matching)
+	# analyze_output_messages(matching)
+	# analyze_by_producer(matching)
+	analyze_virt_best(matching)
+	# analyze_unique_by_producer(matching)
+
 	# for i in (0, 1, 2):
 	# 	analyze_times(matching, col_names[i], lambda x: x == i)
 	# 	analyze_memory(matching, col_names[i], lambda x: x == i)

@@ -339,7 +339,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     // do the parsing of members
     int IsConst;
     char ParseOnlyIdent = FALSE;
-    char IsBitField = FALSE;
+//    char IsBitField = FALSE;
     ValueType* BasicType = nullptr;
     do {
         if (ParseOnlyIdent){ // continue with the same type
