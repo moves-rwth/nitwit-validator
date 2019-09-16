@@ -19,7 +19,7 @@ then
   fi
   cd cmake-build-debug || exit 1;
   cmake -DCMAKE_BUILD_TYPE=Debug .. || exit 1
-  make -j4
+  make -j8
   cd ..
 else
   # release
@@ -29,6 +29,6 @@ else
   fi
   cd cmake-build-release || exit 1;
   cmake -DCMAKE_BUILD_TYPE=Release .. || exit 1
-  make -j4
+  make -j8
   cd ..
 fi

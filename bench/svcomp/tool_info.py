@@ -35,44 +35,41 @@ from benchexec.model import SOFTTIMELIMIT
 
 class Tool(benchexec.tools.template.BaseTool):
 	"""
-	Tool info for {TODO}, the Configurable Software-Verification Platform.
+	Tool info for {TODO CWValidator}, an interpreter-based violation witness validator.
 	URL:
-
 	"""
-
-	REQUIRED_PATHS = ['cmake-build-release']
+	BUILD_PATH = 'cmake-build-release'
 
 	def executable(self):
-		executable = util.find_executable('cwvalidator')
+		executable = util.find_executable('validator.sh')
+		build_path = os.path.join(os.path.pardir(executable), self.BUILD_PATH)
+		if not os.path.isdir(build_path):
+			self._build(build_path)
+		if not os.path.isfile(os.path.join(build_path, "cwvalidator32")) or \
+				not os.path.isfile(os.path.join(build_path, "cwvalidator64")):
+			logging.warning("Required binary files for CWValidator not found in {0}.".format(build_path))
 		return executable
 
 	def program_files(self, executable):
-		return []
+		return [executable, os.path.join(self.BUILD_PATH, 'cwvalidator32'),
+		        os.path.join(self.BUILD_PATH, 'cwvalidator64')]
 
-	def _buildCPAchecker(self, executableDir):
-		logging.debug('Building CPAchecker in directory {0}.'.format(executableDir))
-		cmake = subprocess.Popen(['cmake', '..'], cwd=executableDir,
-		                       shell=util.is_windows())
-		cmake.communicate()
-		if cmake.returncode:
+	def _build(self, executableDir):
+		logging.debug('Building CWValidator in directory {0}.'.format(executableDir))
+		build = subprocess.Popen(['build.sh'])
+		build.communicate()
+		if build.returncode:
 			sys.exit('Failed to build cwvalidator, fix it please.')
 
 	def version(self, executable):
 		stdout = self._version_from_tool(executable, '--version')
-		line = next(l for l in stdout.splitlines() if l.startswith('CPAchecker'))
-		line = line.replace('CPAchecker', '')
-		line = line.split('(')[0]
-		return line.strip()
+		return stdout.strip()
 
 	def name(self):
 		return 'CWValidator'
 
-	def _get_additional_options(self, existing_options, propertyfile, rlimits):
-		return []
-
 	def cmdline(self, executable, options, tasks, propertyfile=None, rlimits={}):
-		additional_options = self._get_additional_options(options, propertyfile, rlimits)
-		return [executable] + options + additional_options + tasks
+		return [executable] + options + tasks
 
 	def determine_result(self, ret_code, returnsignal, output, isTimeout):
 		"""
@@ -84,7 +81,7 @@ class Tool(benchexec.tools.template.BaseTool):
 
 		if ret_code == 0 or ret_code == 245:
 			status = result.RESULT_FALSE_REACH
-		elif ret_code is None or ret_code == -9 or isTimeout:
+		elif ret_code is None or ret_code == -9:
 			status = 'TIMEOUT'
 		elif ret_code in [4, 5, 240, 241, 242, 243, 250]:
 			status = result.RESULT_UNKNOWN
@@ -96,4 +93,7 @@ class Tool(benchexec.tools.template.BaseTool):
 
 		if not status:
 			status = result.RESULT_ERROR
+
+		if isTimeout:
+			status = 'TIMEOUT'
 		return status

@@ -1,7 +1,8 @@
 # Prerequisites
-- Linux (for CPU + Memory measurements, though can be easily removed and then compiled on any platform)
+- Linux (for CPU + Memory measurements, though this dependency can be removed
+  from cwvalidator.cpp and compiled on any platform if required)
 - CMake 3.10+
-- GCC and build tools
+- GCC and build tools, includin gcc/g++ multilib for 32bit validations
 
 # Changing behaviour with compiler options
 - VERBOSE
