@@ -654,7 +654,7 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
 int TypeIsUnsigned(struct ValueType * Typ);
 
 /* heap.c */
-void HeapInit(Picoc *pc, int StackSize);
+void HeapInit(Picoc *pc, int StackSize, unsigned char * PreAlloced = nullptr);
 void HeapCleanup(Picoc *pc);
 void *HeapAllocStack(Picoc *pc, int Size);
 int HeapPopStack(Picoc *pc, void *Addr, int Size);

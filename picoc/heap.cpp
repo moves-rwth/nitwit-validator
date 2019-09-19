@@ -19,13 +19,16 @@ void ShowBigList(Picoc *pc)
 #endif
 
 /* initialise the stack and heap storage */
-void HeapInit(Picoc *pc, int StackOrHeapSize)
+void HeapInit(Picoc *pc, int StackOrHeapSize, unsigned char * PreAlloced)
 {
     int Count;
     int AlignOffset = 0;
     
 #ifdef USE_MALLOC_STACK
-    pc->HeapMemory = static_cast<unsigned char *>(malloc(StackOrHeapSize));
+    if (PreAlloced)
+        pc->HeapMemory = PreAlloced;
+    else
+        pc->HeapMemory = static_cast<unsigned char *>(malloc(StackOrHeapSize));
     pc->HeapBottom = nullptr;                     /* the bottom of the (downward-growing) heap */
     pc->StackFrame = nullptr;                     /* the current stack frame */
     pc->HeapStackTop = nullptr;                          /* the top of the stack */

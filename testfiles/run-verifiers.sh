@@ -6,9 +6,10 @@ then
     exit 1
 fi
 
-cbmc --32 $1 --graphml-witness $1bmc.c.graphml
+#cbmc --32 $1 --graphml-witness $1bmc.c.graphml
 
-cpa -config ../../cpa/CPAchecker-1.8-unix/config/kInduction.properties -spec reach.prp -preprocess $1
+cpa -config ../../cpa/CPAchecker-1.8-unix/config/kInduction.properties -spec reach.prp -preprocess $1 -32
+#cpa -config ../../cpa/CPAchecker-1.8-unix/config/predicateAnalysis-slicing.properties -spec reach.prp -preprocess $1 -32
 
 if [[ $? -eq 0 ]]
 then
