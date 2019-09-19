@@ -35,7 +35,6 @@ vector<string> split(string str, char delimiter) {
     }
     return result;
 }
-auto PreAllocedMemoryForAssumptions = static_cast<unsigned char *>(malloc(1048576));
 
 bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &edge) {
     auto assumptions = split(edge->assumption, ';');
@@ -48,7 +47,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
         unsigned char *heapmemory_before = state->pc->HeapMemory;
         void *heapbottom_before = state->pc->HeapBottom;
         void *stackframe = state->pc->StackFrame;
-        HeapInit(state->pc, 1048576, PreAllocedMemoryForAssumptions); // 1 MB
+        HeapInit(state->pc, 1048576); // 1 MB
         char *RegFileName = TableStrRegister(state->pc, ("assumption " + ass).c_str());
 
         void *Tokens = nullptr;
@@ -56,7 +55,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             cw_verbose("Stopping assumption checker.\n");
             free(Tokens);
 
-//            HeapCleanup(state->pc); // we use preallocated all the time
+            HeapCleanup(state->pc);
             state->pc->HeapStackTop = heapstacktop_before;
             state->pc->HeapMemory = heapmemory_before;
             state->pc->HeapBottom = heapbottom_before;
@@ -111,7 +110,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             ret = AssumptionExpressionParseLongLong(&Parser);
         }
         free(Tokens);
-//        HeapCleanup(state->pc); // we use preallocated
+        HeapCleanup(state->pc);
         state->pc->HeapStackTop = heapstacktop_before;
         state->pc->HeapMemory = heapmemory_before;
         state->pc->HeapBottom = heapbottom_before;

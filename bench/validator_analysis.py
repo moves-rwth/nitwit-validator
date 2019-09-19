@@ -59,6 +59,7 @@ STATUSES = {
 	251: 5,  # out of memory
 	-11: 6,  # witness parse error
 	11: 6,  # witness parse error
+	8: 6, # assertion failed
 	2: 6,  # witness parse error
 	244: 6,  # identifier undefined
 }
@@ -460,11 +461,11 @@ def main():
 	analyze_virt_best(matching)
 	# analyze_unique_by_producer(matching)
 
-	#for i in (0, 1, 2):
-	#	analyze_times(matching, col_names[i], lambda x: x == i)
-	#	analyze_memory(matching, col_names[i], lambda x: x == i)
-	#analyze_times(matching, 'Other', lambda x: x > 2)
-	#analyze_memory(matching, 'Other', lambda x: x > 2)
+	for i in (0, 1, 2):
+		analyze_times(matching, col_names[i], lambda x: x == i)
+		analyze_memory(matching, col_names[i], lambda x: x == i)
+	# analyze_times(matching, 'Other', lambda x: x > 2)
+	# analyze_memory(matching, 'Other', lambda x: x > 2)
 	analyze_times(matching, 'All', lambda x: True)
 	analyze_memory(matching, 'All', lambda x: True)
 	# compare_times(matching)
