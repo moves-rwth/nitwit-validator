@@ -59,7 +59,7 @@ ESBMC errors
 
 
 
-Interesting cases for when CWValidtor doesn't validate but others do. Mostly -> \result, struct init (quite a lot), cbmc scope
+Interesting cases for when Nitwit doesn't validate but others do. Mostly -> \result, struct init (quite a lot), cbmc scope
 9bc37fdf4b10582d6d01a8edaaefc37cdc5136bacdc595b0cf603b2c9e2270b0.json - struct init
 5229f5de8bbedc1e1d7ca2dda0a4a0c3e9ea672f20da42eeb17babbca89c25a2.json - \result
 709fda8e85d44d563e46e4e0f63038be7e22bb0ea963da5efd364c0c985beb8d.json - validated, but CPA has a wrong witness
@@ -74,9 +74,6 @@ bbe8e3308792a78c58c805270d9158137809ba9f4cc2d474fdbf1857ce6ffe5e.json - overflow
       - fe8b607971f832adfe17837236e3577220f85a4357e1d1d9efcc88167587b5fc.json
       - 1fc5f0fc3965a10c99256db438d5094cf4e42de3e3618b4be14be55f9bfa72de.json
 
-
-FShell is wrong here:
-   https://sv-comp.sosy-lab.org/2019/results/witnessFileByHash/f0099bb9779a53ac0b24da2b723ee2889e0bd93b2db82b57b8083896b672a3a2.graphml
 
 Bug because Array elements remain nondet and wrong assumptions mess them up
 ../cmake-build-debug/nitwit ../../data/sv-witnesses/witnessFileByHash/c0c53e09167714151d40168f5955dd953039164a828a6bb12ec8a871fb09ef65.graphml ../../data/sv-benchmarks/c/reducercommutativity/rangesum20_false-unreach-call.i
