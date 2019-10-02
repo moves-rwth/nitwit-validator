@@ -36,7 +36,7 @@ from benchexec.model import SOFTTIMELIMIT
 class Tool(benchexec.tools.template.BaseTool):
 	"""
 	Tool info for the Nitwit Validator, an interpreter-based violation witness validator.
-	URL:
+	URL: https://github.com/moves-rwth/nitwit-validator
 	"""
 	REQUIRED_PATHS = []
 	BUILD_PATH = 'cmake-build-release'
