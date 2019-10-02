@@ -1,5 +1,5 @@
 # NITWIT Validator
-An simple but fast interpreter-based violation witness validator for C code.
+A simple but fast interpreter-based violation witness validator for C code.
 
 ## License
 NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.com/zsaleeba/picoc), licensed under different terms. See [`LICENSE`](LICENSE) for more information.
