@@ -2,8 +2,8 @@
 // Created by jan on 3.4.19.
 //
 
-#ifndef CWVALIDATOR_FILES_HPP
-#define CWVALIDATOR_FILES_HPP
+#ifndef NITWIT_FILES_HPP
+#define NITWIT_FILES_HPP
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -12,4 +12,4 @@
 
 char *readFile(const char *FileName);
 
-#endif //CWVALIDATOR_FILES_HPP
+#endif //NITWIT_FILES_HPP

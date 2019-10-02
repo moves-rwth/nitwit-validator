@@ -132,7 +132,7 @@ def get_info_files_for_producer(results: List[str], producer: str) -> List[str]:
 
 
 def main():
-	parser = argparse.ArgumentParser(description="Runs the CWValidator on SV-Benchmark")
+	parser = argparse.ArgumentParser(description="Runs the Nitwit on SV-Benchmark")
 	parser.add_argument("-w", "--witnesses", required=True, type=str, help="The directory with unzipped witnesses.")
 	parser.add_argument("-r", "--results", required=True, type=str, default=None,
 	                    help="The directory with resulting files about validated witnesses.")

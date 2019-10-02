@@ -112,7 +112,7 @@ int validate(const char *source_filename) {
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        printf("Usage: <cwvalidator> witness.graphml source-file.c\n");
+        printf("Usage: <nitwit> witness.graphml source-file.c\n");
         return 3;
     }
 

@@ -124,9 +124,9 @@ def get_bench_configs(path_to_configs: str) -> List[Tuple[str, str, str, str]]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Runs the CWValidator on SV-Benchmark")
+    parser = argparse.ArgumentParser(description="Runs the Nitwit on SV-Benchmark")
     parser.add_argument("-w", "--witnesses", required=True, type=str, help="The directory with unzipped witnesses.")
-    parser.add_argument("-e", "--exec", required=True, type=str, help="The CWValidator executable.")
+    parser.add_argument("-e", "--exec", required=True, type=str, help="The Nitwit executable.")
     parser.add_argument("-sv", "--sv_benchmark", required=True, type=str, help="The SV-COMP benchmark source files.")
     parser.add_argument("-to", "--timeout", required=False, type=float, default=300, help="Timeout for a validation.")
     parser.add_argument("-l", "--limit", required=False, type=int, default=None, help="How many configurations to run.")

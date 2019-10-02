@@ -35,7 +35,7 @@ from benchexec.model import SOFTTIMELIMIT
 
 class Tool(benchexec.tools.template.BaseTool):
 	"""
-	Tool info for {TODO CWValidator}, an interpreter-based violation witness validator.
+	Tool info for the Nitwit Validator, an interpreter-based violation witness validator.
 	URL:
 	"""
 	REQUIRED_PATHS = []
@@ -45,21 +45,21 @@ class Tool(benchexec.tools.template.BaseTool):
 		executable = util.find_executable('validate.sh')
 		build_path = os.path.join(os.path.dirname(executable), self.BUILD_PATH)
 		if not os.path.isdir(build_path) or \
-				not os.path.isfile(os.path.join(build_path, "cwvalidator32")) or \
-				not os.path.isfile(os.path.join(build_path, "cwvalidator64")):
-			logging.warning("Required binary files for CWValidator not found in {0}.".format(build_path))
+				not os.path.isfile(os.path.join(build_path, "nitwit32")) or \
+				not os.path.isfile(os.path.join(build_path, "nitwit64")):
+			logging.warning("Required binary files for Nitwit not found in {0}.".format(build_path))
 		return executable
 
 	def program_files(self, executable):
-		return [executable, os.path.join(self.BUILD_PATH, 'cwvalidator32'),
-		        os.path.join(self.BUILD_PATH, 'cwvalidator64')]
+		return [executable, os.path.join(self.BUILD_PATH, 'nitwit32'),
+		        os.path.join(self.BUILD_PATH, 'nitwit64')]
 
 	def version(self, executable):
 		stdout = self._version_from_tool(executable, '--version')
 		return stdout.strip()
 
 	def name(self):
-		return 'CWValidator'
+		return 'Nitwit'
 
 	def cmdline(self, executable, options, tasks, propertyfile=None, rlimits={}):
 		return [executable] + options + tasks

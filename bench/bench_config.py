@@ -127,7 +127,7 @@ def extract_config_from_extracted_data(json_data: str, limit: int, should_includ
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Runs the CWValidator on SV-Benchmark")
+    parser = argparse.ArgumentParser(description="Runs the Nitwit on SV-Benchmark")
     parser.add_argument("-w", "--witnesses", required=True, type=str, help="The directory with unzipped witnesses.")
     parser.add_argument("-sv", "--sv_benchmark", required=True, type=str, help="The SV-COMP benchmark source files.")
     parser.add_argument("-l", "--limit", required=False, type=int, default=None,

@@ -31,7 +31,7 @@ def get_bench_configs(path_to_configs: str) -> List[Tuple[str, str, str, str]]:
 
 
 def main():
-	parser = argparse.ArgumentParser(description="Runs the CWValidator on SV-Benchmark")
+	parser = argparse.ArgumentParser(description="Runs the Nitwit on SV-Benchmark")
 	parser.add_argument("-c", "--config", required=True, type=str, help="The executions configuration file.")
 	parser.add_argument("-l", "--limit", required=False, type=int, default=None, help="How many witnesses to process.")
 

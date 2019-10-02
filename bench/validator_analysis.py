@@ -73,24 +73,24 @@ VALIDATORS = {
 	1: "Ultimate Automizer",
 	2: "CPA-witness2test",
 	3: "FShell-witness2test",
-	4: "CWValidator"
+	4: "Nitwit Validator"
 }
 VALIDATORS_ABBR = {
 	0: "CPAChecker",
 	1: "Ult. Auto.",
 	2: "CPA-w2t",
 	3: "FShell-w2t",
-	4: "CWValidator"
+	4: "Nitwit"
 }
 VALIDATORS_FILES = {
 	0: "cpachecker",
 	1: "ua",
 	2: "cpaw2t",
 	3: "fsw2t",
-	4: "cwv"
+	4: "nitwit"
 }
-VALIDATORS_LIST = ["CPAChecker", "Ultimate Automizer", "CPA-witness2test", "FShell-witness2test", "CWValidator"]
-VALIDATORS_LIST_ABBR = ["CPAChecker", "Ult. Auto.", "CPA-w2t", "FShell-w2t", "CWValidator"]
+VALIDATORS_LIST = ["CPAChecker", "Ultimate Automizer", "CPA-witness2test", "FShell-witness2test", "Nitwit Validator"]
+VALIDATORS_LIST_ABBR = ["CPAChecker", "Ult. Auto.", "CPA-w2t", "FShell-w2t", "Nitwit"]
 
 CPU_MULTIPLIER = 2.1 / 3.4
 
@@ -244,7 +244,7 @@ def analyze_unique_by_producer(matching: Dict[str, dict], diff_matching: Dict[st
 			none_val.add(w + '.json')
 
 	print(f"Uniquely validated by *others*, i.e., CWV probably buggy: {len(others_uval)}")
-	print(f"Uniquely validated by *CWValidator*: {len(cwv_uval)}")
+	print(f"Uniquely validated by *Nitwit*: {len(cwv_uval)}")
 	print(f"Validated by all, i.e. pretty sure these witnesses are correct: {len(all_val)}")
 	print(f"Validated by none, i.e. pretty sure these witnesses are incorrect or too complex: {len(none_val)}\n")
 
@@ -427,11 +427,11 @@ def output_val_data(matching: Dict[str, dict]):
 
 def main():
 	global SAVE_FIGURES
-	parser = argparse.ArgumentParser(description="Analyzes results of CWValidator and SV-COMP validators")
+	parser = argparse.ArgumentParser(description="Analyzes results of Nitwit and SV-COMP validators")
 	parser.add_argument("-v", "--validators", required=True, type=str,
 	                    help="The JSON file with results about SV-COMP validator runs.")
 	parser.add_argument("-r", "--results", required=True, type=str,
-	                    help="The directory with validation results of CWValidator.")
+	                    help="The directory with validation results of Nitwit.")
 	parser.add_argument("-om", "--outputmatched", required=False, type=str,
 	                    help="File where to write the matched files config.")
 	parser.add_argument("-df", "--diff", required=False, type=str,
@@ -456,20 +456,20 @@ def main():
 		output_val_data(matching)
 
 	######### ANALYSES ###########
-	# analyze_output_messages(matching)
-	# analyze_by_producer(matching)
+	analyze_output_messages(matching)
+	analyze_by_producer(matching)
 	analyze_virt_best(matching)
-	# analyze_unique_by_producer(matching)
+	analyze_unique_by_producer(matching)
 
 	for i in (0, 1, 2):
 		analyze_times(matching, col_names[i], lambda x: x == i)
 		analyze_memory(matching, col_names[i], lambda x: x == i)
-	# analyze_times(matching, 'Other', lambda x: x > 2)
-	# analyze_memory(matching, 'Other', lambda x: x > 2)
+	analyze_times(matching, 'Other', lambda x: x > 2)
+	analyze_memory(matching, 'Other', lambda x: x > 2)
 	analyze_times(matching, 'All', lambda x: True)
 	analyze_memory(matching, 'All', lambda x: True)
-	# compare_times(matching)
-	# output_val_data(matching)
+	compare_times(matching)
+	output_val_data(matching)
 	if args.graph:
 		plt.show()
 

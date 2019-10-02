@@ -28,7 +28,7 @@ def results_filter(results: list, code: int = None, regex: str = None, producer:
 def main():
 	parser = argparse.ArgumentParser(description="Filters results by a specified code and regex. Output to stdout.")
 	parser.add_argument("-r", "--results", required=True, type=str,
-	                    help="A file with validation results of CWValidator.")
+	                    help="A file with validation results of Nitwit.")
 	parser.add_argument("-c", "--code", required=False, type=int, help="Output code for the result.")
 	parser.add_argument("-m", "--match", required=False, type=str, help="Regex for matching the error output.")
 	parser.add_argument("-p", "--producer", required=False, type=str, help="Regex for matching the producer.")

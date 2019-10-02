@@ -17,8 +17,8 @@ fi
 
 if [[ $1 == "-64" && ( $2 == "-w" || $2 == "--witness") && -e $3 && -e $4 ]]
 then
-  ./cmake-build-release/cwvalidator64 $3 $4
+  ./cmake-build-release/nitwit64 $3 $4
 elif [[ ( $1 == "-w" || $1 == "--witness") && -e $2 && -e $3 ]]
 then
-  ./cmake-build-release/cwvalidator32 $2 $3
+  ./cmake-build-release/nitwit32 $2 $3
 fi

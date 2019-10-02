@@ -79,4 +79,4 @@ FShell is wrong here:
    https://sv-comp.sosy-lab.org/2019/results/witnessFileByHash/f0099bb9779a53ac0b24da2b723ee2889e0bd93b2db82b57b8083896b672a3a2.graphml
 
 Bug because Array elements remain nondet and wrong assumptions mess them up
-../cmake-build-debug/cwvalidator ../../data/sv-witnesses/witnessFileByHash/c0c53e09167714151d40168f5955dd953039164a828a6bb12ec8a871fb09ef65.graphml ../../data/sv-benchmarks/c/reducercommutativity/rangesum20_false-unreach-call.i
+../cmake-build-debug/nitwit ../../data/sv-witnesses/witnessFileByHash/c0c53e09167714151d40168f5955dd953039164a828a6bb12ec8a871fb09ef65.graphml ../../data/sv-benchmarks/c/reducercommutativity/rangesum20_false-unreach-call.i

@@ -23,7 +23,7 @@ for C_FILE in testfiles/*.c ; do
     for WITNESS in testfiles/$filename.*.c.graphml ; do
         [[ -f "$WITNESS" ]] || break
         let "n_tests=n_tests+1"
-        $1/cwvalidator32 $WITNESS $C_FILE > /dev/null
+        $1/nitwit32 $WITNESS $C_FILE > /dev/null
 
         exit_val=$?
         if [[ ${exit_val} -eq 0 || ${exit_val} -eq 245 ]]
@@ -50,7 +50,7 @@ for C_FILE in testfiles/*.c ; do
     for WITNESS in testfiles/$filename.*.c.graphml.invalid ; do
         [[ -f "$WITNESS" ]] || break
         let "n_tests=n_tests+1"
-        $1/cwvalidator32 $WITNESS $C_FILE > /dev/null
+        $1/nitwit32 $WITNESS $C_FILE > /dev/null
 
         exit_val=$?
         if [[ ${exit_val} -ne 0 ]]

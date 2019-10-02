@@ -2,8 +2,8 @@
 // Created by jan svejda on 3.4.19.
 //
 
-#ifndef CWVALIDATOR_AUTOMATON_HPP
-#define CWVALIDATOR_AUTOMATON_HPP
+#ifndef NITWIT_AUTOMATON_HPP
+#define NITWIT_AUTOMATON_HPP
 
 #include "../picoc/picoc.hpp"
 
@@ -180,4 +180,4 @@ public:
     ProgramState();
 };
 
-#endif //CWVALIDATOR_AUTOMATON_HPP
+#endif //NITWIT_AUTOMATON_HPP

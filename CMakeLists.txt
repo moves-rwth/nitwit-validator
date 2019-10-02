@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(cwvalidator CXX)
+project(nitwit CXX)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -pedantic -DUNIX_HOST -Wno-write-strings -DENABLE_TRANSITION_LIMIT")
@@ -11,11 +11,11 @@ file(GLOB P_H_FILES picoc/**/*.hpp picoc/*.hpp)
 file(GLOB W_SOURCE_FILES witness/**/*.hpp witness/**/*.cpp witness/*.cpp witness/*.hpp)
 file(GLOB U_SOURCE_FILES utils/**/*.hpp utils/**/*.cpp utils/*.cpp utils/*.hpp)
 
-add_executable(cwvalidator32 cwvalidator.cpp ${P_C_FILES} ${P_H_FILES} ${W_SOURCE_FILES} ${U_SOURCE_FILES})
-set_target_properties(cwvalidator32 PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
+add_executable(nitwit32 main.cpp ${P_C_FILES} ${P_H_FILES} ${W_SOURCE_FILES} ${U_SOURCE_FILES})
+set_target_properties(nitwit32 PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
 
-add_executable(cwvalidator64 cwvalidator.cpp ${P_C_FILES} ${P_H_FILES} ${W_SOURCE_FILES} ${U_SOURCE_FILES})
+add_executable(nitwit64 main.cpp ${P_C_FILES} ${P_H_FILES} ${W_SOURCE_FILES} ${U_SOURCE_FILES})
 
-target_link_libraries(cwvalidator32 m)
-target_link_libraries(cwvalidator64 m)
+target_link_libraries(nitwit32 m)
+target_link_libraries(nitwit64 m)
 
