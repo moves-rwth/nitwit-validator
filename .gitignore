@@ -62,3 +62,6 @@ testfiles/output
 venv
 testfiles/svcomp19
 bench/bin
+
+# build output
+bin
