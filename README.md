@@ -7,7 +7,7 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
 ## Prerequisites
  - Linux (for CPU + Memory measurements, though this dependency can be removed from main.cpp and compiled on any platform if required)
  - [CMake](https://cmake.org/) 3.10+
- - GCC and build tools, includin gcc/g++ multilib for 32bit validations
+ - GCC and build tools, including gcc-multilib and g++-multilib for 32bit validations
 
 ## Changing behaviour with compiler options
  - VERBOSE
@@ -43,7 +43,7 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
 
  - For running Nitwit from the wrapper script, you would do:
 	``` (in root, position of parameters must be in the order as shown here)
-	./validate.sh -v    # gets the version of the tool as a Git hash
+	./validate.sh -v
 	./validate.sh -w witness.graphml program.c
 	./validate.sh -64 -w witness.graphml program.c
 	```

@@ -21,6 +21,12 @@ then
   cmake -DCMAKE_BUILD_TYPE=Debug .. || exit 1
   make -j8
   cd ..
+  if [[ ! -d "bin" ]]
+  then
+    mkdir bin
+  fi
+  cp cmake-build-debug/nitwit32 bin/.
+  cp cmake-build-debug/nitwit64 bin/.
 else
   # release
   if [[ ! -d "cmake-build-release" ]]
@@ -31,4 +37,10 @@ else
   cmake -DCMAKE_BUILD_TYPE=Release .. || exit 1
   make -j8
   cd ..
+  if [[ ! -d "bin" ]]
+  then
+    mkdir bin
+  fi
+  cp cmake-build-release/nitwit32 bin/.
+  cp cmake-build-release/nitwit64 bin/.
 fi

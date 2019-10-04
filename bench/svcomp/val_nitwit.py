@@ -2,7 +2,7 @@
 BenchExec is a framework for reliable benchmarking.
 This file is part of BenchExec.
 
-Copyright (C) 2007-2015  Dirk Beyer
+Copyright (C) 2007-2019  Dirk Beyer
 All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,37 +22,33 @@ limitations under the License.
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import logging
-import subprocess
-import sys
 import os
-import re
 
 import benchexec.result as result
-import benchexec.util as util
 import benchexec.tools.template
-from benchexec.model import SOFTTIMELIMIT
+import benchexec.util as util
 
 
 class Tool(benchexec.tools.template.BaseTool):
 	"""
 	Tool info for the Nitwit Validator, an interpreter-based violation witness validator.
-	URL:
+	URL: https://github.com/moves-rwth/nitwit-validator
 	"""
 	REQUIRED_PATHS = []
-	BUILD_PATH = 'cmake-build-release'
+	BIN_DIR = 'bin'
 
 	def executable(self):
 		executable = util.find_executable('validate.sh')
-		build_path = os.path.join(os.path.dirname(executable), self.BUILD_PATH)
-		if not os.path.isdir(build_path) or \
-				not os.path.isfile(os.path.join(build_path, "nitwit32")) or \
-				not os.path.isfile(os.path.join(build_path, "nitwit64")):
-			logging.warning("Required binary files for Nitwit not found in {0}.".format(build_path))
+		bin_path = os.path.join(os.path.dirname(executable), self.BIN_DIR)
+		if not os.path.isdir(bin_path) or \
+				not os.path.isfile(os.path.join(bin_path, "nitwit32")) or \
+				not os.path.isfile(os.path.join(bin_path, "nitwit64")):
+			logging.warning("Required binary files for Nitwit not found in {0}.".format(bin_path))
 		return executable
 
 	def program_files(self, executable):
-		return [executable, os.path.join(self.BUILD_PATH, 'nitwit32'),
-		        os.path.join(self.BUILD_PATH, 'nitwit64')]
+		return [executable, os.path.join(self.BIN_DIR, 'nitwit32'),
+		        os.path.join(self.BIN_DIR, 'nitwit64')]
 
 	def version(self, executable):
 		stdout = self._version_from_tool(executable, '--version')
