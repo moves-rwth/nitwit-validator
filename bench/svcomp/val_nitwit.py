@@ -38,7 +38,7 @@ class Tool(benchexec.tools.template.BaseTool):
 	BIN_DIR = 'bin'
 
 	def executable(self):
-		executable = util.find_executable('validate.sh')
+		executable = util.find_executable('nitwit.sh')
 		bin_path = os.path.join(os.path.dirname(executable), self.BIN_DIR)
 		if not os.path.isdir(bin_path) or \
 				not os.path.isfile(os.path.join(bin_path, "nitwit32")) or \
@@ -51,17 +51,20 @@ class Tool(benchexec.tools.template.BaseTool):
 		        os.path.join(self.BIN_DIR, 'nitwit64')]
 
 	def version(self, executable):
-		stdout = self._version_from_tool(executable, '--version')
-		return stdout.strip()
+		return self._version_from_tool(executable, '--version')
 
 	def name(self):
 		return 'Nitwit'
 
 	def cmdline(self, executable, options, tasks, propertyfile=None, rlimits={}):
+		if propertyfile:
+			options = options + ["-p", propertyfile]
 		return [executable] + options + tasks
 
 	def determine_result(self, returncode, returnsignal, output, isTimeout):
 		"""
+		See README.md at https://github.com/moves-rwth/nitwit-validator for information
+		about result codes
 		@param returncode: code returned
 		@param returnsignal: signal, which terminated validator
 		@param output: the std output
@@ -82,6 +85,4 @@ class Tool(benchexec.tools.template.BaseTool):
 		if not status:
 			status = result.RESULT_ERROR
 
-		if isTimeout:
-			status = 'TIMEOUT'
 		return status
