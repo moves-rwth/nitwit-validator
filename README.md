@@ -53,21 +53,23 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
  - 1   -> (Not in use anymore.)
  - 2   -> Parsing witness failed (file not found).
  - 3   -> Usage error (wrong arguments).
- - 4   -> Unspecified error, probably parsing of C.
+ - 4   -> Unspecified, probably failed in parsing C.
+ - 5   -> Witness reached an error state, but __VERIFIER_error was not called (deprecated, code 250 instead).
 
 ### Some more specific exit codes
- - 240 -> Witness missing.
+ - 240 -> Witness missing (deprecated).
  - 241 -> Witness got into a sink state.
- - 242 -> PROGRAM_FINISHED
- - 243 -> WITNESS_IN_ILLEGAL_STATE
+ - 242 -> Program finished without calling __VERIFIER_error, witness not in an error state.
+ - 243 -> Witness is in an illegal state.
  - 244 -> A C identifier was undefined (usually when some C function/type cannot be resolved).
  - 245 -> The program called __VERIFIER_error, but the witness automaton did not finish in an error state.
  - 246 -> A C identifier was defined twice.
- - 247 -> Unsupported nondeterministic operation (deprecated).
+ - 247 -> Unsupported nondeterministic operation for resolving variables (currently only = and == are allowed in assumptions).
  - 248 -> __VERIFIER_assume or assert() failed.
  - 249 -> Bad function definition.
  - 250 -> Witness reached an error state, but __VERIFIER_error was not called.
  - 251 -> Out of memory.
+ - 255 -> Wrapper script error.
 
 ## FAQ
 
