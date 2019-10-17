@@ -54,7 +54,7 @@ test:clang:
 pack:
   stage: pack
   tags:
-    - zip
+    - gcc
   script:
     - ./scripts/pack.sh
   artifacts:
