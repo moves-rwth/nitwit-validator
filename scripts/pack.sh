@@ -8,12 +8,6 @@ fi
 
 ./build.sh
 
-if [[ -e "/tmp/nitwit" ]]
-then
-    echo "Clean the directory /tmp/nitwit"
-    exit 1
-fi
-
-mkdir /tmp/nitwit
-cp --parents nitwit.sh bin/nitwit* LICENSE picoc/LICENSE /tmp/nitwit/.
-zip -r val_nitwit.zip /tmp/nitwit/*
+mkdir nitwit
+cp --parent nitwit.sh bin/nitwit* LICENSE picoc/LICENSE nitwit/.
+zip -r val_nitwit.zip nitwit/*
