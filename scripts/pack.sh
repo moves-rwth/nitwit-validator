@@ -7,4 +7,13 @@ then
 fi
 
 ./build.sh
-zip val_nitwit.zip nitwit.sh bin/nitwit*
+
+if [[ -e "/tmp/nitwit" ]]
+then
+    echo "Clean the directory /tmp/nitwit"
+    exit 1
+fi
+
+mkdir /tmp/nitwit
+cp --parents nitwit.sh bin/nitwit* LICENSE picoc/LICENSE /tmp/nitwit/.
+zip -r val_nitwit.zip /tmp/nitwit/*
