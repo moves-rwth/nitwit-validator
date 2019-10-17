@@ -3,6 +3,7 @@ image: whatthefuckisadockerid666/cpp-image:latest
 stages:
   - build
   - test
+  - pack
 
 build:gcc:
   stage: build
@@ -50,3 +51,12 @@ test:clang:
     - clang
   script:
     - ./run-tests.sh build_clang
+pack:
+  stage: pack
+  tags:
+    - zip
+  script:
+    - ./scripts/pack.sh
+  artifacts:
+    paths:
+      - val_nitwit.zip
