@@ -1,13 +1,10 @@
 import argparse
 
-import math
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
 
 plt.rcParams.update({'font.size': 36})
 import numpy as np
 from scipy.stats import wilcoxon
-from scipy.stats import ttest_ind
 import pandas as pd
 import seaborn as sns
 
@@ -34,9 +31,9 @@ STATUSES = {
 	'unknown': 1,
 	'-': 1,  # TODO: should be 'not run'?
 	'true': 2,
-	'timeout (true)': 2,
+	'timeout (true)': 3,
 	'timeout': 3,
-	'timeout (error (7))': 4,
+	'timeout (error (7))': 3,
 	'exception': 4,
 	'error (1)': 4,
 	'error (7)': 4,
@@ -59,7 +56,7 @@ STATUSES = {
 	251: 5,  # out of memory
 	-11: 6,  # witness parse error
 	11: 6,  # witness parse error
-	8: 6, # assertion failed
+	8: 6,  # assertion failed
 	2: 6,  # witness parse error
 	244: 6,  # identifier undefined
 }
@@ -182,7 +179,7 @@ def analyze_by_producer(matching: Dict[str, dict]):
 
 
 def analyze_virt_best(matching: Dict[str, dict]):
-	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR+['Virtual best'])
+	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR + ['Virtual best'])
 	data = []
 	producers_virt = {}
 	for i in range(5):
@@ -215,7 +212,6 @@ def analyze_virt_best(matching: Dict[str, dict]):
 	df.loc["Total"] = df.sum().astype(int)
 
 	print(df.to_latex())
-
 
 
 def validator_result_selector(results: list, predicate_others, predicate_cwv) -> bool:
@@ -271,20 +267,37 @@ def reject_outliers(data, m=2):
 	return data[abs(data - np.mean(data)) < m * np.std(data)]
 
 
+times_data = {}
+times_data_cols = ['Witnesses', 'Mean', 'Median', 'Std.dev.', 'Total']
+
+
+def get_aggregated_data_table(results: List[str]):
+	mux = pd.MultiIndex.from_product([VALIDATORS_LIST_ABBR, results], names=['Result', 'Producer'])
+	df = pd.DataFrame(index=mux, columns=times_data_cols)
+	for tup, val in times_data.items():
+		df.loc[tup] = val
+	print(df.to_latex(float_format=lambda x: "{:.2f}".format(x)))
+
+
 def analyze_times(matching: Dict[str, dict], name: str, inclusion_predicate):
 	print('=' * 20 + ' CPU TIME (s) ' + name + '=' * 20)
 	# fig, axs = plt.subplots(nrows=2, ncols=3)
 	figsc, axsc = plt.subplots()
+
 	# take just the successful ones
 	for i in range(5):
 		times = np.asarray(list(map(lambda x: float(x['results'][i]['cpu']),
 		                            filter(lambda x: inclusion_predicate(STATUSES[x['results'][i]['status']]),
 		                                   matching.values()))))
-		print(f"{VALIDATORS_ABBR[i]}: {get_stats(times)}")
-		sns.lineplot(ax=axsc, y=sorted(times), x=range(len(times)), label=VALIDATORS_ABBR[i])
+		times = sorted(times)
+		stats = get_stats_data(times)
+		print(f"{VALIDATORS_ABBR[i]}: {stats}")
+		times_data[(VALIDATORS_ABBR[i], name)] = stats
+
+		sns.lineplot(ax=axsc, y=times, x=range(len(times)), label=VALIDATORS_ABBR[i])
 
 	axsc.set_ylabel("Time [s]")
-	axsc.set_xlabel(f"Number of Witnesses ({name})")
+	axsc.set_xlabel(f"Number of witnesses ({name})")
 	axsc.set(yscale='log')
 	axsc.grid(True, which='both')
 	# axsc.legend(loc=LEGEND_LOC_RIGHT, bbox_to_anchor=LEGEND_BBOX_ANCHOR, ncol=LEGEND_NCOL)
@@ -308,7 +321,7 @@ def analyze_memory(matching: Dict[str, dict], name: str, inclusion_predicate):
 		sns.lineplot(ax=axsc, y=sorted(mems), x=range(len(mems)), label=VALIDATORS_ABBR[i])
 
 	axsc.set_ylabel("Memory [MB]")
-	axsc.set_xlabel(f"Number of Witnesses ({name})")
+	axsc.set_xlabel(f"Number of witnesses ({name})")
 	axsc.set(yscale='log')
 	axsc.grid(True, which='both')
 	# axsc.legend(loc='upper left', bbox_to_anchor=(0.02, 0.9))
@@ -406,7 +419,15 @@ def compare_times(matching: Dict[str, dict]):
 
 
 def get_stats(times) -> str:
-	return f"Mean: {np.mean(times)} Median: {np.median(times)} Std dev: {np.std(times)} In total: {np.sum(times)}"
+	if len(times) == 0:
+		return "Witnesses: 0"
+	return f"Witnesses: {len(times)} Mean: {np.mean(times)} Median: {np.median(times)} Std dev: {np.std(times)} In total: {np.sum(times)}"
+
+
+def get_stats_data(times) -> list:
+	if len(times) == 0:
+		return [0] * 5
+	return [len(times), np.mean(times), np.median(times), np.std(times), np.sum(times)]
 
 
 def output_val_data(matching: Dict[str, dict]):
@@ -457,19 +478,23 @@ def main():
 
 	######### ANALYSES ###########
 	analyze_output_messages(matching)
-	analyze_by_producer(matching)
-	analyze_virt_best(matching)
-	analyze_unique_by_producer(matching)
-
-	for i in (0, 1, 2):
-		analyze_times(matching, col_names[i], lambda x: x == i)
-		analyze_memory(matching, col_names[i], lambda x: x == i)
+	# analyze_by_producer(matching)
+	# analyze_virt_best(matching)
+	# analyze_unique_by_producer(matching)
+	#
+	for i, name in enumerate(col_names):
+		analyze_times(matching, name, lambda x: x == i)
 	analyze_times(matching, 'Other', lambda x: x > 2)
-	analyze_memory(matching, 'Other', lambda x: x > 2)
 	analyze_times(matching, 'All', lambda x: True)
-	analyze_memory(matching, 'All', lambda x: True)
-	compare_times(matching)
-	output_val_data(matching)
+	get_aggregated_data_table(col_names + ['Other', 'All'])
+
+	# for i, name in enumerate(col_names):
+	# 	analyze_memory(matching, name, lambda x: x == i)
+	# analyze_memory(matching, 'Other', lambda x: x > 2)
+	# analyze_memory(matching, 'All', lambda x: True)
+
+	# compare_times(matching)
+	# output_val_data(matching)
 	if args.graph:
 		plt.show()
 
