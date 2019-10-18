@@ -12,7 +12,7 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
 ## Prerequisites
  - Linux (for CPU + Memory measurements, though this dependency can be removed from main.cpp and compiled on any platform if required)
  - [CMake](https://cmake.org/) 3.10+
- - GCC and build tools, includin gcc/g++ multilib for 32bit validations
+ - GCC and build tools, including gcc-multilib and g++-multilib for 32bit validations
 
 ## Changing behaviour with compiler options
  - VERBOSE
@@ -48,10 +48,33 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
 
  - For running Nitwit from the wrapper script, you would do:
 	``` (in root, position of parameters must be in the order as shown here)
-	./validate.sh -v    # gets the version of the tool as a Git hash
-	./validate.sh -w witness.graphml program.c
-	./validate.sh -64 -w witness.graphml program.c
+	./nitwit.sh -v
+	./nitwit.sh -w witness.graphml program.c
+	./nitwit.sh -64 -w witness.graphml program.c
 	```
+
+## Output codes
+ - 0   -> Successful validation. Violation found.
+ - 1   -> (Not in use anymore.)
+ - 2   -> Parsing witness failed (file not found).
+ - 3   -> Usage error (wrong arguments).
+ - 4   -> Unspecified, probably failed in parsing C.
+ - 5   -> Witness reached an error state, but __VERIFIER_error was not called (deprecated, code 250 instead).
+
+### Some more specific exit codes
+ - 240 -> Witness missing (deprecated).
+ - 241 -> Witness got into a sink state.
+ - 242 -> Program finished without calling __VERIFIER_error, witness not in an error state.
+ - 243 -> Witness is in an illegal state.
+ - 244 -> A C identifier was undefined (usually when some C function/type cannot be resolved).
+ - 245 -> The program called __VERIFIER_error, but the witness automaton did not finish in an error state.
+ - 246 -> A C identifier was defined twice.
+ - 247 -> Unsupported nondeterministic operation for resolving variables (currently only = and == are allowed in assumptions).
+ - 248 -> __VERIFIER_assume or assert() failed.
+ - 249 -> Bad function definition.
+ - 250 -> Witness reached an error state, but __VERIFIER_error was not called.
+ - 251 -> Out of memory.
+ - 255 -> Wrapper script error.
 
 ## FAQ
 

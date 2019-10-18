@@ -106,7 +106,7 @@ class DefaultKeyValues {
 public:
     void addKey(const Key &k);
 
-    const Key getDefault(const string &id) const;
+    Key getDefault(const string &id) const;
 
     void print() const;
 };
@@ -158,26 +158,8 @@ public:
 
     const shared_ptr<Node> &getCurrentState() const;
 
-    void try_resolve_variables(ParseState *state);
-
     bool canTransitionFurther();
 };
 
-
-class ProgramState {
-public:
-    string origin_file;
-    string enter_function;
-    string return_from_function;
-    string source_code;
-    ConditionControl control;
-    size_t start_line{};
-    bool enterLoopHead{};
-
-    ProgramState(string originFile, string enterFunction, string returnFromFunction,
-                 string sourceCode, ConditionControl control, size_t startLine, bool enterLoopHead);
-
-    ProgramState();
-};
 
 #endif //NITWIT_AUTOMATON_HPP

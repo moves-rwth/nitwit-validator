@@ -346,7 +346,7 @@ shared_ptr<DefaultKeyValues> getDefaultKeys() {
     dkv->addKey(Key("returnFromFunction", "string", "edge", "returnFrom", ""));
     dkv->addKey(Key("witness-type", "string", "graph", "witness-type", ""));
     dkv->addKey(Key("inputWitnessHash", "string", "graph", "inputwitnesshash", ""));
-    dkv->addKey(Key("originFileName", "string", "edge", "originfile", "./00.basic.c"));
+    dkv->addKey(Key("originFileName", "string", "edge", "originfile", ""));
     dkv->addKey(Key("isViolationNode", "boolean", "node", "violation", "false"));
     dkv->addKey(Key("isEntryNode", "boolean", "node", "entry", "false"));
     dkv->addKey(Key("isSinkNode", "boolean", "node", "sink", "false"));
@@ -358,7 +358,7 @@ void DefaultKeyValues::addKey(const Key &k) {
     this->default_keys.emplace(k.id, k);
 }
 
-const Key DefaultKeyValues::getDefault(const string &id) const {
+Key DefaultKeyValues::getDefault(const string &id) const {
     auto it = this->default_keys.find(id);
     if (it == this->default_keys.end())
         return Key();
@@ -508,13 +508,3 @@ void Data::print() const {
            this->specification.c_str(), this->producer.c_str()
     );
 }
-
-
-ProgramState::ProgramState(string originFile, string enterFunction, string returnFromFunction,
-                           string sourceCode, ConditionControl control, size_t startLine, bool enterLoopHead)
-        : origin_file(std::move(originFile)), enter_function(std::move(enterFunction)),
-          return_from_function(std::move(returnFromFunction)),
-          source_code(std::move(sourceCode)), control(std::move(control)), start_line(startLine),
-          enterLoopHead(enterLoopHead) {}
-
-ProgramState::ProgramState() = default;

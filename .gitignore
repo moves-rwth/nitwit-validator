@@ -62,3 +62,8 @@ testfiles/output
 venv
 testfiles/svcomp19
 bench/bin
+val_nitwit.zip
+
+# build output
+bin
+/nitwit/

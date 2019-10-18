@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
         }
     } else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
         printf("FAILED: __VERIFIER_error was never called, even though witness IS in violation state.\n");
-        exit_value = 5;
+        exit_value = UNVALIDATED_VIOLATION;
     } else if (wit_aut->wasVerifierErrorCalled()) {
         printf("\nVALIDATED: The state: %s has been reached.", wit_aut->getCurrentState()->id.c_str());
         if (wit_aut->isInViolationState()) {
