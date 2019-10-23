@@ -20,7 +20,7 @@ while [ -n "$1" ] ; do
       echo "1.0" ; exit 0 ;;
     -h|--help)
       echo "Usage: ./nitwit.sh -v/--version
-       ./nitwit.sh -w/--witness <witness-file> [-p/--property] <property-file> <C-program>
+       ./nitwit.sh -w/--witness <witness-file> [-p/--property <property-file>] <C-program>
        ./nitwit.sh -32/-64 --witness <witness> <C-program>  # 32-bit archite is default";
      exit 0 ;;
     *) PROGRAM="$1" ; shift 1 ;;
