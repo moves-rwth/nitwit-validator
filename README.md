@@ -76,6 +76,102 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
  - 251 -> Out of memory.
  - 255 -> Wrapper script error.
 
+## Docker
+For ease of usage, we provide a Docker image for our tool. To build it, install Docker and run
+`docker build . -r nitwit:latest` in the root directory.
+Docker builds NITWIT in a Ubuntu 18.04 container and builds it with debug configuration enabled.
+This lets you see the explored trace and resolved assumptions during validation.
+
+As an example, suppose you would like to validate a witness from SV-COMP'19, for instance for the following recursive program:
+```[C]
+extern void __VERIFIER_error() __attribute__ ((__noreturn__));
+
+/*
+ * Recursive computation of fibonacci numbers.
+ * 
+ * Author: Matthias Heizmann
+ * Date: 2013-07-13
+ * 
+ */
+
+extern int __VERIFIER_nondet_int(void);
+
+
+int fibonacci(int n) {
+    if (n < 1) {
+        return 0;
+    } else if (n == 1) {
+        return 1;
+    } else {
+        return fibonacci(n-1) + fibonacci(n-2);
+    }
+}
+
+
+int main() {
+    int x = __VERIFIER_nondet_int();
+    int result = fibonacci(x);
+    if (x < 8 || result >= 34) {
+        return 0;
+    } else {
+        ERROR: __VERIFIER_error();
+    }
+}
+    
+```
+available [here](https://raw.githubusercontent.com/sosy-lab/sv-benchmarks/svcomp19/c/recursive/Fibonacci05_false-unreach-call_true-no-overflow_true-termination.c).
+Download this file to a directory on your computer. We will use a witness from CPAChecker which you can download [here](https://sv-comp.sosy-lab.org/2019/results/witnessFileByHash/a9f053b1405a441b2c52964a24c4192e5c0b78522578d59a62865c8339abc9ff.graphml).
+Put both files in the same directory, for simplicity we assume they are named `main.c` and `witness.graphml`.
+
+Now in the same directory, execute the following command:
+```
+docker run --rm --name nitwit -v `pwd`:/nitwit/testfiles nitwit:latest -32 -w testfiles/witness.graphml testfiles/main.c 
+```
+This will run NITWIT inside Docker to validate the program with semantics of a 32-bit CPU architecture.
+You could also specify the option `-64` instead to switch to 64-bit architecture.
+Alongside the simulation, NITWIT takes advantage of the witness to resolve variable `x` to value 8 as specified in the witness on edge `A8142 --> A8140`
+You should see output similar to:
+```
+Witness automaton reconstructed
+============Start simulation============
+--- Line: 14, Pos: 0
+--- Line: 25, Pos: 0
+	Taking edge: A7545 --> A8142
+--- Line: 26, Pos: 33, Enter: __VERIFIER_nondet_int
+Unmet assumption x == (8);.
+--- Line: 26, Pos: 33
+Unmet assumption x == (8);.
+--- Line: 26, Pos: 34, Return: __VERIFIER_nondet_int
+Unmet assumption x == (8);.
+--- Line: 26, Pos: 34
+Unmet assumption x == (8);.
+--- Line: 26, Pos: 0
+Resolved var: x: ---> 8
+Assumption x == (8); satisfied.
+	Taking edge: A8142 --> A8140
+--- Line: 27, Pos: 26, Enter: fibonacci
+
+       ...
+(omitted for brevity)
+       ...
+
+--- Line: 28, Pos: 26, Control: 0
+Assumption result == (21); satisfied.
+	Taking edge: A7551 --> A7548
+--- Line: 31, Pos: 31, Enter: __VERIFIER_error
+--- Line: 31, Pos: 31
+--- Line: 31, Pos: 32, Return: __VERIFIER_error
+__VERIFIER_error has been called!
+===============Finished=================
+Stopping the interpreter.
+
+VALIDATED: The state: A7548 has been reached. It is a violation state.
+``` 
+
+As indicated by the output, NITWIT was able to validate the witness.
+If you would like to use NITWIT as a validation tool more extensively, we recommend to compile it directly on the machine where it will run with enabled compiler optimizations.
+The easiest way is to run `./build.sh` after cloning this repository. 
+
 ## FAQ
 
 ### I get an error during compilation like ```/usr/include/c++/8/cstdio:41:10: fatal error: bits/c++config.h: No such file or directory```
