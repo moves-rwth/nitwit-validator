@@ -147,7 +147,9 @@ Value *VariableAllocValueAndCopy(Picoc *pc, struct ParseState *Parser, Value *Fr
     char TmpBuf[MAX_TMP_COPY_BUF];
     int CopySize = TypeSizeValue(FromValue, TRUE);
 
-    assert(CopySize <= MAX_TMP_COPY_BUF);
+    if (CopySize > MAX_TMP_COPY_BUF) {
+        ProgramFailWithExitCode(Parser, 251, "Out of memory");
+    }
     memcpy((void *)&TmpBuf[0], (void *)FromValue->Val, CopySize);
     NewValue = VariableAllocValueAndData(pc, Parser, CopySize, FromValue->IsLValue, FromValue->LValueFrom, OnHeap,
                                          FromValue->VarIdentifier);
