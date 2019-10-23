@@ -6,6 +6,6 @@ RUN    apt-get update \
 
 ADD . /tool/
 WORKDIR /tool
-RUN ./build.sh
+RUN ./build.sh -debug
 
 ENTRYPOINT ["./nitwit.sh"]

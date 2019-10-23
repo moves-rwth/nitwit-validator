@@ -170,7 +170,7 @@ void setEdgeAttributes(shared_ptr<Edge> &edge, const pugi::char_t *name, const p
         edge->enterLoopHead = strcmp(value, "true") == 0;
     } else if (strcmp(name, "threadId") != 0 && strcmp(name, "id") != 0) {
 #ifdef VERBOSE
-        fprintf(stderr, "I am missing an edge attribute definition: %s\n", name);
+        fprintf(stderr, "Unrecognized edge attribute definition: %s\n", name);
 #endif
     }
 }
@@ -281,7 +281,7 @@ void setNodeAttributes(const shared_ptr<Node> &node, const char *name, const cha
         node->thread_number = atoi(value);
     } else {
 #ifdef VERBOSE
-        fprintf(stderr, "I am missing a node attribute definition: %s\n", name);
+        fprintf(stderr, "Unrecognized node attribute definition: %s\n", name);
 #endif
     }
 }
