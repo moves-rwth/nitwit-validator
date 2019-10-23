@@ -78,7 +78,7 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
 
 ## Docker
 For ease of usage, we provide a Docker image for our tool. To build it, install Docker and run
-`docker build . -r nitwit:latest` in the root directory.
+`docker build . -r nitwit:latest` in the project root directory.
 Docker builds NITWIT in a Ubuntu 18.04 container and builds it with debug configuration enabled.
 This lets you see the explored trace and resolved assumptions during validation.
 
@@ -129,7 +129,7 @@ docker run --rm --name nitwit -v `pwd`:/nitwit/testfiles nitwit:latest -32 -w te
 ```
 This will run NITWIT inside Docker to validate the program with semantics of a 32-bit CPU architecture.
 You could also specify the option `-64` instead to switch to 64-bit architecture.
-Alongside the simulation, NITWIT takes advantage of the witness to resolve variable `x` to value 8 as specified in the witness on edge `A8142 --> A8140`
+Alongside the simulation, NITWIT takes advantage of the witness to resolve variable `x` to value 8 as specified in the witness on edge `A8142 --> A8140`.
 You should see output similar to:
 ```
 Witness automaton reconstructed

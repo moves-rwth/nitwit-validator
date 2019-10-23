@@ -70,14 +70,14 @@ VALIDATORS = {
 	1: "Ultimate Automizer",
 	2: "CPA-witness2test",
 	3: "FShell-witness2test",
-	4: "Nitwit Validator"
+	4: "NITWIT Validator"
 }
 VALIDATORS_ABBR = {
 	0: "CPAChecker",
 	1: "Ult. Auto.",
 	2: "CPA-w2t",
 	3: "FShell-w2t",
-	4: "Nitwit"
+	4: "NITWIT"
 }
 VALIDATORS_FILES = {
 	0: "cpachecker",
@@ -87,7 +87,7 @@ VALIDATORS_FILES = {
 	4: "nitwit"
 }
 VALIDATORS_LIST = ["CPAChecker", "Ultimate Automizer", "CPA-witness2test", "FShell-witness2test", "Nitwit Validator"]
-VALIDATORS_LIST_ABBR = ["CPAChecker", "Ult. Auto.", "CPA-w2t", "FShell-w2t", "Nitwit"]
+VALIDATORS_LIST_ABBR = ["CPAChecker", "Ult. Auto.", "CPA-w2t", "FShell-w2t", "NITWIT"]
 
 CPU_MULTIPLIER = 2.1 / 3.4
 
@@ -448,11 +448,11 @@ def output_val_data(matching: Dict[str, dict]):
 
 def main():
 	global SAVE_FIGURES
-	parser = argparse.ArgumentParser(description="Analyzes results of Nitwit and SV-COMP validators")
+	parser = argparse.ArgumentParser(description="Analyzes results of NITWIT and SV-COMP validators")
 	parser.add_argument("-v", "--validators", required=True, type=str,
 	                    help="The JSON file with results about SV-COMP validator runs.")
 	parser.add_argument("-r", "--results", required=True, type=str,
-	                    help="The directory with validation results of Nitwit.")
+	                    help="The directory with validation results of NITWIT.")
 	parser.add_argument("-om", "--outputmatched", required=False, type=str,
 	                    help="File where to write the matched files config.")
 	parser.add_argument("-df", "--diff", required=False, type=str,
@@ -478,22 +478,22 @@ def main():
 
 	######### ANALYSES ###########
 	analyze_output_messages(matching)
-	# analyze_by_producer(matching)
-	# analyze_virt_best(matching)
-	# analyze_unique_by_producer(matching)
-	#
+	analyze_by_producer(matching)
+	analyze_virt_best(matching)
+	analyze_unique_by_producer(matching)
+
 	for i, name in enumerate(col_names):
 		analyze_times(matching, name, lambda x: x == i)
 	analyze_times(matching, 'Other', lambda x: x > 2)
 	analyze_times(matching, 'All', lambda x: True)
 	get_aggregated_data_table(col_names + ['Other', 'All'])
 
-	# for i, name in enumerate(col_names):
-	# 	analyze_memory(matching, name, lambda x: x == i)
-	# analyze_memory(matching, 'Other', lambda x: x > 2)
-	# analyze_memory(matching, 'All', lambda x: True)
+	for i, name in enumerate(col_names):
+		analyze_memory(matching, name, lambda x: x == i)
+	analyze_memory(matching, 'Other', lambda x: x > 2)
+	analyze_memory(matching, 'All', lambda x: True)
 
-	# compare_times(matching)
+	compare_times(matching)
 	# output_val_data(matching)
 	if args.graph:
 		plt.show()
