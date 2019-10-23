@@ -1,8 +1,10 @@
 # Artifact instructions
 
-1. Create directory `shared` and change to it.
-2. Unzip the artifact.
-3. If you only want to regenerate the graphs based on recorded data from a previously recorded run, then skip to point #TODO.
+There are multiple ways to run NITWIT. Likely the easiest is to build a Docker image, which you can later purge without changes to the system. Should you want to reproduce results presented in our paper, please follow the steps bellow.
+
+1. Download the artefact [from this website](#TODO).
+2. Create directory `shared` and change to it.
+3. Unzip the artifact.
 4. Go to directory `data` with `cd data` and run `unzip sv-benchmarks-svcomp19.zip` and rename the resulting directory with `mv sv-benchmarks-svcomp19.zip sv-benchmarks`. This takes about 7 GB.
 5. Go to directory `data/sv-witnesses` and unzip `witnesses-2019.zip`, this takes quite a while and needs about 50 GB.
 6. Add the `shared` directory to the VirtualBox shared folders in Settings.
@@ -29,12 +31,15 @@ With `-to N` you specify the allowed timeout in seconds. Option `-p N` you give 
 
 Note that the full configuration will run about 12 minutes on 4 cores clocked at approximately 1.8 GHz (Intel i5-8250U).  A machine with 3 GB of RAM per process will be more than enough. There are only a few cases when the validator exceeds 100 MB.
 14. With a timeout of 2 seconds, you should get around 8500 successful validations. With a longer timeout, more violations are found as the processes are not killed prematurely.
-15. The results will be saved in directory `output/nitwit<run>` where `<run>` is the architecture and date. To show a summary of these, run the following:
+15. The results will be saved in directory `output/nitwit<run>` where `run` is the architecture and date. To show a summary of these, run the following:
 ```
 python3 bench_results_analysis.py -w ../../data/sv-witnesses -r output/nitwit<run>
 
 ```
 This shows witnesses in categories of *Validated*, *Non-Validated* and *Badly-parsed* with extracted error messages.
 There is also an already prepared set of results in directory `output/limit_best`, which was the basis for data presented in our paper. We will use these results in the following.
-16. 
-17. 
+16. To display graphs, output tables and statistical data, run the following from the `bench` directory:
+```
+python3 validator_analysis.py -v ../../data/sv-validators/output.json -r output/limit_best -g
+```
+You can supply any results produced from `bench_parallel.py` with the `-r` flag. Option `-g` shows the graphs in interactive matplotlib windows.
