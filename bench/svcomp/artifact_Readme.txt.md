@@ -16,7 +16,7 @@ If you would like to run only a single validations, the best way is to use our w
 ```
 ./nitwit.sh --witness <witness> <C-program>
 ```
-Default CPU architecture is 32-bit, you can select 64-bit architecture with the flag `-64`.`
+Default CPU architecture is 32-bit, you can select 64-bit architecture with the flag `-64`.
 11. [Optional] Check your build with running basic tests `run-tests.sh cmake-build-release`.
 12. Switch to directory `bench` with `cd bench`. Now, you can run a prepared configuration of validations available in `configs/reachability.json` or create your own. To skip creating the configuration, go to point 13. Else run the script:
 ```
