@@ -5,7 +5,8 @@ presented in the paper. Likely the easiest is to build a Docker image, which you
 system. Should you want to reproduce results presented in our paper, please follow the steps bellow.
 
 ## Availability
-This artifact will be permanently archived on a data service *Zenodo* at this [link](#TODO). 
+This artifact will be permanently archived on a data service *Zenodo* and the RWTH Aachen should the paper be accepted.
+Should you have any trouble reproducing the results, please do not hesitate to contact the authors.
 
 ## Contents
 The artifact contains:
@@ -29,8 +30,18 @@ The artifact contains:
 Our validator has the New BSD license as specified by `License.txt`. The data has different licensing (though also
 open). Please see the provided links or license files in their particular directory/archive for more details.
 
+## Hardware for reproduction
+For a complete run of the benchmark a laptop with 16 GB of RAM should be sufficient when the timeout to validation is set
+to a small value, e.g., 2 seconds. This yields the majority of successful validations, cca 97%, that we obtained when
+a larger timeout value was used (rough equivalent to 90 seconds on SV-COMP Apollon machines for our computational cluster).
+
+When we ran the benchmark as specified in step 13. below on a laptop with Intel i5-8250U (4 cores, hyperthreading, base
+freq. 1.8 GHz, no boost for load on all cores) and 16 GB RAM on Ubuntu 18.04 (native, not virtualized), it took 12 minutes
+to finish the entire batch of 12047 witnesses when a 2 second timeout was used. You can use an even less powerful computer
+if you limit the number of validation tasks as described in point 13.
+
 ## Steps to reproduce
-1. Download the artifact [from this website](#TODO).
+1. Download the artifact.
 2. Create directory `vb_shared` and change to it.
 3. Unzip the artifact and go to the main directory with `cd artifact`.
 4. Go to directory `data` with `cd data` and run `unzip sv-benchmarks-svcomp19.zip`. Then rename the extracted directory
