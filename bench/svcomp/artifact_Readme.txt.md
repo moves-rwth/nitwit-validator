@@ -1,8 +1,9 @@
 # Artifact instructions
 This file describes the contents of the `NITWIT_TACAS20.zip` artifact which contains a reproduction set for the paper
 *Interpretation-Based Violation Witness Validation for C: NITWIT*. There are multiple ways to run the NITWIT validator
-presented in the paper. Likely the easiest is to build a Docker image, which you can later purge without changes to the
-system. Should you want to reproduce results presented in our paper, please follow the steps bellow.
+presented in the paper. Likely the easiest is to build a Docker image which you can later purge without changes to the
+system. Instructions on that are in `artifact/nitwit/README.md` or our [GitHub repository](https://github.com/moves-rwth/nitwit-validator).
+Should you want to reproduce results presented in our paper in the TACAS20 virtual machine, please follow the steps bellow.
 
 ## Availability
 This artifact will be permanently archived on a data service *Zenodo* and the RWTH Aachen should the paper be accepted.
