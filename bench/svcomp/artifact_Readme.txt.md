@@ -33,7 +33,7 @@ open). Please see the provided links or license files in their particular direct
 
 ## Hardware for reproduction
 For a complete run of the benchmark a laptop with 16 GB of RAM should be sufficient when the timeout to validation is set
-to a small value, e.g., 2 seconds. This yields the majority of successful validations, cca 97%, that we obtained when
+to a small value, e.g., 2 seconds. This yields the majority of successful validations, ca. 97%, that we obtained when
 a larger timeout value was used (rough equivalent to 90 seconds on SV-COMP Apollon machines for our computational cluster).
 
 When we ran the benchmark as specified in step 13. below on a laptop with Intel i5-8250U (4 cores, hyperthreading, base
@@ -44,11 +44,11 @@ in point 13.
 
 ## Steps to reproduce
 1. Download the artifact.
-2. Create directory `vb_shared` and change to it.
+2. Create the directory `vb_shared` and change to it.
 3. Unzip the artifact and go to the main directory with `cd artifact`.
 4. Go to directory `data` with `cd data` and run `unzip sv-benchmarks-svcomp19.zip`. Then rename the extracted directory
-   with `mv sv-benchmarks-svcomp19.zip sv-benchmarks`. This takes about 7 GB.
-5. Go to directory `data/sv-witnesses` and unzip `witnesses-2019.zip`, this takes a few minutes (with an SSD) and needs 
+   with `mv sv-benchmarks-svcomp19.zip sv-benchmarks`. This requires about 7 GB.
+5. Go to directory `data/sv-witnesses` and unzip `witnesses-2019.zip`, this takes a few minutes (with an SSD) and requires 
    about 50 GB.
 6. Add the `vb_shared` directory to the VirtualBox shared folders in Settings.
 7. Start the `tacas20aec` VM and mount the shared folder to `vb_shared` as specified in a how-to file inside the machine.
@@ -62,12 +62,12 @@ in point 13.
     ```
     ./nitwit.sh --witness <witness> <C-program>
     ```
-    Default CPU architecture is 32-bit, you can select 64-bit architecture with the flag `-64`. You can specify the
-    property file with `-p <file>` though note that NITWIT supports only `CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )`
-    so it is set defaultly.
+    The default CPU architecture is 32-bit, you can select the 64-bit architecture with the flag `-64`. You can specify the
+    property file with `-p <file>`, though note that NITWIT supports only `CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )`
+    so it is set as default.
 11. \[Optional\] Check your build with running basic tests `./run-tests.sh cmake-build-release` (or
     `./run-tests.sh cmake-build-debug` if you built the debug version).
-12. Switch to directory `bench` with `cd bench`. 
+12. Switch to the directory `bench` with `cd bench`. 
 12. \[Optional\] You can run a prepared configuration of validations available in `configs/reachability.json` or create
     your own. To skip creating the configuration, go to point 13. Else run the script:
     ```
@@ -80,13 +80,13 @@ in point 13.
     python3 bench_parallel.py  -w ../../data/sv-witnesses -e ../cmake-build-release/nitwit32 -sv ../../data/sv-benchmarks -to 2 -p 4 -c configs/reachability.json
     ```
     With `-to <secs>` you specify the allowed timeout in seconds. Option `-p <procs>` defines the amount of validation
-    processes to launch in parallel, which will take advantage of your CPUs multiprocessing power. Don't use more than 
+    processes to launch in parallel, which will take advantage of your CPUs multiprocessing power. Do not use more than 
     your core or thread count. Option `-c <config>` specifies the configuration file to be used. You can additionally
     use the flag `-l <limit>` to limit the number of validations. With `-l 1000` the first 1000 witnesses from the dataset of
     about 12000 would be inspected.
     
     Note that the parallel run shown above will run about 12 minutes on 4 cores clocked at approximately 1.8 GHz (Intel
-    i5-8250U). The runtime highly depends on the set timeout limit. A machine with 3 GB of RAM per process will be more than
+    i5-8250U). The runtime highly depends on the used timeout limit. A machine with 3 GB of RAM per process will be more than
     enough. There are only a few cases when the validator exceeds 100 MB.
     With a timeout of 2 seconds, you should get around 8500 successful validations depending on your CPU. 
     With a longer timeout, more violations are found as some processes are not killed prematurely.
@@ -106,7 +106,7 @@ in point 13.
      ```
      python3 exec_single.py -w ../../data/sv-witnesses -sv ../../data/sv-benchmarks -e ../cmake-build-release/nitwit32 -to 2 -f <hash>.json
      ```
-     With flag `-e <exec>` you choose the executable (depending whether you want to use the debug/release version and 
+     With the flag `-e <exec>` you choose the executable (depending whether you want to use the debug/release version and 
      32/64-bit architecture). Option `-to <secs>` again sets the runtime limit and `-f <witness-hash>` sets the witness
      to find and execute.
 16. To display graphs, output tables and statistical data, run the following from the `bench` directory:
