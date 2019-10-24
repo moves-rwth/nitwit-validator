@@ -54,7 +54,7 @@ in point 13.
 7. Start the `tacas20aec` VM and mount the shared folder to `vb_shared` as specified in a how-to file inside the machine.
 8. Open a terminal and change to the directory with additional software using `cd Shared/artifact/packages`.
 9. Install `pip3`, `gcc-multilib` and `g++-multilib` by running `sudo dpkg -i *.deb` from the prepared packages. Then 
-   install Python3 utilities for data analysis and producing of graphs by `pip3 install *.whl`.
+   install Python3 utilities for data analysis and visualization of graphs by `pip3 install *.whl`.
 10. Switch to the validator directory with `cd ../nitwit` and build the validator with `./build.sh`. To use an 
     unoptimized debug version of the validator which also outputs traces, run `./build.sh -debug`. If you would like to
     run only a single validation, use our wrapper script `nitwit.sh` provided in the project directory. Basic usage is 
@@ -65,8 +65,8 @@ in point 13.
     Default CPU architecture is 32-bit, you can select 64-bit architecture with the flag `-64`. You can specify the
     property file with `-p <file>` though note that NITWIT supports only `CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )`
     so it is set defaultly.
-11. \[Optional\] Check your build with running basic tests `run-tests.sh cmake-build-release` (or
-    `run-tests.sh cmake-build-debug` if you built the debug version).
+11. \[Optional\] Check your build with running basic tests `./run-tests.sh cmake-build-release` (or
+    `./run-tests.sh cmake-build-debug` if you built the debug version).
 12. Switch to directory `bench` with `cd bench`. 
 12. \[Optional\] You can run a prepared configuration of validations available in `configs/reachability.json` or create
     your own. To skip creating the configuration, go to point 13. Else run the script:
@@ -79,7 +79,7 @@ in point 13.
     ```
     python3 bench_parallel.py  -w ../../data/sv-witnesses -e ../cmake-build-release/nitwit32 -sv ../../data/sv-benchmarks -to 2 -p 4 -c configs/reachability.json
     ```
-    With `-to <secs>` you specify the allowed timeout in seconds. Option `-p <procs>` you give the amount of validation
+    With `-to <secs>` you specify the allowed timeout in seconds. Option `-p <procs>` defines the amount of validation
     processes to launch in parallel, which will take advantage of your CPUs multiprocessing power. Don't use more than 
     your core or thread count. Option `-c <config>` specifies the configuration file to be used. You can additionally
     use the flag `-l <limit>` to limit the number of validations. With `-l 1000` the first 1000 witnesses from the dataset of
@@ -98,10 +98,11 @@ in point 13.
     This shows witnesses in categories of *Validated*, *Non-Validated* and *Badly-parsed* with extracted error messages.
     There is also an already prepared set of results in directory `output/limit_best` you can inspect. This was the
     basis for data presented in our paper. Directory `output/best` contains results for when transition limiting was 
-    disabled which lead to about 25 more found validations.
+    disabled which lead to about 25 more found validations, but significantly more timeouts.
 15. \[Optional\] If you would like to repeat a single validation from the benchmark, open the file in 
     `output/limit_best/<category>_witnesses.json` and find the validation task based on either the exit code, witness
-     hash, error message, runtime (seconds), producer or memory used (bytes). Copy the witness hash and run:
+     hash, error message, runtime (seconds), producer or memory used (bytes). Copy the witness hash, replace `<hash>` with
+     it and run:
      ```
      python3 exec_single.py -w ../../data/sv-witnesses -sv ../../data/sv-benchmarks -e ../cmake-build-release/nitwit32 -to 2 -f <hash>.json
      ```
@@ -115,4 +116,4 @@ in point 13.
     You can supply any results produced during `bench_parallel.py` with the `-r` flag. Here we used the results as 
     presented in the paper, but change it accordingly if you wish to analyze a benchmark run you did. Option `-g` shows
     the graphs in interactive *matplotlib* windows. Only a subset of all of the graphs that will be shown to you with
-    this script was included in the paper due to page space constraints. 
+    this script was included in the paper due to page number constraints. 
