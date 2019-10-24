@@ -75,9 +75,9 @@ open). Please see the provided links or license files in their particular direct
     Note that the parallel run shown above will run about 12 minutes on 4 cores clocked at approximately 1.8 GHz (Intel
     i5-8250U). The runtime highly depends on the set timeout limit. A machine with 3 GB of RAM per process will be more than
     enough. There are only a few cases when the validator exceeds 100 MB.
-14. With a timeout of 2 seconds, you should get around 8500 successful validations depending on your CPU. 
+    With a timeout of 2 seconds, you should get around 8500 successful validations depending on your CPU. 
     With a longer timeout, more violations are found as some processes are not killed prematurely.
-15. The results will be saved in directory `artifact/nitwit/bench/output/nitwit<run>` where `run` is the architecture
+14. \[Optional\] The results will be saved in directory `artifact/nitwit/bench/output/nitwit<run>` where `run` is the architecture
     and date. To show a summary of these, run the following:
     ```
     python3 bench_results_analysis.py -w ../../data/sv-witnesses -r output/nitwit<run>
@@ -86,9 +86,20 @@ open). Please see the provided links or license files in their particular direct
     There is also an already prepared set of results in directory `output/limit_best` you can inspect. This was the
     basis for data presented in our paper. Directory `output/best` contains results for when transition limiting was 
     disabled which lead to about 25 more found validations.
+15. \[Optional\] If you would like to repeat a single validation from the benchmark, open the file in 
+    `output/limit_best/<category>_witnesses.json` and find the validation task based on either the exit code, witness
+     hash, error message, runtime (seconds), producer or memory used (bytes). Copy the witness hash and run:
+     ```
+     python3 exec_single.py -w ../../data/sv-witnesses -sv ../../data/sv-benchmarks -e ../cmake-build-release/nitwit32 -to 2 -f <hash>.json
+     ```
+     With flag `-e <exec>` you choose the executable (depending whether you want to use the debug/release version and 
+     32/64-bit architecture). Option `-to <secs>` again sets the runtime limit and `-f <witness-hash>` sets the witness
+     to find and execute.
 16. To display graphs, output tables and statistical data, run the following from the `bench` directory:
     ```
     python3 validator_analysis.py -v ../../data/sv-validators/output.json -r output/limit_best -g
     ```
-    You can supply any results produced during `bench_parallel.py` with the `-r` flag. Option `-g` shows the graphs in
-    interactive *matplotlib* windows.
+    You can supply any results produced during `bench_parallel.py` with the `-r` flag. Here we used the results as 
+    presented in the paper, but change it accordingly if you wish to analyze a benchmark run you did. Option `-g` shows
+    the graphs in interactive *matplotlib* windows. Only a subset of all of the graphs that will be shown to you with
+    this script was included in the paper due to page space constraints. 
