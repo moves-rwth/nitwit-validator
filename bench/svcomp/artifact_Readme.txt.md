@@ -47,7 +47,7 @@ in point 13.
 2. Create the directory `vb_shared` and change to it.
 3. Unzip the artifact and go to the main directory with `cd artifact`.
 4. Go to directory `data` with `cd data` and run `unzip sv-benchmarks-svcomp19.zip`. Then rename the extracted directory
-   with `mv sv-benchmarks-svcomp19.zip sv-benchmarks`. This requires about 7 GB.
+   with `mv sv-benchmarks-svcomp19 sv-benchmarks`. This requires about 7 GB.
 5. Go to directory `data/sv-witnesses` and unzip `witnesses-2019.zip`, this takes a few minutes (with an SSD) and requires 
    about 50 GB.
 6. Add the `vb_shared` directory to the VirtualBox shared folders in Settings.
