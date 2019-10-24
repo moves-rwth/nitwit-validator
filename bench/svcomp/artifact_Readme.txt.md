@@ -15,7 +15,7 @@ The artifact contains:
 - License `License.txt`.
 - The artifact reproduction set in `artifact`.
 - Source code of NITWIT Validator in directory `artifact/nitwit`.
-- Scripts for running benchmars and producing graphs and tables in `artifact/nitwit/bench`.
+- Scripts for running benchmarks and producing graphs and tables in `artifact/nitwit/bench`.
 - Configuration files that define which witnesses to run in a benchmark in `artifact/nitwit/bench/configs`.
 - The recorded data from a benchmark run we have presented in the paper in `artifact/nitwit/bench/output/limit_best`.
 - Programs ([source](https://github.com/sosy-lab/sv-benchmarks/archive/svcomp19.zip)) and witnesses ([source](https://zenodo.org/record/2559175))
@@ -38,8 +38,9 @@ a larger timeout value was used (rough equivalent to 90 seconds on SV-COMP Apoll
 
 When we ran the benchmark as specified in step 13. below on a laptop with Intel i5-8250U (4 cores, hyperthreading, base
 freq. 1.8 GHz, no boost for load on all cores) and 16 GB RAM on Ubuntu 18.04 (native, not virtualized), it took 12 minutes
-to finish the entire batch of 12047 witnesses when a 2 second timeout was used. You can use an even less powerful computer
-if you limit the number of validation tasks as described in point 13.
+to finish the entire batch of 12047 witnesses when a 2 second timeout was used with 4 parallel processes.
+You can use an even less powerful computer, but it might be necessary to limit the number of validation tasks as described
+in point 13.
 
 ## Steps to reproduce
 1. Download the artifact.
