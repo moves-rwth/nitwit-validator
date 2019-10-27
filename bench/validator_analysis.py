@@ -1,4 +1,5 @@
 import argparse
+from random import shuffle
 
 import matplotlib.pyplot as plt
 
@@ -66,14 +67,14 @@ col_names_small = ['false', 'unknown', 'true', 'to', 'error', 'om',
                    'bad witness']  # , 'sink', 'not in violation state']
 
 VALIDATORS = {
-	0: "CPAChecker",
+	0: "CPAchecker",
 	1: "Ultimate Automizer",
 	2: "CPA-witness2test",
 	3: "FShell-witness2test",
 	4: "NITWIT Validator"
 }
 VALIDATORS_ABBR = {
-	0: "CPAChecker",
+	0: "CPAchecker",
 	1: "Ult. Auto.",
 	2: "CPA-w2t",
 	3: "FShell-w2t",
@@ -86,8 +87,8 @@ VALIDATORS_FILES = {
 	3: "fsw2t",
 	4: "nitwit"
 }
-VALIDATORS_LIST = ["CPAChecker", "Ultimate Automizer", "CPA-witness2test", "FShell-witness2test", "Nitwit Validator"]
-VALIDATORS_LIST_ABBR = ["CPAChecker", "Ult. Auto.", "CPA-w2t", "FShell-w2t", "NITWIT"]
+VALIDATORS_LIST = ["CPAchecker", "Ultimate Automizer", "CPA-witness2test", "FShell-witness2test", "Nitwit Validator"]
+VALIDATORS_LIST_ABBR = ["CPAchecker", "Ult. Auto.", "CPA-w2t", "FShell-w2t", "NITWIT"]
 
 CPU_MULTIPLIER = 2.1 / 3.4
 
@@ -241,6 +242,7 @@ def analyze_unique_by_producer(matching: Dict[str, dict], diff_matching: Dict[st
 
 	print(f"Uniquely validated by *others*, i.e., CWV probably buggy: {len(others_uval)}")
 	print(f"Uniquely validated by *Nitwit*: {len(cwv_uval)}")
+	print(shuffle(list(cwv_uval)))
 	print(f"Validated by all, i.e. pretty sure these witnesses are correct: {len(all_val)}")
 	print(f"Validated by none, i.e. pretty sure these witnesses are incorrect or too complex: {len(none_val)}\n")
 
@@ -477,23 +479,23 @@ def main():
 		output_val_data(matching)
 
 	######### ANALYSES ###########
-	analyze_output_messages(matching)
-	analyze_by_producer(matching)
-	analyze_virt_best(matching)
+	# analyze_output_messages(matching)
+	# analyze_by_producer(matching)
+	# analyze_virt_best(matching)
 	analyze_unique_by_producer(matching)
-
-	for i, name in enumerate(col_names):
-		analyze_times(matching, name, lambda x: x == i)
-	analyze_times(matching, 'Other', lambda x: x > 2)
-	analyze_times(matching, 'All', lambda x: True)
-	get_aggregated_data_table(col_names + ['Other', 'All'])
-
-	for i, name in enumerate(col_names):
-		analyze_memory(matching, name, lambda x: x == i)
-	analyze_memory(matching, 'Other', lambda x: x > 2)
-	analyze_memory(matching, 'All', lambda x: True)
-
-	compare_times(matching)
+	#
+	# for i, name in enumerate(col_names):
+	# 	analyze_times(matching, name, lambda x: x == i)
+	# analyze_times(matching, 'Other', lambda x: x > 2)
+	# analyze_times(matching, 'All', lambda x: True)
+	# get_aggregated_data_table(col_names + ['Other', 'All'])
+	#
+	# for i, name in enumerate(col_names):
+	# 	analyze_memory(matching, name, lambda x: x == i)
+	# analyze_memory(matching, 'Other', lambda x: x > 2)
+	# analyze_memory(matching, 'All', lambda x: True)
+	#
+	# compare_times(matching)
 	# output_val_data(matching)
 	if args.graph:
 		plt.show()
