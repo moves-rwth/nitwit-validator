@@ -67,3 +67,4 @@ val_nitwit.zip
 # build output
 bin
 /nitwit/
+debug

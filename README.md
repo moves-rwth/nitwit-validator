@@ -15,14 +15,15 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
  - GCC and build tools, including gcc-multilib and g++-multilib for 32bit validations
 
 ## Changing behaviour with compiler options
- - VERBOSE
- - NO_HEADER_INCLUDE
- - REQUIRE_MATCHING_ORIGINFILENAME
- - ENABLE_TRANSITION_LIMIT
- - STOP_IN_SINK
+ - VERBOSE (default on for debug, off for release) - outputs more info about program trace
+ - NO_HEADER_INCLUDE (default on) - ignores any "extern" declarations and automatically includes all available libraries
+ - REQUIRE_MATCHING_ORIGINFILENAME (default off) - matches edges also depending on the "originfilename" argument 
+ - ENABLE_TRANSITION_LIMIT (default on) - stops NITWIT after a certain limit of unsuccessful edge transitions is made
+ - STOP_IN_SINK (default off) - terminate the validation once the sink state is reached
+ - USE_BASIC_CONST (default on) - enable parsing of const keyword (not full C semantics supported), otherwise ignore 
 
 ## Building & Usage
-  For building NITWIT, we require support for building 32bit applications on 64bit systems, so packages like `gcc-multilib` and `g++-multilib` are necessary.
+  For building NITWIT, we require support for compiling 32bit applications on 64bit systems, so packages like `gcc-multilib` and `g++-multilib` are necessary.
  - To build (in the root directory):
     ```./build.sh```
  - To execute a basic test suite:
