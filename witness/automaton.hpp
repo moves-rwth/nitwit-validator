@@ -140,6 +140,8 @@ public:
 
     WitnessAutomaton();
 
+    const Data &getData() const;
+
     void printData() const;
 
     void printRelations() const;

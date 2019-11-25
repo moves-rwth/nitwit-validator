@@ -17,6 +17,7 @@ shared_ptr<WitnessAutomaton> wit_aut;
 // the values shouldn't conflict with any real program exit value as validation ends before returning for these error codes
 // Only if program finishes with value PROGRAM_FINISHED, then it still doesn't matter, because this would mean
 // that it did not get validated
+int RESULT_UNKNOWN = 4;
 int NO_WITNESS_CODE = 240;
 int WITNESS_IN_SINK = 241;
 int PROGRAM_FINISHED = 242;
@@ -41,7 +42,7 @@ void printProgramState(ParseState *ps) {
     if (ps->ReturnFromFunction != nullptr)
         printf(", Return: %s", ps->ReturnFromFunction);
     printf("\n");
-    if (ps->Line == 34 && ps->CharacterPos == 31) {
+    if (ps->Line == 871 && ps->CharacterPos == 37) {
         printf("debug\n");
     }
 }
@@ -128,6 +129,12 @@ int main(int argc, char **argv) {
         printf("Reconstructing the witness automaton failed.\n");
         return 2;
     }
+    if (!wit_aut->getData().witness_type.empty() && wit_aut->getData().witness_type != "violation_witness"){
+        printf("UNKNOWN: NITWIT expects a violation witness yet a different type was specified: %s.\n",
+                wit_aut->getData().witness_type.c_str());
+        return RESULT_UNKNOWN;
+    }
+
     int exit_value = validate(argv[2]);
 
     if ((!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) &&
@@ -160,7 +167,7 @@ int main(int argc, char **argv) {
         }
     } else {
         printf("UNKNOWN: A different error occurred, probably a parsing error or program exited.\n");
-        exit_value =  4;
+        exit_value =  RESULT_UNKNOWN;
     }
 #ifdef VERBOSE
     double mem, cpu; process_resource_usage(mem, cpu);

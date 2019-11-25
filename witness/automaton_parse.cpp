@@ -482,6 +482,10 @@ bool WitnessAutomaton::wasVerifierErrorCalled() const {
     return this->verifier_error_called;
 }
 
+const Data &WitnessAutomaton::getData() const {
+    return data;
+}
+
 void Node::print() const {
     printf("id %s: %s, th: %zu, f: %d, v: %d, s: %d, e: %d\n", this->id.c_str(), this->node_type.c_str(),
            this->thread_number,
