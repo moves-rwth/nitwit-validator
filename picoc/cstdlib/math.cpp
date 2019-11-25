@@ -18,6 +18,7 @@ static double M_2_SQRTPIValue = 1.12837916709551257390;  /* 2/sqrt(pi) */
 static double M_SQRT2Value = 1.41421356237309504880;  /* sqrt(2) */
 static double M_SQRT1_2Value = 0.70710678118654752440;  /* 1/sqrt(2) */
 static double M_NAN = nan("");  /* NAN */
+static double M_NAN2 = nan("");  /* NAN */
 
 /* assign a floating point value */
 double AssignFP(Value *DestValue, double FromFP) {
@@ -312,94 +313,95 @@ void MathLLrint(struct ParseState *Parser, Value *ReturnValue, Value **Param, in
 struct LibraryFunction MathFunctions[] =
         {
                 // trigonometric
-                {MathCos,            "float cos(float);"},
-                {MathSin,            "float sin(float);"},
-                {MathTan,            "float tan(float);"},
-                {MathAcos,           "float acos(float);"},
-                {MathAsin,           "float asin(float);"},
-                {MathAtan,           "float atan(float);"},
-                {MathAtan2,          "float atan2(float);"},
-
-                // hyperbolic
-                {MathCosh,           "float cosh(float);"},
-                {MathSinh,           "float sinh(float);"},
-                {MathTanh,           "float tanh(float);"},
-                {MathAcosh,          "float acosh(float);"},
-                {MathAsinh,          "float asinh(float);"},
-                {MathAtanh,          "float atanh(float);"},
-
-                // exp, log
-                {MathExp,            "float exp(float);"},
-                {MathFrexp,          "float frexp(float, int *);"},
-                {MathLdexp,          "float ldexp(float, int);"},
-                {MathLog,            "float log(float);"},
-                {MathLog10,          "float log10(float);"},
-//                {MathModf,       "double modf(double, double *);"},
-                {MathExp2,           "float exp2(float);"},
-                {MathExpM1,          "float expm1(float);"},
-                {MathIlogb,          "float ilogb(float);"},
-                {MathLog1p,          "float log1p(float);"},
-                {MathLog2,           "float log2(float);"},
-                {MathLogb,           "float logb(float);"},
-                {MathScalbn,         "float scalbn(float, long int);"},
-                {MathScalbnln,       "float scalbnln(float, long int);"},
-
-                // power
-                {MathPow,            "float pow(float,float);"},
-                {MathSqrt,           "float sqrt(float);"},
-                {MathCbrt,           "float cbrt(float);"},
-                {MathHypot,          "float hypot(float, float);"},
-
-                // error + gamma
-
-                // round, remainder
-                {MathCeil,           "float ceil(float);"},
-                {MathFloor,          "float floor(float);"},
-                {MathFmod,           "float fmod(float, float);"},
-                {MathRound,          "float round(float);"},
-                {MathLround,         "long lround(float);"},
-                {MathLLround,        "long long llround(float);"},
-                {MathRint,           "float rint(float);"},
-                {MathLrint,          "long lrint(float);"},
-                {MathLLrint,         "long long llrint(float);"},
-                {MathTrunc,          "float trunc(float);"},
-                {MathNearbyint,      "float nearbyint(float);"},
-                {MathRemainder,      "float remainder(float, float);"},
-
-                // floats
-                {MathCopysign,       "float copysign(float, float);"},
-                {MathNan,            "float nan(char *);"},
-                {MathNextafter,      "float nextafter(float, float);"},
-                {MathNexttoward,     "float nexttoward(float, float);"},
-
-                // min, max, difference
-                {MathFdim,           "float fdim(float, float);"},
-                {MathFmax,           "float fmin(float, float);"},
-                {MathFmin,           "float fmin(float, float);"},
-
-                // other
-                {MathFabs,           "float fabs(float);"},
-                {MathAbs,            "float abs(float);"},
-                {MathFma,            "float fma(float, float, float);"},
-
-                // MACROS
-                // classification
-                {MathFpclassify,     "int fpclassify(float);"},
-                {MathIsfinite,       "int isfinite(float);"},
-                {MathIsinf,          "int isinf(float);"},
-                {MathIsnan,          "int isnan(float);"},
-                {MathIsnormal,       "int isnormal(float);"},
-                {MathSignbit,        "int signbit(float);"},
-
-                // comparison
-                {MathIsgreater,      "int isgreater(float, float);"},
-                {MathIsgreaterequal, "int isgreaterequal(float, float);"},
-                {MathIsless,         "int isless(float, float);"},
-                {MathIslessequal,    "int islessequal(float, float);"},
-                {MathIslessgreater,  "int islessgreater(float, float);"},
-                {MathIsunordered,    "int isunordered(float, float);"},
-
-                /////////////////////////////////////////////////////
+//                {MathCos,            "float cos(float);"},
+//                {MathSin,            "float sin(float);"},
+//                {MathTan,            "float tan(float);"},
+//                {MathAcos,           "float acos(float);"},
+//                {MathAsin,           "float asin(float);"},
+//                {MathAtan,           "float atan(float);"},
+//                {MathAtan2,          "float atan2(float);"},
+//
+//                // hyperbolic
+//                {MathCosh,           "float cosh(float);"},
+//                {MathSinh,           "float sinh(float);"},
+//                {MathTanh,           "float tanh(float);"},
+//                {MathAcosh,          "float acosh(float);"},
+//                {MathAsinh,          "float asinh(float);"},
+//                {MathAtanh,          "float atanh(float);"},
+//
+//                // exp, log
+//                {MathExp,            "float exp(float);"},
+//                {MathFrexp,          "float frexp(float, int *);"},
+//                {MathLdexp,          "float ldexp(float, int);"},
+//                {MathLog,            "float log(float);"},
+//                {MathLog10,          "float log10(float);"},
+////                {MathModf,       "double modf(double, double *);"},
+//                {MathExp2,           "float exp2(float);"},
+//                {MathExpM1,          "float expm1(float);"},
+//                {MathIlogb,          "float ilogb(float);"},
+//                {MathLog1p,          "float log1p(float);"},
+//                {MathLog2,           "float log2(float);"},
+//                {MathLogb,           "float logb(float);"},
+//                {MathScalbn,         "float scalbn(float, long int);"},
+//                {MathScalbnln,       "float scalbnln(float, long int);"},
+//
+//                // power
+//                {MathPow,            "float pow(float,float);"},
+//                {MathSqrt,           "float sqrt(float);"},
+//                {MathCbrt,           "float cbrt(float);"},
+//                {MathHypot,          "float hypot(float, float);"},
+//
+//                // error + gamma
+//                // todo
+//
+//                // round, remainder
+//                {MathCeil,           "float ceil(float);"},
+//                {MathFloor,          "float floor(float);"},
+//                {MathFmod,           "float fmod(float, float);"},
+//                {MathRound,          "float round(float);"},
+//                {MathLround,         "long lround(float);"},
+//                {MathLLround,        "long long llround(float);"},
+//                {MathRint,           "float rint(float);"},
+//                {MathLrint,          "long lrint(float);"},
+//                {MathLLrint,         "long long llrint(float);"},
+//                {MathTrunc,          "float trunc(float);"},
+//                {MathNearbyint,      "float nearbyint(float);"},
+//                {MathRemainder,      "float remainder(float, float);"},
+//
+//                // floats
+//                {MathCopysign,       "float copysign(float, float);"},
+//                {MathNan,            "float nan(char *);"},
+//                {MathNextafter,      "float nextafter(float, float);"},
+//                {MathNexttoward,     "float nexttoward(float, float);"},
+//
+//                // min, max, difference
+//                {MathFdim,           "float fdim(float, float);"},
+//                {MathFmax,           "float fmin(float, float);"},
+//                {MathFmin,           "float fmin(float, float);"},
+//
+//                // other
+//                {MathFabs,           "float fabs(float);"},
+//                {MathAbs,            "float abs(float);"},
+//                {MathFma,            "float fma(float, float, float);"},
+//
+//                // MACROS
+//                // classification
+//                {MathFpclassify,     "int fpclassify(float);"},
+//                {MathIsfinite,       "int isfinite(float);"},
+//                {MathIsinf,          "int isinf(float);"},
+//                {MathIsnan,          "int isnan(float);"},
+//                {MathIsnormal,       "int isnormal(float);"},
+//                {MathSignbit,        "int signbit(float);"},
+//
+//                // comparison
+//                {MathIsgreater,      "int isgreater(float, float);"},
+//                {MathIsgreaterequal, "int isgreaterequal(float, float);"},
+//                {MathIsless,         "int isless(float, float);"},
+//                {MathIslessequal,    "int islessequal(float, float);"},
+//                {MathIslessgreater,  "int islessgreater(float, float);"},
+//                {MathIsunordered,    "int isunordered(float, float);"},
+//
+                /////////////////////// unfortunately, sigsegvs happen when both float and double versions are added as functions //////////////////////////////
                 // trigonometric
                 {MathCos,            "double cos(double);"},
                 {MathSin,            "double sin(double);"},
@@ -440,6 +442,7 @@ struct LibraryFunction MathFunctions[] =
                 {MathHypot,          "double hypot(double, double);"},
 
                 // error + gamma
+                // todo
 
                 // round, remainder
                 {MathCeil,           "double ceil(double);"},
@@ -463,12 +466,12 @@ struct LibraryFunction MathFunctions[] =
 
                 // min, max, difference
                 {MathFdim,           "double fdim(double, double);"},
-                {MathFmax,           "double fmin(double, double);"},
+                {MathFmax,           "double fmax(double, double);"},
                 {MathFmin,           "double fmin(double, double);"},
 
                 // other
                 {MathFabs,           "double fabs(double);"},
-                {MathAbs,            "double abs(double);"},
+//                {MathAbs,            "double abs(double);"}, // todo SIGSEGV
                 {MathFma,            "double fma(double, double, double);"},
 
                 // MACROS
@@ -509,7 +512,7 @@ void MathSetupFunc(Picoc *pc) {
     VariableDefinePlatformVar(pc, nullptr, "M_SQRT1_2", &pc->DoubleType, (union AnyValue *) &M_SQRT1_2Value, FALSE);
 
     VariableDefinePlatformVar(pc, nullptr, "NaN", &pc->DoubleType, (union AnyValue *) &M_NAN, FALSE);
-    VariableDefinePlatformVar(pc, nullptr, "NAN", &pc->DoubleType, (union AnyValue *) &M_NAN, FALSE);
+    VariableDefinePlatformVar(pc, nullptr, "NAN", &pc->DoubleType, (union AnyValue *) &M_NAN2, FALSE);
 
     // todo - add the following if some programs require it
     // -- http://www.cplusplus.com/reference/cmath/math_errhandling/

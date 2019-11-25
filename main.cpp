@@ -95,8 +95,7 @@ int validate(const char *source_filename) {
 #endif
     char *source = readFile(source_filename);
     if (!source) {return 255;}
-    PicocParse(&pc, source_filename, source, strlen(source),
-               TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
+    PicocParse(&pc, source_filename, source, strlen(source), TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
 
     Value *MainFuncValue = nullptr;
     VariableGet(&pc, nullptr, TableStrRegister(&pc, "main"), &MainFuncValue);
