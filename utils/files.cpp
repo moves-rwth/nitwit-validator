@@ -11,8 +11,10 @@ char *readFile(const char *FileName)
     FILE *InFile;
     int BytesRead;
 
-    if (stat(FileName, &FileInfo))
+    if (stat(FileName, &FileInfo)) {
         printf("Cannot read file %s\n", FileName);
+        return nullptr;
+    }
 
     ReadText = static_cast<char *>(malloc(FileInfo.st_size + 1));
     if (ReadText == nullptr)
@@ -23,6 +25,7 @@ char *readFile(const char *FileName)
         printf("Cannot read file %s\n", FileName);
 
     BytesRead = fread(ReadText, 1, FileInfo.st_size, InFile);
+
     if (BytesRead == 0)
         printf("Cannot read file %s\n", FileName);
 

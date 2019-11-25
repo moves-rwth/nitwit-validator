@@ -94,6 +94,7 @@ int validate(const char *source_filename) {
     PicocIncludeAllSystemHeaders(&pc);
 #endif
     char *source = readFile(source_filename);
+    if (!source) {return 255;}
     PicocParse(&pc, source_filename, source, strlen(source),
                TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
 

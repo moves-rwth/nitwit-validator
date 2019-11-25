@@ -83,8 +83,8 @@ static struct ReservedWord ReservedWords[] =
     // jsv
     { "__attribute__", TokenAttribute },
     { "__noreturn__", TokenNoReturn },
-    { "const", TokenConst },
-    { "__const", TokenConst },
+    { "const", TokenIgnore },
+    { "__const", TokenIgnore },
     { "restrict", TokenIgnore },
     { "__restrict", TokenIgnore },
     { "__extension__", TokenIgnore },
