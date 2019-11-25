@@ -43,14 +43,9 @@ struct LibraryFunction VerifFunctions[] =
         };
 
 
-static union AnyValue notanumber;
 /* creates various system-dependent definitions */
 void VerifSetupFunc(Picoc *pc) {
-    notanumber.Double = NAN;
-    if (!VariableDefined(pc, TableStrRegister(pc, "NaN")))
-        VariableDefinePlatformVar(pc, nullptr, "NaN", &pc->DoubleType, &notanumber, FALSE);
-    if (!VariableDefined(pc, TableStrRegister(pc, "NAN")))
-        VariableDefinePlatformVar(pc, nullptr, "NAN", &pc->DoubleType, &notanumber, FALSE);
+
 }
 
 /*

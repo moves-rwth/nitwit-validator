@@ -36,4 +36,7 @@ int main ()
     printf("%d, %d, %d, %d, %d\n", s.a, s.b, s.c, s.d, s.e);
     s2 = s;
     printf("%d, %d, %d, %d, %d\n", s2.a, s2.b, s2.c, s2.d, s2.e);
+    printf("%d\n", signbit(-1.3));
+    printf("%d\n", isnan(nan("")));
+
 }
