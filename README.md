@@ -177,3 +177,7 @@ The easiest way is to run `./build.sh` after cloning this repository.
 
 ### I get an error during compilation like ```/usr/include/c++/8/cstdio:41:10: fatal error: bits/c++config.h: No such file or directory```
 You are missing the packages for building 32bit applications! On Debian/Ubuntu for example, you need to install ```apt install gcc-multilib g++-multilib```.
+
+## Desirable C features that will be implemented in the future
+- typedef of function pointers
+- full const support
