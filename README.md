@@ -20,7 +20,8 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
  - REQUIRE_MATCHING_ORIGINFILENAME (default off) - matches edges also depending on the "originfilename" argument 
  - ENABLE_TRANSITION_LIMIT (default on) - stops NITWIT after a certain limit of unsuccessful edge transitions is made
  - STOP_IN_SINK (default off) - terminate the validation once the sink state is reached
- - USE_BASIC_CONST (default off) - enable parsing of const keyword (not full C semantics supported), otherwise ignore 
+ - USE_BASIC_CONST (default off) - enable parsing of const keyword (not full C semantics supported), otherwise ignore
+ - STRICT_VALIDATION - disallows traces not accepted by the witness automaton  
 
 ## Building & Usage
   For building NITWIT, we require support for compiling 32bit applications on 64bit systems, so packages like `gcc-multilib` and `g++-multilib` are necessary.

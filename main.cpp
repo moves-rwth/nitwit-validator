@@ -1,6 +1,5 @@
 #include <cstdio>
 #include <cstring>
-#include <cstdlib>
 #include <fstream>
 
 #include "picoc/picoc.hpp"
@@ -157,12 +156,16 @@ int main(int argc, char **argv) {
         printf("FAILED: __VERIFIER_error was never called, even though witness IS in violation state.\n");
         exit_value = UNVALIDATED_VIOLATION;
     } else if (wit_aut->wasVerifierErrorCalled()) {
-        printf("\nVALIDATED: The state: %s has been reached.", wit_aut->getCurrentState()->id.c_str());
         if (wit_aut->isInViolationState()) {
-            printf(" It is a violation state.\n");
+            printf("\nVALIDATED: The state: %s has been reached. It is a violation state.\n", wit_aut->getCurrentState()->id.c_str());
             exit_value = 0;
         } else {
-            printf(" However, it is NOT a violation state.\n");
+#ifdef STRICT_VALIDATION
+            printf("\nFAILED: __VERIFIER_error was called and the state: %s has been reached."
+                   " However, it is NOT a violation state.\n", wit_aut->getCurrentState()->id.c_str());
+#else
+            printf("\nVALIDATED: The state: %s has been reached. However, it is NOT a violation state.\n", wit_aut->getCurrentState()->id.c_str());
+#endif
             exit_value = PROGRAM_FINISHED_WITH_VIOLATION_THOUGH_NOT_IN_VIOLATION_STATE;
         }
     } else {
