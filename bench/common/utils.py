@@ -106,7 +106,7 @@ def load_result_file(results: str) -> Optional[list]:
 
 def load_validators_result_file(validators: str) -> Optional[dict]:
 	if not (os.path.exists(validators) and os.path.isfile(validators)):
-		print("Cannot load output file with info about validators.")
+		print("Cannot load output file with info about validator benchmark from SV-COMP.")
 		return None
 
 	with open(validators, 'r') as fp:
