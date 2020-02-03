@@ -29,13 +29,13 @@ LEGEND_NCOL = 1
 STATUSES = {
 	'false(unreach-call)': 0,
 	'FALSE(unreach-call)': 0,
-	'timeout (false(unreach-call))': 0,
-	'TIMEOUT (false(unreach-call))': 0,
 	'unknown': 1,
 	'UNKNOWN': 1,
 	'-': 1,  # TODO: should be 'not run'?
 	'true': 2,
 	'TRUE': 2,
+	'timeout (false(unreach-call))': 3,
+	'TIMEOUT (false(unreach-call))': 3,
 	'timeout (true)': 3,
 	'TIMEOUT (true)': 3,
 	'TIMEOUT (ASSERTION)': 3,
