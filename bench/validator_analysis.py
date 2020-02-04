@@ -1,5 +1,6 @@
 import argparse
 from random import shuffle
+from xml.dom import ValidationErr
 
 import matplotlib.pyplot as plt
 
@@ -188,16 +189,16 @@ def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
 	return result
 
 
-def analyze_by_producer(matching: Dict[str, dict]):
-	print(f"Analyze by producer {len(matching)} witnesses")
+def analyze_by_producer(val_results: Dict[str, dict]):
+	print(f"Analyze by producer {len(val_results)} witnesses")
 	mux = pd.MultiIndex.from_product([VALIDATORS_LIST_ABBR, ['val', 'nval']])
 	df = pd.DataFrame(columns=mux)
 	data = []
-	for i in range(5):
+	for i, val_key in enumerate(VALIDATORS.keys()):
 		validated = {}
 		nonvalidated = {}
-		for w, c in matching.items():
-			if STATUSES[c['results'][i]['status']] == 0:
+		for w, c in val_results.items():
+			if STATUSES[c['results'][val_key]['status']] == 0:
 				increase_count_in_dict(validated, c['creator'])
 			else:
 				increase_count_in_dict(nonvalidated, c['creator'])
@@ -211,7 +212,7 @@ def analyze_by_producer(matching: Dict[str, dict]):
 			df.at[k, (VALIDATORS_LIST_ABBR[i], 'nval')] = v[1]
 	df = df.sort_index()
 	df.loc["Total"] = df.sum().astype(int)
-	df['Total'] = df[VALIDATORS_ABBR[4]].sum(axis=1).astype(int)
+	df['Total'] = df[VALIDATORS_ABBR["8"]].sum(axis=1).astype(int)
 
 	print(df.to_latex())
 
@@ -469,12 +470,12 @@ def get_stats_data(times) -> list:
 	return [len(times), np.mean(times), np.median(times), np.std(times), np.sum(times)]
 
 
-def output_val_data(matching: Dict[str, dict]):
-	data = []
-	for w in matching.values():
-		data.append(list(map(lambda i: STATUSES[w['results'][i]['status']], range(len(VALIDATORS_LIST_ABBR)))))
+def output_val_data(val_data: Dict[str, dict]):
+	output_data = []
+	for w in val_data.values():
+		output_data.append(list(map(lambda key: STATUSES[w['results'][key]['status']], VALIDATORS.keys())))
 
-	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR, data=data, dtype=int)
+	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR, data=output_data, dtype=int)
 	with open('data.csv', 'w') as fp:
 		df.to_csv(fp)
 	print(f"Validated at least once: {len(df[(df == 0).sum(1) > 0])}"
@@ -513,23 +514,26 @@ def main():
 
 	######### ANALYSES ###########
 	analyze_output_messages(all_validators)
-	# analyze_by_producer(all_validators)
-	# analyze_virt_best(all_validators)
-	# analyze_unique_by_producer(all_validators)
+
+	analyze_by_producer(all_validators)
+	# analyze_virt_best(all_validators) # FIXME
+	# analyze_unique_by_producer(all_validators) # FIXME
 
 	for i, name in enumerate(col_names):
 		analyze_times(all_validators, name, lambda x: x == i)
 	analyze_times(all_validators, 'Other', lambda x: x > 2)
 	analyze_times(all_validators, 'All', lambda x: True)
-	# get_aggregated_data_table(col_names + ['Other', 'All'])
+
+	# get_aggregated_data_table(col_names + ['Other', 'All']) # FIXME
 
 	for i, name in enumerate(col_names):
 		analyze_memory(all_validators, name, lambda x: x == i)
 	analyze_memory(all_validators, 'Other', lambda x: x > 2)
 	analyze_memory(all_validators, 'All', lambda x: True)
-	#
-	# compare_times(all_validators)
-	# output_val_data(all_validators)
+
+	# compare_times(all_validators) # FIXME
+
+	# output_val_data(all_validators) # Don't run every time, once is enough per benchmark
 	if args.graph:
 		plt.show()
 
