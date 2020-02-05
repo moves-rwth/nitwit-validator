@@ -95,6 +95,7 @@ def load_result_files(results: str) -> Optional[Tuple[list, ...]]:
 	else:
 		raise Exception("What to do?")
 
+
 def load_result_file(results: str) -> Optional[list]:
 	if not (os.path.exists(results) and os.path.isfile(results)):
 		print("Cannot load output file with info about validation results.")
@@ -111,5 +112,3 @@ def load_validators_result_file(validators: str) -> Optional[dict]:
 
 	with open(validators, 'r') as fp:
 		return json.load(fp)
-
-

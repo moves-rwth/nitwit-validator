@@ -1,12 +1,7 @@
 import argparse
-from random import shuffle
-from xml.dom import ValidationErr
 
 import matplotlib.pyplot as plt
-
-plt.rcParams.update({'font.size': 36})
 import numpy as np
-from scipy.stats import wilcoxon
 import pandas as pd
 import seaborn as sns
 
@@ -15,26 +10,27 @@ from common.utils import *
 sns.set()
 sns.set(font_scale=2)
 sns.set_palette("colorblind")
-sns.set_context("paper")  # talk/paper
+sns.set_context("paper")  # choose "talk" or "paper"
 sns.set_style('whitegrid')
-# FIGSIZE = (20, 11.25)
-# FONTSIZE = 26
 DPI = 300
 FORMAT = 'pdf'
 BBOX = 'tight'
 LEGEND_LOC_RIGHT = 'center right'
-# LEGEND_LOC_BOTTOM = 'center bottom'
 LEGEND_BBOX_ANCHOR = (1.25, 0.5)
 LEGEND_NCOL = 1
+plt.rcParams.update({'font.size': 36})
 
 STATUSES = {
 	'false(unreach-call)': 0,
 	'FALSE(unreach-call)': 0,
+
 	'unknown': 1,
 	'UNKNOWN': 1,
 	'-': 1,  # TODO: should be 'not run'?
+
 	'true': 2,
 	'TRUE': 2,
+
 	'timeout (false(unreach-call))': 3,
 	'TIMEOUT (false(unreach-call))': 3,
 	'timeout (true)': 3,
@@ -47,6 +43,7 @@ STATUSES = {
 	'TIMEOUT (OUT OF JAVA MEMORY)': 3,
 	'timeout (error (7))': 3,
 	'TIMEOUT (error (7))': 3,
+
 	'exception': 4,
 	'EXCEPTION': 4,
 	'ERROR (true)': 4,
@@ -59,26 +56,26 @@ STATUSES = {
 	'ERROR (1)': 4,
 	'ERROR (7)': 4,
 	'ERROR (parsing failed)': 4,
-	'assertion': 4,
-	'ASSERTION': 4,
-	'out of memory': 5,
-	'OUT OF MEMORY': 5,
-	'OUT OF JAVA MEMORY': 5,
-	'error (2)': 6,
-	'error (invalid witness file)': 6,
-	'ERROR (2)': 6,
-	'ERROR (invalid witness file)': 6,
-	# -------------
 	'ERROR (134)': 4,
 	'ERROR (139)': 4,
-	# Our outputs:
-	# based on statuses extracted from SV-COMP (a bit of mismatch between codes and SV-COMP status message)
 	'ERROR (242)': 4,
 	'ERROR (250)': 4,
 	'ERROR (4)': 4,
-	'ERROR (244)': 6,
+	'assertion': 4,  # TODO find out what exactly this means and if there should be a new status category for it
+	'ASSERTION': 4,
 
-	# based on exit codes from our benchmark script
+	'out of memory': 5,
+	'OUT OF MEMORY': 5,
+	'OUT OF JAVA MEMORY': 5,
+
+	'error (2)': 6,  # TODO 2 and 244 are codes nitwit outputs for bad-witness. But should it be rather in category 4 due to "ERROR"???
+	'ERROR (2)': 6,
+	'ERROR (244)': 6,
+	'error (invalid witness file)': 6,
+	'ERROR (invalid witness file)': 6,
+
+	# -------------
+	# following are based on exit codes from our benchmark script
 	0: 0,  # false
 	245: 0,  # false, but not totally correct witness
 	241: 1,  # error, witness in sink
@@ -101,7 +98,7 @@ col_names = ['False', 'Unknown', 'True', 'Timeout', 'Error', 'Out of memory', 'B
 
 col_names_small = ['false', 'unknown', 'true', 'to', 'error', 'om',
                    'bad witness']  # , 'sink', 'not in violation state']
-
+NITWIT = "8"
 VALIDATORS = {
 	"1": "CPAchecker",
 	"3": "Ultimate Automizer",
@@ -126,7 +123,8 @@ VALIDATORS_FILES = {
 	"7": "metaval",
 	"8": "nitwit"
 }
-VALIDATORS_LIST = ["CPAchecker", "Ultimate Automizer", "CPA-witness2test", "FShell-witness2test", "MetaVal", "NITWIT Validator"]
+VALIDATORS_LIST = ["CPAchecker", "Ultimate Automizer", "CPA-witness2test", "FShell-witness2test", "MetaVal",
+                   "NITWIT Validator"]
 VALIDATORS_LIST_ABBR = ["CPAchecker", "Ult. Auto.", "CPA-w2t", "FShell-w2t", "MetaVal", "NITWIT"]
 
 CPU_MULTIPLIER = 2.1 / 3.4
@@ -151,8 +149,8 @@ def get_matching(all_results: List, validators: dict, outputmatched: str = None)
 	for w in matched:
 		wit_key = w[1].partition('.json')[0]
 		validators[wit_key]['results'] \
-			.insert(4, dict(
-			{'cpu': adjust_to_cpu(w[3]), 'mem': int(w[5] if len(w) > 5 else 0) / 1000, 'tool': VALIDATORS_LIST[4],
+			.insert(NITWIT, dict(
+			{'cpu': adjust_to_cpu(w[3]), 'mem': int(w[5] if len(w) > 5 else 0) / 1000, 'tool': VALIDATORS_ABBR[NITWIT],
 			 'status': w[0]}))  # memory to MB, cpu in secs
 		validators[wit_key]['creator'] = w[4]
 	print(f"I could match {len(matched)} out of {len(all_results)} witnesses")
@@ -212,7 +210,7 @@ def analyze_by_producer(val_results: Dict[str, dict]):
 			df.at[k, (VALIDATORS_LIST_ABBR[i], 'nval')] = v[1]
 	df = df.sort_index()
 	df.loc["Total"] = df.sum().astype(int)
-	df['Total'] = df[VALIDATORS_ABBR["8"]].sum(axis=1).astype(int)
+	df['Total'] = df[VALIDATORS_ABBR[NITWIT]].sum(axis=1).astype(int)
 
 	print(df.to_latex())
 
@@ -221,16 +219,16 @@ def analyze_virt_best(matching: Dict[str, dict]):
 	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR + ['Virtual best'])
 	data = []
 	producers_virt = {}
-	for i in range(5):
+	for i, val_key in enumerate(VALIDATORS.keys()):
 		validated = {}
 		for w, c in matching.items():
-			if STATUSES[c['results'][i]['status']] == 0:
+			if STATUSES[c['results'][val_key]['status']] == 0:
 				if c['creator'] in producers_virt:
 					producers_virt[c['creator']].add(c['witnessSHA'])
 				else:
 					producers_virt[c['creator']] = {c['witnessSHA']}
 
-			if STATUSES[c['results'][i]['status']] == 0:
+			if STATUSES[c['results'][val_key]['status']] == 0:
 				increase_count_in_dict(validated, c['creator'])
 		data.append(validated)
 	prods = np.asarray(list(map(lambda x: list(x.keys()), data)))
@@ -253,11 +251,11 @@ def analyze_virt_best(matching: Dict[str, dict]):
 	print(df.to_latex())
 
 
-def validator_result_selector(results: list, predicate_others, predicate_cwv) -> bool:
-	for i in range(4):
-		if not predicate_others(STATUSES[results[i]['status']]):
+def validator_result_selector(results: dict, predicate_others, predicate_nitwit) -> bool:
+	for val_key in VALIDATORS.keys() - NITWIT:
+		if not predicate_others(STATUSES[results[val_key]['status']]):
 			return False
-	if predicate_cwv(STATUSES[results[4]['status']]):
+	if predicate_nitwit(STATUSES[results[NITWIT]['status']]):
 		return True
 
 
@@ -265,22 +263,21 @@ def analyze_unique_by_producer(matching: Dict[str, dict], diff_matching: Dict[st
 	set, set, set, set]:
 	print(f"Analyze unique results by producer for {len(matching)} witnesses")
 	others_uval = set()
-	cwv_uval = set()
+	nitwit_uval = set()
 	none_val = set()
 	all_val = set()
 	for w, c in matching.items():
 		if validator_result_selector(c['results'], lambda x: x == 0, lambda x: x != 0):
 			others_uval.add(w + '.json')
 		if validator_result_selector(c['results'], lambda x: x != 0, lambda x: x == 0):
-			cwv_uval.add(w + '.json')
+			nitwit_uval.add(w + '.json')
 		if validator_result_selector(c['results'], lambda x: x == 0, lambda x: x == 0):
 			all_val.add(w + '.json')
 		if validator_result_selector(c['results'], lambda x: x != 0, lambda x: x != 0):
 			none_val.add(w + '.json')
 
 	print(f"Uniquely validated by *others*, i.e., CWV probably buggy: {len(others_uval)}")
-	print(f"Uniquely validated by *Nitwit*: {len(cwv_uval)}")
-	print(shuffle(list(cwv_uval)))
+	print(f"Uniquely validated by *Nitwit*: {len(nitwit_uval)}")
 	print(f"Validated by all, i.e. pretty sure these witnesses are correct: {len(all_val)}")
 	print(f"Validated by none, i.e. pretty sure these witnesses are incorrect or too complex: {len(none_val)}\n")
 
@@ -290,17 +287,17 @@ def analyze_unique_by_producer(matching: Dict[str, dict], diff_matching: Dict[st
 		print('-' * 40)
 		print('Not in diff')
 		print(f"Others: {others_uval.difference(diff_others)}")
-		print(f"CWV: {cwv_uval.difference(diff_cwv)}")
+		print(f"CWV: {nitwit_uval.difference(diff_cwv)}")
 		print(f"None: {none_val.difference(diff_none)}")
 		print(f"All: {all_val.difference(diff_all)}")
 		print()
 		print('Not in original')
 		print(f"Others: {diff_others.difference(others_uval)}")
-		print(f"CWV: {diff_cwv.difference(cwv_uval)}")
+		print(f"CWV: {diff_cwv.difference(nitwit_uval)}")
 		print(f"None: {diff_none.difference(none_val)}")
 		print(f"All: {diff_all.difference(all_val)}")
 
-	return others_uval, cwv_uval, none_val, all_val
+	return others_uval, nitwit_uval, none_val, all_val
 
 
 def reject_outliers(data, m=2):
@@ -410,13 +407,14 @@ def adjust_to_scatter(tup: tuple):
 
 
 def compare_times(matching: Dict[str, dict]):
-	cwv = list(map(lambda x: (float(x['results'][4]['cpu']), int(STATUSES[x['results'][4]['status']])),
-	               matching.values()))
-	for i in range(4):
+	nitwit = list(map(lambda x: (float(x['results'][NITWIT]['cpu']), int(STATUSES[x['results'][NITWIT]['status']])),
+	                  matching.values()))
+	for val_key in VALIDATORS.keys():
 		fig, ax = plt.subplots()
-		times = list(map(lambda x: (float(x['results'][i]['cpu']), int(STATUSES[x['results'][i]['status']])),
-		                 matching.values()))
-		put_on_level = map(adjust_to_scatter, zip(cwv, times))
+		times = list(
+			map(lambda x: (float(x['results'][val_key]['cpu']), int(STATUSES[x['results'][val_key]['status']])),
+			    matching.values()))
+		put_on_level = map(adjust_to_scatter, zip(nitwit, times))
 		data_map = lambda tup: [tup[0][0], tup[1][0], get_shared_result(tup[0][1], tup[1][1])]
 		data = list(map(data_map, put_on_level))
 		df = pd.DataFrame(data, columns=['x', 'y', 'Result'])
@@ -435,26 +433,22 @@ def compare_times(matching: Dict[str, dict]):
 		ax.plot((0, 90), (0, 90), ls="-", c=".3")
 		ax.plot((0, 63), (0, 90), ls="-", c=".3", lw=0.5)
 		ax.plot((0, 90), (0, 63), ls="-", c=".3", lw=0.5)
-		ax.set_xlabel(f"{VALIDATORS_ABBR[4]} CPU time [s]")
-		ax.set_ylabel(f"{VALIDATORS_ABBR[i]} CPU time [s]")
+		ax.set_xlabel(f"{VALIDATORS_ABBR[NITWIT]} CPU time [s]")
+		ax.set_ylabel(f"{VALIDATORS_ABBR[val_key]} CPU time [s]")
 		ax.set_yticks([0, 20, 40, 60, 80, 90])
 		ax.set_xticks([0, 20, 40, 60, 80, 90])
 
-		df_all_no_adjust = pd.DataFrame(list(map(data_map, zip(cwv, times))), columns=['x', 'y', 'Result'])
+		df_all_no_adjust = pd.DataFrame(list(map(data_map, zip(nitwit, times))), columns=['x', 'y', 'Result'])
 		one_or_both_false = df_all_no_adjust[df_all_no_adjust['Result'] != 'Other']
 		both_false = df_all_no_adjust[df_all_no_adjust['Result'] == 'False']
 		df_diffs = (one_or_both_false['x'] - one_or_both_false['y'])
 		df_diffs_both = (both_false['x'] - both_false['y'])
 		df_diffs_all = df_all_no_adjust['x'] - df_all_no_adjust['y']
-		o_w, o_p = wilcoxon(df_diffs, alternative='less')
-		b_w, b_p = wilcoxon(df_diffs_both, alternative='less')
-		a_w, a_p = wilcoxon(df_diffs_all, alternative='less')
 		print(
-			f"Similar validations (+-1 s) with {VALIDATORS_ABBR[i]}: {df_diffs_both.apply(lambda x: -1 < x < 1).sum()}.\n\t"
-			f"Significance (Wilcoxon-median negative) of difference:\t(all results) {a_w, a_p}\t(>= one False) {o_w, o_p}\t(both False) {b_w, b_p}")
+			f"Similar validations (+-1 s) with {VALIDATORS_ABBR[val_key]}: {df_diffs_both.apply(lambda x: -1 < x < 1).sum()}.\n")
 
 		if SAVE_FIGURES:
-			fig.savefig(f'./output/imgs20/quantile_times_{VALIDATORS_FILES[i]}.{FORMAT}',
+			fig.savefig(f'./output/imgs20/quantile_times_{VALIDATORS_FILES[val_key]}.{FORMAT}',
 			            dpi=DPI, bbox_inches=BBOX)
 
 
@@ -491,10 +485,11 @@ def main():
 	parser = argparse.ArgumentParser(description="Analyzes results of NITWIT and SV-COMP validators")
 	parser.add_argument("-v", "--validators", required=True, type=str,
 	                    help="The JSON file with results about SV-COMP validator runs (by witness hash).")
-	# parser.add_argument("-r", "--results", required=True, type=str,
-	#                     help="The directory with validation results of NITWIT generated by our benchmark script.")
-	parser.add_argument("-om", "--outputmatched", required=False, type=str,
-	                    help="File where to write the matched files config.")
+	parser.add_argument("-r", "--bench-results", required=False, type=str,
+	                    help="The directory with validation results of NITWIT generated by our benchmark script.")
+	parser.add_argument("-om", "--output-val-data", required=False, type=str,
+	                    help="CSV file where to write the data so that they can be loaded in an R script that generates"
+	                         "a Venn diagram.")
 	parser.add_argument("-df", "--diff", required=False, type=str,
 	                    help="Directory with other results to compare.")
 	parser.add_argument("-s", "--save", required=False, default=False, action='store_true',
@@ -507,33 +502,34 @@ def main():
 	if all_validators is None:
 		return 1
 
-	# matching = get_matching(all, validators, args.outputmatched)
+	if args.bench_results:
+		val, nval, bpar = load_result_files(args.bench_results)
+		all_bench_results = val + nval + bpar
+		all_validators = get_matching(all_bench_results, all_validators)
 
-	if args.outputmatched:
-		output_val_data(all_validators)
+	if args.output_val_data:
+		output_val_data(all_validators)  # Don't run every time, once is enough per benchmark
 
 	######### ANALYSES ###########
 	analyze_output_messages(all_validators)
 
 	analyze_by_producer(all_validators)
-	# analyze_virt_best(all_validators) # FIXME
-	# analyze_unique_by_producer(all_validators) # FIXME
+	analyze_virt_best(all_validators)
+	analyze_unique_by_producer(all_validators)
 
 	for i, name in enumerate(col_names):
 		analyze_times(all_validators, name, lambda x: x == i)
 	analyze_times(all_validators, 'Other', lambda x: x > 2)
 	analyze_times(all_validators, 'All', lambda x: True)
-
-	# get_aggregated_data_table(col_names + ['Other', 'All']) # FIXME
+	get_aggregated_data_table(col_names + ['Other', 'All'])
 
 	for i, name in enumerate(col_names):
 		analyze_memory(all_validators, name, lambda x: x == i)
 	analyze_memory(all_validators, 'Other', lambda x: x > 2)
 	analyze_memory(all_validators, 'All', lambda x: True)
 
-	# compare_times(all_validators) # FIXME
+	compare_times(all_validators)
 
-	# output_val_data(all_validators) # Don't run every time, once is enough per benchmark
 	if args.graph:
 		plt.show()
 
