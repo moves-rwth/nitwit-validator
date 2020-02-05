@@ -14,7 +14,7 @@ none <- subset(validators, CPAchecker != 0 & Ult..Auto. != 0 & CPA.w2t != 0 & FS
 
 awesome_venn <- plotVenn(list(CPAchecker=cpa, 'Ult. Auto.'=ua,
                               'CPA-w2t'=cpaw2t, 'FShell-w2t'=fshell,
-                              NITWIT=cwv),
+                              MetaVal=metaval, NITWIT=cwv),
                 nCycles = 100000,
                 outFile='./output/imgs20/venn_false.svg')
 
