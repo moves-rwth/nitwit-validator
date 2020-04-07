@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+    <default>&lt;command-line&gt;</default>
+  </key>
+  <key attr.name="invariant" attr.type="string" for="node" id="invariant"/>
+  <key attr.name="invariant.scope" attr.type="string" for="node" id="invariant.scope"/>
+  <key attr.name="nodeType" attr.type="string" for="node" id="nodetype">
+    <default>path</default>
+  </key>
+  <key attr.name="isFrontierNode" attr.type="boolean" for="node" id="frontier">
+    <default>false</default>
+  </key>
+  <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+    <default>false</default>
+  </key>
+  <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+    <default>false</default>
+  </key>
+  <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+    <default>false</default>
+  </key>
+  <key attr.name="enterLoopHead" attr.type="boolean" for="edge" id="enterLoopHead">
+    <default>false</default>
+  </key>
+  <key attr.name="threadNumber" attr.type="int" for="node" id="thread">
+    <default>0</default>
+  </key>
+  <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+  <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+  <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+  <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+  <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+  <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+  <key attr.name="sourcecode" attr.type="string" for="edge" id="sourcecode"/>
+  <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+  <key attr.name="control" attr.type="string" for="edge" id="control"/>
+  <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+  <key attr.name="assumption.resultfunction" attr.type="string" for="edge" id="assumption.resultfunction"/>
+  <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+  <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+  <key attr.name="returnFromFunction" attr.type="string" for="edge" id="returnFrom"/>
+  <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+  <graph edgedefault="directed">
+    <data key="sourcecodelang">C</data>
+    <node id="sink"/>
+    <node id="1.19">
+      <data key="entry">true</data>
+    </node>
+    <edge source="1.19" target="3.21">
+      <data key="originfile">06.nondet.c</data>
+      <data key="startline">13</data>
+      <data key="assumption">a1 == 1;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="3.21"/>
+    <edge source="3.21" target="5.23">
+      <data key="originfile">06.nondet.c</data>
+      <data key="startline">14</data>
+      <data key="assumption">a2 == 1u;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="5.23"/>
+    <edge source="5.23" target="7.25">
+      <data key="originfile">06.nondet.c</data>
+      <data key="startline">15</data>
+      <data key="assumption">a3 == 1;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="7.25"/>
+    <edge source="7.25" target="9.27">
+      <data key="originfile">06.nondet.c</data>
+      <data key="startline">16</data>
+      <data key="assumption">a4 == 1;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="9.27"/>
+    <edge source="9.27" target="11.29">
+      <data key="originfile">06.nondet.c</data>
+      <data key="startline">17</data>
+      <data key="assumption">a5 == 1;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="11.29"/>
+    <edge source="11.29" target="13.31">
+      <data key="originfile">06.nondet.c</data>
+      <data key="startline">18</data>
+      <data key="assumption">a6 == 1u;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="13.31"/>
+    <edge source="13.31" target="15.33">
+      <data key="originfile">06.nondet.c</data>
+      <data key="startline">19</data>
+      <data key="assumption">a7 == 1;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="15.33"/>
+    <edge source="15.33" target="17.35">
+      <data key="originfile">06.nondet.c</data>
+      <data key="startline">20</data>
+      <data key="assumption">a8 == 1;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="17.35"/>
+    <edge source="17.35" target="18.36">
+      <data key="originfile">06.nondet.c</data>
+      <data key="startline">21</data>
+      <data key="assumption">a9 == 1.0;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="18.36"/>
+    <edge source="18.36" target="19.37">
+      <data key="originfile">06.nondet.c</data>
+      <data key="startline">24</data>
+      <data key="sourcecode">[!(!(a1!0@1#2 == 1) || !(a5!0@1#2 == 1) || !(a7!0@1#2 == 1) || !(a2!0@1#2 == 1u) || !(a6!0@1#2 == 1u) || !(a8!0@1#2 == 1) || !((signed int)a4!0@1#2 == 1) || !((signed int)a3!0@1#2 == 1) || !IEEE_FLOAT_EQUAL(a9!0@1#2, 1.0))]</data>
+    </edge>
+    <node id="19.37">
+      <data key="violation">true</data>
+    </node>
+    <edge source="19.37" target="sink">
+      <data key="originfile">06.nondet.c</data>
+      <data key="startline">34</data>
+    </edge>
+  </graph>
+</graphml>

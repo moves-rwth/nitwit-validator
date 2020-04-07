@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Usage: ./run-tests.sh <build-dir>
+# Usage: ./run-tests.sh <build-dir> <SV_comp-dir>
 
 if [[ -d $1 ]]
 then
@@ -11,16 +11,25 @@ else
     exit 1
 fi
 
+if [[ -d testfiles/$2 ]]
+then
+    echo "testdirectory existent!"
+else
+    echo $2
+    echo "Error: test directory non-existent"
+    exit 1
+fi
+
 n_tests=0
 n_nonvalidated=0
-for C_FILE in testfiles/*.c ; do
+for C_FILE in testfiles/$2/*.c ; do
     [[ ! -f $C_FILE ]] && continue
 
     filename=$(basename -- "$C_FILE")
     extension="${filename##*.}"
     filename="${filename%.*}"
 
-    for WITNESS in testfiles/$filename.*.c.graphml ; do
+    for WITNESS in testfiles/$2/$filename.*.c.graphml ; do
         [[ -f "$WITNESS" ]] || break
         let "n_tests=n_tests+1"
         $1/nitwit32 $WITNESS $C_FILE > /dev/null
@@ -47,7 +56,7 @@ for C_FILE in testfiles/*.c ; do
         fi
     done
 
-    for WITNESS in testfiles/$filename.*.c.graphml.invalid ; do
+    for WITNESS in testfiles/$2/$filename.*.c.graphml.invalid ; do
         [[ -f "$WITNESS" ]] || break
         let "n_tests=n_tests+1"
         $1/nitwit32 $WITNESS $C_FILE > /dev/null

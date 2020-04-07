@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+  <default>false</default>
+ </key>
+ <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+  <default>false</default>
+ </key>
+ <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+  <default>false</default>
+ </key>
+ <key attr.name="violatedProperty" attr.type="string" for="node" id="violatedProperty"/>
+ <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+ <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+ <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+ <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+ <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+ <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+ <key attr.name="creationTime" attr.type="string" for="graph" id="creationtime"/>
+ <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+ <key attr.name="endline" attr.type="int" for="edge" id="endline"/>
+ <key attr.name="startoffset" attr.type="int" for="edge" id="startoffset"/>
+ <key attr.name="endoffset" attr.type="int" for="edge" id="endoffset"/>
+ <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+  <default>./14.fptrs.struct.c</default>
+ </key>
+ <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+ <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+ <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+ <key attr.name="returnFromFunction" attr.type="string" for="edge" id="returnFrom"/>
+ <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+ <key attr.name="inputWitnessHash" attr.type="string" for="graph" id="inputwitnesshash"/>
+ <graph edgedefault="directed">
+  <data key="witness-type">violation_witness</data>
+  <data key="sourcecodelang">C</data>
+  <data key="producer">CPAchecker 1.8-svn a776d662f5+ / kInduction</data>
+  <data key="specification">CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )</data>
+  <data key="programfile">./14.fptrs.struct.c</data>
+  <data key="programhash">2a8f79c1e244ea47b56ef77f2c16d7374ade16154eddc25e44abb79405262f6a</data>
+  <data key="architecture">32bit</data>
+  <data key="creationtime">2019-05-30T12:33:03+02:00</data>
+  <node id="A0">
+   <data key="entry">true</data>
+  </node>
+  <node id="A1339"/>
+  <edge source="A0" target="A1339">
+   <data key="startline">23</data>
+   <data key="endline">23</data>
+   <data key="startoffset">45173</data>
+   <data key="endoffset">45183</data>
+   <data key="enterFunction">main</data>
+  </edge>
+  <node id="A1693"/>
+  <edge source="A1339" target="A1693">
+   <data key="startline">26</data>
+   <data key="endline">26</data>
+   <data key="startoffset">45251</data>
+   <data key="endoffset">45259</data>
+   <data key="assumption">(jp-&gt;a) == (0);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A1698"/>
+  <edge source="A1693" target="A1698">
+   <data key="startline">27</data>
+   <data key="endline">27</data>
+   <data key="startoffset">45266</data>
+   <data key="endoffset">45274</data>
+   <data key="assumption">(jp-&gt;b) == (0);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A1712"/>
+  <edge source="A1698" target="A1712">
+   <data key="startline">30</data>
+   <data key="endline">30</data>
+   <data key="startoffset">45347</data>
+   <data key="endoffset">45356</data>
+   <data key="enterFunction">func1</data>
+  </edge>
+  <node id="A1715"/>
+  <edge source="A1712" target="A1715">
+   <data key="startline">12</data>
+   <data key="endline">12</data>
+   <data key="startoffset">45004</data>
+   <data key="endoffset">45037</data>
+   <data key="assumption">(x-&gt;a) == (0); (x-&gt;b) == (0);</data>
+   <data key="assumption.scope">func1</data>
+  </edge>
+  <node id="A1716"/>
+  <edge source="A1715" target="A1716">
+   <data key="startline">13</data>
+   <data key="endline">13</data>
+   <data key="startoffset">45044</data>
+   <data key="endoffset">45051</data>
+   <data key="assumption">(x-&gt;a) == (1);</data>
+   <data key="assumption.scope">func1</data>
+  </edge>
+  <node id="A1717"/>
+  <edge source="A1716" target="A1717">
+   <data key="startline">14</data>
+   <data key="endline">14</data>
+   <data key="startoffset">45058</data>
+   <data key="endoffset">45065</data>
+   <data key="assumption">(x-&gt;b) == (1);</data>
+   <data key="assumption.scope">func1</data>
+  </edge>
+  <node id="A1718"/>
+  <edge source="A1717" target="A1718">
+   <data key="startline">16</data>
+   <data key="endline">16</data>
+   <data key="startoffset">45073</data>
+   <data key="endoffset">45089</data>
+   <data key="returnFrom">func1</data>
+  </edge>
+  <node id="A1721"/>
+  <edge source="A1718" target="A1721">
+   <data key="startline">30</data>
+   <data key="endline">30</data>
+   <data key="startoffset">45303</data>
+   <data key="endoffset">45356</data>
+   <data key="assumption">(y-&gt;a) == (1); (y-&gt;b) == (1);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="sink">
+   <data key="sink">true</data>
+  </node>
+  <edge source="A1721" target="sink">
+   <data key="startline">36</data>
+   <data key="endline">36</data>
+   <data key="startoffset">45473</data>
+   <data key="endoffset">45508</data>
+   <data key="enterFunction">func1</data>
+  </edge>
+  <node id="A1730">
+   <data key="violation">true</data>
+   <data key="violatedProperty">__VERIFIER_error(); called in line 19</data>
+  </node>
+  <edge source="A1721" target="A1730">
+   <data key="startline">36</data>
+   <data key="endline">36</data>
+   <data key="startoffset">45498</data>
+   <data key="endoffset">45507</data>
+   <data key="enterFunction">func2</data>
+  </edge>
+ </graph>
+</graphml>
