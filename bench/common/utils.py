@@ -35,10 +35,10 @@ def parse_message(errmsg, out, process):
 	return errmsg
 
 
-def process_results(results: List[Tuple[int, str, str, float, str, int]], executable: str, out: bool):
-	validated = []
-	non_validated = []
-	badly_parsed = []
+def process_results(results: List[Tuple[int, str, str, float, str, int]], header: Tuple[str, str, str, str, str, str], executable: str, out: bool):
+	validated = [header]
+	non_validated = [header]
+	badly_parsed = [header]
 	for ret_code, info_file, err_msg, time, prod, mem in results:
 		result_record = (abs(ret_code), os.path.basename(info_file), err_msg, time, prod, mem)
 		if ret_code is None or ret_code == -9:

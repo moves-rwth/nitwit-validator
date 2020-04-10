@@ -18,6 +18,9 @@ SV_BENCHMARK_DIR = ""
 VALIDATOR_EXECUTABLE = ""
 EXECUTION_TIMEOUT = 0
 
+#'output code', 'witness file', 'extracted output message', 'runtime (secs)', 'witness producer', 'peak memory (bytes)')
+BENCH_RESULTS_HEADER = ('status', 'wit_key', 'out', 'cpu', 'tool', 'mem')
+
 task_queue = multiprocessing.Queue()
 result_queue = multiprocessing.Queue()
 
@@ -141,7 +144,7 @@ def main():
     if args.limit is not None:
         configs = configs[:args.limit]
     results = run_bench_parallel(configs, args.processes)
-    process_results(results, VALIDATOR_EXECUTABLE, True)
+    process_results(results, BENCH_RESULTS_HEADER, VALIDATOR_EXECUTABLE, True)
 
 
 if __name__ == "__main__":

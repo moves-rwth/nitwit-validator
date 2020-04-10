@@ -122,6 +122,16 @@ VALIDATORS_FILES = {
 	"4": "cpw2t",
 	"6": "nitwit"
 }
+
+COLUMN_INDEX = {
+	'status': 0,
+	'wit_key': 0,
+	'out': 0,
+	'cpu': 0,
+	'tool': 0, 
+	'mem': 0
+}
+
 VALIDATORS_LIST = ["CPAchecker", "Ultimate Automizer", "CPA-witness2test", "CProver-witness2test", "NITWIT Validator"]
 VALIDATORS_LIST_ABBR = ["CPAchecker", "Ult. Auto.", "CPA-w2t", "CProver-w2t", "NITWIT"]
 
@@ -129,6 +139,10 @@ CPU_MULTIPLIER = 2.1 / 3.4
 
 SAVE_FIGURES = False
 SAVE_TABLES = False
+
+def set_header_index(header: Tuple[str,str,str,str,str,str]):
+	for i in range(len(header)):
+		COLUMN_INDEX[header[i]] = i
 
 def adjust_to_cpu(time: float) -> float:
 	return time * CPU_MULTIPLIER
@@ -147,12 +161,12 @@ def get_matching(all_results: List, validators: dict, outputmatched: str = None)
 		with open(outputmatched, 'w') as fp:
 			json.dump(matched, fp)
 	for w in matched:
-		wit_key = w[1].partition('.json')[0]
+		wit_key = w[COLUMN_INDEX['wit_key']].partition('.json')[0]
 		validators[wit_key]['results'] \
 			.insert(int(NITWIT), dict(
-			{'cpu': adjust_to_cpu(w[3]), 'mem': int(w[5] if len(w) > 5 else 0) / 1000, 'tool': VALIDATORS_ABBR[NITWIT],
-			 'status': w[0]}))  # memory to MB, cpu in secs
-		validators[wit_key]['creator'] = w[4]
+			{'cpu': adjust_to_cpu(w[COLUMN_INDEX['cpu']]), 'mem': int(w[COLUMN_INDEX['mem']] if len(w) > 5 else 0) / 1000, 
+			 'tool': VALIDATORS_ABBR[NITWIT], 'status': w[COLUMN_INDEX['status']]}))  # memory to MB, cpu in secs
+		validators[wit_key]['creator'] = w[COLUMN_INDEX['tool']]
 	print(f"I could match {len(matched)} out of {len(all_results)} witnesses")
 	return {k: v for k, v in validators.items() if k in matched_keys}
 
@@ -207,7 +221,7 @@ def save_table_to_file(table_data: str, name: str):
 def analyze_by_producer(val_results: Dict[str, dict]):
 	print(f"Analyze by producer {len(val_results)} witnesses")
 	mux = pd.MultiIndex.from_product([VALIDATORS_LIST_ABBR, ['val', 'nval']])
-	print(mux)
+
 	df = pd.DataFrame(columns=mux)
 	data = []
 	for i, val_key in enumerate(VALIDATORS.keys()):
@@ -429,10 +443,11 @@ def adjust_to_scatter(tup: tuple):
 
 	return [[time1, tup[0][1]], [time2, tup[1][1]]]
 
-
 def compare_times(matching: Dict[str, dict]):
+	# list of tuples (cpu, status) of nitwit
 	nitwit = list(map(lambda x: (float(x['results'][int(NITWIT)-1]['cpu']), int(STATUSES[x['results'][int(NITWIT)-1]['status']])),
 	                  matching.values()))
+
 	for val_key in VALIDATORS.keys():
 		fig, ax = plt.subplots()
 		times = list(
@@ -448,19 +463,25 @@ def compare_times(matching: Dict[str, dict]):
 		for j, label in enumerate(res_labels):
 			ax.axhline(90 + j * 4, color='black', lw=0.5, linestyle='--')
 			ax.axvline(90 + j * 4, color='black', lw=0.5, linestyle='--')
-			ax.annotate(label, xy=(115, 90 + j * 4), xycoords='data', xytext=(5, -5), textcoords='offset points', )
+			y_anno = ax.annotate(label, xy=(115, 90 + j * 4), xycoords='data', xytext=(5, -5), textcoords='offset points')
+			y_anno.set_fontsize(10)
 		x_offsets = [-6, -7, -5, -5, -6, -3]
 		for j, label in enumerate(res_labels):
-			ax.annotate(label, xy=(90 + j * 4, 115), xycoords='data', xytext=(x_offsets[j], 5 + (j % 2) * 5),
-			            textcoords='offset points', )
+			x_anno = ax.annotate(label, xy=(90 + j * 4, 115), xycoords='data', xytext=(x_offsets[j], 5 + (j % 2) * 5),
+			            textcoords='offset points')
+			x_anno.set_fontsize(10)
 
+		# ???
 		ax.plot((0, 90), (0, 90), ls="-", c=".3")
 		ax.plot((0, 63), (0, 90), ls="-", c=".3", lw=0.5)
 		ax.plot((0, 90), (0, 63), ls="-", c=".3", lw=0.5)
+
+		# axis label and description		
 		ax.set_xlabel(f"{VALIDATORS_ABBR[NITWIT]} CPU time [s]")
 		ax.set_ylabel(f"{VALIDATORS_ABBR[val_key]} CPU time [s]")
 		ax.set_yticks([0, 20, 40, 60, 80, 90])
 		ax.set_xticks([0, 20, 40, 60, 80, 90])
+		ax.legend(loc=LEGEND_LOC_RIGHT, bbox_to_anchor=LEGEND_BBOX_ANCHOR, ncol=LEGEND_NCOL)
 
 		df_all_no_adjust = pd.DataFrame(list(map(data_map, zip(nitwit, times))), columns=['x', 'y', 'Result'])
 		one_or_both_false = df_all_no_adjust[df_all_no_adjust['Result'] != 'Other']
@@ -472,7 +493,7 @@ def compare_times(matching: Dict[str, dict]):
 			f"Similar validations (+-1 s) with {VALIDATORS_ABBR[val_key]}: {df_diffs_both.apply(lambda x: -1 < x < 1).sum()}.\n")
 
 		if SAVE_FIGURES:
-			fig.savefig(f'./output/imgs20/quantile_times_{VALIDATORS_FILES[val_key]}.{FORMAT}',
+			fig.savefig(f'./output/imgs19/quantile_times_{VALIDATORS_FILES[val_key]}.{FORMAT}',
 			            dpi=DPI, bbox_inches=BBOX)
 
 
@@ -532,32 +553,34 @@ def main():
 	if args.bench_results:
 		val, nval, bpar = load_result_files(args.bench_results)
 
-		all_bench_results = val + nval + bpar
+		set_header_index(val[0])
+
+		all_bench_results = val[1:] + nval[1:] + bpar[1:]
 		all_validators = get_matching(all_bench_results, all_validators)
 
 	if args.output_val_data:
 		output_val_data(all_validators)  # Don't run every time, once is enough per benchmark
 
 	######### ANALYSES ###########
-	#analyze_output_messages(all_validators) checked 
+	analyze_output_messages(all_validators)
 	
 	analyze_by_producer(all_validators)
-	#analyze_virt_best(all_validators)
-	#analyze_unique_by_producer(all_validators)
+	analyze_virt_best(all_validators)
+	analyze_unique_by_producer(all_validators)
 
-	#for i, name in enumerate(col_names):
-	#	analyze_times(all_validators, name, lambda x: x == i)
+	for i, name in enumerate(col_names):
+		analyze_times(all_validators, name, lambda x: x == i)
 	
-	#analyze_times(all_validators, 'Other', lambda x: x > 2)
-	#analyze_times(all_validators, 'All', lambda x: True)
-	#get_aggregated_data_table(col_names + ['Other', 'All'])
+	analyze_times(all_validators, 'Other', lambda x: x > 2)
+	analyze_times(all_validators, 'All', lambda x: True)
+	get_aggregated_data_table(col_names + ['Other', 'All'])
 
-	#for i, name in enumerate(col_names):
-	#	analyze_memory(all_validators, name, lambda x: x == i)
-	#analyze_memory(all_validators, 'Other', lambda x: x > 2)
-	#analyze_memory(all_validators, 'All', lambda x: True)
+	for i, name in enumerate(col_names):
+		analyze_memory(all_validators, name, lambda x: x == i)
+	analyze_memory(all_validators, 'Other', lambda x: x > 2)
+	analyze_memory(all_validators, 'All', lambda x: True)
 
-	#compare_times(all_validators)
+	compare_times(all_validators)
 
 	if args.graph:
 		plt.show()
