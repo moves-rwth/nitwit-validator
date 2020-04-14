@@ -15,7 +15,8 @@ sns.set_palette("colorblind")
 sns.set_context("paper")  # choose "talk" or "paper"
 sns.set_style('whitegrid')
 DPI = 300
-FORMAT = 'pdf'
+FIGURE_FORMAT = 'pdf'
+TABLE_FORMAT = 'tex'
 BBOX = 'tight'
 LEGEND_LOC_RIGHT = 'center right'
 LEGEND_BBOX_ANCHOR = (1.25, 0.5)
@@ -140,6 +141,9 @@ CPU_MULTIPLIER = 2.1 / 3.4
 SAVE_FIGURES = False
 SAVE_TABLES = False
 
+TABLE_DIR = f'./output/tables19'
+FIGURE_DIR = f'./output/imgs19'
+
 def set_header_index(header: Tuple[str,str,str,str,str,str]):
 	for i in range(len(header)):
 		COLUMN_INDEX[header[i]] = i
@@ -185,7 +189,7 @@ def analyze_output_messages(matching: Dict[str, dict]):
 	ax.legend(loc='lower right')
 
 	if SAVE_FIGURES:
-		ax.get_figure().savefig(f'./output/imgs20/output_msgs.{FORMAT}', dpi=DPI,
+		ax.get_figure().savefig(f'{FIGURE_DIR}/output_msgs.{FIGURE_FORMAT}', dpi=DPI,
 		                        bbox_inches=BBOX)
 
 
@@ -202,6 +206,7 @@ def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
 	# return sorted_vals, [[result[k][0], result[k][1]] for k in sorted_vals]
 	return result
 
+
 def save_table_to_file(table_data: str, name: str):
 	tex_file = r'''\documentclass[notitlepage]{article}
 			\usepackage{booktabs}
@@ -209,14 +214,17 @@ def save_table_to_file(table_data: str, name: str):
 			\usepackage[scale=0.75,top=3cm]{geometry}		
 			\begin{document}''' + table_data + '\end{document}'
 
-	with open(f'./output/tables/table_{name.lower()}.tex','w') as f:
+	path = f'{TABLE_DIR}/table_{name.lower()}.{TABLE_FORMAT}'
+	with open(path,'w') as f:
 	    f.write(tex_file)
-
-	os.system(f"pdflatex -output-directory='./output/tables/' ./output/tables/table_{name.lower()}.tex")
 	
-	# delete generated log and aux file 	
-	os.unlink(f"./output/tables/table_{name.lower()}.log")
-	os.unlink(f"./output/tables/table_{name.lower()}.aux")
+	# generate pdflatex and redirect output too make console output readable
+	os.system(f"pdflatex -output-directory='{TABLE_DIR}' {TABLE_DIR}/table_{name.lower()}.{TABLE_FORMAT} > /dev/null")
+	
+	# delete generated log and aux file
+	os.unlink(f"{TABLE_DIR}/table_{name.lower()}.log")
+	os.unlink(f"{TABLE_DIR}/table_{name.lower()}.aux")
+
 
 def analyze_by_producer(val_results: Dict[str, dict]):
 	print(f"Analyze by producer {len(val_results)} witnesses")
@@ -380,7 +388,7 @@ def analyze_times(matching: Dict[str, dict], name: str, inclusion_predicate):
 	# axsc.set_yticks([0, 20, 40, 60, 80, 90, 100])
 
 	if SAVE_FIGURES:
-		figsc.savefig(f'./output/imgs20/scatter_times_{name.lower()}.{FORMAT}', dpi=DPI,
+		figsc.savefig(f'{FIGURE_DIR}/scatter_times_{name.lower()}.{FIGURE_FORMAT}', dpi=DPI,
 		              bbox_inches=BBOX)
 
 
@@ -403,7 +411,7 @@ def analyze_memory(matching: Dict[str, dict], name: str, inclusion_predicate):
 	axsc.axhline(7000, color='black', lw=1, linestyle='--')
 	axsc.set_yticks([10, 100, 1000, 7000])
 	if SAVE_FIGURES:
-		figsc.savefig(f'./output/imgs20/scatter_memory_{name.lower()}.{FORMAT}', dpi=DPI,
+		figsc.savefig(f'{FIGURE_DIR}/scatter_memory_{name.lower()}.{FIGURE_FORMAT}', dpi=DPI,
 		              bbox_inches=BBOX)
 
 
@@ -471,7 +479,6 @@ def compare_times(matching: Dict[str, dict]):
 			            textcoords='offset points')
 			x_anno.set_fontsize(10)
 
-		# ???
 		ax.plot((0, 90), (0, 90), ls="-", c=".3")
 		ax.plot((0, 63), (0, 90), ls="-", c=".3", lw=0.5)
 		ax.plot((0, 90), (0, 63), ls="-", c=".3", lw=0.5)
@@ -493,7 +500,7 @@ def compare_times(matching: Dict[str, dict]):
 			f"Similar validations (+-1 s) with {VALIDATORS_ABBR[val_key]}: {df_diffs_both.apply(lambda x: -1 < x < 1).sum()}.\n")
 
 		if SAVE_FIGURES:
-			fig.savefig(f'./output/imgs19/quantile_times_{VALIDATORS_FILES[val_key]}.{FORMAT}',
+			fig.savefig(f'{FIGURE_DIR}/quantile_times_{VALIDATORS_FILES[val_key]}.{FIGURE_FORMAT}',
 			            dpi=DPI, bbox_inches=BBOX)
 
 
@@ -526,7 +533,7 @@ def output_val_data(val_data: Dict[str, dict]):
 
 
 def main():
-	global SAVE_FIGURES, SAVE_TABLES
+	global SAVE_FIGURES, SAVE_TABLES, FIGURE_DIR, TABLE_DIR
 	parser = argparse.ArgumentParser(description="Analyzes results of NITWIT and SV-COMP validators")
 	parser.add_argument("-v", "--validators", required=True, type=str,
 	                    help="The JSON file with results about SV-COMP validator runs (by witness hash).")
@@ -537,14 +544,25 @@ def main():
 	                         "a Venn diagram.")
 	parser.add_argument("-df", "--diff", required=False, type=str,
 	                    help="Directory with other results to compare.")
-	parser.add_argument("-s", "--save", required=False, default=False, action='store_true',
-	                    help="Save figures into thesis directory.")
-	parser.add_argument("-t", "--table", required=False, default=False, action='store_true',
-			            help="Create Tables from Latex-files and save them into thesis directory.")
+	parser.add_argument("-s", "--save", required=False,  nargs='?', const='t', default='f', type=str,
+	                    help="Save figures into thesis directory (default).")
+	parser.add_argument("-t", "--table", required=False, nargs='?', const='t', default='f', type=str,
+			    help="Create Tables from Latex-files and save them into thesis directory (default).")
 	parser.add_argument("-g", "--graph", required=False, default=False, action='store_true', help="Show graphs.")
 	args = parser.parse_args()
-	SAVE_FIGURES = args.save
-	SAVE_TABLES = args.table
+
+	# check wether argument was passed and how many parameter
+	if args.save == 't':
+		SAVE_FIGURES = True
+	elif args.save != 'f':
+		SAVE_FIGURES = True
+		FIGURE_DIR = args.save		
+	
+	if args.table == 't':
+		SAVE_TABLES = True
+	elif args.table != 'f':
+		SAVE_TABLES = True
+		TABLE_DIR = args.save
 
 	all_validators = load_validators_result_file(args.validators)
 	if all_validators is None:
