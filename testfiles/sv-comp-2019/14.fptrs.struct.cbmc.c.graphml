@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+    <default>&lt;command-line&gt;</default>
+  </key>
+  <key attr.name="invariant" attr.type="string" for="node" id="invariant"/>
+  <key attr.name="invariant.scope" attr.type="string" for="node" id="invariant.scope"/>
+  <key attr.name="nodeType" attr.type="string" for="node" id="nodetype">
+    <default>path</default>
+  </key>
+  <key attr.name="isFrontierNode" attr.type="boolean" for="node" id="frontier">
+    <default>false</default>
+  </key>
+  <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+    <default>false</default>
+  </key>
+  <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+    <default>false</default>
+  </key>
+  <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+    <default>false</default>
+  </key>
+  <key attr.name="enterLoopHead" attr.type="boolean" for="edge" id="enterLoopHead">
+    <default>false</default>
+  </key>
+  <key attr.name="threadNumber" attr.type="int" for="node" id="thread">
+    <default>0</default>
+  </key>
+  <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+  <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+  <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+  <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+  <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+  <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+  <key attr.name="sourcecode" attr.type="string" for="edge" id="sourcecode"/>
+  <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+  <key attr.name="control" attr.type="string" for="edge" id="control"/>
+  <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+  <key attr.name="assumption.resultfunction" attr.type="string" for="edge" id="assumption.resultfunction"/>
+  <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+  <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+  <key attr.name="returnFromFunction" attr.type="string" for="edge" id="returnFrom"/>
+  <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+  <graph edgedefault="directed">
+    <data key="sourcecodelang">C</data>
+    <node id="sink"/>
+    <node id="4.22">
+      <data key="entry">true</data>
+    </node>
+    <edge source="4.22" target="25.38">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">25</data>
+      <data key="assumption">malloc_size = 12u;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="25.38"/>
+    <edge source="25.38" target="26.39">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">26</data>
+      <data key="assumption">dynamic_object1.a = 0; dynamic_object1.b = 0; dynamic_object1.fp = ((const void * (*)(struct JoinPoint *))nullptr);</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="26.39"/>
+    <edge source="26.39" target="27.40">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">27</data>
+      <data key="assumption">dynamic_object1.a = 0; dynamic_object1.b = 0; dynamic_object1.fp = ((const void * (*)(struct JoinPoint *))nullptr);</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="27.40"/>
+    <edge source="27.40" target="31.43">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">28</data>
+      <data key="assumption">dynamic_object1.a = 0; dynamic_object1.b = 0; dynamic_object1.fp = func1;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="31.43"/>
+    <edge source="31.43" target="150.52">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">30</data>
+      <data key="sourcecode">[!(dynamic_object1#3.fp == func2)]</data>
+    </edge>
+    <node id="150.52"/>
+    <edge source="150.52" target="171.68">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">12</data>
+      <data key="assumption">malloc_size = 12u;</data>
+      <data key="assumption.scope">func1</data>
+    </edge>
+    <node id="171.68"/>
+    <edge source="171.68" target="172.69">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">13</data>
+      <data key="assumption">dynamic_object2.a = 1; dynamic_object2.b = 0; dynamic_object2.fp = ((const void * (*)(struct JoinPoint *))nullptr);</data>
+      <data key="assumption.scope">func1</data>
+    </edge>
+    <node id="172.69"/>
+    <edge source="172.69" target="40.73">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">14</data>
+      <data key="assumption">dynamic_object2.a = 1; dynamic_object2.b = 1; dynamic_object2.fp = ((const void * (*)(struct JoinPoint *))nullptr);</data>
+      <data key="assumption.scope">func1</data>
+    </edge>
+    <node id="40.73"/>
+    <edge source="40.73" target="42.75">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">30</data>
+      <data key="assumption">y = &amp;dynamic_object2.a;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="42.75"/>
+    <edge source="42.75" target="46.79">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">31</data>
+      <data key="assumption">x = &amp;y;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="46.79"/>
+    <edge source="46.79" target="62.89">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">33</data>
+      <data key="assumption">ptr = &amp;dynamic_object2.a;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="62.89"/>
+    <edge source="62.89" target="65.91">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">35</data>
+      <data key="assumption">dynamic_object1.a = 0; dynamic_object1.b = 0; dynamic_object1.fp = func2;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="65.91"/>
+    <edge source="65.91" target="177.95">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">36</data>
+      <data key="sourcecode">[dynamic_object1#4.fp == func2]</data>
+    </edge>
+    <node id="177.95">
+      <data key="violation">true</data>
+    </node>
+    <edge source="177.95" target="sink">
+      <data key="originfile">14.fptrs.struct.c</data>
+      <data key="startline">19</data>
+    </edge>
+  </graph>
+</graphml>

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+    <default>&lt;command-line&gt;</default>
+  </key>
+  <key attr.name="invariant" attr.type="string" for="node" id="invariant"/>
+  <key attr.name="invariant.scope" attr.type="string" for="node" id="invariant.scope"/>
+  <key attr.name="nodeType" attr.type="string" for="node" id="nodetype">
+    <default>path</default>
+  </key>
+  <key attr.name="isFrontierNode" attr.type="boolean" for="node" id="frontier">
+    <default>false</default>
+  </key>
+  <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+    <default>false</default>
+  </key>
+  <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+    <default>false</default>
+  </key>
+  <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+    <default>false</default>
+  </key>
+  <key attr.name="enterLoopHead" attr.type="boolean" for="edge" id="enterLoopHead">
+    <default>false</default>
+  </key>
+  <key attr.name="threadNumber" attr.type="int" for="node" id="thread">
+    <default>0</default>
+  </key>
+  <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+  <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+  <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+  <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+  <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+  <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+  <key attr.name="sourcecode" attr.type="string" for="edge" id="sourcecode"/>
+  <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+  <key attr.name="control" attr.type="string" for="edge" id="control"/>
+  <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+  <key attr.name="assumption.resultfunction" attr.type="string" for="edge" id="assumption.resultfunction"/>
+  <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+  <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+  <key attr.name="returnFromFunction" attr.type="string" for="edge" id="returnFrom"/>
+  <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+  <graph edgedefault="directed">
+    <data key="sourcecodelang">C</data>
+    <node id="sink"/>
+    <node id="10.21">
+      <data key="entry">true</data>
+    </node>
+    <edge source="10.21" target="0.22">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">18</data>
+      <data key="assumption">n = 7;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="0.22"/>
+    <edge source="0.22" target="3.23">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">11</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="3.23"/>
+    <edge source="3.23" target="29.27">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">12</data>
+      <data key="assumption">n = 6;</data>
+      <data key="assumption.scope">f</data>
+    </edge>
+    <node id="29.27"/>
+    <edge source="29.27" target="32.28">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">4</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="32.28"/>
+    <edge source="32.28" target="0.32">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">5</data>
+      <data key="assumption">n = 5;</data>
+      <data key="assumption.scope">f2</data>
+    </edge>
+    <node id="0.32"/>
+    <edge source="0.32" target="3.33">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">11</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="3.33"/>
+    <edge source="3.33" target="29.37">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">12</data>
+      <data key="assumption">n = 4;</data>
+      <data key="assumption.scope">f</data>
+    </edge>
+    <node id="29.37"/>
+    <edge source="29.37" target="32.38">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">4</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="32.38"/>
+    <edge source="32.38" target="0.42">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">5</data>
+      <data key="assumption">n = 3;</data>
+      <data key="assumption.scope">f2</data>
+    </edge>
+    <node id="0.42"/>
+    <edge source="0.42" target="3.43">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">11</data>
+      <data key="sourcecode">[TRUE]</data>
+    </edge>
+    <node id="3.43"/>
+    <edge source="3.43" target="5.51">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">12</data>
+      <data key="assumption">n = 2;</data>
+      <data key="assumption.scope">f</data>
+    </edge>
+    <node id="5.51">
+      <data key="violation">true</data>
+    </node>
+    <edge source="5.51" target="sink">
+      <data key="originfile">04.gcc.attribute.c</data>
+      <data key="startline">13</data>
+    </edge>
+  </graph>
+</graphml>

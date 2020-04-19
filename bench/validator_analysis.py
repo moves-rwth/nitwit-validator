@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+import os
+
 from common.utils import *
 
 sns.set()
@@ -13,7 +15,8 @@ sns.set_palette("colorblind")
 sns.set_context("paper")  # choose "talk" or "paper"
 sns.set_style('whitegrid')
 DPI = 300
-FORMAT = 'pdf'
+FIGURE_FORMAT = 'pdf'
+TABLE_FORMAT = 'tex'
 BBOX = 'tight'
 LEGEND_LOC_RIGHT = 'center right'
 LEGEND_BBOX_ANCHOR = (1.25, 0.5)
@@ -98,39 +101,52 @@ col_names = ['False', 'Unknown', 'True', 'Timeout', 'Error', 'Out of memory', 'B
 
 col_names_small = ['false', 'unknown', 'true', 'to', 'error', 'om',
                    'bad witness']  # , 'sink', 'not in violation state']
-NITWIT = "8"
+NITWIT = "6"
 VALIDATORS = {
 	"1": "CPAchecker",
-	"3": "Ultimate Automizer",
-	"4": "CPA-witness2test",
-	"5": "FShell-witness2test",
-	"7": "MetaVal",
-	"8": "NITWIT Validator",
+	"2": "Ultimate Automizer",
+	"3": "CPA-witness2test",
+	"4": "CProver-witness2test",
+	"6": "NITWIT Validator",
 }
 VALIDATORS_ABBR = {
 	"1": "CPAchecker",
-	"3": "Ult. Auto.",
-	"4": "CPA-w2t",
-	"5": "FShell-w2t",
-	"7": "MetaVal",
-	"8": "NITWIT"
+	"2": "Ult. Auto.",
+	"3": "CPA-w2t",
+	"4": "CProver-w2t",
+	"6": "NITWIT"
 }
 VALIDATORS_FILES = {
 	"1": "cpachecker",
-	"3": "ua",
-	"4": "cpaw2t",
-	"5": "fsw2t",
-	"7": "metaval",
-	"8": "nitwit"
+	"2": "ua",
+	"3": "cpaw2t",
+	"4": "cpw2t",
+	"6": "nitwit"
 }
-VALIDATORS_LIST = ["CPAchecker", "Ultimate Automizer", "CPA-witness2test", "FShell-witness2test", "MetaVal",
-                   "NITWIT Validator"]
-VALIDATORS_LIST_ABBR = ["CPAchecker", "Ult. Auto.", "CPA-w2t", "FShell-w2t", "MetaVal", "NITWIT"]
+
+COLUMN_INDEX = {
+	'status': 0,
+	'wit_key': 0,
+	'out': 0,
+	'cpu': 0,
+	'tool': 0, 
+	'mem': 0
+}
+
+VALIDATORS_LIST = ["CPAchecker", "Ultimate Automizer", "CPA-witness2test", "CProver-witness2test", "NITWIT Validator"]
+VALIDATORS_LIST_ABBR = ["CPAchecker", "Ult. Auto.", "CPA-w2t", "CProver-w2t", "NITWIT"]
 
 CPU_MULTIPLIER = 2.1 / 3.4
 
 SAVE_FIGURES = False
+SAVE_TABLES = False
 
+TABLE_DIR = f'./output/tables19'
+FIGURE_DIR = f'./output/imgs19'
+
+def set_header_index(header: Tuple[str,str,str,str,str,str]):
+	for i in range(len(header)):
+		COLUMN_INDEX[header[i]] = i
 
 def adjust_to_cpu(time: float) -> float:
 	return time * CPU_MULTIPLIER
@@ -140,36 +156,40 @@ def get_matching(all_results: List, validators: dict, outputmatched: str = None)
 	by_witness = validators.keys()
 	# witness_keys = [hash['witnessSHA'].lower() for key in by_witness for hash in validators[key]['results']]
 	witness_keys = set(by_witness)
-
+	
+	
 	matched = list(filter(lambda r: str(r[1]).partition('.json')[0] in witness_keys, all_results))
 	matched_keys = list(map(lambda r: str(r[1]).partition('.json')[0], matched))
+	
 	if outputmatched is not None:
 		with open(outputmatched, 'w') as fp:
 			json.dump(matched, fp)
 	for w in matched:
-		wit_key = w[1].partition('.json')[0]
+		wit_key = w[COLUMN_INDEX['wit_key']].partition('.json')[0]
 		validators[wit_key]['results'] \
-			.insert(NITWIT, dict(
-			{'cpu': adjust_to_cpu(w[3]), 'mem': int(w[5] if len(w) > 5 else 0) / 1000, 'tool': VALIDATORS_ABBR[NITWIT],
-			 'status': w[0]}))  # memory to MB, cpu in secs
-		validators[wit_key]['creator'] = w[4]
+			.insert(int(NITWIT), dict(
+			{'cpu': adjust_to_cpu(w[COLUMN_INDEX['cpu']]), 'mem': int(w[COLUMN_INDEX['mem']] if len(w) > 5 else 0) / 1000, 
+			 'tool': VALIDATORS_ABBR[NITWIT], 'status': w[COLUMN_INDEX['status']]}))  # memory to MB, cpu in secs
+		validators[wit_key]['creator'] = w[COLUMN_INDEX['tool']]
 	print(f"I could match {len(matched)} out of {len(all_results)} witnesses")
 	return {k: v for k, v in validators.items() if k in matched_keys}
 
 
 def analyze_output_messages(matching: Dict[str, dict]):
 	print(f"Analyze {len(matching)}")
-	data = np.zeros((7, 6), dtype=int)
+	data = np.zeros((7, 5), dtype=int)
+
 	for i, val_index in enumerate(VALIDATORS.keys()):
 		for w, c in matching.items():
-			data[STATUSES[c['results'][val_index]['status']], i] += 1
+			# decrease val_index by 1 to get 0-based index of list
+			data[STATUSES[c['results'][int(val_index)-1]['status']], int(i)] += 1
 
 	df = pd.DataFrame(columns=VALIDATORS_LIST_ABBR, data=data, index=col_names)
 	ax = df.T.sort_values(by=col_names[0]).plot(kind='bar', stacked=True, rot=0)
 	ax.legend(loc='lower right')
 
 	if SAVE_FIGURES:
-		ax.get_figure().savefig(f'./output/imgs20/output_msgs.{FORMAT}', dpi=DPI,
+		ax.get_figure().savefig(f'{FIGURE_DIR}/output_msgs.{FIGURE_FORMAT}', dpi=DPI,
 		                        bbox_inches=BBOX)
 
 
@@ -187,16 +207,36 @@ def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
 	return result
 
 
+def save_table_to_file(table_data: str, name: str):
+	tex_file = r'''\documentclass[notitlepage]{article}
+			\usepackage{booktabs}
+			\usepackage{lscape}
+			\usepackage[scale=0.75,top=3cm]{geometry}		
+			\begin{document}''' + table_data + '\end{document}'
+
+	path = f'{TABLE_DIR}/table_{name.lower()}.{TABLE_FORMAT}'
+	with open(path,'w') as f:
+	    f.write(tex_file)
+	
+	# generate pdflatex and redirect output too make console output readable
+	os.system(f"pdflatex -output-directory='{TABLE_DIR}' {TABLE_DIR}/table_{name.lower()}.{TABLE_FORMAT} > /dev/null")
+	
+	# delete generated log and aux file
+	os.unlink(f"{TABLE_DIR}/table_{name.lower()}.log")
+	os.unlink(f"{TABLE_DIR}/table_{name.lower()}.aux")
+
+
 def analyze_by_producer(val_results: Dict[str, dict]):
 	print(f"Analyze by producer {len(val_results)} witnesses")
 	mux = pd.MultiIndex.from_product([VALIDATORS_LIST_ABBR, ['val', 'nval']])
+
 	df = pd.DataFrame(columns=mux)
 	data = []
 	for i, val_key in enumerate(VALIDATORS.keys()):
 		validated = {}
 		nonvalidated = {}
 		for w, c in val_results.items():
-			if STATUSES[c['results'][val_key]['status']] == 0:
+			if STATUSES[c['results'][int(val_key)-1]['status']] == 0:
 				increase_count_in_dict(validated, c['creator'])
 			else:
 				increase_count_in_dict(nonvalidated, c['creator'])
@@ -212,7 +252,8 @@ def analyze_by_producer(val_results: Dict[str, dict]):
 	df.loc["Total"] = df.sum().astype(int)
 	df['Total'] = df[VALIDATORS_ABBR[NITWIT]].sum(axis=1).astype(int)
 
-	print(df.to_latex())
+	if SAVE_TABLES:
+		save_table_to_file(df.to_latex(), 'analyse_by_producer')
 
 
 def analyze_virt_best(matching: Dict[str, dict]):
@@ -222,13 +263,13 @@ def analyze_virt_best(matching: Dict[str, dict]):
 	for i, val_key in enumerate(VALIDATORS.keys()):
 		validated = {}
 		for w, c in matching.items():
-			if STATUSES[c['results'][val_key]['status']] == 0:
+			if STATUSES[c['results'][int(val_key)-1]['status']] == 0:
 				if c['creator'] in producers_virt:
 					producers_virt[c['creator']].add(c['witnessSHA'])
 				else:
 					producers_virt[c['creator']] = {c['witnessSHA']}
 
-			if STATUSES[c['results'][val_key]['status']] == 0:
+			if STATUSES[c['results'][int(val_key)-1]['status']] == 0:
 				increase_count_in_dict(validated, c['creator'])
 		data.append(validated)
 	prods = np.asarray(list(map(lambda x: list(x.keys()), data)))
@@ -248,14 +289,16 @@ def analyze_virt_best(matching: Dict[str, dict]):
 		df.at[producer, 'Virtual best'] = len(val_set)
 	df.loc["Total"] = df.sum().astype(int)
 
-	print(df.to_latex())
+	if SAVE_TABLES:
+		save_table_to_file(r'\begin{landscape}' + df.to_latex() + r'\end{landscape}', 'analyse_virt_best')
+		
 
 
-def validator_result_selector(results: dict, predicate_others, predicate_nitwit) -> bool:
+def validator_result_selector(results: dict, predicate_others, predicate_nitwit) -> bool:	
 	for val_key in VALIDATORS.keys() - NITWIT:
-		if not predicate_others(STATUSES[results[val_key]['status']]):
+		if not predicate_others(STATUSES[results[int(val_key)-1]['status']]):
 			return False
-	if predicate_nitwit(STATUSES[results[NITWIT]['status']]):
+	if predicate_nitwit(STATUSES[results[int(NITWIT)-1]['status']]):
 		return True
 
 
@@ -309,11 +352,14 @@ times_data_cols = ['Witnesses', 'Mean', 'Median', 'Std.dev.', 'Total']
 
 
 def get_aggregated_data_table(results: List[str]):
-	mux = pd.MultiIndex.from_product([VALIDATORS_LIST_ABBR, results], names=['Result', 'Producer'])
+	mux = pd.MultiIndex.from_product([VALIDATORS_LIST_ABBR, results], names=['Producer', 'Result'])
 	df = pd.DataFrame(index=mux, columns=times_data_cols)
 	for tup, val in times_data.items():
 		df.loc[tup] = val
-	print(df.to_latex(float_format=lambda x: "{:.2f}".format(x)))
+
+	if SAVE_TABLES:
+		save_table_to_file(df.to_latex(float_format=lambda x: "{:.2f}".format(x)), 'aggregated_data')
+	#print(df.to_latex(float_format=lambda x: "{:.2f}".format(x)))
 
 
 def analyze_times(matching: Dict[str, dict], name: str, inclusion_predicate):
@@ -323,8 +369,8 @@ def analyze_times(matching: Dict[str, dict], name: str, inclusion_predicate):
 
 	# take just the successful ones
 	for i, val_index in enumerate(VALIDATORS.keys()):
-		times = np.asarray(list(map(lambda x: float(x['results'][val_index]['cpu']),
-		                            filter(lambda x: inclusion_predicate(STATUSES[x['results'][val_index]['status']]),
+		times = np.asarray(list(map(lambda x: float(x['results'][int(val_index)-1]['cpu']),
+		                            filter(lambda x: inclusion_predicate(STATUSES[x['results'][int(val_index)-1]['status']]),
 		                                   matching.values()))))
 		times = sorted(times)
 		stats = get_stats_data(times)
@@ -342,7 +388,7 @@ def analyze_times(matching: Dict[str, dict], name: str, inclusion_predicate):
 	# axsc.set_yticks([0, 20, 40, 60, 80, 90, 100])
 
 	if SAVE_FIGURES:
-		figsc.savefig(f'./output/imgs20/scatter_times_{name.lower()}.{FORMAT}', dpi=DPI,
+		figsc.savefig(f'{FIGURE_DIR}/scatter_times_{name.lower()}.{FIGURE_FORMAT}', dpi=DPI,
 		              bbox_inches=BBOX)
 
 
@@ -351,8 +397,8 @@ def analyze_memory(matching: Dict[str, dict], name: str, inclusion_predicate):
 	figsc, axsc = plt.subplots()
 	# take just the successful ones
 	for i, val_index in enumerate(VALIDATORS.keys()):
-		mems = np.asarray(list(map(lambda x: float(x['results'][val_index]['mem']),
-		                           filter(lambda x: inclusion_predicate(STATUSES[x['results'][val_index]['status']]),
+		mems = np.asarray(list(map(lambda x: float(x['results'][int(val_index)-1]['mem']),
+		                           filter(lambda x: inclusion_predicate(STATUSES[x['results'][int(val_index)-1]['status']]),
 		                                  matching.values()))))
 		print(f"{VALIDATORS_ABBR[val_index]}: {get_stats(mems)}")
 		sns.lineplot(ax=axsc, y=sorted(mems), x=range(len(mems)), label=VALIDATORS_ABBR[val_index])
@@ -365,7 +411,7 @@ def analyze_memory(matching: Dict[str, dict], name: str, inclusion_predicate):
 	axsc.axhline(7000, color='black', lw=1, linestyle='--')
 	axsc.set_yticks([10, 100, 1000, 7000])
 	if SAVE_FIGURES:
-		figsc.savefig(f'./output/imgs20/scatter_memory_{name.lower()}.{FORMAT}', dpi=DPI,
+		figsc.savefig(f'{FIGURE_DIR}/scatter_memory_{name.lower()}.{FIGURE_FORMAT}', dpi=DPI,
 		              bbox_inches=BBOX)
 
 
@@ -405,14 +451,15 @@ def adjust_to_scatter(tup: tuple):
 
 	return [[time1, tup[0][1]], [time2, tup[1][1]]]
 
-
 def compare_times(matching: Dict[str, dict]):
-	nitwit = list(map(lambda x: (float(x['results'][NITWIT]['cpu']), int(STATUSES[x['results'][NITWIT]['status']])),
+	# list of tuples (cpu, status) of nitwit
+	nitwit = list(map(lambda x: (float(x['results'][int(NITWIT)-1]['cpu']), int(STATUSES[x['results'][int(NITWIT)-1]['status']])),
 	                  matching.values()))
+
 	for val_key in VALIDATORS.keys():
 		fig, ax = plt.subplots()
 		times = list(
-			map(lambda x: (float(x['results'][val_key]['cpu']), int(STATUSES[x['results'][val_key]['status']])),
+			map(lambda x: (float(x['results'][int(val_key)-1]['cpu']), int(STATUSES[x['results'][int(val_key)-1]['status']])),
 			    matching.values()))
 		put_on_level = map(adjust_to_scatter, zip(nitwit, times))
 		data_map = lambda tup: [tup[0][0], tup[1][0], get_shared_result(tup[0][1], tup[1][1])]
@@ -424,19 +471,24 @@ def compare_times(matching: Dict[str, dict]):
 		for j, label in enumerate(res_labels):
 			ax.axhline(90 + j * 4, color='black', lw=0.5, linestyle='--')
 			ax.axvline(90 + j * 4, color='black', lw=0.5, linestyle='--')
-			ax.annotate(label, xy=(115, 90 + j * 4), xycoords='data', xytext=(5, -5), textcoords='offset points', )
+			y_anno = ax.annotate(label, xy=(115, 90 + j * 4), xycoords='data', xytext=(5, -5), textcoords='offset points')
+			y_anno.set_fontsize(10)
 		x_offsets = [-6, -7, -5, -5, -6, -3]
 		for j, label in enumerate(res_labels):
-			ax.annotate(label, xy=(90 + j * 4, 115), xycoords='data', xytext=(x_offsets[j], 5 + (j % 2) * 5),
-			            textcoords='offset points', )
+			x_anno = ax.annotate(label, xy=(90 + j * 4, 115), xycoords='data', xytext=(x_offsets[j], 5 + (j % 2) * 5),
+			            textcoords='offset points')
+			x_anno.set_fontsize(10)
 
 		ax.plot((0, 90), (0, 90), ls="-", c=".3")
 		ax.plot((0, 63), (0, 90), ls="-", c=".3", lw=0.5)
 		ax.plot((0, 90), (0, 63), ls="-", c=".3", lw=0.5)
+
+		# axis label and description		
 		ax.set_xlabel(f"{VALIDATORS_ABBR[NITWIT]} CPU time [s]")
 		ax.set_ylabel(f"{VALIDATORS_ABBR[val_key]} CPU time [s]")
 		ax.set_yticks([0, 20, 40, 60, 80, 90])
 		ax.set_xticks([0, 20, 40, 60, 80, 90])
+		ax.legend(loc=LEGEND_LOC_RIGHT, bbox_to_anchor=LEGEND_BBOX_ANCHOR, ncol=LEGEND_NCOL)
 
 		df_all_no_adjust = pd.DataFrame(list(map(data_map, zip(nitwit, times))), columns=['x', 'y', 'Result'])
 		one_or_both_false = df_all_no_adjust[df_all_no_adjust['Result'] != 'Other']
@@ -448,7 +500,7 @@ def compare_times(matching: Dict[str, dict]):
 			f"Similar validations (+-1 s) with {VALIDATORS_ABBR[val_key]}: {df_diffs_both.apply(lambda x: -1 < x < 1).sum()}.\n")
 
 		if SAVE_FIGURES:
-			fig.savefig(f'./output/imgs20/quantile_times_{VALIDATORS_FILES[val_key]}.{FORMAT}',
+			fig.savefig(f'{FIGURE_DIR}/quantile_times_{VALIDATORS_FILES[val_key]}.{FIGURE_FORMAT}',
 			            dpi=DPI, bbox_inches=BBOX)
 
 
@@ -481,7 +533,7 @@ def output_val_data(val_data: Dict[str, dict]):
 
 
 def main():
-	global SAVE_FIGURES
+	global SAVE_FIGURES, SAVE_TABLES, FIGURE_DIR, TABLE_DIR
 	parser = argparse.ArgumentParser(description="Analyzes results of NITWIT and SV-COMP validators")
 	parser.add_argument("-v", "--validators", required=True, type=str,
 	                    help="The JSON file with results about SV-COMP validator runs (by witness hash).")
@@ -492,11 +544,25 @@ def main():
 	                         "a Venn diagram.")
 	parser.add_argument("-df", "--diff", required=False, type=str,
 	                    help="Directory with other results to compare.")
-	parser.add_argument("-s", "--save", required=False, default=False, action='store_true',
-	                    help="Save figures into thesis directory.")
+	parser.add_argument("-s", "--save", required=False,  nargs='?', const='t', default='f', type=str,
+	                    help="Save figures into thesis directory (default).")
+	parser.add_argument("-t", "--table", required=False, nargs='?', const='t', default='f', type=str,
+			    help="Create Tables from Latex-files and save them into thesis directory (default).")
 	parser.add_argument("-g", "--graph", required=False, default=False, action='store_true', help="Show graphs.")
 	args = parser.parse_args()
-	SAVE_FIGURES = args.save
+
+	# check wether argument was passed and how many parameter
+	if args.save == 't':
+		SAVE_FIGURES = True
+	elif args.save != 'f':
+		SAVE_FIGURES = True
+		FIGURE_DIR = args.save		
+	
+	if args.table == 't':
+		SAVE_TABLES = True
+	elif args.table != 'f':
+		SAVE_TABLES = True
+		TABLE_DIR = args.save
 
 	all_validators = load_validators_result_file(args.validators)
 	if all_validators is None:
@@ -504,7 +570,10 @@ def main():
 
 	if args.bench_results:
 		val, nval, bpar = load_result_files(args.bench_results)
-		all_bench_results = val + nval + bpar
+
+		set_header_index(val[0])
+
+		all_bench_results = val[1:] + nval[1:] + bpar[1:]
 		all_validators = get_matching(all_bench_results, all_validators)
 
 	if args.output_val_data:
@@ -512,13 +581,14 @@ def main():
 
 	######### ANALYSES ###########
 	analyze_output_messages(all_validators)
-
+	
 	analyze_by_producer(all_validators)
 	analyze_virt_best(all_validators)
 	analyze_unique_by_producer(all_validators)
 
 	for i, name in enumerate(col_names):
 		analyze_times(all_validators, name, lambda x: x == i)
+	
 	analyze_times(all_validators, 'Other', lambda x: x > 2)
 	analyze_times(all_validators, 'All', lambda x: True)
 	get_aggregated_data_table(col_names + ['Other', 'All'])

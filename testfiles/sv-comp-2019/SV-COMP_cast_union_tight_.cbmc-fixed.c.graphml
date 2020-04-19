@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+    <default>&lt;command-line&gt;</default>
+  </key>
+  <key attr.name="invariant" attr.type="string" for="node" id="invariant"/>
+  <key attr.name="invariant.scope" attr.type="string" for="node" id="invariant.scope"/>
+  <key attr.name="nodeType" attr.type="string" for="node" id="nodetype">
+    <default>path</default>
+  </key>
+  <key attr.name="isFrontierNode" attr.type="boolean" for="node" id="frontier">
+    <default>false</default>
+  </key>
+  <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+    <default>false</default>
+  </key>
+  <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+    <default>false</default>
+  </key>
+  <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+    <default>false</default>
+  </key>
+  <key attr.name="enterLoopHead" attr.type="boolean" for="edge" id="enterLoopHead">
+    <default>false</default>
+  </key>
+  <key attr.name="threadNumber" attr.type="int" for="node" id="thread">
+    <default>0</default>
+  </key>
+  <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+  <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+  <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+  <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+  <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+  <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+  <key attr.name="sourcecode" attr.type="string" for="edge" id="sourcecode"/>
+  <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+  <key attr.name="control" attr.type="string" for="edge" id="control"/>
+  <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+  <key attr.name="assumption.resultfunction" attr.type="string" for="edge" id="assumption.resultfunction"/>
+  <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+  <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+  <key attr.name="returnFromFunction" attr.type="string" for="edge" id="returnFrom"/>
+  <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+  <graph edgedefault="directed">
+    <data key="sourcecodelang">C</data>
+    <node id="sink"/>
+    <node id="2.20">
+      <data key="entry">true</data>
+    </node>
+    <edge source="2.20" target="3.23">
+      <data key="originfile">SV-COMP_cast_union_tight_.c</data>
+      <data key="startline">29</data>
+      <data key="assumption">a = 2146435072;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="3.23"/>
+    <edge source="3.23" target="30.26">
+      <data key="originfile">SV-COMP_cast_union_tight_.c</data>
+      <data key="startline">16</data>
+      <data key="assumption">i = 2146435072;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="30.26"/>
+    <edge source="30.26" target="31.27">
+      <data key="originfile">SV-COMP_cast_union_tight_.c</data>
+      <data key="startline">17</data>
+      <data key="assumption">x.i[0] = 1127219200; x.i[1] = 0;</data>
+      <data key="assumption.scope">cast</data>
+    </edge>
+    <node id="31.27"/>
+    <edge source="31.27" target="32.28">
+      <data key="originfile">SV-COMP_cast_union_tight_.c</data>
+      <data key="startline">18</data>
+      <data key="assumption">y.i[0] = 1127219200; y.i[1] = 0;</data>
+      <data key="assumption.scope">cast</data>
+    </edge>
+    <node id="32.28"/>
+    <edge source="32.28" target="33.29">
+      <data key="originfile">SV-COMP_cast_union_tight_.c</data>
+      <data key="startline">19</data>
+      <data key="assumption">x.i[0] = 1127219200; x.i[1] = -2147483648;</data>
+      <data key="assumption.scope">cast</data>
+    </edge>
+    <node id="33.29"/>
+    <edge source="33.29" target="4.32">
+      <data key="originfile">SV-COMP_cast_union_tight_.c</data>
+      <data key="startline">20</data>
+      <data key="assumption">y.i[0] = 1127219200; y.i[1] = -1048576;</data>
+      <data key="assumption.scope">cast</data>
+    </edge>
+    <node id="4.32"/>
+    <edge source="4.32" target="6.35">
+      <data key="originfile">SV-COMP_cast_union_tight_.c</data>
+      <data key="startline">31</data>
+      <data key="assumption">r = +NAN;</data>
+      <data key="assumption.scope">main</data>
+    </edge>
+    <node id="6.35"/>
+    <edge source="6.35" target="24.36">
+      <data key="originfile">SV-COMP_cast_union_tight_.c</data>
+      <data key="startline">7</data>
+      <data key="assumption">cond = 0;</data>
+    </edge>
+    <node id="24.36"/>
+    <edge source="24.36" target="25.37">
+      <data key="originfile">SV-COMP_cast_union_tight_.c</data>
+      <data key="startline">7</data>
+      <data key="sourcecode">[!(!(cond!0@1#1 == 0))]</data>
+    </edge>
+    <node id="25.37">
+      <data key="violation">true</data>
+    </node>
+    <edge source="25.37" target="sink">
+      <data key="originfile">SV-COMP_cast_union_tight_.c</data>
+      <data key="startline">7</data>
+    </edge>
+  </graph>
+</graphml>

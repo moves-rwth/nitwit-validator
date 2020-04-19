@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+  <default>false</default>
+ </key>
+ <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+  <default>false</default>
+ </key>
+ <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+  <default>false</default>
+ </key>
+ <key attr.name="violatedProperty" attr.type="string" for="node" id="violatedProperty"/>
+ <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+ <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+ <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+ <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+ <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+ <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+ <key attr.name="creationTime" attr.type="string" for="graph" id="creationtime"/>
+ <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+ <key attr.name="endline" attr.type="int" for="edge" id="endline"/>
+ <key attr.name="startoffset" attr.type="int" for="edge" id="startoffset"/>
+ <key attr.name="endoffset" attr.type="int" for="edge" id="endoffset"/>
+ <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+  <default>./06.nondet2.c</default>
+ </key>
+ <key attr.name="control" attr.type="string" for="edge" id="control"/>
+ <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+ <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+ <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+ <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+ <key attr.name="inputWitnessHash" attr.type="string" for="graph" id="inputwitnesshash"/>
+ <graph edgedefault="directed">
+  <data key="witness-type">violation_witness</data>
+  <data key="sourcecodelang">C</data>
+  <data key="producer">CPAchecker 1.8-svn a776d662f5+ / kInduction</data>
+  <data key="specification">CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )</data>
+  <data key="programfile">./06.nondet2.c</data>
+  <data key="programhash">dbcfe4fd80bcfaedfaf334c82297f82883ebfd928822446ba901fe895a45c388</data>
+  <data key="architecture">32bit</data>
+  <data key="creationtime">2019-05-10T09:55:46+02:00</data>
+  <node id="A46">
+   <data key="entry">true</data>
+  </node>
+  <node id="A76"/>
+  <edge source="A46" target="A76">
+   <data key="startline">12</data>
+   <data key="endline">12</data>
+   <data key="startoffset">581</data>
+   <data key="endoffset">592</data>
+   <data key="enterFunction">main</data>
+  </edge>
+  <node id="A118"/>
+  <edge source="A76" target="A118">
+   <data key="startline">13</data>
+   <data key="endline">13</data>
+   <data key="startoffset">606</data>
+   <data key="endoffset">630</data>
+   <data key="assumption">a1 == (1223);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A123"/>
+  <edge source="A118" target="A123">
+   <data key="startline">14</data>
+   <data key="endline">14</data>
+   <data key="startoffset">653</data>
+   <data key="endoffset">678</data>
+   <data key="assumption">a2 == (13443U);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A128"/>
+  <edge source="A123" target="A128">
+   <data key="startline">15</data>
+   <data key="endline">15</data>
+   <data key="startoffset">703</data>
+   <data key="endoffset">730</data>
+   <data key="assumption">a3 == (12U);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A133"/>
+  <edge source="A128" target="A133">
+   <data key="startline">16</data>
+   <data key="endline">16</data>
+   <data key="startoffset">746</data>
+   <data key="endoffset">772</data>
+   <data key="assumption">a4 == (134);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A135"/>
+  <edge source="A133" target="A135">
+   <data key="startline">17</data>
+   <data key="endline">17</data>
+   <data key="startoffset">787</data>
+   <data key="endoffset">812</data>
+   <data key="assumption">a5 == (1232444L);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A140"/>
+  <edge source="A135" target="A140">
+   <data key="startline">18</data>
+   <data key="endline">18</data>
+   <data key="startoffset">836</data>
+   <data key="endoffset">862</data>
+   <data key="assumption">a6 == (135345324UL);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A145"/>
+  <edge source="A140" target="A145">
+   <data key="startline">19</data>
+   <data key="endline">19</data>
+   <data key="startoffset">877</data>
+   <data key="endoffset">902</data>
+   <data key="assumption">a7 == (119);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A149"/>
+  <edge source="A145" target="A149">
+   <data key="startline">20</data>
+   <data key="endline">20</data>
+   <data key="startoffset">926</data>
+   <data key="endoffset">952</data>
+   <data key="assumption">a8 == (70U);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A151"/>
+  <edge source="A149" target="A151">
+   <data key="startline">21</data>
+   <data key="endline">21</data>
+   <data key="startoffset">969</data>
+   <data key="endoffset">996</data>
+   <data key="assumption">a9 == (8.20392);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A221">
+   <data key="violation">true</data>
+   <data key="violatedProperty">__VERIFIER_error(); called in line 34</data>
+  </node>
+  <edge source="A151" target="A221">
+   <data key="startline">24</data>
+   <data key="endline">32</data>
+   <data key="startoffset">1005</data>
+   <data key="endoffset">1226</data>
+   <data key="control">condition-true</data>
+   <data key="assumption">a9 == (8.20392);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="sink">
+   <data key="sink">true</data>
+  </node>
+  <edge source="A151" target="sink">
+   <data key="startline">24</data>
+   <data key="endline">32</data>
+   <data key="startoffset">1005</data>
+   <data key="endoffset">1226</data>
+   <data key="control">condition-false</data>
+  </edge>
+ </graph>
+</graphml>

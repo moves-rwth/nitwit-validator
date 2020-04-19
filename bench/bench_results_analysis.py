@@ -35,6 +35,19 @@ EXIT_CODE_DICT = {
 	251: 'out of memory'
 }
 
+COLUMN_INDEX = {
+	'status': 0,
+	'wit_key': 0,
+	'out': 0,
+	'cpu': 0,
+	'tool': 0, 
+	'mem': 0
+}
+
+def set_header_index(header: Tuple[str,str,str,str,str,str]):
+	for i in range(len(header)):
+		COLUMN_INDEX[header[i]] = i
+
 
 def setup_dirs(dir: str) -> bool:
 	if not os.path.exists(dir) or not os.path.isdir(dir):
@@ -84,13 +97,13 @@ def analyze_bench_output(results: list, name: str, search_string: str, producer:
 	false_positives = 0
 
 	for witness in results:
-		with open(os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, witness[1]), 'r') as fp:
+		with open(os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, witness[COLUMN_INDEX['wit_key']]), 'r') as fp:
 			info_jObj = json.load(fp)
-			if producer is not None and not str(witness[4]).startswith(producer):
+			if producer is not None and not str(witness[COLUMN_INDEX['tool']]).startswith(producer):
 				continue
-			increase_count_in_dict(result_map, witness[0])
+			increase_count_in_dict(result_map, witness[COLUMN_INDEX['status']])
 			if 'producer' in info_jObj:
-				increase_count_in_dict(prod_map, witness[4])
+				increase_count_in_dict(prod_map, witness[COLUMN_INDEX['tool']])
 			else:
 				unknown = unknown + 1
 
@@ -150,9 +163,10 @@ def main():
 		return 1
 
 	validated, nonvalidated, badlyparsed = load_result_files(args.results)
-	analyze_bench_output(validated, 'validated', '_false-unreach-call', args.producer)
-	analyze_bench_output(nonvalidated, 'non-validated', '_true-unreach-call', args.producer)
-	analyze_bench_output(badlyparsed, 'badly parsed', '', args.producer)
+	set_header_index(validated[0])
+	analyze_bench_output(validated[1:], 'validated', '_false-unreach-call', args.producer)
+	analyze_bench_output(nonvalidated[1:], 'non-validated', '_true-unreach-call', args.producer)
+	analyze_bench_output(badlyparsed[1:], 'badly parsed', '', args.producer)
 
 
 if __name__ == "__main__":
