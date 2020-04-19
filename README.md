@@ -27,15 +27,15 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
   For building NITWIT, we require support for compiling 32bit applications on 64bit systems, so packages like `gcc-multilib` and `g++-multilib` are necessary.
  - To build (in the root directory):
     ```./build.sh```
- - To execute a basic test suite:
-    ```./run-tests.sh cmake-build-release```
+ - To execute a basic test suite on the data from SV-comp 2019:
+    ```./run-tests.sh cmake-build-release sv-comp-2019```
   
  - Then, to run a whole benchmark on a config with a 3s timeout and four parallel processes (in directory ./bench):
 	``` 
 	python3 bench_parallel.py  -w ../../data/sv-witnesses -e ../cmake-build-release/nitwit32 -sv ../../data/sv-benchmarks -to 3 -p 4 -c configs/reachability.json
 	```
 
-  This will output configuration files into `./bench/output/<run>/*.json`. These then can be processed to export graphs, flag `-g` shows them in individual windows, `-s` saves them to disk (right now the output directory is hardcoded), without `-g` or `-s` it just shows tables and numbers. (in ./bench)
+  This will output configuration files into `./bench/output/<run>/*.json`. These then can be processed to export graphs and tables, flag `-g` shows all graphs in individual windows, `-s` saves the graphs to disk (output directory is optional), `-t` saves the tables to disk (output directory is optional), without `-g` or `-s` or `-t` it just shows tables and numbers. (in ./bench)
 	```
 	python3 validator_analysis.py -v ../../data/sv-validators/output.json -r output/limit_best -g
 	```
