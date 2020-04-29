@@ -322,6 +322,7 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
     if (TypeIsNonDeterministic(SourceValue->Typ)) {
         DestValue->Typ = TypeGetNonDeterministic(Parser, DestValue->Typ);
     }
+
     if (DestValue->LValueFrom != nullptr){
         if (TypeIsNonDeterministic(SourceValue->Typ)) {
             DestValue->LValueFrom->Typ = TypeGetNonDeterministic(Parser, DestValue->LValueFrom->Typ);
@@ -329,7 +330,8 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
             DestValue->LValueFrom->Typ = TypeGetDeterministic(Parser, DestValue->LValueFrom->Typ);
         }
     }
-// check if not const
+
+    // check if not const
     if (DestValue->ConstQualifier == TRUE){
         switch (DestValue->Typ->Base){
             case TypeInt:
@@ -352,6 +354,7 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
         }
     }
 
+    // assign SourceValue by DestType
     switch (DestValue->Typ->Base)
     {
         case TypeInt:              DestValue->Val->Integer = CoerceInteger(SourceValue); break;
@@ -407,10 +410,12 @@ void ExpressionAssign(struct ParseState *Parser, Value *DestValue, Value *Source
                 if (DestValue->Typ->ArraySize == 0) /* char x[] = "abcd", x is unsized */
                 {
                     int Size = strlen((const char*)SourceValue->Val->Pointer) + 1;
+                    
                     #ifdef DEBUG_ARRAY_INITIALIZER
                     PRINT_SOURCE_POS;
                     fprintf(stderr, "str size: %d\n", Size);
                     #endif
+                    
                     DestValue->Typ = TypeGetMatching(Parser->pc, Parser, DestValue->Typ->FromType, DestValue->Typ->Base,
                                                      Size, DestValue->Typ->Identifier, TRUE, nullptr);
                     VariableRealloc(Parser, DestValue, TypeSizeValue(DestValue, FALSE));
@@ -1360,7 +1365,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
         ParserCopy(&PreState, Parser);
         Token = LexGetToken(Parser, &LexValue, TRUE);
 
-        if ( ( ( (int)Token > TokenComma && (int)Token <= (int)TokenOpenBracket) ||
+        if ((( (int)Token > TokenComma && (int)Token <= (int)TokenOpenBracket) ||
                (Token == TokenCloseBracket && BracketPrecedence != 0)) &&
                (Token != TokenColon || TernaryDepth > 0) )
         {
@@ -1557,17 +1562,20 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                         Parser->SkipIntrinsic = TRUE;
                     }
                 }
+
                 if (Parser->DebugMode && RunIt) {
                     Parser->EnterFunction = FuncName;
                     DebugCheckStatement(Parser);
                     Parser->EnterFunction = nullptr;
                 }
+                
                 LexGetToken(Parser, nullptr, TRUE);
                 ExpressionParseFunctionCall(Parser, &StackTop, FuncName, RunIt);
                 if (Parser->DebugMode && Parser->Mode == RunModeRun) {
                     DebugCheckStatement(Parser);
                     Parser->ReturnFromFunction = nullptr;
                 }
+                
                 if (Parser->SkipIntrinsic == TRUE)
                     Parser->SkipIntrinsic = FALSE;
             }

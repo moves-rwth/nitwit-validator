@@ -86,12 +86,15 @@ int validate(const char *source_filename) {
         PicocCleanup(&pc);
         return ret;
     }
+    
     cw_verbose("============Start simulation============\n");
     // include all standard libraries and extern functions used by verifiers
     // like stdio, stdlib, special error, assume, nondet functions
+
 #ifndef NO_HEADER_INCLUDE
     PicocIncludeAllSystemHeaders(&pc);
 #endif
+
     char *source = readFile(source_filename);
     if (!source) {return 255;}
     PicocParse(&pc, source_filename, source, strlen(source), TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
@@ -99,6 +102,7 @@ int validate(const char *source_filename) {
     Value *MainFuncValue = nullptr;
     VariableGet(&pc, nullptr, TableStrRegister(&pc, "main"), &MainFuncValue);
 
+    
     if (MainFuncValue->Typ->Base != TypeFunction)
         ProgramFailNoParser(&pc, "main is not a function - can't call it");
 
@@ -122,12 +126,15 @@ int main(int argc, char **argv) {
     }
     wit_aut = WitnessAutomaton::automatonFromWitness(doc);
 
+	// check if witness automaton was succesfully constructed
     if (wit_aut && !wit_aut->isInIllegalState()) {
         cw_verbose("Witness automaton reconstructed\n");
     } else {
         printf("Reconstructing the witness automaton failed.\n");
         return 2;
     }
+
+	// ckeck if witness automaton has type viloation witness
     if (!wit_aut->getData().witness_type.empty() && wit_aut->getData().witness_type != "violation_witness"){
         printf("UNKNOWN: NITWIT expects a violation witness yet a different type was specified: %s.\n",
                 wit_aut->getData().witness_type.c_str());
@@ -136,34 +143,41 @@ int main(int argc, char **argv) {
 
     int exit_value = validate(argv[2]);
 
+	// check wether we finished in a violation state and if __VERIFIER_error was called
     if ((!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) &&
         (exit_value >= NO_WITNESS_CODE && exit_value <= ALREADY_DEFINED)) {
         cw_verbose("WitnessAutomaton finished in state %s, with error code %d.\n", wit_aut->getCurrentState()->id.c_str(),
                    exit_value);
         printf("FAILED: Wasn't able to validate the witness. ");
+		
+		// check wether we finished in a violaton state
         if (wit_aut->isInViolationState()) {
             printf("Witness violation state reached");
             exit_value = UNVALIDATED_VIOLATION;
         } else{
             printf("Witness violation state NOT reached");
         }
+
+		// check wether we finished in a state where __VERIFIER_error was called
         if (wit_aut->wasVerifierErrorCalled()) {
             printf(", __VERIFIER_error was called.\n");
         } else {
             printf(", __VERIFIER_error was never called.\n");
         }
+
     } else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
         printf("FAILED: __VERIFIER_error was never called, even though witness IS in violation state.\n");
         exit_value = UNVALIDATED_VIOLATION;
+
     } else if (wit_aut->wasVerifierErrorCalled()) {
         if (wit_aut->isInViolationState()) {
             printf("\nVALIDATED: The state: %s has been reached. It is a violation state.\n", wit_aut->getCurrentState()->id.c_str());
             exit_value = 0;
         } else {
-#ifdef STRICT_VALIDATION
+		#ifdef STRICT_VALIDATION
             printf("\nFAILED: __VERIFIER_error was called and the state: %s has been reached."
                    " However, it is NOT a violation state.\n", wit_aut->getCurrentState()->id.c_str());
-#else
+		#else
             printf("\nVALIDATED: The state: %s has been reached. However, it is NOT a violation state.\n", wit_aut->getCurrentState()->id.c_str());
 #endif
             exit_value = PROGRAM_FINISHED_WITH_VIOLATION_THOUGH_NOT_IN_VIOLATION_STATE;

@@ -162,14 +162,13 @@ char *TableSetIdentifier(Picoc *pc, struct Table *Tbl, const char *Ident, unsign
 }
 
 /* register a string in the shared string store */
-char *TableStrRegister2(Picoc *pc, const char *Str, unsigned Len)
+char *TableStrRegister(Picoc *pc, const char *Str, unsigned Len)
 {
-    return TableSetIdentifier(pc, &pc->StringTable, Str, Len);
-}
+    /* check if Len was initiliazed */
+    if(Len == 0)
+        Len = strlen((char *)Str);
 
-char *TableStrRegister(Picoc *pc, const char *Str)
-{
-    return TableStrRegister2(pc, Str, strlen((char *)Str));
+    return TableSetIdentifier(pc, &pc->StringTable, Str, Len);
 }
 
 /* free all the strings */

@@ -286,7 +286,7 @@ enum LexToken LexGetWord(Picoc *pc, struct LexState *Lexer, Value *Value)
     } while (Lexer->Pos != Lexer->End && isCident((int)*Lexer->Pos));
 
     Value->Typ = nullptr;
-    Value->Val->Identifier = TableStrRegister2(pc, StartPos, Lexer->Pos - StartPos);
+    Value->Val->Identifier = TableStrRegister(pc, StartPos, Lexer->Pos - StartPos);
 
     Token = LexCheckReservedWord(pc, Value->Val->Identifier);
     switch (Token)
@@ -418,7 +418,7 @@ enum LexToken LexGetStringConstant(Picoc *pc, struct LexState *Lexer, Value *Val
         *EscBufPos++ = LexUnEscapeCharacter(&Lexer->Pos, EndPos);
 
     /* try to find an existing copy of this string literal */
-    RegString = TableStrRegister2(pc, EscBuf, EscBufPos - EscBuf);
+    RegString = TableStrRegister(pc, EscBuf, EscBufPos - EscBuf);
     HeapPopStack(pc, EscBuf, EndPos - StartPos);
     ArrayValue = VariableStringLiteralGet(pc, RegString);
     if (ArrayValue == nullptr)

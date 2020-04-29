@@ -327,6 +327,90 @@ int ParseArrayInitialiser(struct ParseState *Parser, Value *NewVariable, int DoA
 }
 
 /* parse an struct initialiser and assign to a variable */
+int ParseSubStructInitialiser(struct ParseState *Parser, Value *NewVariable, Value *StructElement, int DoAssignment)
+{
+    int ArrayIndex = 0;
+    enum LexToken Token;
+    Value *CValue;
+
+    /* parse the sub struct initialiser */
+    LexGetToken(Parser, nullptr, TRUE);
+    Token = LexGetToken(Parser, nullptr, FALSE);
+    ValueList *SubStructMember = NewVariable->Typ->MemberOrder;
+
+    while (SubStructMember)
+    {
+        // check for sub-sub ... initialiser
+        if (LexGetToken(Parser, nullptr, FALSE) == TokenLeftBrace)
+        {
+            // check if it is a sub struct or sub array initializer
+            Value *SubMemberValue;
+            
+            TableGet(NewVariable->Typ->Members, SubStructMember->Identifier, &SubMemberValue, nullptr, nullptr, nullptr);
+            if(SubMemberValue->Typ->Base == TypeStruct) {
+                printf("Parse Sub Struct\n");
+                // parse recursevly the sub struct
+                ParseSubStructInitialiser(Parser, SubMemberValue, StructElement, DoAssignment);               printf("Left Rec Struct Init\n");
+            } else { //TODO: add sub array init
+                ProgramFail(Parser, "need to be a structType");
+            }
+        }
+        else
+        {
+            Value *SubStructElement = nullptr;
+            SubStructElement->LValueFrom = StructElement;
+            Value *SubMemberValue;
+            char *DerefDataLoc = (char *)NewVariable->Val;
+            
+            if (Parser->Mode == RunModeRun && DoAssignment)
+            {
+                if (SubStructMember == nullptr)
+                    ProgramFail(Parser, "not that many elements in struct");
+                
+                /* Get Value from Table by Identifier and parse into MemberValue */ 
+                TableGet(NewVariable->Typ->Members, SubStructMember->Identifier, &SubMemberValue, nullptr, nullptr, nullptr);
+                // move to next member
+                SubStructMember = SubStructMember->Next; 
+
+                /* make the result value for this member only */
+                SubStructElement = VariableAllocValueFromExistingData(Parser, SubMemberValue->Typ,
+                                                            (AnyValue *) (DerefDataLoc + SubMemberValue->Val->Integer), TRUE,
+                                                            NewVariable->LValueFrom, nullptr);
+                SubStructElement->BitField = SubMemberValue->BitField;
+                SubStructElement->ConstQualifier = SubMemberValue->ConstQualifier;
+            }
+
+            /* this is a normal expression initialiser */
+            if (!ExpressionParse(Parser, &CValue))
+                ProgramFail(Parser, "expression expected"); // inc token by 1
+
+            if (Parser->Mode == RunModeRun && DoAssignment)
+            {
+                ExpressionAssign(Parser, SubStructElement, CValue, FALSE, nullptr, 0, FALSE);
+                VariableStackPop(Parser, CValue);
+                VariableStackPop(Parser, SubStructElement);
+            }
+        }
+
+        Token = LexGetToken(Parser, nullptr, FALSE);
+        if (Token == TokenComma)
+        {
+            LexGetToken(Parser, nullptr, TRUE);
+        }
+        else if (Token != TokenRightBrace)
+            ProgramFail(Parser, "comma expected");
+    }
+
+    if (Token == TokenRightBrace) {
+        LexGetToken(Parser, nullptr, TRUE);
+    } else {
+        ProgramFail(Parser, "'}' expected");
+    }
+    
+    return ArrayIndex;
+}
+
+/* parse an struct initialiser and assign to a variable */
 int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int DoAssignment)
 {
     int ArrayIndex = 0;
@@ -335,24 +419,47 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
 
     /* parse the struct initialiser */
     Token = LexGetToken(Parser, nullptr, FALSE);
-    ValueList * StructMember = NewVariable->Typ->MemberOrder;
+    ValueList *StructMember = NewVariable->Typ->MemberOrder;
+
     while (StructMember)
     {
+        Value *StructElement = nullptr;
+        // check for sub-struct initialiser
         if (LexGetToken(Parser, nullptr, FALSE) == TokenLeftBrace)
         {
-            ProgramFail(Parser, "substruct initialization not supported");
+            // parse sub-struct initialiser
+            Value *SubMemberValue;
+            
+            //get 
+            TableGet(NewVariable->Typ->Members, StructMember->Identifier, &SubMemberValue, nullptr, nullptr, nullptr);
+            if(SubMemberValue->Typ->Base == TypeStruct) {
+                printf("Parse Sub Struct\n");
+                // parse recursevly the sub struct
+                ParseSubStructInitialiser(Parser, SubMemberValue, StructElement, DoAssignment);  
+                printf("Left Sub Struct Init\n");
+            } else { //TODO: add sub array init
+                ProgramFail(Parser, "need to be a structType");
+            }
+
+            if (Parser->Mode == RunModeRun && DoAssignment)
+            {
+                StructMember = StructMember->Next; 
+            }
         }
         else
         {
-            Value *StructElement = nullptr, * MemberValue;
+            Value *MemberValue;
             char *DerefDataLoc = (char *)NewVariable->Val;
-
+            
             if (Parser->Mode == RunModeRun && DoAssignment)
             {
                 if (StructMember == nullptr)
                     ProgramFail(Parser, "not that many elements in struct");
+                
+                /* Get Value from Table by Identifier and parse into MemberValue */ 
                 TableGet(NewVariable->Typ->Members, StructMember->Identifier, &MemberValue, nullptr, nullptr, nullptr);
-                StructMember = StructMember->Next; // move to next member in the next
+                // move to next member
+                StructMember = StructMember->Next; 
 
                 /* make the result value for this member only */
                 StructElement = VariableAllocValueFromExistingData(Parser, MemberValue->Typ,
@@ -364,31 +471,31 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
 
             /* this is a normal expression initialiser */
             if (!ExpressionParse(Parser, &CValue))
-                ProgramFail(Parser, "expression expected");
+                ProgramFail(Parser, "expression expected"); // inc token by 1
 
             if (Parser->Mode == RunModeRun && DoAssignment)
             {
                 ExpressionAssign(Parser, StructElement, CValue, FALSE, nullptr, 0, FALSE);
                 VariableStackPop(Parser, CValue);
                 VariableStackPop(Parser, StructElement);
-            }
+            }            
         }
 
         Token = LexGetToken(Parser, nullptr, FALSE);
         if (Token == TokenComma)
         {
             LexGetToken(Parser, nullptr, TRUE);
-            Token = LexGetToken(Parser, nullptr, FALSE);
         }
         else if (Token != TokenRightBrace)
             ProgramFail(Parser, "comma expected");
     }
 
-    if (Token == TokenRightBrace)
+    if (Token == TokenRightBrace) {
         LexGetToken(Parser, nullptr, TRUE);
-    else
+    } else {
         ProgramFail(Parser, "'}' expected");
-
+    }
+    
     return ArrayIndex;
 }
 
@@ -424,7 +531,7 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
     char *Identifier;
     struct ValueType *BasicType;
     struct ValueType *Typ;
-    Value *NewVariable = nullptr, * FuncValue = nullptr;
+    Value *NewVariable = nullptr, *FuncValue = nullptr;
     int IsStatic = FALSE;
     int IsConst = FALSE;
     int FirstVisit = FALSE;
@@ -758,7 +865,9 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         }
     }
 
-    int bracket = -1; bool end = false;
+    int bracket = -1; 
+    bool end = false;
+
     switch (Token)
     {
         case TokenEOF:
@@ -1136,7 +1245,8 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             *Parser = PreState;
             return ParseResultError;
     }
-
+    
+    /* check if a semicolon is expected and if it occured */ 
     if (CheckTrailingSemicolon)
     {
         if (LexGetToken(Parser, nullptr, TRUE) != TokenSemicolon)
@@ -1216,9 +1326,10 @@ void PicocParse(Picoc *pc, const char *FileName, const char *Source, int SourceL
         pc->CleanupTokenList = NewCleanupNode;
     }
 
-    /* do the parsing */
+    /* initialize the Parser */
     LexInitParser(&Parser, pc, Source, Tokens, RegFileName, RunIt, EnableDebugger, DebuggerCallback);
 
+    /* do the parsing */
     do {
         Ok = ParseStatement(&Parser, TRUE);
     } while (Ok == ParseResultOk);

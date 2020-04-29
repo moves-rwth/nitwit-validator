@@ -603,7 +603,9 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
             if (LexGetToken(Parser, nullptr, FALSE) == TokenIntType)
                 LexGetToken(Parser, nullptr, TRUE);
             break;
-        case TokenCharType: *Typ = Unsigned ? &pc->UnsignedCharType : &pc->CharType; break;
+        case TokenCharType: 
+            *Typ = Unsigned ? &pc->UnsignedCharType : &pc->CharType;
+            break;
         case TokenLongType:
             if (LexGetToken(Parser, nullptr, FALSE) == TokenLongType){
                 LexGetToken(Parser, nullptr, TRUE);
@@ -645,9 +647,12 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
             VariableGet(pc, Parser, LexerValue->Val->Identifier, &VarValue);
             *Typ = VarValue->Val->Typ;
             break;
-        default: ParserCopy(Parser, &Before); return FALSE;
+        default: 
+            ParserCopy(Parser, &Before); 
+            return FALSE;
     }
-    if (LexGetToken(Parser, nullptr, FALSE) == TokenConst){
+
+    if (LexGetToken(Parser, nullptr, FALSE) == TokenConst) {
         LexGetToken(Parser, nullptr, TRUE);
         if (ConstQualifier == TRUE)
             ProgramFail(Parser, "const already specified, consts are still experimental, so this might not be a real error");

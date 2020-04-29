@@ -569,8 +569,7 @@ struct Picoc_Struct
 
 /* table.c */
 void TableInit(Picoc *pc);
-char *TableStrRegister(Picoc *pc, const char *Str);
-char *TableStrRegister2(Picoc *pc, const char *Str, unsigned Len);
+char *TableStrRegister(Picoc *pc, const char *Str, unsigned Len=0);
 void TableInitTable(struct Table *Tbl, struct TableEntry **HashTable, unsigned Size, int OnHeap);
 int TableSet(Picoc *pc, struct Table *Tbl, char *Key, Value *Val, const char *DeclFileName, unsigned DeclLine, unsigned DeclColumn);
 int TableGet(struct Table *Tbl, const char *Key, Value **Val, const char **DeclFileName, unsigned *DeclLine, unsigned *DeclColumn);
