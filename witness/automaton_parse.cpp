@@ -132,7 +132,7 @@ string replace_equals(const pugi::char_t *value) {
 }
 
 void setEdgeAttributes(shared_ptr<Edge> &edge, const map<string,shared_ptr<Node>> nodes, const pugi::char_t *name, const pugi::char_t *value) {
-    if (strcmp(name, "source") == 0 || strcmp(name, "edge.src") == 0) {
+    if (strcmp(name, "source") == 0) {
         edge->source_id = value;
     } else if (strcmp(name, "target") == 0) {
         edge->target_id = value;
