@@ -25,7 +25,7 @@ test:gcc:
   tags:
     - gcc
   script:
-    - ./run-tests.sh build_gcc
+    - ./run-tests.sh build_gcc sv-comp-2019
 
 
 build:clang:
@@ -49,4 +49,4 @@ test:clang:
   tags:
     - clang
   script:
-    - ./run-tests.sh build_clang
+    - ./run-tests.sh build_clang sv-comp-2019
