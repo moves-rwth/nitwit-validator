@@ -10,6 +10,7 @@ from typing import List, Tuple
 
 from common.utils import process_results
 from common.utils import parse_message
+from common.utils import parse_stderr_message
 
 WITNESSES_BY_PROGRAM_HASH_DIR = "witnessListByProgramHashJSON"
 WITNESS_INFO_BY_WITNESS_HASH_DIR = "witnessInfoByHash"
@@ -19,7 +20,7 @@ VALIDATOR_EXECUTABLE = ""
 EXECUTION_TIMEOUT = 0
 
 #'output code', 'witness file', 'extracted output message', 'runtime (secs)', 'witness producer', 'peak memory (bytes)')
-BENCH_RESULTS_HEADER = ('status', 'wit_key', 'out', 'cpu', 'tool', 'mem')
+BENCH_RESULTS_HEADER = ('status', 'wit_key', 'out', 'err_out', 'cpu', 'tool', 'mem')
 
 task_queue = multiprocessing.Queue()
 result_queue = multiprocessing.Queue()
@@ -63,11 +64,16 @@ def run_validator():
     witness, source, info_file, producer = config
     with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
                           stdout=subprocess.PIPE,
-                          stderr=subprocess.DEVNULL) as process:
-        errmsg = ''
+                          stderr=subprocess.PIPE) as process:
+        out_errmsg = ''
+        stderr_list = []  
         try:
-            out, _ = process.communicate(timeout=EXECUTION_TIMEOUT)
-            errmsg = parse_message(errmsg, out, process)
+            out, err = process.communicate(timeout=EXECUTION_TIMEOUT)
+            #parse program error messages
+            out_errmsg = parse_message(out_errmsg, out, process)
+
+			#parse stderr messages
+            stderr_list = parse_stderr_message(stderr_list, err, process)
         except subprocess.TimeoutExpired:
             process.kill()
         finally:
@@ -76,18 +82,19 @@ def run_validator():
                 _, _ = process.communicate()
 
         returncode = process.returncode
-        if errmsg == 'out of memory':  # hack around no special exit code for o/m
+        if out_errmsg == 'out of memory':  # hack around no special exit code for o/m
             returncode = 251
         children = resource.getrusage(resource.RUSAGE_CHILDREN)
         result_queue.put((returncode,
                           info_file,
-                          errmsg,
+                          out_errmsg,
+                          stderr_list,
                           children.ru_utime + children.ru_stime,  # - (children_before.ru_utime + children_before.ru_stime),
                           producer,
                           children.ru_maxrss))
 
 
-def run_bench_parallel(configs: List[Tuple[str, str, str, str]], n_processes: int) -> List[Tuple[int, str, str, float, str, int]]:
+def run_bench_parallel(configs: List[Tuple[str, str, str, str]], n_processes: int) -> List[Tuple[int, str, str, List, float, str, int]]:
     # random.shuffle(configs)
     # with multiprocessing.Pool(n_processes) as pool:
     #     results = pool.map(run_validator, configs)

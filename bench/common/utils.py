@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import re
 from typing import Tuple, List, Dict, Optional
 
 
@@ -20,27 +21,70 @@ def output(output_path: str,
 	with open(os.path.join(output_path, f"badly_parsed_witnesses.json"), "w") as badly_parsed_fp:
 		json.dump(badly_parsed, badly_parsed_fp)
 
+def save_table_to_file(table_data: str, name: str, TABLE_DIR: str):
+	tex_file = r'''\documentclass[notitlepage]{article}
+			\usepackage{booktabs}
+			\usepackage{lscape}
+			\usepackage[scale=0.75,top=3cm]{geometry}		
+			\begin{document}''' + table_data + '\end{document}'
+
+	path = f'{TABLE_DIR}/table_{name.lower()}.tex'
+	with open(path,'w') as f:
+	    f.write(tex_file)
+	
+	# generate pdflatex and redirect output too make console output readable
+	os.system(f"pdflatex -output-directory='{TABLE_DIR}' {TABLE_DIR}/table_{name.lower()}.tex > /dev/null")
+	
+	# delete generated log and aux file
+	os.unlink(f"{TABLE_DIR}/table_{name.lower()}.log")
+	os.unlink(f"{TABLE_DIR}/table_{name.lower()}.aux")
 
 def parse_message(errmsg, out, process):
 	if process.returncode != 0 and out is not None:
 		outs = str(out)
-		pos = outs.rfind(' ### ')
+		pos = outs.find(' ### ')
 		if pos != -1:
 			endpos = outs.find('\\n', pos)
 			if endpos == -1:
 				endpos = len(outs) - 1
 			errmsg = outs[(pos + 5):endpos]
 		else:
-			errmsg = 'Msg not parsed'
+			pos = outs.rfind(' #*# ')
+			if pos != -1:
+				endpos = outs.find('\\n', pos)
+				if endpos == -1:
+					endpos = len(outs) - 1
+				errmsg = outs[(pos + 5):endpos]
+	else:			
+		errmsg = 'Msg not parsed'
 	return errmsg
 
+def parse_stderr_message(stderr_list, err, process):
+	if err is not None:
+		errs = str(err)
+		if re.search(r' ### ', errs) is not None:			
+			stderr_msg = ''			
+			iterator = re.finditer(r' ### ', errs)
+			for index in iterator:
+				startpos = int(index.start())
+				endpos = errs.find('\\n', startpos)
+				if endpos == -1:
+					endpos = len(errs) - 1
+				stderr_msg = errs[(startpos + 5):endpos]
+				stderr_list.append(stderr_msg)
+		else:			
+			stderr_list = ['No msg found']
+	else:
+		stder_list = ["stderr was empty!"]
+	return stderr_list
 
-def process_results(results: List[Tuple[int, str, str, float, str, int]], header: Tuple[str, str, str, str, str, str], executable: str, out: bool):
+
+def process_results(results: List[Tuple[int, str, str, List, float, str, int]], header: Tuple[str, str, str, str, str, str, str], executable: str, out: bool):
 	validated = [header]
 	non_validated = [header]
 	badly_parsed = [header]
-	for ret_code, info_file, err_msg, time, prod, mem in results:
-		result_record = (abs(ret_code), os.path.basename(info_file), err_msg, time, prod, mem)
+	for ret_code, info_file, out_msg, err_msg, time, prod, mem in results:
+		result_record = (abs(ret_code), os.path.basename(info_file), out_msg, err_msg, time, prod, mem)
 		if ret_code is None or ret_code == -9:
 			non_validated.append(result_record)
 		elif ret_code == 0 or ret_code == 245:

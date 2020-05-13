@@ -148,14 +148,14 @@ int main(int argc, char **argv) {
         (exit_value >= NO_WITNESS_CODE && exit_value <= ALREADY_DEFINED)) {
         cw_verbose("WitnessAutomaton finished in state %s, with error code %d.\n", wit_aut->getCurrentState()->id.c_str(),
                    exit_value);
-        printf("FAILED: Wasn't able to validate the witness. ");
+        printf("FAILED: Wasn't able to validate the witness.");
 		
 		// check wether we finished in a violaton state
         if (wit_aut->isInViolationState()) {
-            printf("Witness violation state reached");
+            printf(" #*# Witness violation state reached");
             exit_value = UNVALIDATED_VIOLATION;
         } else{
-            printf("Witness violation state NOT reached");
+            printf(" #*# Witness violation state NOT reached");
         }
 
 		// check wether we finished in a state where __VERIFIER_error was called
@@ -166,7 +166,7 @@ int main(int argc, char **argv) {
         }
 
     } else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
-        printf("FAILED: __VERIFIER_error was never called, even though witness IS in violation state.\n");
+        printf(" #*# FAILED: __VERIFIER_error was never called, even though witness IS in violation state.\n");
         exit_value = UNVALIDATED_VIOLATION;
 
     } else if (wit_aut->wasVerifierErrorCalled()) {

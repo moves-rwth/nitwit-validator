@@ -17,7 +17,7 @@ void setNodeAttributes(const shared_ptr<Node> &node, const char *name, const cha
 shared_ptr<Node> getDefaultNode(const shared_ptr<DefaultKeyValues> &def_values);
 
 vector<shared_ptr<Edge>>
-parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues);
+parseEdges(const pugi::xpath_node_set &set, const map<string,shared_ptr<Node>> graphNodes, const shared_ptr<DefaultKeyValues> &defaultKeyValues);
 
 shared_ptr<Data> parseData(const pugi::xpath_node_set &set);
 
@@ -60,7 +60,8 @@ shared_ptr<WitnessAutomaton> WitnessAutomaton::automatonFromWitness(const shared
     }
 
     auto nodes = parseNodes(node_result, default_key_values);
-    auto edges = parseEdges(edge_result, default_key_values);
+    // we need to ckeck for loopHead node due to different graph syntaxes
+    auto edges = parseEdges(edge_result, nodes, default_key_values);
     auto data = parseData(graph_data_result);
     auto aut = make_shared<WitnessAutomaton>(nodes, edges, data);
 
@@ -130,11 +131,14 @@ string replace_equals(const pugi::char_t *value) {
     return s;
 }
 
-void setEdgeAttributes(shared_ptr<Edge> &edge, const pugi::char_t *name, const pugi::char_t *value) {
-    if (strcmp(name, "source") == 0) {
+void setEdgeAttributes(shared_ptr<Edge> &edge, const map<string,shared_ptr<Node>> nodes, const pugi::char_t *name, const pugi::char_t *value) {
+    if (strcmp(name, "source") == 0 || strcmp(name, "edge.src") == 0) {
         edge->source_id = value;
     } else if (strcmp(name, "target") == 0) {
         edge->target_id = value;
+        //check if we have an loopHead node
+        if(nodes.find(value) != nodes.end() && nodes.find(value)->second->is_loopHead)
+            edge->enterLoopHead = true;              
     } else if (strcmp(name, "assumption") == 0) {
         edge->assumption = (value);
     } else if (strcmp(name, "assumption.scope") == 0) {
@@ -170,23 +174,23 @@ void setEdgeAttributes(shared_ptr<Edge> &edge, const pugi::char_t *name, const p
         edge->enterLoopHead = strcmp(value, "true") == 0;
     } else if (strcmp(name, "threadId") != 0 && strcmp(name, "id") != 0) {
 #ifdef VERBOSE
-        fprintf(stderr, "Unrecognized edge attribute definition: %s\n", name);
+        fprintf(stderr, " ### Unrecognized edge attribute definition: %s\n", name);
 #endif
     }
 }
 
 
-void parseEdgeProperties(const pugi::xml_node &node, shared_ptr<Edge> &edge) {
+void parseEdgeProperties(const pugi::xml_node &node, const map<string,shared_ptr<Node>> nodes, shared_ptr<Edge> &edge) {
     for (auto child: node.children("data")) {
         auto key = child.attribute("key");
         if (!key.empty()) {
-            setEdgeAttributes(edge, key.value(), child.text().get());
+            setEdgeAttributes(edge, nodes, key.value(), child.text().get());
         }
     }
 }
 
 vector<shared_ptr<Edge>>
-parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &defaultKeyValues) {
+parseEdges(const pugi::xpath_node_set &set, const map<string,shared_ptr<Node>> graphNodes, const shared_ptr<DefaultKeyValues> &defaultKeyValues) {
     auto edges = vector<shared_ptr<Edge>>();
     edges.reserve(set.size());
 
@@ -198,9 +202,9 @@ parseEdges(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &
         auto e = getDefaultEdge(defaultKeyValues);
         pugi::xml_node node = xpathNode.node();
         for (auto attr: node.attributes()) {
-            setEdgeAttributes(e, attr.name(), attr.value());
+            setEdgeAttributes(e, graphNodes, attr.name(), attr.value());
         }
-        parseEdgeProperties(node, e);
+        parseEdgeProperties(node, graphNodes, e);
 
         edges.push_back(e);
     }
@@ -222,6 +226,7 @@ parseNodes(const pugi::xpath_node_set &set, const shared_ptr<DefaultKeyValues> &
     auto nodes = map<string, shared_ptr<Node>>();
 
     for (auto xpathNode: set) {
+        // check wether xpathNode is a node element
         if (!xpathNode.node()) {
             continue;
         }
@@ -252,6 +257,7 @@ shared_ptr<Node> getDefaultNode(const shared_ptr<DefaultKeyValues> &def_values) 
     n->is_violation = (def_values->getDefault("violation").default_val == "true");
     n->is_entry = (def_values->getDefault("entry").default_val == "true");
     n->is_sink = (def_values->getDefault("sink").default_val == "true");
+    n->is_loopHead = (def_values->getDefault("loopHead").default_val == "true");
 
     // integers
     string val = def_values->getDefault("thread").default_val;
@@ -269,6 +275,8 @@ void setNodeAttributes(const shared_ptr<Node> &node, const char *name, const cha
         node->is_sink = (strcmp(value, "true") == 0);
     } else if (strcmp(name, "frontier") == 0) {
         node->is_frontier = (strcmp(value, "true") == 0);
+    } else if (strcmp(name, "loopHead") == 0) {
+        node->is_loopHead = (strcmp(value, "true") == 0);
     } else if (strcmp(name, "violation") == 0) {
         node->is_violation = (strcmp(value, "true") == 0);
     } else if (strcmp(name, "invariant") == 0) {
@@ -281,7 +289,7 @@ void setNodeAttributes(const shared_ptr<Node> &node, const char *name, const cha
         node->thread_number = atoi(value);
     } else {
 #ifdef VERBOSE
-        fprintf(stderr, "Unrecognized node attribute definition: %s\n", name);
+        fprintf(stderr, " ### Unrecognized node attribute definition: %s\n", name);
 #endif
     }
 }
@@ -350,6 +358,7 @@ shared_ptr<DefaultKeyValues> getDefaultKeys() {
     dkv->addKey(Key("isViolationNode", "boolean", "node", "violation", "false"));
     dkv->addKey(Key("isEntryNode", "boolean", "node", "entry", "false"));
     dkv->addKey(Key("isSinkNode", "boolean", "node", "sink", "false"));
+    dkv->addKey(Key("isLoopHeadNode", "boolean", "node", "loopHead", "false"));
     dkv->addKey(Key("enterLoopHead", "boolean", "edge", "enterLoopHead", "false"));
     return dkv;
 }

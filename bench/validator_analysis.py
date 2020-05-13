@@ -128,6 +128,7 @@ COLUMN_INDEX = {
 	'status': 0,
 	'wit_key': 0,
 	'out': 0,
+	'err_out': 0,
 	'cpu': 0,
 	'tool': 0, 
 	'mem': 0
@@ -144,7 +145,7 @@ SAVE_TABLES = False
 TABLE_DIR = f'./output/tables19'
 FIGURE_DIR = f'./output/imgs19'
 
-def set_header_index(header: Tuple[str,str,str,str,str,str]):
+def set_header_index(header: Tuple[str,str,str,str,str,str,str]):
 	for i in range(len(header)):
 		COLUMN_INDEX[header[i]] = i
 
@@ -207,25 +208,6 @@ def join_val_non_val(validated: dict, nonvalidated: dict) -> dict:
 	return result
 
 
-def save_table_to_file(table_data: str, name: str):
-	tex_file = r'''\documentclass[notitlepage]{article}
-			\usepackage{booktabs}
-			\usepackage{lscape}
-			\usepackage[scale=0.75,top=3cm]{geometry}		
-			\begin{document}''' + table_data + '\end{document}'
-
-	path = f'{TABLE_DIR}/table_{name.lower()}.{TABLE_FORMAT}'
-	with open(path,'w') as f:
-	    f.write(tex_file)
-	
-	# generate pdflatex and redirect output too make console output readable
-	os.system(f"pdflatex -output-directory='{TABLE_DIR}' {TABLE_DIR}/table_{name.lower()}.{TABLE_FORMAT} > /dev/null")
-	
-	# delete generated log and aux file
-	os.unlink(f"{TABLE_DIR}/table_{name.lower()}.log")
-	os.unlink(f"{TABLE_DIR}/table_{name.lower()}.aux")
-
-
 def analyze_by_producer(val_results: Dict[str, dict]):
 	print(f"Analyze by producer {len(val_results)} witnesses")
 	mux = pd.MultiIndex.from_product([VALIDATORS_LIST_ABBR, ['val', 'nval']])
@@ -253,7 +235,7 @@ def analyze_by_producer(val_results: Dict[str, dict]):
 	df['Total'] = df[VALIDATORS_ABBR[NITWIT]].sum(axis=1).astype(int)
 
 	if SAVE_TABLES:
-		save_table_to_file(df.to_latex(), 'analyse_by_producer')
+		save_table_to_file(df.to_latex(), 'analyse_by_producer', TABLE_DIR)
 
 
 def analyze_virt_best(matching: Dict[str, dict]):
@@ -290,7 +272,7 @@ def analyze_virt_best(matching: Dict[str, dict]):
 	df.loc["Total"] = df.sum().astype(int)
 
 	if SAVE_TABLES:
-		save_table_to_file(r'\begin{landscape}' + df.to_latex() + r'\end{landscape}', 'analyse_virt_best')
+		save_table_to_file(r'\begin{landscape}' + df.to_latex() + r'\end{landscape}', 'analyse_virt_best', TABLE_DIR)
 		
 
 
@@ -358,7 +340,7 @@ def get_aggregated_data_table(results: List[str]):
 		df.loc[tup] = val
 
 	if SAVE_TABLES:
-		save_table_to_file(df.to_latex(float_format=lambda x: "{:.2f}".format(x)), 'aggregated_data')
+		save_table_to_file(df.to_latex(float_format=lambda x: "{:.2f}".format(x)), 'aggregated_data', TABLE_DIR)
 	#print(df.to_latex(float_format=lambda x: "{:.2f}".format(x)))
 
 

@@ -2,13 +2,17 @@ import argparse
 import os
 import sys
 import json
+import pandas as pd
+
 from typing import Tuple, List, Optional, Dict
 
-from common.utils import increase_count_in_dict, load_result_files
+from common.utils import increase_count_in_dict, load_result_files, save_table_to_file
 
 WITNESSES_BY_PROGRAM_HASH_DIR = "witnessListByProgramHashJSON"
 WITNESS_INFO_BY_WITNESS_HASH_DIR = "witnessInfoByHash"
 WITNESS_FILE_BY_HASH_DIR = "witnessFileByHash"
+
+TABLE_DIR = f'./output/tables19'
 
 EXIT_CODE_DICT = {
 	0: 'validated',
@@ -68,12 +72,6 @@ def setup_dirs(dir: str) -> bool:
 	print("Directories found!")
 	return True
 
-
-def print_result_map(m: Dict[int, int]):
-	for k, v in m.items():
-		print(f"\t({k}) {EXIT_CODE_DICT[k]}: {v}")
-
-
 def print_error_msgs(m: Dict[str, int]):
 	for k, v in m.items():
 		print(f"\t{k}: {v}")
@@ -91,58 +89,30 @@ def analyze_bench_output(results: list, name: str, search_string: str, producer:
 	if results is None:
 		return
 
-	prod_map = {}
-	result_map = {}
 	err_msg_map = {}
-	unknown = 0
-	false_positives = 0
+	stderr_msg_map = {}
+	
 
 	for witness in results:
-		with open(os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, witness[COLUMN_INDEX['wit_key']]), 'r') as fp:
-			info_jObj = json.load(fp)
-			if producer is not None and not str(witness[COLUMN_INDEX['tool']]).startswith(producer):
-				continue
-			increase_count_in_dict(result_map, witness[COLUMN_INDEX['status']])
-			if 'producer' in info_jObj:
-				increase_count_in_dict(prod_map, witness[COLUMN_INDEX['tool']])
-			else:
-				unknown = unknown + 1
+		increase_count_in_dict(err_msg_map, witness[COLUMN_INDEX['out']])
+		for error_msg in witness[COLUMN_INDEX['err_out']]:
+			increase_count_in_dict(stderr_msg_map, error_msg)
+			
+	sort_err_map = {k: v for k, v in sorted(err_msg_map.items(), key=lambda item: item[1])}
+	sort_stderr_map = {k: v for k, v in sorted(stderr_msg_map.items(), key=lambda item: item[1])}
 
-			pf = str(info_jObj['programfile'])
-			if pf.find(search_string) == -1 and pf.find(search_string.replace('-', '_')) == -1: # TODO : ../../data/sv-benchmarks/c/array-examples/standard_copyInitSum2_false-unreach-call_ground.i and ../../data/sv-witnesses/witnessFileByHash/7c3c32092db5f1244316ec1ba8a003a398d5bd486b220b2d4a148e6cdfc52aa4.graphml have a problem
-				false_positives = false_positives + 1
-		increase_count_in_dict(err_msg_map, f"({witness[0]}) {witness[2]}")
-
-	n_results = sum(result_map.values())
-	print('-' * 20 + ' ', name.capitalize(), ' ' + '-' * 20)
-	print(f"Producer summary: {prod_map}")
-	print(f"Result summary:")
-	print_result_map(result_map)
-	print(f"Details:")
-	print_error_msgs(err_msg_map)
-	if unknown > 0:
-		print(f"Unknown producers for {unknown} witnesses.")
-	fp_rate = 0 if len(results) == 0 else false_positives / n_results * 100
-	print(f"Incorrect results for {name}: {false_positives}, i.e. {fp_rate}%.")
-	print(f"In total {name} {n_results}.")
+	df1 = pd.DataFrame(sort_err_map.items(), columns=["Error msg.", "count"])
+	df2 = pd.DataFrame(sort_stderr_map.items(), columns=["Error msg.", "count"])
+	
+	save_table_to_file(df1.to_latex(), 'out_msg', TABLE_DIR)
+	save_table_to_file(df2.to_latex(), 'Stderr_out_msg', TABLE_DIR)
 
 
-def get_differences(a: List[str], b: List[str]) -> Tuple[List[str], List[str]]:
-	sa, sb = set(a), set(b)
-	return list(sa.difference(sb)), list(sb.difference(sa))
-
-
-def get_info_files_for_producer(results: List[str], producer: str) -> List[str]:
-	if results is None:
-		return []
-
-	info_files = []
-	for w in results:
-		with open(os.path.join(WITNESS_INFO_BY_WITNESS_HASH_DIR, w), 'r') as fp:
-			info_jObj = json.load(fp)
-			if 'producer' in info_jObj and info_jObj['producer'] == producer:
-				info_files.append(w)
-	return info_files
+	print(f"Error messages {name}:")
+	print_error_msgs(sort_err_map)
+	print(f"Standard Error messages {name}:")
+	print_error_msgs(sort_stderr_map)
+		
 
 
 def main():
@@ -152,12 +122,6 @@ def main():
 	                    help="The directory with resulting files about validated witnesses.")
 	parser.add_argument("-p", "--producer", required=False, type=str, default=None,
 	                    help="Restrict analysis to this producer.")
-	# parser.add_argument("-nv", "--nonvalidated", required=False, type=str, default=None,
-	#                     help="The file with info about non-validated witnesses.")
-	# parser.add_argument("-bp", "--badlyparsed", required=False, type=str, default=None,
-	#                     help="The file with info about badly parsed witnesses.")
-	# parser.add_argument("-d", "--differences", required=False, action='store_true', help="Show the differences between two results.")
-	# parser.add_argument("-c", "--config", required=True, type=str, help="The verifier configuration file.")
 
 	args = parser.parse_args()
 	if not setup_dirs(args.witnesses):
@@ -165,10 +129,8 @@ def main():
 
 	validated, nonvalidated, badlyparsed = load_result_files(args.results)
 	set_header_index(validated[0])
-	analyze_bench_output(validated[1:], 'validated', '_false-unreach-call', args.producer)
-	analyze_bench_output(nonvalidated[1:], 'non-validated', '_true-unreach-call', args.producer)
 	analyze_bench_output(badlyparsed[1:], 'badly parsed', '', args.producer)
-
+	analyze_bench_output(nonvalidated[1:], 'non validated', '', args.producer)
 
 if __name__ == "__main__":
 	main()

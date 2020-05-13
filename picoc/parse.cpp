@@ -427,6 +427,9 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
         // check for sub-struct initialiser
         if (LexGetToken(Parser, nullptr, FALSE) == TokenLeftBrace)
         {
+            ProgramFail(Parser, "sub struct init not supported");
+            
+            /*
             // parse sub-struct initialiser
             Value *SubMemberValue;
             
@@ -445,6 +448,7 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
             {
                 StructMember = StructMember->Next; 
             }
+            */
         }
         else
         {

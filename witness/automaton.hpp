@@ -53,6 +53,7 @@ public:
     bool is_violation{};
     bool is_sink{};
     bool is_frontier{};
+    bool is_loopHead{};
     size_t thread_number{};
 
     void print() const;
