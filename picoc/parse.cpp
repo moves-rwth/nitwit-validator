@@ -3,6 +3,9 @@
 #include "picoc.hpp"
 #include "interpreter.hpp"
 
+/* for test cases only */
+#include <stdio.h>
+
 /* deallocate any memory */
 void ParseCleanup(Picoc *pc)
 {
@@ -327,7 +330,7 @@ int ParseArrayInitialiser(struct ParseState *Parser, Value *NewVariable, int DoA
 }
 
 /* parse an struct initialiser and assign to a variable */
-int ParseSubStructInitialiser(struct ParseState *Parser, Value *NewVariable, Value *StructElement, int DoAssignment)
+int ParseSubStructInitialiser(struct ParseState *Parser, Value *NewVariable, Value **StructElement, int DoAssignment)
 {
     int ArrayIndex = 0;
     enum LexToken Token;
@@ -340,67 +343,48 @@ int ParseSubStructInitialiser(struct ParseState *Parser, Value *NewVariable, Val
 
     while (SubStructMember)
     {
-        // check for sub-sub ... initialiser
-        if (LexGetToken(Parser, nullptr, FALSE) == TokenLeftBrace)
-        {
-            // check if it is a sub struct or sub array initializer
-            Value *SubMemberValue;
+        // assume there is no sub sub struct
+        Value *SubMemberValue;
+        char *DerefDataLoc = (char *)NewVariable->Val;
             
-            TableGet(NewVariable->Typ->Members, SubStructMember->Identifier, &SubMemberValue, nullptr, nullptr, nullptr);
-            if(SubMemberValue->Typ->Base == TypeStruct) {
-                printf("Parse Sub Struct\n");
-                // parse recursevly the sub struct
-                ParseSubStructInitialiser(Parser, SubMemberValue, StructElement, DoAssignment);               printf("Left Rec Struct Init\n");
-            } else { //TODO: add sub array init
-                ProgramFail(Parser, "need to be a structType");
-            }
-        }
-        else
+        if (Parser->Mode == RunModeRun && DoAssignment)
         {
-            Value *SubStructElement = nullptr;
-            SubStructElement->LValueFrom = StructElement;
-            Value *SubMemberValue;
-            char *DerefDataLoc = (char *)NewVariable->Val;
-            
-            if (Parser->Mode == RunModeRun && DoAssignment)
-            {
-                if (SubStructMember == nullptr)
-                    ProgramFail(Parser, "not that many elements in struct");
+            if (SubStructMember == nullptr)
+                ProgramFail(Parser, "not that many elements in struct");
                 
-                /* Get Value from Table by Identifier and parse into MemberValue */ 
-                TableGet(NewVariable->Typ->Members, SubStructMember->Identifier, &SubMemberValue, nullptr, nullptr, nullptr);
-                // move to next member
-                SubStructMember = SubStructMember->Next; 
+            /* Get Value from Table by Identifier and parse into MemberValue */ 
+            TableGet(NewVariable->Typ->Members, SubStructMember->Identifier, &SubMemberValue, nullptr, nullptr, nullptr);
+            // move to next member
+            SubStructMember = SubStructMember->Next; 
 
-                /* make the result value for this member only */
-                SubStructElement = VariableAllocValueFromExistingData(Parser, SubMemberValue->Typ,
+            /* make the result value for this member only */
+            *StructElement = VariableAllocValueFromExistingData(Parser, SubMemberValue->Typ,
                                                             (AnyValue *) (DerefDataLoc + SubMemberValue->Val->Integer), TRUE,
                                                             NewVariable->LValueFrom, nullptr);
-                SubStructElement->BitField = SubMemberValue->BitField;
-                SubStructElement->ConstQualifier = SubMemberValue->ConstQualifier;
-            }
-
-            /* this is a normal expression initialiser */
-            if (!ExpressionParse(Parser, &CValue))
-                ProgramFail(Parser, "expression expected"); // inc token by 1
-
-            if (Parser->Mode == RunModeRun && DoAssignment)
-            {
-                ExpressionAssign(Parser, SubStructElement, CValue, FALSE, nullptr, 0, FALSE);
-                VariableStackPop(Parser, CValue);
-                VariableStackPop(Parser, SubStructElement);
-            }
+            (*StructElement)->BitField = SubMemberValue->BitField;
+            (*StructElement)->ConstQualifier = SubMemberValue->ConstQualifier;
         }
 
-        Token = LexGetToken(Parser, nullptr, FALSE);
-        if (Token == TokenComma)
+        /* this is a normal expression initialiser */
+        if (!ExpressionParse(Parser, &CValue))
+            ProgramFail(Parser, "expression expected"); // inc token by 1
+
+        if (Parser->Mode == RunModeRun && DoAssignment)
         {
-            LexGetToken(Parser, nullptr, TRUE);
+            ExpressionAssign(Parser, *StructElement, CValue, FALSE, nullptr, 0, FALSE);
+            VariableStackPop(Parser, CValue);
+            VariableStackPop(Parser, *StructElement);
         }
-        else if (Token != TokenRightBrace)
-            ProgramFail(Parser, "comma expected");
     }
 
+    Token = LexGetToken(Parser, nullptr, FALSE);
+    if (Token == TokenComma)
+    {
+        LexGetToken(Parser, nullptr, TRUE);
+    }
+    else if (Token != TokenRightBrace)
+        ProgramFail(Parser, "comma expected");
+    
     if (Token == TokenRightBrace) {
         LexGetToken(Parser, nullptr, TRUE);
     } else {
@@ -419,36 +403,39 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
 
     /* parse the struct initialiser */
     Token = LexGetToken(Parser, nullptr, FALSE);
-    ValueList *StructMember = NewVariable->Typ->MemberOrder;
+    ValueList *StructMember = NewVariable->Typ->MemberOrder;        
 
     while (StructMember)
     {
         Value *StructElement = nullptr;
+
         // check for sub-struct initialiser
         if (LexGetToken(Parser, nullptr, FALSE) == TokenLeftBrace)
         {
-            ProgramFail(Parser, "sub struct init not supported");
-            
-            /*
+            if (Parser->Mode == RunModeRun && DoAssignment)
+            {
+                if (StructMember == nullptr)
+                    ProgramFail(Parser, "not that many elements in struct");
+            }
+
             // parse sub-struct initialiser
             Value *SubMemberValue;
-            
-            //get 
+            Value *SubStructElement = nullptr;
+
+            // get sub member value and check for subtype 
             TableGet(NewVariable->Typ->Members, StructMember->Identifier, &SubMemberValue, nullptr, nullptr, nullptr);
             if(SubMemberValue->Typ->Base == TypeStruct) {
                 printf("Parse Sub Struct\n");
-                // parse recursevly the sub struct
-                ParseSubStructInitialiser(Parser, SubMemberValue, StructElement, DoAssignment);  
-                printf("Left Sub Struct Init\n");
+                // parse the sub struct
+                ParseSubStructInitialiser(Parser, SubMemberValue, &SubStructElement, DoAssignment);  
             } else { //TODO: add sub array init
                 ProgramFail(Parser, "need to be a structType");
             }
-
+            
             if (Parser->Mode == RunModeRun && DoAssignment)
             {
-                StructMember = StructMember->Next; 
+                StructMember = StructMember->Next;
             }
-            */
         }
         else
         {
@@ -473,9 +460,10 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
                 StructElement->ConstQualifier = MemberValue->ConstQualifier;
             }
 
+            printf("Token Value before: %d\n", Token);
             /* this is a normal expression initialiser */
-            if (!ExpressionParse(Parser, &CValue))
-                ProgramFail(Parser, "expression expected"); // inc token by 1
+            if (!ExpressionParse(Parser, &CValue)) // increases token by 1 step
+                ProgramFail(Parser, "expression expected");
 
             if (Parser->Mode == RunModeRun && DoAssignment)
             {

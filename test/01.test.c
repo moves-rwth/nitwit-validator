@@ -6,10 +6,11 @@ typedef struct A {
 
 typedef struct B {
    A a;
+   int x;
 } B;
 
 int main() {	
-	B z = {{1}};
+	B z = {{1},2};
     if (z.a.x == 1) {
         __VERIFIER_error();
     } else {
