@@ -19,10 +19,8 @@
  <key attr.name="creationTime" attr.type="string" for="graph" id="creationtime"/>
  <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
  <key attr.name="endline" attr.type="int" for="edge" id="endline"/>
- <key attr.name="startoffset" attr.type="int" for="edge" id="startoffset"/>
- <key attr.name="endoffset" attr.type="int" for="edge" id="endoffset"/>
  <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
-  <default>./24.uninit.var.c</default>
+  <default>doc/examples/00.test.simple.c</default>
  </key>
  <key attr.name="control" attr.type="string" for="edge" id="control"/>
  <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
@@ -33,54 +31,58 @@
  <graph edgedefault="directed">
   <data key="witness-type">violation_witness</data>
   <data key="sourcecodelang">C</data>
-  <data key="producer">CPAchecker 1.8-svn a776d662f5+ / kInduction</data>
-  <data key="specification">CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )</data>
-  <data key="programfile">./24.uninit.var.c</data>
-  <data key="programhash">462ae901b17f5c558852e1a866f4927b3b5e3140b3fdaca27a71246676ac2cb8</data>
+  <data key="producer">CPAchecker 1.9 / default</data>
+  <data key="specification">// This automaton contains the specification of the
+// Competition on Software Verification.
+// It checks only for calls to the __VERIFIER_error() functions
+// and also implements some functions which usually lead to a program abort.
+CONTROL AUTOMATON SVCOMP
+
+INITIAL STATE Init;
+
+STATE USEFIRST Init :
+  MATCH {__VERIFIER_error($?)} -&gt; ERROR("unreach-call: $rawstatement called in $location");
+  MATCH {__assert_fail($?)} || MATCH {abort($?)} || MATCH {exit($?)} -&gt; STOP;
+
+END AUTOMATON</data>
+  <data key="programfile">doc/examples/00.test.simple.c</data>
+  <data key="programhash">64fc4ac98b7ce8170498ce04d836f61eb96fa965b43184a36af36698ba13cb05</data>
   <data key="architecture">32bit</data>
-  <data key="creationtime">2019-10-22T10:29:35+02:00</data>
-  <node id="A44">
+  <data key="creationtime">2020-04-28T17:24:54+02:00</data>
+  <node id="A0">
    <data key="entry">true</data>
   </node>
-  <node id="A49"/>
-  <edge source="A44" target="A49">
-   <data key="startline">4</data>
-   <data key="endline">4</data>
-   <data key="startoffset">226</data>
-   <data key="endoffset">236</data>
+  <node id="A17"/>
+  <edge source="A0" target="A17">
+   <data key="startline">12</data>
+   <data key="endline">12</data>
    <data key="enterFunction">main</data>
   </edge>
-  <node id="A50"/>
-  <edge source="A49" target="A50">
-   <data key="startline">6</data>
-   <data key="endline">6</data>
-   <data key="startoffset">244</data>
-   <data key="endoffset">248</data>
-   <data key="assumption">i == (9489347);</data>
-   <data key="assumption.scope">main</data>
-  </edge>
-  <node id="A51">
-   <data key="violation">true</data>
-   <data key="violatedProperty">__VERIFIER_error(); called in line 8</data>
-  </node>
-  <edge source="A50" target="A51">
-   <data key="startline">7</data>
-   <data key="endline">7</data>
-   <data key="startoffset">259</data>
-   <data key="endoffset">270</data>
-   <data key="control">condition-true</data>
-   <data key="assumption">i == (9489347);</data>
+  <node id="A26"/>
+  <edge source="A17" target="A26">
+   <data key="startline">13</data>
+   <data key="endline">13</data>
+   <data key="assumption">(z.x) == (1); (z.y) == (2);</data>
    <data key="assumption.scope">main</data>
   </edge>
   <node id="sink">
    <data key="sink">true</data>
   </node>
-  <edge source="A50" target="sink">
-   <data key="startline">7</data>
-   <data key="endline">7</data>
-   <data key="startoffset">259</data>
-   <data key="endoffset">270</data>
+  <edge source="A26" target="sink">
+   <data key="startline">14</data>
+   <data key="endline">14</data>
+   <data key="control">condition-true</data>
+  </edge>
+  <node id="A51">
+   <data key="violation">true</data>
+   <data key="violatedProperty">unreach-call: __VERIFIER_error(); called in line 17</data>
+  </node>
+  <edge source="A26" target="A51">
+   <data key="startline">14</data>
+   <data key="endline">14</data>
    <data key="control">condition-false</data>
+   <data key="assumption">(z.x) == (1);</data>
+   <data key="assumption.scope">main</data>
   </edge>
  </graph>
 </graphml>
