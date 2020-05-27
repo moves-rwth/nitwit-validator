@@ -14,6 +14,8 @@ WITNESS_FILE_BY_HASH_DIR = "witnessFileByHash"
 
 TABLE_DIR = f'./output/tables19'
 
+PRINT = True
+
 EXIT_CODE_DICT = {
 	0: 'validated',
 	2: 'witness parse error',
@@ -46,10 +48,11 @@ COLUMN_INDEX = {
 	'err_out': 0,
 	'cpu': 0,
 	'tool': 0, 
+	'source': 0,
 	'mem': 0
 }
 
-def set_header_index(header: Tuple[str,str,str,str,str,str,str]):
+def set_header_index(header: Tuple[str,str,str,str,str,str,str,str]):
 	for i in range(len(header)):
 		COLUMN_INDEX[header[i]] = i
 
@@ -91,29 +94,49 @@ def analyze_bench_output(results: list, name: str, search_string: str, producer:
 
 	err_msg_map = {}
 	stderr_msg_map = {}
-	
+	file_map = {}
 
 	for witness in results:
 		increase_count_in_dict(err_msg_map, witness[COLUMN_INDEX['out']])
+		if witness[COLUMN_INDEX['out']] in file_map:		
+			file_map[witness[COLUMN_INDEX['out']]].append(witness[COLUMN_INDEX['source']])		
+		else:
+			file_map[witness[COLUMN_INDEX['out']]] = [witness[COLUMN_INDEX['source']]]
+			
 		for error_msg in witness[COLUMN_INDEX['err_out']]:
 			increase_count_in_dict(stderr_msg_map, error_msg)
-			
+			if error_msg in file_map:				
+				file_map[error_msg].append(witness[COLUMN_INDEX['source']])
+			else:
+				file_map[error_msg] = [witness[COLUMN_INDEX['source']]]
+	
 	sort_err_map = {k: v for k, v in sorted(err_msg_map.items(), key=lambda item: item[1])}
 	sort_stderr_map = {k: v for k, v in sorted(stderr_msg_map.items(), key=lambda item: item[1])}
+	for entry in file_map:
+		file_map[entry] = sorted(list(set(file_map[entry])))	
+
 
 	df1 = pd.DataFrame(sort_err_map.items(), columns=["Error msg.", "count"])
 	df2 = pd.DataFrame(sort_stderr_map.items(), columns=["Error msg.", "count"])
+	df3 = pd.DataFrame(file_map.items(), columns=["Error msg.", "count"])	
 	
-	save_table_to_file(df1.to_latex(), 'out_msg', TABLE_DIR)
-	save_table_to_file(df2.to_latex(), 'Stderr_out_msg', TABLE_DIR)
+	#save_table_to_file(df1.to_latex(), f'{name}_out_msg', TABLE_DIR)
+	#save_table_to_file(df2.to_latex(), f'{name}_stderr_out_msg', TABLE_DIR)
+	#save_table_to_file(df3.to_latex(), f'{name}_msg_to_file', TABLE_DIR)
+	
+	if PRINT:	
+		print(f"File names {name}:")
+		for out, entry_list in file_map.items():
+			print(f"{out}: ")
+			for entry in entry_list:
+				print(f"{entry}, ")
 
-
-	print(f"Error messages {name}:")
-	print_error_msgs(sort_err_map)
-	print(f"Standard Error messages {name}:")
-	print_error_msgs(sort_stderr_map)
+		print(f"Error messages {name}:")
+		print_error_msgs(sort_err_map)
+		print(f"Standard Error messages {name}:")
+		print_error_msgs(sort_stderr_map)
 		
-
+	
 
 def main():
 	parser = argparse.ArgumentParser(description="Runs the Nitwit on SV-Benchmark")

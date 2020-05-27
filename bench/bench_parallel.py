@@ -19,8 +19,8 @@ SV_BENCHMARK_DIR = ""
 VALIDATOR_EXECUTABLE = ""
 EXECUTION_TIMEOUT = 0
 
-#'output code', 'witness file', 'extracted output message', 'runtime (secs)', 'witness producer', 'peak memory (bytes)')
-BENCH_RESULTS_HEADER = ('status', 'wit_key', 'out', 'err_out', 'cpu', 'tool', 'mem')
+#'output code', 'witness file', 'extracted output message', 'runtime (secs)', 'witness producer', 'source file name', 'peak memory (bytes)')
+BENCH_RESULTS_HEADER = ('status', 'wit_key', 'out', 'err_out', 'cpu', 'tool', 'source', 'mem')
 
 task_queue = multiprocessing.Queue()
 result_queue = multiprocessing.Queue()
@@ -85,12 +85,14 @@ def run_validator():
         if out_errmsg == 'out of memory':  # hack around no special exit code for o/m
             returncode = 251
         children = resource.getrusage(resource.RUSAGE_CHILDREN)
+        source_file = source.split("/")
         result_queue.put((returncode,
                           info_file,
                           out_errmsg,
                           stderr_list,
                           children.ru_utime + children.ru_stime,  # - (children_before.ru_utime + children_before.ru_stime),
                           producer,
+                          source_file[-1],
                           children.ru_maxrss))
 
 

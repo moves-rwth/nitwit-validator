@@ -41,11 +41,12 @@ COLUMN_INDEX = {
 	'out': 0,
 	'err_out': 0,
 	'cpu': 0,
-	'tool': 0, 
+	'tool': 0,
+	'source': 0,
 	'mem': 0
 }
 
-def set_header_index(header: Tuple[str,str,str,str,str,str,str]):
+def set_header_index(header: Tuple[str,str,str,str,str,str,str,str]):
 	for i in range(len(header)):
 		COLUMN_INDEX[header[i]] = i
 

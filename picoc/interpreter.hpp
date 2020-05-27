@@ -531,6 +531,7 @@ struct Picoc_Struct
     struct ValueType UnsignedCharNDType;
     struct ValueType UnsignedLongNDType;
     struct ValueType UnsignedLongLongNDType;
+    struct ValueType FunctionPtrNDType;
 #ifndef NO_FP
     struct ValueType DoubleNDType;
     struct ValueType FloatNDType;

@@ -6,9 +6,9 @@ from typing import Tuple, List, Dict, Optional
 
 
 def output(output_path: str,
-           validated: List[Tuple[int, str, str, float, str, int]],
-           non_validated: List[Tuple[int, str, str, float, str, int]],
-           badly_parsed: List[Tuple[int, str, str, float, str, int]]):
+           validated: List[Tuple[int, str, str, float, str, str, int]],
+           non_validated: List[Tuple[int, str, str, float, str, str, int]],
+           badly_parsed: List[Tuple[int, str, str, float, str, str, int]]):
 	if not os.path.exists(output_path):
 		os.makedirs(output_path)
 
@@ -79,12 +79,12 @@ def parse_stderr_message(stderr_list, err, process):
 	return stderr_list
 
 
-def process_results(results: List[Tuple[int, str, str, List, float, str, int]], header: Tuple[str, str, str, str, str, str, str], executable: str, out: bool):
+def process_results(results: List[Tuple[int, str, str, List, float, str, str, int]], header: Tuple[str, str, str, str, str, str, str, str], executable: str, out: bool):
 	validated = [header]
 	non_validated = [header]
 	badly_parsed = [header]
-	for ret_code, info_file, out_msg, err_msg, time, prod, mem in results:
-		result_record = (abs(ret_code), os.path.basename(info_file), out_msg, err_msg, time, prod, mem)
+	for ret_code, info_file, out_msg, err_msg, time, prod, source, mem in results:
+		result_record = (abs(ret_code), os.path.basename(info_file), out_msg, err_msg, time, prod, source, mem)
 		if ret_code is None or ret_code == -9:
 			non_validated.append(result_record)
 		elif ret_code == 0 or ret_code == 245:

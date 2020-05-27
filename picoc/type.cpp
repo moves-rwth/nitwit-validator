@@ -77,7 +77,7 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
                     Base = TypeGetMatching(Parser->pc, Parser,
                             TypeGetNonDeterministic(Parser, Typ->FromType),
                             Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet); break;
-            case TypeFunctionPtr: Base = &Parser->pc->FunctionPtrType; break;
+            case TypeFunctionPtr: Base = &Parser->pc->FunctionPtrNDType; break;
             // function ptrs aren't supported to be ND - not even in SV-COMP
             default:
                 fprintf(stderr, "Unsupported non-deterministic type conversion.\n");
@@ -233,7 +233,8 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->UnsignedCharNDType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, TRUE);
     TypeAddBaseType(pc, &pc->UnsignedLongNDType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, TRUE);
     TypeAddBaseType(pc, &pc->UnsignedLongLongNDType, TypeUnsignedLongLong, sizeof(unsigned long long), (char *) &lla.y - &lla.x, TRUE);
-
+    TypeAddBaseType(pc, &pc->FunctionPtrNDType, TypeFunctionPtr, sizeof(char *), PointerAlignBytes, TRUE);
+    
 #ifndef NO_FP
     TypeAddBaseType(pc, &pc->DoubleType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, FALSE);
     TypeAddBaseType(pc, &pc->FloatType, TypeFloat, sizeof(float), (char *) &fa.y - &fa.x, FALSE);
