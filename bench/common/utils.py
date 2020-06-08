@@ -59,6 +59,36 @@ def parse_message(errmsg, out, process):
 		errmsg = 'Msg not parsed'
 	return errmsg
 
+def parse_loc_message(out, process):
+	if process.returncode != 0 and out is not None:
+		outs = str(out)
+		locPos = outs.find(' #$# ')
+		if locPos != -1:		
+			linePos = outs.find('Line:', locPos)
+			charPos = outs.find('CharPos:', locPos)
+			lineMsg = ''
+			charMsg = ''
+
+			if linePos != -1:
+				endpos = outs.find(';', linePos)
+				if endpos != -1:
+					lineMsg = outs[linePos:endpos]
+			else:
+				lineMsg = "no Line found"
+			if charPos != -1:
+				endpos = outs.find(';', charPos)
+				if endpos != -1:
+					charMsg = outs[charPos:endpos]
+			else:
+				charMsg = "no Char Pos found"
+			
+			locMsg = lineMsg + "; " + charMsg
+		else:
+			locMsg = 'No Location information found'
+	else:			
+		locMsg = 'Program failed!'
+	return locMsg
+
 def parse_stderr_message(stderr_list, err, process):
 	if err is not None:
 		errs = str(err)

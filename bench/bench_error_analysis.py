@@ -120,8 +120,10 @@ def analyze_bench_output(results: list, name: str, search_string: str, producer:
 	df2 = pd.DataFrame(sort_stderr_map.items(), columns=["Error msg.", "count"])
 	df3 = pd.DataFrame(file_map.items(), columns=["Error msg.", "count"])	
 	
-	#save_table_to_file(df1.to_latex(), f'{name}_out_msg', TABLE_DIR)
-	#save_table_to_file(df2.to_latex(), f'{name}_stderr_out_msg', TABLE_DIR)
+	#out_path = f"{name}_out_msg"
+	#err_path = f"{name}_stderr_out_msg"
+	#save_table_to_file(df1.to_latex(), out_path, TABLE_DIR)
+	#save_table_to_file(df2.to_latex(), err_path, TABLE_DIR)
 	#save_table_to_file(df3.to_latex(), f'{name}_msg_to_file', TABLE_DIR)
 	
 	if PRINT:	
