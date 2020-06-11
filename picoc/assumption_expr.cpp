@@ -1836,9 +1836,11 @@ long long AssumptionExpressionParseLongLong(struct ParseState *Parser)
 {
     Value *Val;
     long long Result = 0;
-
+    
     if (!AssumptionExpressionParse(Parser, &Val))
         ProgramFail(Parser, "expression expected");
+
+    //fprintf(stdout, "Parser Adress, Value: %p, %i\n",(void *)Val, Val->Val->Integer);
 
     if (Parser->Mode == RunModeRun)
     {

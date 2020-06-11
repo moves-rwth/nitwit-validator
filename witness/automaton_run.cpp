@@ -38,11 +38,12 @@ vector<string> split(string str, char delimiter) {
 
 bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &edge) {
     auto assumptions = split(edge->assumption, ';');
+       
     for (const string &ass: assumptions) {
         if (ass.empty()) {
             continue;
         }
-
+        
         void *heapstacktop_before = state->pc->HeapStackTop;
         unsigned char *heapmemory_before = state->pc->HeapMemory;
         void *heapbottom_before = state->pc->HeapBottom;
@@ -62,11 +63,13 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             state->pc->StackFrame = stackframe;
             return false;
         }
+
         Tokens = LexAnalyse(state->pc, RegFileName, ass.c_str(), ass.length(), nullptr);
         ParseState Parser{};
         LexInitParser(&Parser, state->pc, ass.c_str(), Tokens, RegFileName, TRUE, FALSE, nullptr);
         int ret = 0;
         Value *value = nullptr;
+
         if (state->SkipIntrinsic && state->LastNonDetValue != nullptr &&
                 (LexGetToken(&Parser, &value, FALSE) == TokenWitnessResult ||
                         (value != nullptr && value->Val->Identifier == TableStrRegister(state->pc, "result"))

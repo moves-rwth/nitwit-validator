@@ -46,43 +46,43 @@ STATE USEFIRST Init :
 
 END AUTOMATON</data>
   <data key="programfile">doc/examples/01.test.c</data>
-  <data key="programhash">9338b9a91cca617fcf2d3ccda2e5d620b53813617a31353474bde8578d1d78fb</data>
+  <data key="programhash">c676847c2782331e6f2998f13a15625c38ffc2903603d5a87d3d61205e391fa8</data>
   <data key="architecture">32bit</data>
-  <data key="creationtime">2020-05-23T13:27:52+02:00</data>
+  <data key="creationtime">2020-06-11T09:53:38+02:00</data>
   <node id="A0">
    <data key="entry">true</data>
   </node>
   <node id="A18"/>
   <edge source="A0" target="A18">
-   <data key="startline">12</data>
-   <data key="endline">12</data>
-   <data key="enterFunction">main</data>
-  </edge>
-  <node id="A23"/>
-  <edge source="A18" target="A23">
    <data key="startline">13</data>
    <data key="endline">13</data>
-   <data key="assumption">(z.a.x) == (1);</data>
-   <data key="assumption.scope">main</data>
+   <data key="enterFunction">main</data>
   </edge>
-  <node id="A52">
-   <data key="violation">true</data>
-   <data key="violatedProperty">unreach-call: __VERIFIER_error(); called in line 15</data>
-  </node>
-  <edge source="A23" target="A52">
+  <node id="A19"/>
+  <edge source="A18" target="A19">
    <data key="startline">14</data>
    <data key="endline">14</data>
-   <data key="control">condition-true</data>
-   <data key="assumption">(z.a.x) == (1);</data>
+   <data key="assumption">(z.a.y) == (1); (z.a.z) == (3);</data>
    <data key="assumption.scope">main</data>
   </edge>
   <node id="sink">
    <data key="sink">true</data>
   </node>
-  <edge source="A23" target="sink">
-   <data key="startline">14</data>
-   <data key="endline">14</data>
+  <edge source="A19" target="sink">
+   <data key="startline">15</data>
+   <data key="endline">15</data>
    <data key="control">condition-false</data>
+  </edge>
+  <node id="A33">
+   <data key="violation">true</data>
+   <data key="violatedProperty">unreach-call: __VERIFIER_error(); called in line 16</data>
+  </node>
+  <edge source="A19" target="A33">
+   <data key="startline">15</data>
+   <data key="endline">15</data>
+   <data key="control">condition-true</data>
+   <data key="assumption">(z.a.z) == (3);</data>
+   <data key="assumption.scope">main</data>
   </edge>
  </graph>
 </graphml>
