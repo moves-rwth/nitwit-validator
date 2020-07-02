@@ -277,7 +277,7 @@ void setNodeAttributes(const shared_ptr<Node> &node, const char *name, const cha
         node->is_frontier = (strcmp(value, "true") == 0);
     } else if (strcmp(name, "loopHead") == 0) {
         node->is_loopHead = (strcmp(value, "true") == 0);
-    } else if (strcmp(name, "violation") == 0 || strcmp(name, "violated Property") == 0) {
+    } else if (strcmp(name, "violation") == 0 || strcmp(name, "violatedProperty") == 0) {
         node->is_violation = (strcmp(value, "true") == 0);
     } else if (strcmp(name, "invariant") == 0) {
         node->invariant = value;

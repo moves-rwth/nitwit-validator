@@ -438,7 +438,7 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
                 // move to next member
                 StructMember = StructMember->Next;
 
-                StructElement = VariableAllocValueFromExistingData(Parser, SubMemberValue->Typ, 0,
+                StructElement = VariableAllocValueFromExistingData(Parser, SubMemberValue->Typ,
                                     (AnyValue *) (DerefDataLoc + 1 + (sizeof(int)*offsetCounter)),
                                     TRUE, NewVariable->LValueFrom, nullptr);
 
