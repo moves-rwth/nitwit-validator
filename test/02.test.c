@@ -1,18 +1,17 @@
 extern void __VERIFIER_error();
 
 typedef struct A {
-	int y;
-	int z;	
+	int x;
+	int y;	
 } A;
 
 typedef struct B {
    A a;
-   int c;
 } B;
 
 int main() {	
-	B z = {{1,3},3};
-    if (z.a.y == 1 && z.a.z == 3) {
+	B z = {{1,3}};
+    if (z.a.x == 1 && z.a.y == 3) {
         __VERIFIER_error();
     } else {
         return 0;

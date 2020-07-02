@@ -64,6 +64,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge> &e
             return false;
         }
 
+        // initialize tokens and parser for assumption checking
         Tokens = LexAnalyse(state->pc, RegFileName, ass.c_str(), ass.length(), nullptr);
         ParseState Parser{};
         LexInitParser(&Parser, state->pc, ass.c_str(), Tokens, RegFileName, TRUE, FALSE, nullptr);

@@ -51,4 +51,5 @@ fi
 
 
 SUFFIX="${ARCHITECTURE:1:2}"
+echo "./bin/nitwit${SUFFIX} ${WITNESS_FILE} ${PROGRAM}" 
 ./bin/nitwit$SUFFIX $WITNESS_FILE $PROGRAM

@@ -330,10 +330,12 @@ int ParseArrayInitialiser(struct ParseState *Parser, Value *NewVariable, int DoA
 }
 
 /* parse an struct initialiser and assign to a variable */
-void ParseSubStructInitialiser(struct ParseState *Parser, Value *NewVariable, Value **StructElement, int DoAssignment)
+int ParseSubStructInitialiser(struct ParseState *Parser, Value *NewVariable, Value **StructElement, int DoAssignment)
 {
     enum LexToken Token;
     Value *CValue;
+
+    int counter = 0;
 
     /* parse the sub struct initialiser */
     LexGetToken(Parser, nullptr, TRUE);
@@ -342,6 +344,9 @@ void ParseSubStructInitialiser(struct ParseState *Parser, Value *NewVariable, Va
 
     while (SubStructMember)
     {
+        //increase counter of number of subelements in the actual substruct
+        counter++;
+
         // TODO: check for potential subsub elements
         Value *SubMemberValue;
         char *DerefDataLoc = (char *)NewVariable->Val;
@@ -374,27 +379,28 @@ void ParseSubStructInitialiser(struct ParseState *Parser, Value *NewVariable, Va
             VariableStackPop(Parser, CValue);
             VariableStackPop(Parser, *StructElement);
         }
+    
+        Token = LexGetToken(Parser, nullptr, FALSE);
+        if (Token == TokenComma)
+            LexGetToken(Parser, nullptr, TRUE);
+        else if (Token != TokenRightBrace)
+            ProgramFail(Parser, "comma expected");
     }
-
-    Token = LexGetToken(Parser, nullptr, FALSE);
-    if (Token == TokenComma)
-    {
-        LexGetToken(Parser, nullptr, TRUE);
-    }
-    else if (Token != TokenRightBrace)
-        ProgramFail(Parser, "comma expected");
     
     if (Token == TokenRightBrace) {
         LexGetToken(Parser, nullptr, TRUE);
     } else {
         ProgramFail(Parser, "'}' expected");
     }
+
+    return counter;
 }
 
 /* parse an struct initialiser and assign to a variable */
 int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int DoAssignment)
 {
     int ArrayIndex = 0;
+    int offsetCounter = 0;
     enum LexToken Token;
     Value *CValue;
 
@@ -413,7 +419,8 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
             Value *SubMemberValue;
             Value *SubStructElement = nullptr;
             char *DerefDataLoc = (char *)NewVariable->Val;
-            
+            int subElementsCounter = 0;
+
             if (Parser->Mode == RunModeRun && DoAssignment)
             {
                 if (StructMember == nullptr)
@@ -423,24 +430,27 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
                 TableGet(NewVariable->Typ->Members, StructMember->Identifier, &SubMemberValue, nullptr, nullptr, nullptr);
                 if(SubMemberValue->Typ->Base == TypeStruct) {
                     // parse the sub struct
-                    ParseSubStructInitialiser(Parser, SubMemberValue, &SubStructElement, DoAssignment);  
+                    subElementsCounter = ParseSubStructInitialiser(Parser, SubMemberValue, &SubStructElement, DoAssignment);
                 } else { //TODO: add sub array init
                     ProgramFail(Parser, "need to be a structType");
                 }
+
                 // move to next member
                 StructMember = StructMember->Next;
 
-                /* make the result value for this member only */
-                StructElement = VariableAllocValueFromExistingData(Parser, SubMemberValue->Typ,
-                                                            (AnyValue *) (DerefDataLoc + SubMemberValue->Val->Integer), TRUE,
-                                                            NewVariable->LValueFrom, nullptr);
+                StructElement = VariableAllocValueFromExistingData(Parser, SubMemberValue->Typ, 0,
+                                    (AnyValue *) (DerefDataLoc + 1 + (sizeof(int)*offsetCounter)),
+                                    TRUE, NewVariable->LValueFrom, nullptr);
+
+                // increase offset counter by amount of sub struct elements
+                offsetCounter += subElementsCounter;
+
                 StructElement->BitField = SubMemberValue->BitField;
                 StructElement->ConstQualifier = SubMemberValue->ConstQualifier;
             } 
 
             // assign sub struct element to main struct
-            if (Parser->Mode == RunModeRun && DoAssignment)
-            {
+            if (Parser->Mode == RunModeRun && DoAssignment) {
                 ExpressionAssign(Parser, StructElement, SubMemberValue, FALSE, nullptr, 0, FALSE);
                 VariableStackPop(Parser, StructElement);
             }
@@ -462,8 +472,12 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
 
                 /* make the result value for this member only */
                 StructElement = VariableAllocValueFromExistingData(Parser, MemberValue->Typ,
-                                                            (AnyValue *) (DerefDataLoc + MemberValue->Val->Integer), TRUE,
-                                                            NewVariable->LValueFrom, nullptr);
+                                                            (AnyValue *) (DerefDataLoc + 1 + (sizeof(int)*offsetCounter)), 
+                                                            TRUE, NewVariable->LValueFrom, nullptr);
+
+                // increase offset counter by 1 for normal struct elements
+                offsetCounter += 1;
+
                 StructElement->BitField = MemberValue->BitField;
                 StructElement->ConstQualifier = MemberValue->ConstQualifier;
             }
@@ -508,7 +522,7 @@ void ParseDeclarationAssignment(struct ParseState *Parser, Value *NewVariable, i
         /* this is an array or struct initialiser */
         LexGetToken(Parser, nullptr, TRUE);
         if (NewVariable && NewVariable->Typ->Base == TypeStruct)
-            ParseStructInitialiser(Parser, NewVariable, DoAssignment); // todo new struct init
+            ParseStructInitialiser(Parser, NewVariable, DoAssignment);
         else
             ParseArrayInitialiser(Parser, NewVariable, DoAssignment);
     } else {
@@ -1292,7 +1306,6 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         }
         ParserCopyPos(Parser, &NowPosition);
     }
-
 
     return ParseResultOk;
 }
