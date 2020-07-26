@@ -1,0 +1,32 @@
+\documentclass[notitlepage]{article}
+			\usepackage{booktabs}
+			\usepackage{lscape}
+			\usepackage[scale=0.75,top=3cm]{geometry}		
+			\begin{document}\begin{landscape}\begin{tabular}{lllllll}
+\toprule
+{} & CPAchecker & Ult. Auto. & CPA-w2t & CProver-w2t & NITWIT & Virtual best \\
+\midrule
+CBMC            &        457 &        320 &     486 &         537 &    579 &          714 \\
+CBMC-Path       &        110 &        125 &     227 &         240 &    265 &          323 \\
+CPA-Seq         &       1038 &        679 &     853 &         431 &   1007 &         1109 \\
+DIVINE-SMT      &        185 &         15 &       0 &         121 &     84 &          192 \\
+DIVINE-explicit &        120 &         21 &      97 &         127 &    109 &          141 \\
+DepthK          &        493 &         79 &     434 &         617 &    616 &          755 \\
+ESBMC-kind      &        599 &         75 &     579 &         810 &    738 &          950 \\
+Map2Check       &         75 &         32 &     100 &         149 &    138 &          157 \\
+PeSCo           &       1011 &        647 &     785 &         532 &    940 &         1045 \\
+Pinaka          &        593 &        417 &     418 &         630 &    621 &          659 \\
+PredatorHP      &         57 &         38 &      13 &          46 &     22 &           68 \\
+SMACK           &        423 &         11 &     375 &         353 &    395 &          519 \\
+Skink           &         86 &         35 &      92 &          96 &     82 &          104 \\
+Symbiotic       &        799 &         13 &     398 &         455 &    539 &          875 \\
+UAutomizer      &        267 &        417 &     214 &         185 &    145 &          471 \\
+UKojak          &        264 &        276 &      42 &         158 &    132 &          321 \\
+UTaipan         &        260 &        378 &     183 &         183 &    141 &          427 \\
+VIAP            &         44 &         32 &      43 &          82 &     67 &          100 \\
+VeriAbs         &        544 &        291 &     399 &        1000 &   1031 &         1218 \\
+VeriFuzz        &       1040 &         44 &     877 &        1085 &   1218 &         1262 \\
+Total           &       8465 &       3945 &    6615 &        7837 &   8869 &        11410 \\
+\bottomrule
+\end{tabular}
+\end{landscape}\end{document}

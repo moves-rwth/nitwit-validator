@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+  <default>false</default>
+ </key>
+ <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+  <default>false</default>
+ </key>
+ <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+  <default>false</default>
+ </key>
+ <key attr.name="violatedProperty" attr.type="string" for="node" id="violatedProperty"/>
+ <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+ <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+ <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+ <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+ <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+ <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+ <key attr.name="creationTime" attr.type="string" for="graph" id="creationtime"/>
+ <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+ <key attr.name="endline" attr.type="int" for="edge" id="endline"/>
+ <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+  <default>doc/examples/00.test.c</default>
+ </key>
+ <key attr.name="control" attr.type="string" for="edge" id="control"/>
+ <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+ <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+ <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+ <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+ <key attr.name="inputWitnessHash" attr.type="string" for="graph" id="inputwitnesshash"/>
+ <graph edgedefault="directed">
+  <data key="witness-type">violation_witness</data>
+  <data key="sourcecodelang">C</data>
+  <data key="producer">CPAchecker 1.9 / default</data>
+  <data key="specification">// This automaton contains the specification of the
+// Competition on Software Verification.
+// It checks only for calls to the __VERIFIER_error() functions
+// and also implements some functions which usually lead to a program abort.
+CONTROL AUTOMATON SVCOMP
+
+INITIAL STATE Init;
+
+STATE USEFIRST Init :
+  MATCH {__VERIFIER_error($?)} -&gt; ERROR("unreach-call: $rawstatement called in $location");
+  MATCH {__assert_fail($?)} || MATCH {abort($?)} || MATCH {exit($?)} -&gt; STOP;
+
+END AUTOMATON</data>
+  <data key="programfile">doc/examples/00.test.c</data>
+  <data key="programhash">5698bd4a93de389716b0b173262b204a4adb9a36a863ad8f2dc0c8340e514ce3</data>
+  <data key="architecture">32bit</data>
+  <data key="creationtime">2020-04-28T14:14:38+02:00</data>
+  <node id="A0">
+   <data key="entry">true</data>
+  </node>
+  <node id="A18"/>
+  <edge source="A0" target="A18">
+   <data key="startline">12</data>
+   <data key="endline">12</data>
+   <data key="enterFunction">main</data>
+  </edge>
+  <node id="A26"/>
+  <edge source="A18" target="A26">
+   <data key="startline">13</data>
+   <data key="endline">13</data>
+   <data key="assumption">(z.a.x) == (1); (z.a.y) == (2);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="sink">
+   <data key="sink">true</data>
+  </node>
+  <edge source="A26" target="sink">
+   <data key="startline">14</data>
+   <data key="endline">14</data>
+   <data key="control">condition-true</data>
+  </edge>
+  <node id="A48">
+   <data key="violation">true</data>
+   <data key="violatedProperty">unreach-call: __VERIFIER_error(); called in line 17</data>
+  </node>
+  <edge source="A26" target="A48">
+   <data key="startline">14</data>
+   <data key="endline">14</data>
+   <data key="control">condition-false</data>
+   <data key="assumption">(z.a.x) == (1);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+ </graph>
+</graphml>

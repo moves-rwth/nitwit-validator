@@ -236,9 +236,9 @@ void MathFmin(struct ParseState *Parser, Value *ReturnValue, Value **Param, int 
     AssignFP(ReturnValue, fmin(CoerceFP(Param[0]), CoerceFP(Param[1])));
 }
 
-void MathAbs(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
+/*void MathAbs(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
     AssignFP(ReturnValue, abs(CoerceFP(Param[0])));
-}
+}*/
 
 void MathFma(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
     AssignFP(ReturnValue, fma(CoerceFP(Param[0]), CoerceFP(Param[1]), CoerceFP(Param[2])));
