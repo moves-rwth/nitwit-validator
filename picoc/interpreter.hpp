@@ -513,11 +513,15 @@ struct Picoc_Struct
     struct ValueType FunctionType;
     struct ValueType MacroType;
     struct ValueType EnumType;
+    //struct ValueType StructType;
     struct ValueType GotoLabelType;
     struct ValueType FunctionPtrType;
     struct ValueType *CharPtrType;
     struct ValueType *CharPtrPtrType;
     struct ValueType *CharArrayType;
+
+    //struct ValueType *StructPtrType;
+
     struct ValueType *VoidPtrType;
 
     /* ND types */
