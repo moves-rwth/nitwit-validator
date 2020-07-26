@@ -250,28 +250,62 @@ void TypeInit(Picoc *pc)
 }
 
 /* deallocate heap-allocated types */
-void TypeCleanupNode(Picoc *pc, struct ValueType *Typ)
-{
+void TypeCleanupNode(Picoc *pc, struct ValueType *Typ) {
     struct ValueType *SubType;
     struct ValueType *NextSubType;
-    
-    /* clean up and free all the sub-nodes */
-    for (SubType = Typ->DerivedTypeList; SubType != nullptr; SubType = NextSubType)
-    {
-        NextSubType = SubType->Next;
+
+    if (Typ != nullptr)
+        SubType = Typ->DerivedTypeList;
+
+    // special case substruct element
+    if (SubType != nullptr && SubType->Next != nullptr && SubType->Next->Base == TypeStruct) {
+        SubType = SubType->Next;
+
+        for (; SubType != nullptr; SubType = NextSubType) {
+            NextSubType = SubType->Next;
+            TypeCleanupNode(pc, SubType);
+            if (SubType->OnHeap) {
+                /* if it's a struct or union deallocate all the member values */
+                if (SubType->Members != nullptr) {
+                    VariableTableCleanup(pc, SubType->Members);
+                    HeapFreeMem(pc, SubType->Members);
+                    delete SubType->MemberOrder;
+                }
+
+                /* free this node */
+                HeapFreeMem(pc, SubType);
+            }
+        }
+
+        //clean highest SubType; lower members are alreadyay freeed
+        SubType = Typ->DerivedTypeList;
+
         TypeCleanupNode(pc, SubType);
-        if (SubType->OnHeap)
-        {
-            /* if it's a struct or union deallocate all the member values */
-            if (SubType->Members != nullptr)
-            {
-                VariableTableCleanup(pc, SubType->Members);
+        if (SubType->OnHeap) {
+            /* free all member references */
+            if (SubType->Members != nullptr) {
                 HeapFreeMem(pc, SubType->Members);
                 delete SubType->MemberOrder;
             }
 
             /* free this node */
             HeapFreeMem(pc, SubType);
+        }
+    } else {
+        for (SubType = Typ->DerivedTypeList; SubType != nullptr; SubType = NextSubType) {
+            NextSubType = SubType->Next;
+            TypeCleanupNode(pc, SubType);
+            if (SubType->OnHeap) {
+                /* if it's a struct or union deallocate all the member values */
+                if (SubType->Members != nullptr) {
+                    VariableTableCleanup(pc, SubType->Members);
+                    HeapFreeMem(pc, SubType->Members);
+                    delete SubType->MemberOrder;
+                }
+
+                /* free this node */
+                HeapFreeMem(pc, SubType);
+            }
         }
     }
 }
