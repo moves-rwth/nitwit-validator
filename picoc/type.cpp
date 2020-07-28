@@ -256,12 +256,14 @@ void TypeCleanupNode(Picoc *pc, struct ValueType *Typ) {
 
     if (Typ != nullptr)
         SubType = Typ->DerivedTypeList;
+    else
+        SubType = nullptr;
 
     // special case substruct element
-    if (SubType != nullptr && SubType->Next != nullptr && SubType->Next->Base == TypeStruct) {
-        SubType = SubType->Next;
+    if (SubType != nullptr && (SubType->Next != nullptr && SubType->Next->Base == TypeStruct)) {
 
-        for (; SubType != nullptr; SubType = NextSubType) {
+        //SubType = SubType->Next;
+        for (SubType = SubType->Next; SubType != nullptr; SubType = NextSubType) {
             NextSubType = SubType->Next;
             TypeCleanupNode(pc, SubType);
             if (SubType->OnHeap) {
