@@ -55,7 +55,6 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
         return Typ;
     else {
         struct ValueType * Base;
-        enum BaseType derivedType = Typ->FromType->Base;
         bool nondet = true;
         switch (Typ->Base){
             case TypeInt: Base = &Parser->pc->IntNDType; break;
@@ -79,14 +78,10 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
                             TypeGetNonDeterministic(Parser, Typ->FromType),
                             Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet); break;
 
-            case TypePointer:
-                    switch (derivedType) {
-                        case TypeStruct: Base = Parser->pc->VoidPtrType; break;
-                        default:
-                            Base = Parser->pc->VoidPtrType;
-                        break;
-                    }
-                    break;
+            case TypePointer: //Base = Parser->pc->VoidPtrType; break;
+                Base = TypeGetMatching(Parser->pc, Parser,
+                                TypeGetNonDeterministic(Parser, Typ->FromType),
+                                Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet); break;
 
             case TypeFunctionPtr: Base = &Parser->pc->FunctionPtrType; break;
             // function ptrs aren't supported to be ND - not even in SV-COMP
@@ -230,7 +225,7 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->GotoLabelType, TypeGotoLabel, 0, 1, FALSE);
     TypeAddBaseType(pc, &pc->FunctionPtrType, TypeFunctionPtr, sizeof(char *), PointerAlignBytes, FALSE);
     TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *) &da.y - &da.x, FALSE);  /* must be large enough to cast to a double */
-    //TypeAddBaseType(pc, &pc->StructType, TypeStruct, sizeof(int), IntAlignBytes, FALSE);
+    TypeAddBaseType(pc, &pc->StructType, TypeStruct, sizeof(int), IntAlignBytes, FALSE);
 
     // NDs
     TypeAddBaseType(pc, &pc->IntNDType, TypeInt, sizeof(int), IntAlignBytes, TRUE);
@@ -243,8 +238,6 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->UnsignedCharNDType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, TRUE);
     TypeAddBaseType(pc, &pc->UnsignedLongNDType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, TRUE);
     TypeAddBaseType(pc, &pc->UnsignedLongLongNDType, TypeUnsignedLongLong, sizeof(unsigned long long), (char *) &lla.y - &lla.x, TRUE);
-    TypeAddBaseType(pc, &pc->FunctionPtrNDType, TypeFunctionPtr, sizeof(char *), PointerAlignBytes, TRUE);
-    TypeAddBaseType(pc, &pc->UnsignedIntType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, FALSE);
 
 #ifndef NO_FP
     TypeAddBaseType(pc, &pc->DoubleType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, FALSE);
@@ -259,7 +252,7 @@ void TypeInit(Picoc *pc)
     pc->CharPtrType = TypeAdd(pc, nullptr, &pc->CharType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
     pc->CharPtrPtrType = TypeAdd(pc, nullptr, pc->CharPtrType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
 
-    //pc->StructPtrType = TypeAdd(pc, nullptr, &pc->StructType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
+    pc->StructPtrType = TypeAdd(pc, nullptr, &pc->StructType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
 
     pc->VoidPtrType = TypeAdd(pc, nullptr, &pc->VoidType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
 }

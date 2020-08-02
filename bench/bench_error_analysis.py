@@ -127,11 +127,11 @@ def analyze_bench_output(results: list, name: str, search_string: str, producer:
 	#save_table_to_file(df3.to_latex(), f'{name}_msg_to_file', TABLE_DIR)
 	
 	if PRINT:	
-		print(f"File names {name}:")
-		for out, entry_list in file_map.items():
-			print(f"{out}: ")
-			for entry in entry_list:
-				print(f"{entry}, ")
+		#print(f"File names {name}:")
+		#for out, entry_list in file_map.items():
+			#print(f"{out}: ")
+			#for entry in entry_list:
+				#print(f"{entry}, ")
 
 		print(f"Error messages {name}:")
 		print_error_msgs(sort_err_map)
