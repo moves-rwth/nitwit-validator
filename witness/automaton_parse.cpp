@@ -261,7 +261,7 @@ shared_ptr<Node> getDefaultNode(const shared_ptr<DefaultKeyValues> &def_values) 
 
     // integers
     string val = def_values->getDefault("thread").default_val;
-    n->thread_number = atoi(val.c_str()); // todo thrd number isn't an int though, but size_t. Is that ok?
+    n->thread_number = atoi(val.c_str()); // todo thread number isn't an int though, but size_t. Is that ok?
 
     return n;
 }

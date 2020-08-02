@@ -77,6 +77,12 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
                     Base = TypeGetMatching(Parser->pc, Parser,
                             TypeGetNonDeterministic(Parser, Typ->FromType),
                             Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet); break;
+
+            case TypePointer: //Base = Parser->pc->VoidPtrType; break;
+                Base = TypeGetMatching(Parser->pc, Parser,
+                                TypeGetNonDeterministic(Parser, Typ->FromType),
+                                Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet); break;
+
             case TypeFunctionPtr: Base = &Parser->pc->FunctionPtrType; break;
             // function ptrs aren't supported to be ND - not even in SV-COMP
             default:
@@ -86,8 +92,6 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
         return Base;
     }
 }
-
-
 
 /* add a new type to the set of types we know about */
 struct ValueType *TypeAdd(Picoc *pc, struct ParseState *Parser, struct ValueType *ParentType, enum BaseType Base, int ArraySize, const char *Identifier, int Sizeof, int AlignBytes)
@@ -221,6 +225,7 @@ void TypeInit(Picoc *pc)
     TypeAddBaseType(pc, &pc->GotoLabelType, TypeGotoLabel, 0, 1, FALSE);
     TypeAddBaseType(pc, &pc->FunctionPtrType, TypeFunctionPtr, sizeof(char *), PointerAlignBytes, FALSE);
     TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *) &da.y - &da.x, FALSE);  /* must be large enough to cast to a double */
+    TypeAddBaseType(pc, &pc->StructType, TypeStruct, sizeof(int), IntAlignBytes, FALSE);
 
     // NDs
     TypeAddBaseType(pc, &pc->IntNDType, TypeInt, sizeof(int), IntAlignBytes, TRUE);
@@ -246,6 +251,9 @@ void TypeInit(Picoc *pc)
     pc->CharArrayType = TypeAdd(pc, nullptr, &pc->CharType, TypeArray, 0, pc->StrEmpty, sizeof(char), (char *)&ca.y - &ca.x);
     pc->CharPtrType = TypeAdd(pc, nullptr, &pc->CharType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
     pc->CharPtrPtrType = TypeAdd(pc, nullptr, pc->CharPtrType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
+
+    pc->StructPtrType = TypeAdd(pc, nullptr, &pc->StructType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
+
     pc->VoidPtrType = TypeAdd(pc, nullptr, &pc->VoidType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
 }
 

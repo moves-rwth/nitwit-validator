@@ -6,9 +6,9 @@ from typing import Tuple, List, Dict, Optional
 
 
 def output(output_path: str,
-           validated: List[Tuple[int, str, str, float, str, int]],
-           non_validated: List[Tuple[int, str, str, float, str, int]],
-           badly_parsed: List[Tuple[int, str, str, float, str, int]]):
+           validated: List[Tuple[int, str, str, float, str, str, int]],
+           non_validated: List[Tuple[int, str, str, float, str, str, int]],
+           badly_parsed: List[Tuple[int, str, str, float, str, str, int]]):
 	if not os.path.exists(output_path):
 		os.makedirs(output_path)
 
@@ -59,6 +59,36 @@ def parse_message(errmsg, out, process):
 		errmsg = 'Msg not parsed'
 	return errmsg
 
+def parse_loc_message(out, process):
+	if process.returncode != 0 and out is not None:
+		outs = str(out)
+		locPos = outs.find(' #$# ')
+		if locPos != -1:		
+			linePos = outs.find('Line:', locPos)
+			charPos = outs.find('CharPos:', locPos)
+			lineMsg = ''
+			charMsg = ''
+
+			if linePos != -1:
+				endpos = outs.find(';', linePos)
+				if endpos != -1:
+					lineMsg = outs[linePos:endpos]
+			else:
+				lineMsg = "no Line found"
+			if charPos != -1:
+				endpos = outs.find(';', charPos)
+				if endpos != -1:
+					charMsg = outs[charPos:endpos]
+			else:
+				charMsg = "no Char Pos found"
+			
+			locMsg = lineMsg + "; " + charMsg
+		else:
+			locMsg = 'No Location information found'
+	else:			
+		locMsg = 'Program failed!'
+	return locMsg
+
 def parse_stderr_message(stderr_list, err, process):
 	if err is not None:
 		errs = str(err)
@@ -79,12 +109,12 @@ def parse_stderr_message(stderr_list, err, process):
 	return stderr_list
 
 
-def process_results(results: List[Tuple[int, str, str, List, float, str, int]], header: Tuple[str, str, str, str, str, str, str], executable: str, out: bool):
+def process_results(results: List[Tuple[int, str, str, List, float, str, str, int]], header: Tuple[str, str, str, str, str, str, str, str], executable: str, out: bool):
 	validated = [header]
 	non_validated = [header]
 	badly_parsed = [header]
-	for ret_code, info_file, out_msg, err_msg, time, prod, mem in results:
-		result_record = (abs(ret_code), os.path.basename(info_file), out_msg, err_msg, time, prod, mem)
+	for ret_code, info_file, out_msg, err_msg, time, prod, source, mem in results:
+		result_record = (abs(ret_code), os.path.basename(info_file), out_msg, err_msg, time, prod, source, mem)
 		if ret_code is None or ret_code == -9:
 			non_validated.append(result_record)
 		elif ret_code == 0 or ret_code == 245:

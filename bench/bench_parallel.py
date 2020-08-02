@@ -8,9 +8,8 @@ import subprocess
 import sys
 from typing import List, Tuple
 
-from common.utils import process_results
-from common.utils import parse_message
-from common.utils import parse_stderr_message
+from common.utils import *
+
 
 WITNESSES_BY_PROGRAM_HASH_DIR = "witnessListByProgramHashJSON"
 WITNESS_INFO_BY_WITNESS_HASH_DIR = "witnessInfoByHash"
@@ -19,8 +18,8 @@ SV_BENCHMARK_DIR = ""
 VALIDATOR_EXECUTABLE = ""
 EXECUTION_TIMEOUT = 0
 
-#'output code', 'witness file', 'extracted output message', 'runtime (secs)', 'witness producer', 'peak memory (bytes)')
-BENCH_RESULTS_HEADER = ('status', 'wit_key', 'out', 'err_out', 'cpu', 'tool', 'mem')
+#'output code', 'witness file', 'extracted output message', 'runtime (secs)', 'witness producer', 'source file name', 'peak memory (bytes)')
+BENCH_RESULTS_HEADER = ('status', 'wit_key', 'out', 'err_out', 'cpu', 'tool', 'source', 'mem')
 
 task_queue = multiprocessing.Queue()
 result_queue = multiprocessing.Queue()
@@ -66,12 +65,14 @@ def run_validator():
                           stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE) as process:
         out_errmsg = ''
+        err_loc = ''
         stderr_list = []  
         try:
             out, err = process.communicate(timeout=EXECUTION_TIMEOUT)
-            #parse program error messages
+            #parse program error messages and corresponding location
             out_errmsg = parse_message(out_errmsg, out, process)
-
+            err_loc = parse_loc_message(out, process)
+            #print(err_loc)
 			#parse stderr messages
             stderr_list = parse_stderr_message(stderr_list, err, process)
         except subprocess.TimeoutExpired:
@@ -85,12 +86,16 @@ def run_validator():
         if out_errmsg == 'out of memory':  # hack around no special exit code for o/m
             returncode = 251
         children = resource.getrusage(resource.RUSAGE_CHILDREN)
+        source_file = source.split("/")
+        error_location = source_file[-1] + "; " + err_loc
+
         result_queue.put((returncode,
                           info_file,
                           out_errmsg,
                           stderr_list,
                           children.ru_utime + children.ru_stime,  # - (children_before.ru_utime + children_before.ru_stime),
                           producer,
+                          error_location,
                           children.ru_maxrss))
 
 
