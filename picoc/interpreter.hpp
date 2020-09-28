@@ -254,6 +254,15 @@ enum BaseType
     Type_Type,                   /* a type for storing types */
 };
 
+struct NonDetList
+{
+    char * isNonDet;
+
+    NonDetList () {
+        isNonDet = new char;
+    }
+};
+
 /* data type */
 struct ValueType
 {
@@ -270,7 +279,8 @@ struct ValueType
     int OnHeap;                     /* true if allocated on the heap */
     int StaticQualifier;            /* true if it's a static */
     // jsv
-    char IsNonDet;                /* flag for when the variable is non-deterministic */
+    char IsNonDet;                  /* flag for when the variable is non-deterministic */
+    struct NonDetList * NDList;     /* list of nd array element flags */
 };
 
 /* function definition */
@@ -653,6 +663,9 @@ ValueType *TypeGetMatching(Picoc *pc, ParseState *Parser, ValueType *ParentType,
 struct ValueType *TypeCreateOpaqueStruct(Picoc *pc, struct ParseState *Parser, const char *StructName, int Size);
 int TypeIsForwardDeclared(struct ParseState *Parser, struct ValueType *Typ);
 int TypeIsNonDeterministic(struct ValueType *Typ);
+/* array element non deterministic type functions */
+void initNonDetList(ValueType * Type, int ArraySize);
+char getNonDetListElement(NonDetList * List, int ArrayIndex);
 struct ValueType* TypeGetDeterministic(struct ParseState * Parser, struct ValueType * Typ);
 struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct ValueType * Typ);
 int TypeIsUnsigned(struct ValueType * Typ);

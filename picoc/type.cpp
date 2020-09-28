@@ -7,6 +7,31 @@
 static int PointerAlignBytes;
 static int IntAlignBytes;
 
+void initNonDetList (ValueType * Type, int ArraySize) {
+    if(Type->NDList != nullptr) {
+        Type->NDList->isNonDet = (char *) malloc(sizeof(char) * ArraySize);
+    } else {
+        NonDetList List;
+        NonDetList * L = &List;
+        L->isNonDet = (char *) malloc(sizeof(char) * ArraySize);;
+        Type->NDList = L;
+    }
+/*
+    char set[3] = {'0','1','0'};
+
+    for(int i = 0; i<ArraySize; i++) {
+        *(Type->NDList->isNonDet+i) = set[i];
+    }
+*/
+    *(Type->NDList->isNonDet+0) = 1;
+    *(Type->NDList->isNonDet+1) = 1;
+    *(Type->NDList->isNonDet+2) = 1;
+}
+
+char getNonDetListElement(NonDetList * List, int ArrayIndex) {
+    return *(List->isNonDet+ArrayIndex);
+}
+
 int TypeIsNonDeterministic(struct ValueType *Typ) {
     return Typ->IsNonDet;
 }
@@ -73,9 +98,11 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
             case TypeDouble: Base = &Parser->pc->DoubleNDType; break;
             case TypeFloat: Base = &Parser->pc->FloatNDType; break;
 #endif
+            // TODO: array from type is deterministic -> nd in single values is missing
             case TypeArray:
+                    initNonDetList(Typ, Typ->ArraySize);
                     Base = TypeGetMatching(Parser->pc, Parser,
-                            TypeGetNonDeterministic(Parser, Typ->FromType),
+                            TypeGetDeterministic(Parser, Typ->FromType),
                             Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet); break;
 
             case TypePointer: //Base = Parser->pc->VoidPtrType; break;

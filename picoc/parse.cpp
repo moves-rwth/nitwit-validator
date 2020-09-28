@@ -472,9 +472,14 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
                 StructMember = StructMember->Next; 
 
                 /* make the result value for this member only */
-                StructElement = VariableAllocValueFromExistingData(Parser, MemberValue->Typ,
+                if(offsetCounter == 0)
+                    StructElement = VariableAllocValueFromExistingData(Parser, MemberValue->Typ,
                                                             (AnyValue *) (DerefDataLoc + MemberValue->Val->Integer),
                                                             TRUE, NewVariable->LValueFrom, nullptr);
+                else
+                    StructElement = VariableAllocValueFromExistingData(Parser, MemberValue->Typ,
+                                                                       (AnyValue *) (DerefDataLoc + (offsetCounter)*MemberValue->Val->Integer),
+                                                                       TRUE, NewVariable->LValueFrom, nullptr);
 
                 // increase offset counter by 1 for normal struct elements
                 offsetCounter += 1;
