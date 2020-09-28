@@ -3,6 +3,9 @@
 
 #include "interpreter.hpp"
 
+/* flag if we do not accept zero element structs (Default: 0) */
+#define NO_ZERO_STRUCT 0
+
 /* some basic types */
 static int PointerAlignBytes;
 static int IntAlignBytes;
@@ -380,101 +383,100 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     (*Typ)->Members->HashTable = (struct TableEntry **)((char *)(*Typ)->Members + sizeof(struct Table));
     TableInitTable((*Typ)->Members, (struct TableEntry **)((char *)(*Typ)->Members + sizeof(struct Table)), STRUCT_TABLE_SIZE, TRUE);
 
-    // do the parsing of members
-    int IsConst;
-    char ParseOnlyIdent = FALSE;
-//    char IsBitField = FALSE;
-    ValueType* BasicType = nullptr;
-    do {
-        if (ParseOnlyIdent){ // continue with the same type
-            TypeParseIdentPart(Parser, BasicType, &MemberType, &MemberIdentifier, &IsConst);
-            ParseOnlyIdent = FALSE;
-        } else {
-            BasicType = TypeParse(Parser, &MemberType, &MemberIdentifier, nullptr, &IsConst, 0);
-        }
-
-        if (MemberType == nullptr || MemberIdentifier == nullptr)
-            ProgramFail(Parser, "invalid type in struct");
-
-        MemberValue = VariableAllocValueAndData(pc, Parser, sizeof(int), FALSE, nullptr, TRUE, nullptr);
-        MemberValue->Typ = MemberType;
-        LexToken NextToken = LexGetToken(Parser, nullptr, TRUE);
-        if (NextToken == TokenColon) { // it is a bit field!
-            if (!IS_INTEGER_NUMERIC(MemberValue)){
-                ProgramFail(Parser, "only integral types allowed in bit fields");
-            }
-            Value * bitlen = nullptr; // get bit field length from constant
-            LexGetToken(Parser, &bitlen, TRUE); // number
-            if (IS_INTEGER_NUMERIC_TYPE(bitlen->Typ)){
-                long length = CoerceInteger(bitlen);
-                if (length < 0 || 8 * MemberValue->Typ->Sizeof < length){
-                    ProgramFail(Parser, "wrong size n: n > 0 and n <= sizeof");
-                }
-                MemberValue->BitField = length;
-                if (IS_UNSIGNED(MemberValue)) {
-                    MemberValue->Typ = &Parser->pc->UnsignedLongLongType;
-                } else {
-                    MemberValue->Typ = &Parser->pc->LongLongType;
-                }
+    // do the parsing of members if not zero element struct
+    if(!NO_ZERO_STRUCT && (*Typ)->Sizeof != 0) {
+        int IsConst;
+        char ParseOnlyIdent = FALSE;
+        //    char IsBitField = FALSE;
+        ValueType *BasicType = nullptr;
+        do {
+            if (ParseOnlyIdent) { // continue with the same type
+                TypeParseIdentPart(Parser, BasicType, &MemberType, &MemberIdentifier, &IsConst);
+                ParseOnlyIdent = FALSE;
             } else {
-                ProgramFail(Parser, "positive integer expected");
+                BasicType = TypeParse(Parser, &MemberType, &MemberIdentifier, nullptr, &IsConst, 0);
             }
-            NextToken = LexGetToken(Parser, nullptr, TRUE); // semicolon
+
+            if (MemberType == nullptr || MemberIdentifier == nullptr)
+                ProgramFail(Parser, "invalid type in struct");
+
+            MemberValue = VariableAllocValueAndData(pc, Parser, sizeof(int), FALSE, nullptr, TRUE, nullptr);
+            MemberValue->Typ = MemberType;
+            LexToken NextToken = LexGetToken(Parser, nullptr, TRUE);
+            if (NextToken == TokenColon) { // it is a bit field!
+                if (!IS_INTEGER_NUMERIC(MemberValue)) {
+                    ProgramFail(Parser, "only integral types allowed in bit fields");
+                }
+                Value *bitlen = nullptr; // get bit field length from constant
+                LexGetToken(Parser, &bitlen, TRUE); // number
+                if (IS_INTEGER_NUMERIC_TYPE(bitlen->Typ)) {
+                    long length = CoerceInteger(bitlen);
+                    if (length < 0 || 8 * MemberValue->Typ->Sizeof < length) {
+                        ProgramFail(Parser, "wrong size n: n > 0 and n <= sizeof");
+                    }
+                    MemberValue->BitField = length;
+                    if (IS_UNSIGNED(MemberValue)) {
+                        MemberValue->Typ = &Parser->pc->UnsignedLongLongType;
+                    } else {
+                        MemberValue->Typ = &Parser->pc->LongLongType;
+                    }
+                } else {
+                    ProgramFail(Parser, "positive integer expected");
+                }
+                NextToken = LexGetToken(Parser, nullptr, TRUE); // semicolon
+            }
+            if (IsStruct) {
+                /* allocate this member's location in the struct */
+                AlignBoundary = MemberValue->Typ->AlignBytes;
+                if (((*Typ)->Sizeof & (AlignBoundary - 1)) != 0)
+                    (*Typ)->Sizeof += AlignBoundary - ((*Typ)->Sizeof & (AlignBoundary - 1));
+
+                MemberValue->Val->Integer = (*Typ)->Sizeof;
+                (*Typ)->Sizeof += TypeSizeValue(MemberValue, TRUE);
+            } else {
+                /* union members always start at 0, make sure it's big enough to hold the largest member */
+                MemberValue->Val->Integer = 0;
+                if (MemberValue->Typ->Sizeof > (*Typ)->Sizeof)
+                    (*Typ)->Sizeof = TypeSizeValue(MemberValue, TRUE);
+            }
+            MemberValue->ConstQualifier = IsConst;
+
+            /* make sure to align to the size of the largest member's alignment */
+            if ((*Typ)->AlignBytes < MemberValue->Typ->AlignBytes)
+                (*Typ)->AlignBytes = MemberValue->Typ->AlignBytes;
+
+            /* define it */
+            if (!TableSet(pc, (*Typ)->Members, MemberIdentifier, MemberValue, Parser->FileName, Parser->Line,
+                          Parser->CharacterPos))
+                ProgramFail(Parser, "member '%s' already defined", &MemberIdentifier);
+            // add member id to list (is backwards, needs reverse)
+            (*Typ)->MemberOrder = new ValueList((*Typ)->MemberOrder, MemberIdentifier);
+
+
+            if (NextToken == TokenComma) {
+                ParseOnlyIdent = TRUE;
+            } else if (NextToken != TokenSemicolon) {
+                ProgramFail(Parser, "semicolon expected");
+            }
+
+
+        } while (LexGetToken(Parser, nullptr, FALSE) != TokenRightBrace);
+
+        /* now align the structure to the size of its largest member's alignment */
+        AlignBoundary = (*Typ)->AlignBytes;
+        if (((*Typ)->Sizeof & (AlignBoundary - 1)) != 0)
+            (*Typ)->Sizeof += AlignBoundary - ((*Typ)->Sizeof & (AlignBoundary - 1));
+
+        // reverse member order
+        ValueList *elem = (*Typ)->MemberOrder, *prev = nullptr, *tmp;
+        while (elem) {
+            tmp = elem->Next;
+            elem->Next = prev;
+            prev = elem;
+            elem = tmp;
         }
-        if (IsStruct)
-        { 
-            /* allocate this member's location in the struct */
-            AlignBoundary = MemberValue->Typ->AlignBytes;
-            if (((*Typ)->Sizeof & (AlignBoundary-1)) != 0)
-                (*Typ)->Sizeof += AlignBoundary - ((*Typ)->Sizeof & (AlignBoundary-1));
-                
-            MemberValue->Val->Integer = (*Typ)->Sizeof;
-            (*Typ)->Sizeof += TypeSizeValue(MemberValue, TRUE);
-        }
-        else
-        { 
-            /* union members always start at 0, make sure it's big enough to hold the largest member */
-            MemberValue->Val->Integer = 0;
-            if (MemberValue->Typ->Sizeof > (*Typ)->Sizeof)
-                (*Typ)->Sizeof = TypeSizeValue(MemberValue, TRUE);
-        }
-        MemberValue->ConstQualifier = IsConst;
-
-        /* make sure to align to the size of the largest member's alignment */
-        if ((*Typ)->AlignBytes < MemberValue->Typ->AlignBytes)
-            (*Typ)->AlignBytes = MemberValue->Typ->AlignBytes;
-        
-        /* define it */
-        if (!TableSet(pc, (*Typ)->Members, MemberIdentifier, MemberValue, Parser->FileName, Parser->Line, Parser->CharacterPos))
-            ProgramFail(Parser, "member '%s' already defined", &MemberIdentifier);
-         // add member id to list (is backwards, needs reverse)
-        (*Typ)->MemberOrder = new ValueList((*Typ)->MemberOrder, MemberIdentifier);
-
-
-        if (NextToken == TokenComma){
-            ParseOnlyIdent = TRUE;
-        } else if (NextToken != TokenSemicolon){
-            ProgramFail(Parser, "semicolon expected");
-        }
-
-
-    } while (LexGetToken(Parser, nullptr, FALSE) != TokenRightBrace);
-    
-    /* now align the structure to the size of its largest member's alignment */
-    AlignBoundary = (*Typ)->AlignBytes;
-    if (((*Typ)->Sizeof & (AlignBoundary-1)) != 0)
-        (*Typ)->Sizeof += AlignBoundary - ((*Typ)->Sizeof & (AlignBoundary-1));
-
-    // reverse member order
-    ValueList* elem = (*Typ)->MemberOrder, *prev = nullptr, *tmp;
-    while (elem){
-        tmp = elem->Next;
-        elem->Next = prev;
-        prev = elem;
-        elem = tmp;
+        (*Typ)->MemberOrder = prev;
     }
-    (*Typ)->MemberOrder = prev;
-
     LexGetToken(Parser, nullptr, TRUE);
 }
 
