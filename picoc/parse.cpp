@@ -432,7 +432,8 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
                     // parse the sub struct
                     subElementsCounter = ParseSubStructInitialiser(Parser, SubMemberValue, &SubStructElement, DoAssignment);
                 } else { //TODO: add sub array init
-                    ProgramFail(Parser, "need to be a structType");
+                    ParseArrayInitialiser(Parser, SubMemberValue, DoAssignment);
+                    SubStructElement = SubMemberValue;
                 }
 
                 // move to next member

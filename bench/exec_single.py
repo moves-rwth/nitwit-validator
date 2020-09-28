@@ -99,7 +99,9 @@ def run_single_config(witness_info_file: str) -> Tuple[int, str, str, float, str
 
 				# sv_regexp_location = programfile.find("sv-benchmarks/c/")
 				# if not sv_regexp_location == -1:
+				
 				path_to_source_code = os.path.join(SV_BENCHMARK_DIR, '/'.join(programfile.split('/')[-2:]))
+
 				if os.path.isfile(path_to_source_code):
 					# run the validator with the found witness and source code
 					return run_validator((path_to_witness_file, path_to_source_code, witness_info_file))
