@@ -338,6 +338,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     Value *MemberValue;
     enum LexToken Token;
     int AlignBoundary;
+    bool ZeroTypeStruct = FALSE;
     Picoc *pc = Parser->pc;
 
     Token = LexGetToken(Parser, &LexValue, FALSE); // get name of struct
@@ -355,6 +356,18 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     // create or fetch struct/union Type in PicoC type system
     *Typ = TypeGetMatching(pc, Parser, &Parser->pc->UberType, IsStruct ? TypeStruct : TypeUnion, 0, StructIdentifier,
                            TRUE, nullptr);
+
+    if (Token == TokenLeftBrace) {
+        ParseState OldParser = *Parser;
+        LexGetToken(&(OldParser), nullptr, TRUE);
+        LexToken ZeroToken = LexGetToken(&(OldParser), nullptr, FALSE);
+        if (ZeroToken == TokenRightBrace) {
+            ZeroTypeStruct = TRUE;
+        } else {
+            ZeroTypeStruct = FALSE;
+        }
+    }
+
     if (Token == TokenLeftBrace && (*Typ)->Members != nullptr){ // consume the definition if struct already defined
         fprintf(stderr, "Warning: data type '%s' is already defined. Will skip this.", StructIdentifier);
         while (LexGetToken(Parser, nullptr, FALSE) != TokenRightBrace)
@@ -384,7 +397,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     TableInitTable((*Typ)->Members, (struct TableEntry **)((char *)(*Typ)->Members + sizeof(struct Table)), STRUCT_TABLE_SIZE, TRUE);
 
     // do the parsing of members if not zero element struct
-    if(!NO_ZERO_STRUCT && (*Typ)->Sizeof != 0) {
+    if(!NO_ZERO_STRUCT && !ZeroTypeStruct) {
         int IsConst;
         char ParseOnlyIdent = FALSE;
         //    char IsBitField = FALSE;
