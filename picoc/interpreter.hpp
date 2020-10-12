@@ -254,13 +254,9 @@ enum BaseType
     Type_Type,                   /* a type for storing types */
 };
 
-struct NonDetList
-{
-    char * isNonDet;
-
-    NonDetList () {
-        isNonDet = new char;
-    }
+struct NonDetList {
+    struct NonDetList * Next;
+    char * IsNonDet;
 };
 
 /* data type */
@@ -280,7 +276,7 @@ struct ValueType
     int StaticQualifier;            /* true if it's a static */
     // jsv
     char IsNonDet;                  /* flag for when the variable is non-deterministic */
-    struct NonDetList * NDList;     /* list of nd array element flags */
+    struct NonDetList *NDList;     /* list of nd array element flags */
 };
 
 /* function definition */
