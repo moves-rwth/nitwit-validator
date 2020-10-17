@@ -4,6 +4,10 @@
 
 #include "../interpreter.hpp"
 
+void VerifierAssertFail(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
+    Parser->VerifierErrorCalled = TRUE;
+}
+
 void VerifierError(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
     Parser->VerifierErrorCalled = TRUE;
 }
@@ -26,6 +30,7 @@ const char VerifDefs[] = "typedef unsigned short _Bool;"
 /* all verif.h functions */
 struct LibraryFunction VerifFunctions[] =
         {
+                {VerifierAssertFail, "void __assert_fail(const char *, const char *, unsigned int, const char *);"},
                 {VerifierError,  "void __VERIFIER_error();"},
                 {VerifierAssume, "void __VERIFIER_assume(int a);"},
                 {VerifierNonDet, "int __VERIFIER_nondet_int();"},
