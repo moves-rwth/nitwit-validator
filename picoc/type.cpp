@@ -8,28 +8,33 @@ static int PointerAlignBytes;
 static int IntAlignBytes;
 
 /* initiliaze NonDet Array List */
-void initNonDetList (NonDetList * head, int ArraySize) {
-    head = static_cast<NonDetList *>(malloc(sizeof(NonDetList)));
-    head->Next = NULL;
-    *(head->IsNonDet) = 0;
+void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
+    //auto head = static_cast<NonDetList *>(malloc(sizeof(NonDetList)));
+    NonDetList * b1 = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
+    NonDetList * b2 = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
+    NonDetList * b3 = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
+    NonDetList * b4 = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
 
-    auto * next = static_cast<NonDetList *>(malloc(sizeof(NonDetList)));
-    *(next->IsNonDet) = 0;
-    next->Next = NULL;
+    char * nd1 = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
+    char * nd2 = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
+    char * nd3 = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
+    char * nd4 = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
 
-    //head->Next = next;
-    //NonDetList * current = head;
+    b1->Next = b2;
+    b2->Next = b3;
+    b3->Next = b4;
+    b4->Next = NULL;
+  //  *(head->IsNonDet) = 0;
+    *(nd1) = 0;
+    *(nd2) = 0;
+    *(nd3) = 0;
+    *(nd4) = 0;
 
-    /*for(int i=1; i<ArraySize; i++) {
-        while(current->Next != NULL) {
-            current = current->Next;
-        }
-        /* add a new variable *//*
-        auto * next = static_cast<NonDetList *>(malloc(sizeof(NonDetList)));
-        *(next->IsNonDet) = 0;
-        next->Next = NULL;
-        current->Next = next;
-    }*/
+    b1->IsNonDet = nd1;
+    b2->IsNonDet = nd2;
+    b3->IsNonDet = nd3;
+    b4->IsNonDet = nd4;
+    Type->NDList = b1;
 }
 
 char getNonDetListElement(NonDetList * List, int ArrayIndex) {
@@ -108,7 +113,7 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
 #endif
             // TODO: array from type is deterministic -> nd in single values is missing
             case TypeArray:
-                    initNonDetList(Typ->NDList, Typ->ArraySize);
+                    initNonDetList(Parser, Typ, Typ->ArraySize);
                     Base = TypeGetMatching(Parser->pc, Parser,
                             TypeGetDeterministic(Parser, Typ->FromType),
                             Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet); break;
