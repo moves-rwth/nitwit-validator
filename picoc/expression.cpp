@@ -1905,9 +1905,9 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
             if (RunIt)
             {
                 if (FuncParser.Mode == RunModeRun && FuncValue->Val->FuncDef.ReturnType != &Parser->pc->VoidType && strcmp("main", FuncName) != 0)
-                    ProgramFail(&FuncParser, "no value returned from a function returning %t", FuncValue->Val->FuncDef.ReturnType);
+                    fprintf(stderr, "no value returned from a function returning %t", FuncValue->Val->FuncDef.ReturnType);
 
-                else if (FuncParser.Mode == RunModeGoto){
+                if (FuncParser.Mode == RunModeGoto){
                     do {
                         ParserCopyPos(&FuncParser, &FuncValue->Val->FuncDef.Body);
                         FuncParser.FreshGotoSearch = FALSE;
