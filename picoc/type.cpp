@@ -9,32 +9,23 @@ static int IntAlignBytes;
 
 /* initiliaze NonDet Array List */
 void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
-    //auto head = static_cast<NonDetList *>(malloc(sizeof(NonDetList)));
-    NonDetList * b1 = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
-    NonDetList * b2 = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
-    NonDetList * b3 = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
-    NonDetList * b4 = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
+    int det[4] = {1,1,0,0};
 
-    char * nd1 = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
-    char * nd2 = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
-    char * nd3 = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
-    char * nd4 = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
+    NonDetList * head = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
+    head->IsNonDet = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
+    *(head->IsNonDet) = det[0];
 
-    b1->Next = b2;
-    b2->Next = b3;
-    b3->Next = b4;
-    b4->Next = NULL;
-  //  *(head->IsNonDet) = 0;
-    *(nd1) = 0;
-    *(nd2) = 0;
-    *(nd3) = 0;
-    *(nd4) = 0;
+    NonDetList * temp = head;
 
-    b1->IsNonDet = nd1;
-    b2->IsNonDet = nd2;
-    b3->IsNonDet = nd3;
-    b4->IsNonDet = nd4;
-    Type->NDList = b1;
+    for(int i=1; i<ArraySize; i++) {
+        NonDetList * tail = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
+        tail->IsNonDet = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
+        *(tail->IsNonDet) = det[i];
+        temp->Next = tail;
+        temp = temp->Next;
+    }
+
+    Type->NDList = head;
 }
 
 char getNonDetListElement(NonDetList * List, int ArrayIndex) {
