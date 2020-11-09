@@ -9,18 +9,16 @@ static int IntAlignBytes;
 
 /* initiliaze NonDet Array List */
 void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
-    int det[4] = {1,1,0,0};
-
     NonDetList * head = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
     head->IsNonDet = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
-    *(head->IsNonDet) = det[0];
+    *(head->IsNonDet) = 0;
 
     NonDetList * temp = head;
 
     for(int i=1; i<ArraySize; i++) {
         NonDetList * tail = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
         tail->IsNonDet = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
-        *(tail->IsNonDet) = det[i];
+        *(tail->IsNonDet) = 0;
         temp->Next = tail;
         temp = temp->Next;
     }
