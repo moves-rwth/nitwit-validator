@@ -774,10 +774,16 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
 
         ArrayIndex = CoerceLongLong(TopValue);
 
+        // set nondet value for BottomValue when it is a nondet array
+        if(BottomValue->Typ->NDList != NULL) {
+            BottomValue->Typ->IsNonDet = getNonDetListElement(BottomValue->Typ->NDList, ArrayIndex);
+        }
+
         /* make the array element result */
         switch (BottomValue->Typ->Base)
         {
-            case TypeArray:   Result = VariableAllocValueFromExistingData(Parser,
+            case TypeArray:
+                Result = VariableAllocValueFromExistingData(Parser,
                                   TypeIsNonDeterministic(BottomValue->Typ) ? TypeGetNonDeterministic(Parser, BottomValue->Typ->FromType) : BottomValue->Typ->FromType,
                                   (union AnyValue *) (
                                           &BottomValue->Val->ArrayMem[0] +
@@ -785,7 +791,7 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
                                                    TRUE)),
                                   BottomValue->IsLValue,
                                   BottomValue->LValueFrom, nullptr); break;
-            //todo nondet pointer
+
             case TypePointer: Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType,
                                   (union AnyValue *) (
                                           (char *) BottomValue->Val->Pointer +

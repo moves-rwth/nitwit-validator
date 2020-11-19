@@ -19,10 +19,8 @@
  <key attr.name="creationTime" attr.type="string" for="graph" id="creationtime"/>
  <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
  <key attr.name="endline" attr.type="int" for="edge" id="endline"/>
- <key attr.name="startoffset" attr.type="int" for="edge" id="startoffset"/>
- <key attr.name="endoffset" attr.type="int" for="edge" id="endoffset"/>
  <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
-  <default>./SV-COMP_nan_float_.c</default>
+  <default>doc/examples/dArray_without_init.c</default>
  </key>
  <key attr.name="control" attr.type="string" for="edge" id="control"/>
  <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
@@ -33,52 +31,78 @@
  <graph edgedefault="directed">
   <data key="witness-type">violation_witness</data>
   <data key="sourcecodelang">C</data>
-  <data key="producer">CPAchecker 1.8-svn a776d662f5+ / kInduction</data>
-  <data key="specification">CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )</data>
-  <data key="programfile">./SV-COMP_nan_float_.c</data>
-  <data key="programhash">732c5a0c7e99ce1ebe0abb411ff994af4752be5fc25f5b400e29590b09449135</data>
+  <data key="producer">CPAchecker 1.9 / default</data>
+  <data key="specification">// This automaton contains the specification of the
+// Competition on Software Verification.
+// It checks only for calls to the __VERIFIER_error() functions
+// and also implements some functions which usually lead to a program abort.
+CONTROL AUTOMATON SVCOMP
+
+INITIAL STATE Init;
+
+STATE USEFIRST Init :
+  MATCH {__VERIFIER_error($?)} -&gt; ERROR("unreach-call: $rawstatement called in $location");
+  MATCH {__assert_fail($?)} || MATCH {abort($?)} || MATCH {exit($?)} -&gt; STOP;
+
+END AUTOMATON</data>
+  <data key="programfile">doc/examples/dArray_without_init.c</data>
+  <data key="programhash">1dbbb523c0c2bc9d90d22133cdff251388ec923b446db887d115cb73f0e92cba</data>
   <data key="architecture">32bit</data>
-  <data key="creationtime">2019-06-07T10:03:53+02:00</data>
-  <node id="A36">
+  <data key="creationtime">2020-10-09T13:56:50+02:00</data>
+  <node id="A0">
    <data key="entry">true</data>
   </node>
-  <node id="A60"/>
-  <edge source="A36" target="A60">
-   <data key="startline">8</data>
-   <data key="endline">8</data>
-   <data key="startoffset">377</data>
-   <data key="endoffset">387</data>
+  <node id="A11"/>
+  <edge source="A0" target="A11">
+   <data key="startline">4</data>
+   <data key="endline">4</data>
    <data key="enterFunction">main</data>
   </edge>
-  <node id="A81"/>
-  <edge source="A60" target="A81">
-   <data key="startline">13</data>
-   <data key="endline">13</data>
-   <data key="startoffset">437</data>
-   <data key="endoffset">458</data>
-   <data key="enterFunction">__VERIFIER_assert</data>
-  </edge>
-  <node id="A83">
-   <data key="violation">true</data>
-   <data key="violatedProperty">__VERIFIER_error(); called in line 6</data>
-  </node>
-  <edge source="A81" target="A83">
+  <node id="A18"/>
+  <edge source="A11" target="A18">
    <data key="startline">6</data>
    <data key="endline">6</data>
-   <data key="startoffset">328</data>
-   <data key="endoffset">331</data>
+   <data key="assumption">(arr[0]) == (3);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A19"/>
+  <edge source="A18" target="A19">
+   <data key="startline">7</data>
+   <data key="endline">7</data>
+   <data key="assumption">(arr[1]) == (2);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A20"/>
+  <edge source="A19" target="A20">
+   <data key="startline">8</data>
+   <data key="endline">8</data>
+   <data key="assumption">(arr[2]) == (2);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A21"/>
+  <edge source="A20" target="A21">
+   <data key="startline">9</data>
+   <data key="endline">9</data>
+   <data key="assumption">(arr[3]) == (1);</data>
+   <data key="assumption.scope">main</data>
+  </edge>
+  <node id="A22">
+   <data key="violation">true</data>
+   <data key="violatedProperty">unreach-call: __VERIFIER_error(); called in line 12</data>
+  </node>
+  <edge source="A21" target="A22">
+   <data key="startline">11</data>
+   <data key="endline">11</data>
    <data key="control">condition-true</data>
-   <data key="assumption">cond == (0);</data>
-   <data key="assumption.scope">__VERIFIER_assert</data>
+   <data key="assumption">(arr[0]) == (3);</data>
+   <data key="assumption.scope">main</data>
   </edge>
   <node id="sink">
    <data key="sink">true</data>
   </node>
-  <edge source="A81" target="sink">
-   <data key="startline">6</data>
-   <data key="endline">6</data>
-   <data key="startoffset">328</data>
-   <data key="endoffset">331</data>
+  <edge source="A21" target="sink">
+   <data key="startline">11</data>
+   <data key="endline">11</data>
    <data key="control">condition-false</data>
   </edge>
  </graph>

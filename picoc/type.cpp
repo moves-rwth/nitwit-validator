@@ -10,6 +10,43 @@
 static int PointerAlignBytes;
 static int IntAlignBytes;
 
+/* initiliaze NonDet Array List all nd (1) at start
+ * change to d (0) when element is initiliazed (assigned)
+ **/
+void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
+    NonDetList * head = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
+    head->IsNonDet = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
+    *(head->IsNonDet) = 1;
+
+    NonDetList * temp = head;
+
+    for(int i=1; i<ArraySize; i++) {
+        NonDetList * tail = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
+        tail->IsNonDet = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
+        *(tail->IsNonDet) = 1;
+        temp->Next = tail;
+        temp = temp->Next;
+    }
+
+    Type->NDList = head;
+}
+
+int getNonDetListElement(NonDetList * List, int ArrayIndex) {
+    struct NonDetList * current = List;
+    for (int i=0; i<ArrayIndex; i++) {
+        current = current->Next;
+    }
+    return *(current->IsNonDet);
+}
+
+void setNonDetListElement(NonDetList * List, int ArrayIndex, int nonDet) {
+    struct NonDetList * current = List;
+    for (int i=0; i<ArrayIndex; i++) {
+        current = current->Next;
+    }
+    *(current->IsNonDet) = nonDet;
+}
+
 int TypeIsNonDeterministic(struct ValueType *Typ) {
     return Typ->IsNonDet;
 }
@@ -76,11 +113,15 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
             case TypeDouble: Base = &Parser->pc->DoubleNDType; break;
             case TypeFloat: Base = &Parser->pc->FloatNDType; break;
 #endif
+            // TODO: array from type is deterministic -> nd in single values is missing
             case TypeArray:
-                    Base = TypeGetMatching(Parser->pc, Parser,
-                            TypeGetNonDeterministic(Parser, Typ->FromType),
-                            Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet); break;
-
+                Base = TypeGetMatching(Parser->pc, Parser,
+                         TypeGetDeterministic(Parser, Typ->FromType),
+                         Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet);
+                if (Base->NDList == NULL) {
+                    initNonDetList(Parser, Base, Base->ArraySize);
+                }
+                break;
             case TypePointer: //Base = Parser->pc->VoidPtrType; break;
                 Base = TypeGetMatching(Parser->pc, Parser,
                                 TypeGetNonDeterministic(Parser, Typ->FromType),

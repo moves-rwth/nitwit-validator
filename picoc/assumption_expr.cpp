@@ -707,17 +707,23 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
 
         ArrayIndex = CoerceLongLong(TopValue);
 
+        // set nondet value for BottomValue when it is a nondet array
+        if(BottomValue->Typ->NDList != NULL) {
+            BottomValue->Typ->IsNonDet = getNonDetListElement(BottomValue->Typ->NDList, ArrayIndex);
+        }
+
         /* make the array element result */
         switch (BottomValue->Typ->Base)
         {
-            case TypeArray:   Result = VariableAllocValueFromExistingData(Parser,
-                    TypeIsNonDeterministic(BottomValue->Typ) ? TypeGetNonDeterministic(Parser, BottomValue->Typ->FromType) : BottomValue->Typ->FromType,
-                                                                          (union AnyValue *) (
-                                                                                  &BottomValue->Val->ArrayMem[0] +
-                                                                                  TypeSize(BottomValue->Typ, ArrayIndex,
-                                                                                           TRUE)),
-                                                                          BottomValue->IsLValue,
-                                                                          BottomValue->LValueFrom, nullptr); break;
+            case TypeArray:
+                Result = VariableAllocValueFromExistingData(Parser,
+                            TypeIsNonDeterministic(BottomValue->Typ) ? TypeGetNonDeterministic(Parser, BottomValue->Typ->FromType) : BottomValue->Typ->FromType,
+                                                      (union AnyValue *) (
+                                                                &BottomValue->Val->ArrayMem[0] +
+                                                                TypeSize(BottomValue->Typ, ArrayIndex,
+                                                                TRUE)),
+                                                                BottomValue->IsLValue,
+                                                                BottomValue->LValueFrom, nullptr); break;
             case TypePointer: Result = VariableAllocValueFromExistingData(Parser, BottomValue->Typ->FromType,
                                                                           (union AnyValue *) (
                                                                                   (char *) BottomValue->Val->Pointer +
@@ -728,6 +734,7 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
             default:          ProgramFail(Parser, "this %t is not an array", BottomValue->Typ);
         }
 
+        /* push new value node, no value set yet */
         AssumptionExpressionStackPushValueNode(Parser, StackTop, Result);
     }
     else if (Op == TokenQuestionMark)
@@ -1840,7 +1847,7 @@ long long AssumptionExpressionParseLongLong(struct ParseState *Parser)
     if (!AssumptionExpressionParse(Parser, &Val))
         ProgramFail(Parser, "expression expected");
 
-    //fprintf(stdout, "Parser Adress, Value: %p, %i\n",(void *)Val, Val->Val->Integer);
+    fprintf(stdout, "Parser Adress, Value: %p, %i\n",(void *)Val, Val->Val->Integer);
 
     if (Parser->Mode == RunModeRun)
     {
