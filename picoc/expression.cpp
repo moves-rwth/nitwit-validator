@@ -774,17 +774,11 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
 
         ArrayIndex = CoerceLongLong(TopValue);
 
-        // TODO NonDet List is broken, not complete at this point anymore
-       /*char isNonDet;
+        // set nondet value for BottomValue when it is a nondet array
         if(BottomValue->Typ->NDList != NULL) {
-            isNonDet = getNonDetListElement(BottomValue->Typ->NDList, ArrayIndex);
-        } else {
-            isNonDet = TypeIsNonDeterministic(BottomValue->Typ);
+            BottomValue->Typ->IsNonDet = getNonDetListElement(BottomValue->Typ->NDList, ArrayIndex);
         }
 
-        BottomValue->Typ->IsNonDet = isNonDet;
-        BottomValue->Typ->FromType->IsNonDet = (isNonDet+1)%2;
-        */
         /* make the array element result */
         switch (BottomValue->Typ->Base)
         {

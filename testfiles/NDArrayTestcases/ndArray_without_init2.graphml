@@ -20,7 +20,7 @@
  <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
  <key attr.name="endline" attr.type="int" for="edge" id="endline"/>
  <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
-  <default>doc/examples/ndArray_with_init.c</default>
+  <default>doc/examples/ndArray_without_init2.c</default>
  </key>
  <key attr.name="control" attr.type="string" for="edge" id="control"/>
  <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
@@ -45,57 +45,50 @@ STATE USEFIRST Init :
   MATCH {__assert_fail($?)} || MATCH {abort($?)} || MATCH {exit($?)} -&gt; STOP;
 
 END AUTOMATON</data>
-  <data key="programfile">doc/examples/ndArray_with_init.c</data>
-  <data key="programhash">0149b69f30b06bc75f1543db02d9f6dfc65e2dfab26553042a6fb84f8c7c7d5f</data>
+  <data key="programfile">doc/examples/ndArray_without_init2.c</data>
+  <data key="programhash">57415f4b4cdf0c37aeaba4925efbfc5586956f2c4a035b004ba8572e68d3d36b</data>
   <data key="architecture">32bit</data>
-  <data key="creationtime">2020-11-09T16:10:48+01:00</data>
+  <data key="creationtime">2020-11-18T20:01:55+01:00</data>
   <node id="A0">
    <data key="entry">true</data>
   </node>
-  <node id="A5"/>
-  <edge source="A0" target="A5">
+  <node id="A6"/>
+  <edge source="A0" target="A6">
    <data key="startline">4</data>
    <data key="endline">4</data>
    <data key="enterFunction">main</data>
   </edge>
-  <node id="A22"/>
-  <edge source="A5" target="A22">
-   <data key="startline">5</data>
-   <data key="endline">5</data>
-   <data key="assumption">x1 == (-1);</data>
-   <data key="assumption.scope">main</data>
-  </edge>
-  <node id="A24"/>
-  <edge source="A22" target="A24">
+  <node id="A42"/>
+  <edge source="A6" target="A42">
    <data key="startline">6</data>
    <data key="endline">6</data>
-   <data key="assumption">x2 == (0);</data>
+   <data key="assumption">(arr[0]) == (2);</data>
    <data key="assumption.scope">main</data>
   </edge>
-  <node id="A66"/>
-  <edge source="A24" target="A66">
+  <node id="A73"/>
+  <edge source="A42" target="A73">
    <data key="startline">7</data>
    <data key="endline">7</data>
-   <data key="assumption">(arr[0]) == (-1);</data>
+   <data key="assumption">(arr[1]) == (2);</data>
    <data key="assumption.scope">main</data>
   </edge>
-  <node id="A73">
+  <node id="A87">
    <data key="violation">true</data>
-   <data key="violatedProperty">unreach-call: __VERIFIER_error(); called in line 9</data>
+   <data key="violatedProperty">unreach-call: __VERIFIER_error(); called in line 10</data>
   </node>
-  <edge source="A66" target="A73">
-   <data key="startline">8</data>
-   <data key="endline">8</data>
+  <edge source="A73" target="A87">
+   <data key="startline">9</data>
+   <data key="endline">9</data>
    <data key="control">condition-true</data>
-   <data key="assumption">(arr[0]) == (-1);</data>
+   <data key="assumption">(arr[0]) == (2); (arr[1]) == (2);</data>
    <data key="assumption.scope">main</data>
   </edge>
   <node id="sink">
    <data key="sink">true</data>
   </node>
-  <edge source="A66" target="sink">
-   <data key="startline">8</data>
-   <data key="endline">8</data>
+  <edge source="A73" target="sink">
+   <data key="startline">9</data>
+   <data key="endline">9</data>
    <data key="control">condition-false</data>
   </edge>
  </graph>

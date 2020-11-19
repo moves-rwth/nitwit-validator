@@ -661,7 +661,8 @@ int TypeIsForwardDeclared(struct ParseState *Parser, struct ValueType *Typ);
 int TypeIsNonDeterministic(struct ValueType *Typ);
 /* array element non deterministic type functions */
 void initNonDetList(struct ParseState * Parser, struct ValueType * Type, int ArraySize);
-char getNonDetListElement(NonDetList * List, int ArrayIndex);
+int getNonDetListElement(NonDetList * List, int ArrayIndex);
+void setNonDetListElement(NonDetList * List, int ArrayIndex, int nonDet);
 struct ValueType* TypeGetDeterministic(struct ParseState * Parser, struct ValueType * Typ);
 struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct ValueType * Typ);
 int TypeIsUnsigned(struct ValueType * Typ);
