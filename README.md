@@ -81,7 +81,7 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
 ## Docker
 For ease of usage, we provide a Docker image for our tool. To build it, install Docker and run
 `docker build . -t nitwit:latest` in the project root directory.
-Docker builds NITWIT in a Ubuntu 18.04 container and builds it with debug configuration enabled.
+Docker builds NITWIT in a Ubuntu 20.04 container and builds it with debug configuration enabled.
 This lets you see the explored trace and resolved assumptions during validation.
 
 As an example, suppose you would like to validate a witness from SV-COMP'19, for instance for the following recursive program:
