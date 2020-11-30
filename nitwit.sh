@@ -17,7 +17,7 @@ while [ -n "$1" ] ; do
     -p|--property) PROPERTY_FILE="$2" ; shift 2 ;;
     -w|--witness) WITNESS_FILE="$2" ; shift 2 ;;
     -v|--version)
-      echo "1.1.2" ; exit 0 ;;
+      echo "1.1.3" ; exit 0 ;;
     -h|--help)
       echo "Usage: ./nitwit.sh -v/--version
        ./nitwit.sh -w/--witness <witness-file> [-p/--property <property-file>] <C-program>
@@ -42,7 +42,7 @@ fi
 if [[ "$PROPERTY_FILE" != "" ]]
 then
   PROPERTY_STRING=`cat $PROPERTY_FILE | tr -d "[:space:]"`
-  if [[ $PROPERTY_STRING != "CHECK(init(main()),LTL(G!call(__VERIFIER_error())))" ]]
+  if [[ $PROPERTY_STRING != "CHECK(init(main()),LTL(G!call(__VERIFIER_error())))" && $PROPERTY_STRING != "CHECK(init(main()),LTL(G!call(reach_error())))" ]]
   then
     echo "Not supported property ${PROPERTY_STRING}. Nitwit only supports reachability safety."
     exit 255
