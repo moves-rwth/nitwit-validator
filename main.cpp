@@ -73,10 +73,11 @@ void handleDebugBreakpoint(struct ParseState *ps) {
     }
 }
 
-int validate(const char *source_filename) {
+int validate(const char* source_filename, const char* error_function_name) {
 
     Picoc pc;
     PicocInitialise(&pc, 104857600); // stack size of 100 MiB
+	pc.VerifierErrorFuncName = error_function_name;
 
     // the interpreter will jump here after finding a violation
     if (PicocPlatformSetExitPoint(&pc)) {
@@ -115,8 +116,8 @@ int validate(const char *source_filename) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) {
-        printf("Usage: <nitwit> witness.graphml source-file.c\n");
+    if (argc < 4) {
+        printf("Usage: <nitwit> witness.graphml source-file.c errorFunctionName\n");
         return 3;
     }
 
@@ -134,16 +135,18 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-	// ckeck if witness automaton has type viloation witness
+	// check if witness automaton has type violation witness
     if (!wit_aut->getData().witness_type.empty() && wit_aut->getData().witness_type != "violation_witness"){
         printf("UNKNOWN: NITWIT expects a violation witness yet a different type was specified: %s.\n",
                 wit_aut->getData().witness_type.c_str());
         return RESULT_UNKNOWN;
     }
 
-    int exit_value = validate(argv[2]);
+    int exit_value = validate(argv[2], argv[3]);
+    printf("Witness in violation state: %s\n", wit_aut->isInViolationState() ? "yes" : "no");
+    printf("Error function \"%s\" called during execution: %s\n", argv[3], wit_aut->wasVerifierErrorCalled() ? "yes" : "no");
 
-	// check wether we finished in a violation state and if __VERIFIER_error was called
+	// check whether we finished in a violation state and if __VERIFIER_error was called
     if ((!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) &&
         (exit_value >= NO_WITNESS_CODE && exit_value <= ALREADY_DEFINED)) {
         cw_verbose("WitnessAutomaton finished in state %s, with error code %d.\n", wit_aut->getCurrentState()->id.c_str(),
@@ -184,13 +187,14 @@ int main(int argc, char **argv) {
         }
     } else {
         printf("UNKNOWN: A different error occurred, probably a parsing error or program exited.\n");
-        exit_value =  RESULT_UNKNOWN;
+        exit_value = RESULT_UNKNOWN;
     }
 #ifdef VERBOSE
     double mem, cpu; process_resource_usage(mem, cpu);
     fprintf(stderr, " ##VM_PEAK## %f\n", mem);
     fprintf(stderr, " ##CPU_TIME## %f\n", cpu);
 #endif
+    printf("Return Code: %i\n", exit_value);
     return exit_value;
 }
 

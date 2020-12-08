@@ -1874,6 +1874,12 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
         if (ArgCount < FuncValue->Val->FuncDef.NumParams)
             ProgramFail(Parser, "not enough arguments to '%s'", FuncName);
 
+		// We are entering a function, this might be a function hooked as the "error" function
+		if ((Parser->pc->VerifierErrorFuncName != nullptr) && (strcmp(FuncName, Parser->pc->VerifierErrorFuncName) == 0)) {
+			printf("Detected call to marked error function \"%s\"!\n", Parser->pc->VerifierErrorFuncName);
+			Parser->VerifierErrorCalled = TRUE;
+		}
+
         if (FuncValue->Val->FuncDef.Intrinsic == nullptr)
         {
             /* run a user-defined function */

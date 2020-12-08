@@ -49,7 +49,16 @@ then
   fi
 fi
 
+PROPERTY="__VERIFIER_error"
+if [[ $PROPERTY_STRING == *"__VERIFIER_error"* ]]; then
+  PROPERTY="__VERIFIER_error"
+elif [[ $PROPERTY_STRING == *"reach_error"* ]]; then
+  PROPERTY="reach_error"
+else
+  echo "Unhandled error property, contact a developer!"
+  exit 255
+fi
 
 SUFFIX="${ARCHITECTURE:1:2}"
-echo "./bin/nitwit${SUFFIX} ${WITNESS_FILE} ${PROGRAM}" 
-./bin/nitwit$SUFFIX $WITNESS_FILE $PROGRAM
+echo "./bin/nitwit${SUFFIX} ${WITNESS_FILE} ${PROGRAM} ${PROPERTY}" 
+./bin/nitwit$SUFFIX $WITNESS_FILE $PROGRAM $PROPERTY

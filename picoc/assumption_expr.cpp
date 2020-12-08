@@ -1847,8 +1847,6 @@ long long AssumptionExpressionParseLongLong(struct ParseState *Parser)
     if (!AssumptionExpressionParse(Parser, &Val))
         ProgramFail(Parser, "expression expected");
 
-    fprintf(stdout, "Parser Adress, Value: %p, %i\n",(void *)Val, Val->Val->Integer);
-
     if (Parser->Mode == RunModeRun)
     {
         if (!IS_NUMERIC_COERCIBLE(Val))

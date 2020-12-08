@@ -552,6 +552,9 @@ struct Picoc_Struct
     int BreakpointCount;
     int DebugManualBreak;
     
+	/* Verifier Error Function Name, if any */
+	const char *VerifierErrorFuncName;
+	
     /* C library */
     int BigEndian;
     int LittleEndian;

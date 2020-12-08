@@ -41,6 +41,27 @@ else
   then
     mkdir bin
   fi
+
+  # Copy Files
   cp cmake-build-release/nitwit32 bin/.
   cp cmake-build-release/nitwit64 bin/.
+
+  # Submission Archive
+  mkdir -p submission/nitwit/bin
+  mkdir -p submission/nitwit/picoc
+
+  cp cmake-build-release/nitwit32 submission/nitwit/bin/
+  cp cmake-build-release/nitwit64 submission/nitwit/bin/
+  cp LICENSE submission/nitwit/
+  cp picoc/LICENSE submission/nitwit/picoc/
+  cp nitwit.sh submission/nitwit/
+  cp README.md submission/nitwit/
+
+  chmod +x submission/nitwit/bin/nitwit32
+  chmod +x submission/nitwit/bin/nitwit64
+  chmod +x submission/nitwit/nitwit.sh
+
+  pushd submission
+  zip -r val_nitwit.zip nitwit
+  popd
 fi
