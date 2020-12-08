@@ -17,7 +17,7 @@ while [ -n "$1" ] ; do
     -p|--property) PROPERTY_FILE="$2" ; shift 2 ;;
     -w|--witness) WITNESS_FILE="$2" ; shift 2 ;;
     -v|--version)
-      echo "1.1.3" ; exit 0 ;;
+      echo "1.1.4" ; exit 0 ;;
     -h|--help)
       echo "Usage: ./nitwit.sh -v/--version
        ./nitwit.sh -w/--witness <witness-file> [-p/--property <property-file>] <C-program>
