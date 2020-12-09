@@ -101,6 +101,10 @@ std::shared_ptr<Data> parseData(pugi::xpath_node_set const& set) {
 }
 
 std::size_t stringToSizeT(std::string const& s) {
+	if (s.empty()) {
+		// Special case, atoi does this as well.
+		return 0;
+	}
 	try {
 		if (sizeof(std::size_t) == sizeof(unsigned long)) {
 			return static_cast<std::size_t>(std::stoul(s));
@@ -111,11 +115,16 @@ std::size_t stringToSizeT(std::string const& s) {
 			throw;
 		}
 	} catch (std::invalid_argument const& iae) {
+		std::cerr << "Failed to convert string '" << s << "' to size_t!" << std::endl;
 		return 0;
 	}
 }
 
 std::size_t stringToSizeT(char const* s) {
+	if ((s == nullptr) || (*s == '\0')) {
+		// Special case, atoi does this as well.
+		return 0;
+	}
 	try {
 		if (sizeof(std::size_t) == sizeof(unsigned long)) {
 			return static_cast<std::size_t>(std::strtoul(s, nullptr, 10));
@@ -126,6 +135,7 @@ std::size_t stringToSizeT(char const* s) {
 			throw;
 		}
 	} catch (std::invalid_argument const& iae) {
+		std::cerr << "Failed to convert string '" << s << "' to size_t!" << std::endl;
 		return 0;
 	}
 }
