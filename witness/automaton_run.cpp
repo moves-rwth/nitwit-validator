@@ -166,11 +166,11 @@ bool WitnessAutomaton::canTransitionFurther() {
 }
 
 #define UNSUCCESSFUL_TRIES_LIMIT 1000000
-int UnsuccessfullTries = 0;
+int unsuccessfulTries = 0;
 void WitnessAutomaton::consumeState(ParseState *state) {
-    ++UnsuccessfullTries;
+    ++unsuccessfulTries;
 #ifdef ENABLE_TRANSITION_LIMIT
-    if (UnsuccessfullTries > UNSUCCESSFUL_TRIES_LIMIT){
+    if (unsuccessfulTries > UNSUCCESSFUL_TRIES_LIMIT) {
         ProgramFail(state, "limit to unsuccessful transitions exceeded");
     }
 #endif
@@ -182,7 +182,7 @@ void WitnessAutomaton::consumeState(ParseState *state) {
 
     bool could_go_to_sink = false;
     state->pc->IsInAssumptionMode = TRUE;
-    for (const auto &edge: successor_rel.find(current_state->id)->second) {
+    for (auto const& edge: successor_rel.find(current_state->id)->second) {
 #ifdef REQUIRE_MATCHING_ORIGINFILENAME
         if (!edge->origin_file.empty() && baseFileName(edge->origin_file) != baseFileName(string(state->FileName))) {
             continue;
@@ -232,7 +232,7 @@ void WitnessAutomaton::consumeState(ParseState *state) {
         current_state = nodes.find(edge->target_id)->second;
         cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
         state->pc->IsInAssumptionMode = FALSE;
-        UnsuccessfullTries = 0; // reset counter
+		unsuccessfulTries = 0; // reset counter
         return;
     }
 
