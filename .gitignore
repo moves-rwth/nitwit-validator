@@ -65,6 +65,8 @@ bench/bin
 val_nitwit.zip
 
 # build output
+build/
+submission/
 bin
 /nitwit/
 debug

@@ -165,29 +165,29 @@ int main(int argc, char **argv) {
 
 		// check whether we finished in a state where __VERIFIER_error was called
 		if (wit_aut->wasVerifierErrorCalled()) {
-			std::cout << ", __VERIFIER_error was called.";
+			std::cout << ", error function '" << argv[3] << "' was called.";
 		} else {
-			std::cout << ", __VERIFIER_error was never called.";
+			std::cout << ", error function '" << argv[3] << "' was never called.";
 		}
 		std::cout << std::endl;
 	} else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
-		std::cout << " #*# FAILED: __VERIFIER_error was never called, even though witness IS in violation state." << std::endl;
+		std::cout << " #*# FAILED: The error function '" << argv[3] << "' was never called, even though the witness IS in a violation state." << std::endl;
 		exit_value = UNVALIDATED_VIOLATION;
 	} else if (wit_aut->wasVerifierErrorCalled()) {
 		std::cout << std::endl;
 		if (wit_aut->isInViolationState()) {
-			std::cout << "VALIDATED: The state: " << wit_aut->getCurrentState()->id << " has been reached. It is a violation state." << std::endl;
+			std::cout << "VALIDATED: The state '" << wit_aut->getCurrentState()->id << "' has been reached. The state is a violation state." << std::endl;
 			exit_value = 0;
 		} else {
 #ifdef STRICT_VALIDATION
-			std::cout << "FAILED: __VERIFIER_error was called and the state: " << wit_aut->getCurrentState()->id << " has been reached. However, it is NOT a violation state." << std::endl;
+			std::cout << "FAILED: The error function '" << argv[3] << "' was called and the state '" << wit_aut->getCurrentState()->id << "' has been reached. However, this state is NOT a violation state. (strict mode)" << std::endl;
 #else
-			std::cout << "VALIDATED: The state: " << wit_aut->getCurrentState()->id << " has been reached. However, it is NOT a violation state." << std::endl;
+			std::cout << "VALIDATED: The error function '" << argv[3] << "' was called and the state '" << wit_aut->getCurrentState()->id << "' has been reached. However, this state is NOT a violation state. (non-strict mode)" << std::endl;
 #endif
 			exit_value = PROGRAM_FINISHED_WITH_VIOLATION_THOUGH_NOT_IN_VIOLATION_STATE;
 		}
 	} else {
-		std::cout <<  "UNKNOWN: A different error occurred, probably a parsing error or program exited." << std::endl;
+		std::cout <<  "UNKNOWN: An unhandled error/termination occurred, probably a parsing error or program exited." << std::endl;
 		exit_value = RESULT_UNKNOWN;
 	}
 #ifdef VERBOSE

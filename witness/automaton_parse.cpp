@@ -101,24 +101,32 @@ std::shared_ptr<Data> parseData(pugi::xpath_node_set const& set) {
 }
 
 std::size_t stringToSizeT(std::string const& s) {
-	if (sizeof(std::size_t) == sizeof(unsigned long)) {
-		return static_cast<std::size_t>(std::stoul(s));
-	} else if (sizeof(std::size_t) == sizeof(unsigned long long)) {
-		return static_cast<std::size_t>(std::stoull(s));
-	} else {
-		// Unhandled size of size_t
-		throw;
+	try {
+		if (sizeof(std::size_t) == sizeof(unsigned long)) {
+			return static_cast<std::size_t>(std::stoul(s));
+		} else if (sizeof(std::size_t) == sizeof(unsigned long long)) {
+			return static_cast<std::size_t>(std::stoull(s));
+		} else {
+			// Unhandled size of size_t
+			throw;
+		}
+	} catch (std::invalid_argument const& iae) {
+		return 0;
 	}
 }
 
 std::size_t stringToSizeT(char const* s) {
-	if (sizeof(std::size_t) == sizeof(unsigned long)) {
-		return static_cast<std::size_t>(std::strtoul(s, nullptr, 10));
-	} else if (sizeof(std::size_t) == sizeof(unsigned long long)) {
-		return static_cast<std::size_t>(std::strtoull(s, nullptr, 10));
-	} else {
-		// Unhandled size of size_t
-		throw;
+	try {
+		if (sizeof(std::size_t) == sizeof(unsigned long)) {
+			return static_cast<std::size_t>(std::strtoul(s, nullptr, 10));
+		} else if (sizeof(std::size_t) == sizeof(unsigned long long)) {
+			return static_cast<std::size_t>(std::strtoull(s, nullptr, 10));
+		} else {
+			// Unhandled size of size_t
+			throw;
+		}
+	} catch (std::invalid_argument const& iae) {
+		return 0;
 	}
 }
 
@@ -142,7 +150,6 @@ std::shared_ptr<Edge> getDefaultEdge(std::shared_ptr<DefaultKeyValues> const& de
 	e->enterLoopHead = (def_values->getDefault("enterLoopHead").default_val == "true");
 
 	// integers
-	// todo startline isn't an int though, but size_t. Is that ok?
 	e->start_line = stringToSizeT(def_values->getDefault("startline").default_val);
 	e->start_line = stringToSizeT(def_values->getDefault("endline").default_val);
 	e->start_offset = stringToSizeT(def_values->getDefault("startoffset").default_val);
