@@ -1916,8 +1916,11 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
 
             if (RunIt)
             {
-                if (FuncParser.Mode == RunModeRun && FuncValue->Val->FuncDef.ReturnType != &Parser->pc->VoidType && strcmp("main", FuncName) != 0)
-                    fprintf(stderr, "no value returned from a function returning %t", FuncValue->Val->FuncDef.ReturnType);
+                if (FuncParser.Mode == RunModeRun && FuncValue->Val->FuncDef.ReturnType != &Parser->pc->VoidType && strcmp("main", FuncName) != 0) {
+					fprintf(stderr, "no value returned from a function returning ");
+					PrintType(FuncValue->Val->FuncDef.ReturnType, stderr);
+					fprintf(stderr, "\n");
+                }
 
                 if (FuncParser.Mode == RunModeGoto){
                     do {

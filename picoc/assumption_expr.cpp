@@ -1820,10 +1820,11 @@ void AssumptionExpressionParseFunctionCall(struct ParseState *Parser, struct Exp
 
             if (RunIt)
             {
-                if (FuncParser.Mode == RunModeRun && FuncValue->Val->FuncDef.ReturnType != &Parser->pc->VoidType)
-                    fprintf(stderr, "no value returned from a function returning %t", FuncValue->Val->FuncDef.ReturnType);
-
-                else if (FuncParser.Mode == RunModeGoto)
+                if (FuncParser.Mode == RunModeRun && FuncValue->Val->FuncDef.ReturnType != &Parser->pc->VoidType) {
+					fprintf(stderr, "no value returned from a function returning ");
+					PrintType(FuncValue->Val->FuncDef.ReturnType, stderr);
+					fprintf(stderr, "\n");
+                } else if (FuncParser.Mode == RunModeGoto)
                     ProgramFail(&FuncParser, "couldn't find goto label '%s'", FuncParser.SearchGotoLabel);
             }
 

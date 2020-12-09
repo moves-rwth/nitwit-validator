@@ -484,7 +484,7 @@ void StdioPerror(struct ParseState *Parser, Value *ReturnValue, Value **Param, i
 
 void StdioPutc(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
-    ReturnValue->Val->Integer = putc(Param[0]->Val->Integer, (_IO_FILE*)Param[1]->Val->Pointer);
+    ReturnValue->Val->Integer = putc(Param[0]->Val->Integer, (FILE*)Param[1]->Val->Pointer);
 }
 
 void StdioPutchar(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)

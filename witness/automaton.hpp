@@ -7,6 +7,8 @@
 
 #include "../picoc/picoc.hpp"
 
+#include <iostream>
+
 #undef min
 
 #include <cstddef>
@@ -22,11 +24,9 @@
 #include <algorithm>
 #include <iostream>
 
-using namespace std;
 #ifdef VERBOSE
 #define cw_verbose printf
 #else
-
 void cw_verbose(const string& Format, ...);
 #endif
 
@@ -45,16 +45,16 @@ class ProgramState;
 
 class Node {
 public:
-    string id;
-    string node_type;
-    string invariant;
-    string invariant_scope;
+    std::string id;
+	std::string node_type;
+	std::string invariant;
+	std::string invariant_scope;
     bool is_entry{};
     bool is_violation{};
     bool is_sink{};
     bool is_frontier{};
     bool is_loopHead{};
-    size_t thread_number{};
+	std::size_t thread_number{};
 
     void print() const;
 };
@@ -62,87 +62,89 @@ public:
 
 class Edge {
 public:
-    string source_id;
-    string target_id;
-    string origin_file;
-    string assumption;
-    string assumption_scope;
-    string assumption_result_function;
-    string enter_function;
-    string return_from_function;
-    string source_code;
-    string control;
+	std::string source_id;
+	std::string target_id;
+	std::string origin_file;
+	std::string assumption;
+	std::string assumption_scope;
+	std::string assumption_result_function;
+	std::string enter_function;
+	std::string return_from_function;
+	std::string source_code;
+	std::string control;
     ConditionControl controlCondition;
-    size_t start_line;
-    size_t end_line;
-    size_t start_offset;
-    size_t end_offset;
+	std::size_t start_line;
+	std::size_t end_line;
+	std::size_t start_offset;
+	std::size_t end_offset;
     bool enterLoopHead;
 
     void print() const;
 };
 
 struct Key {
-    string name;
-    string type;
-    string for_;
-    string id;
-    string default_val;
+	std::string name;
+	std::string type;
+	std::string for_;
+	std::string id;
+	std::string default_val;
 
-    Key() : name(""), type(""), for_(""), id(""), default_val("") {}
+    Key() : name(), type(), for_(), id(), default_val() {}
 
-    Key(string name, string type, string for_, string id, string defaultVal) :
+    Key(std::string&& name, std::string&& type, std::string&& for_, std::string&& id, std::string&& defaultVal) :
             name(std::move(name)), type(std::move(type)), for_(std::move(for_)),
             id(std::move(id)), default_val(std::move(defaultVal)) {}
 
     static void printKey(Key *k) {
-        printf("name: %s\ttype: %s\tfor: %s\tid: %s\tdef: %s\n", k->name.c_str(), k->type.c_str(), k->for_.c_str(),
-               k->id.c_str(), k->default_val.c_str());
+        std::cout << "name: " << k->name;
+		std::cout << "\t" << "type: " << k->type;
+		std::cout << "\t" << "for: " << k->for_;
+		std::cout << "\t" << "id: " << k->id;
+		std::cout << "\t" << "def: " << k->default_val << std::endl;
     }
 };
 
 class DefaultKeyValues {
-    map<string, Key> default_keys;
+    std::map<std::string, Key> default_keys;
 
 public:
-    void addKey(const Key &k);
+    void addKey(Key const& k);
 
-    Key getDefault(const string &id) const;
+    Key getDefault(std::string const & id) const;
 
     void print() const;
 };
 
 struct Data {
-    string source_code_lang;
-    string program_file;
-    string program_hash;
-    string specification;
-    string architecture;
-    string producer;
-    string witness_type;
+	std::string source_code_lang;
+	std::string program_file;
+	std::string program_hash;
+	std::string specification;
+	std::string architecture;
+	std::string producer;
+	std::string witness_type;
 
     void print() const;
 };
 
 class WitnessAutomaton {
 
-    map<string, shared_ptr<Node>> nodes;
-    vector<shared_ptr<Edge>> edges;
+	std::map<std::string, std::shared_ptr<Node>> nodes;
+	std::vector<std::shared_ptr<Edge>> edges;
     Data data;
-    shared_ptr<Node> current_state;
+	std::shared_ptr<Node> current_state;
 
-    map<string, set<shared_ptr<Edge>>> successor_rel;
-    map<string, set<shared_ptr<Edge>>> predecessor_rel;
+	std::map<std::string, std::set<std::shared_ptr<Edge>>> successor_rel;
+	std::map<std::string, std::set<std::shared_ptr<Edge>>> predecessor_rel;
     bool illegal_state = false;
     bool verifier_error_called = false;
 
 public:
-    WitnessAutomaton(const map<string, shared_ptr<Node>> &nodes, const vector<shared_ptr<Edge>> &edges,
-                     shared_ptr<Data> &data);
+    WitnessAutomaton(std::map<std::string, std::shared_ptr<Node>> const& nodes, std::vector<std::shared_ptr<Edge>> const& edges, std::shared_ptr<Data> &data);
 
     WitnessAutomaton();
 
-    const Data &getData() const;
+    Data const& getData() const;
 
     void printData() const;
 
@@ -152,7 +154,7 @@ public:
 
     bool isInIllegalState() const;
 
-    static shared_ptr<WitnessAutomaton> automatonFromWitness(const shared_ptr<pugi::xml_document> &doc);
+    static std::shared_ptr<WitnessAutomaton> automatonFromWitness(std::shared_ptr<pugi::xml_document> const& doc);
 
     bool isInViolationState() const;
 
@@ -160,7 +162,7 @@ public:
 
     bool wasVerifierErrorCalled() const;
 
-    const shared_ptr<Node> &getCurrentState() const;
+    const std::shared_ptr<Node> &getCurrentState() const;
 
     bool canTransitionFurther();
 };
