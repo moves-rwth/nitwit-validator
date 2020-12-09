@@ -3,31 +3,32 @@
 //
 
 #include "witness.hpp"
+#include <iostream>
 
-shared_ptr<pugi::xml_document> parseGraphmlWitness(const string &filename) {
+std::shared_ptr<pugi::xml_document> parseGraphmlWitness(std::string const& filename) {
     if (filename.empty()) {
-        fprintf(stderr, "No witness file name provided.\n");
+        std::cerr << "No witness file name provided." << std::endl;
         return nullptr;
     }
-    auto doc = make_shared<pugi::xml_document>();
+    auto doc = std::make_shared<pugi::xml_document>();
     pugi::xml_node root;
 
     pugi::xml_parse_result parseResult = doc->load_file(filename.c_str());
 
     if (!parseResult) {
-        fprintf(stderr, "Failed to parse witness file. Reason: %s\n", parseResult.description());
+        std::cerr << "Failed to parse witness file. Reason: " << parseResult.description() << std::endl;
         return nullptr;
     }
 
     root = doc->root();
 
     if (!root || !root.first_child()) {
-        fprintf(stderr, "Witness file is empty.\n");
+        std::cerr << "Witness file is empty." << std::endl;
         return nullptr;
     }
 
     if (strcmp(root.first_child().name(), "graphml") != 0) {
-        fprintf(stderr, "Witness isn't a GraphML document. Root element=%s\n", root.name());
+        std::cerr << "Witness isn't a GraphML document. Root element=" << root.name() << std::endl;
         return nullptr;
     }
     return doc;

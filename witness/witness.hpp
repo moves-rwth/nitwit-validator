@@ -10,9 +10,7 @@
 #include <cstring>
 #include <memory>
 
-using namespace std;
-
-shared_ptr<pugi::xml_document> parseGraphmlWitness(const string &filename);
+std::shared_ptr<pugi::xml_document> parseGraphmlWitness(std::string const& filename);
 
 
 #endif //NITWIT_WITNESS_HPP
