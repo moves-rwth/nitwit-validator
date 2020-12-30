@@ -16,6 +16,7 @@ WITNESS_INFO_BY_WITNESS_HASH_DIR = "witnessInfoByHash"
 WITNESS_FILE_BY_HASH_DIR = "witnessFileByHash"
 SV_BENCHMARK_DIR = ""
 VALIDATOR_EXECUTABLE = ""
+ERROR_FUNCTION_NAME = ""
 EXECUTION_TIMEOUT = 0
 
 #'output code', 'witness file', 'extracted output message', 'runtime (secs)', 'witness producer', 'source file name', 'peak memory (bytes)')
@@ -25,18 +26,19 @@ task_queue = multiprocessing.Queue()
 result_queue = multiprocessing.Queue()
 
 
-def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
+def setup_dirs(dir: str, sv_dir: str, executable: str, err_function: str, timeout: float) -> bool:
     if not os.path.exists(dir) or not os.path.isdir(dir):
         print(f"The directory {dir} doesn't exist or is not a directory.", file=sys.stderr)
         return False
 
     global WITNESS_INFO_BY_WITNESS_HASH_DIR, WITNESSES_BY_PROGRAM_HASH_DIR, WITNESS_FILE_BY_HASH_DIR, SV_BENCHMARK_DIR, \
-        VALIDATOR_EXECUTABLE, EXECUTION_TIMEOUT
+        VALIDATOR_EXECUTABLE, ERROR_FUNCTION_NAME, EXECUTION_TIMEOUT
     WITNESS_INFO_BY_WITNESS_HASH_DIR = os.path.join(dir, WITNESS_INFO_BY_WITNESS_HASH_DIR)
     WITNESSES_BY_PROGRAM_HASH_DIR = os.path.join(dir, WITNESSES_BY_PROGRAM_HASH_DIR)
     WITNESS_FILE_BY_HASH_DIR = os.path.join(dir, WITNESS_FILE_BY_HASH_DIR)
     SV_BENCHMARK_DIR = os.path.join(sv_dir, 'c')
     VALIDATOR_EXECUTABLE = os.path.abspath(executable)
+    ERROR_FUNCTION_NAME = os.path.abspath(err_function)
     EXECUTION_TIMEOUT = timeout
 
     if not (os.path.exists(WITNESS_INFO_BY_WITNESS_HASH_DIR) and os.path.isdir(WITNESS_INFO_BY_WITNESS_HASH_DIR) and
@@ -61,7 +63,7 @@ def run_validator():
         print(f"Sending kill pill")
         return
     witness, source, info_file, producer = config
-    with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
+    with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source, ERROR_FUNCTION_NAME], shell=False,
                           stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE) as process:
         out_errmsg = ''
@@ -143,13 +145,14 @@ def main():
     parser.add_argument("-w", "--witnesses", required=True, type=str, help="The directory with unzipped witnesses.")
     parser.add_argument("-e", "--exec", required=True, type=str, help="The Nitwit executable.")
     parser.add_argument("-sv", "--sv_benchmark", required=True, type=str, help="The SV-COMP benchmark source files.")
+    parser.add_argument("-err", "--err_function", required=True, type=str, help="The SV-COMP error function name.")
     parser.add_argument("-to", "--timeout", required=False, type=float, default=300, help="Timeout for a validation.")
     parser.add_argument("-l", "--limit", required=False, type=int, default=None, help="How many configurations to run.")
     parser.add_argument("-p", "--processes", required=False, type=int, default=48, help="Size of the process pool.")
     parser.add_argument("-c", "--config", required=True, type=str, help="The executions configuration file.")
 
     args = parser.parse_args()
-    if not setup_dirs(args.witnesses, args.sv_benchmark, args.exec, args.timeout):
+    if not setup_dirs(args.witnesses, args.sv_benchmark, args.exec, args.err_function, args.timeout):
         return 1
 
     configs = get_bench_configs(args.config)

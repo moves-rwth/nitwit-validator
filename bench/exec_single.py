@@ -12,6 +12,7 @@ WITNESS_INFO_BY_WITNESS_HASH_DIR = "witnessInfoByHash"
 WITNESS_FILE_BY_HASH_DIR = "witnessFileByHash"
 SV_BENCHMARK_DIR = ""
 VALIDATOR_EXECUTABLE = ""
+ERROR_FUNCTION_NAME = ""
 EXECUTION_TIMEOUT = 0
 
 
@@ -19,7 +20,7 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float, s
 	witness, source, info_file = config
 	print(' '.join([witness, source]))
 	print(' '.join([witness[3:], source[3:]]))
-	with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source], shell=False,
+	with subprocess.Popen([VALIDATOR_EXECUTABLE, witness, source, ERROR_FUNCTION_NAME], shell=False,
 	                      stdout=subprocess.PIPE,
 	                      stderr=subprocess.PIPE) as process:
 		errmsg = ''
@@ -48,7 +49,7 @@ def run_validator(config: Tuple[str, str, str]) -> Tuple[int, str, str, float, s
 	return process.returncode, info_file, errmsg, times[2] + times[3], '', children.ru_maxrss
 
 
-def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
+def setup_dirs(dir: str, sv_dir: str, executable: str, err_function: str, timeout: float) -> bool:
 	if not os.path.exists(dir) or not os.path.isdir(dir):
 		print(f"The directory {dir} doesn't exist or is not a directory.", file=sys.stderr)
 		return False
@@ -59,6 +60,7 @@ def setup_dirs(dir: str, sv_dir: str, executable: str, timeout: float) -> bool:
 	WITNESS_FILE_BY_HASH_DIR = os.path.join(dir, WITNESS_FILE_BY_HASH_DIR)
 	SV_BENCHMARK_DIR = os.path.join(sv_dir, 'c')
 	VALIDATOR_EXECUTABLE = executable
+	ERROR_FUNCTION_NAME = err_function
 	EXECUTION_TIMEOUT = timeout
 
 	if not (os.path.exists(WITNESS_INFO_BY_WITNESS_HASH_DIR) and os.path.isdir(WITNESS_INFO_BY_WITNESS_HASH_DIR) and
@@ -118,11 +120,12 @@ def main():
 	parser.add_argument("-w", "--witnesses", required=True, type=str, help="The directory with unzipped witnesses.")
 	parser.add_argument("-e", "--exec", required=True, type=str, help="The Nitwit executable.")
 	parser.add_argument("-sv", "--sv_benchmark", required=True, type=str, help="The SV-COMP benchmark source files.")
+	parser.add_argument("-err", "--err_function", required=True, type=str, help="The SV-COMP error function name.")    
 	parser.add_argument("-to", "--timeout", required=False, type=float, default=300, help="Timeout for a validation.")
 	parser.add_argument("-f", "--filename", required=True, type=str, help="The witness info filename to run.")
 
 	args = parser.parse_args()
-	if not setup_dirs(args.witnesses, args.sv_benchmark, args.exec, args.timeout):
+	if not setup_dirs(args.witnesses, args.sv_benchmark, args.exec, args.err_function, args.timeout):
 		return 1
 
 	results = run_single_config(args.filename)

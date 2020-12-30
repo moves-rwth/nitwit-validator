@@ -28,11 +28,11 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
  - To build (in the root directory):
     ```./build.sh```
  - To execute a basic test suite on the data from SV-comp 2019:
-    ```./run-tests.sh cmake-build-release sv-comp-2019```
+    ```./run-tests.sh cmake-build-release sv-comp-2019 __VERIFIER_error```
   
  - Then, to run a whole benchmark on a config with a 3s timeout and four parallel processes (in directory ./bench):
 	``` 
-	python3 bench_parallel.py  -w ../../data/sv-witnesses -e ../cmake-build-release/nitwit32 -sv ../../data/sv-benchmarks -to 3 -p 4 -c configs/reachability.json
+	python3 bench_parallel.py  -w ../../data/sv-witnesses -e ../cmake-build-release/nitwit32 -sv ../../data/sv-benchmarks -err __VERIFIER_error -to 3 -p 4 -c configs/reachability.json
 	```
 
   This will output configuration files into `./bench/output/<run>/*.json`. These then can be processed to export graphs and tables, flag `-g` shows all graphs in individual windows, `-s` saves the graphs to disk (output directory is optional), `-t` saves the tables to disk (output directory is optional), without `-g` or `-s` or `-t` it just shows tables and numbers. (in ./bench)
@@ -42,16 +42,16 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
 
  - If you want to run a single validation over a specific witness from SV-COMP there is the script (in directory ./bench):
 	```
-	python3 exec_single.py -w ../../data/sv-witnesses -sv ../../data/sv-benchmarks -e ../cmake-build-debug/nitwit -to 2 -f 224b537066067d2f651860c9173fc6e514ca0e56f344f174bd292ab042325cca.json  
+	python3 exec_single.py -w ../../data/sv-witnesses -sv ../../data/sv-benchmarks -e ../cmake-build-debug/nitwit32 -err __VERIFIER_error -to 2 -f 224b537066067d2f651860c9173fc6e514ca0e56f344f174bd292ab042325cca.json  
 	```
 	You specify the executable with `-e` which lets you take either the debug binary (outputs verbose info) or the optimized release binary. 
-	With `-f` you can specify the witness hash.
+	With `-f` you can specify the witness hash and with `-err` you can define the name of the validators error function.
 	All of the script parameter parsing is done via `argparse` so it will give you help messages for the parameters. 
 
  - For running Nitwit from the wrapper script, you would do:
 	``` (in root, position of parameters must be in the order as shown here)
 	./nitwit.sh -v
-	./nitwit.sh -w witness.graphml program.c
+	./nitwit.sh -w witness.graphml [-p/--property <property-file>] program.c
 	./nitwit.sh -64 -w witness.graphml program.c
 	```
 

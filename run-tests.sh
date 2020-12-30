@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Usage: ./run-tests.sh <build-dir> <SV_comp-dir>
+# Usage: ./run-tests.sh <build-dir> <SV_comp-dir> <err_func_name>
 
 if [[ -d $1 ]]
 then
@@ -20,6 +20,15 @@ else
     exit 1
 fi
 
+if [[ $3 == __VERIFIER_error || $3 == reach_error ]]
+then
+	echo "valid error function found!"
+else
+    echo "Error: no error function name given"
+    exit 1
+
+fi
+
 n_tests=0
 n_nonvalidated=0
 for C_FILE in testfiles/$2/*.c ; do
@@ -32,7 +41,7 @@ for C_FILE in testfiles/$2/*.c ; do
     for WITNESS in testfiles/$2/$filename.*.c.graphml ; do
         [[ -f "$WITNESS" ]] || break
         let "n_tests=n_tests+1"
-        $1/nitwit32 $WITNESS $C_FILE > /dev/null
+        $1/nitwit32 $WITNESS $C_FILE $3> /dev/null
 
         exit_val=$?
         if [[ ${exit_val} -eq 0 || ${exit_val} -eq 245 ]]
@@ -59,7 +68,7 @@ for C_FILE in testfiles/$2/*.c ; do
     for WITNESS in testfiles/$2/$filename.*.c.graphml.invalid ; do
         [[ -f "$WITNESS" ]] || break
         let "n_tests=n_tests+1"
-        $1/nitwit32 $WITNESS $C_FILE > /dev/null
+        $1/nitwit32 $WITNESS $C_FILE $3> /dev/null
 
         exit_val=$?
         if [[ ${exit_val} -ne 0 ]]
