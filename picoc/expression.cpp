@@ -1659,6 +1659,23 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
             TypeValue->Val->Typ = Typ;
             ExpressionStackPushValueNode(Parser, &StackTop, TypeValue);
         }
+        else if ((int)Token == TokenLeftBrace && BracketPrecedence > 0) {
+            //sub-block expression with bracket precedence
+
+            struct ParseState OldParser = *(Parser);
+            enum LexToken subToken = Token;
+
+            Value *subResult;
+            //()
+            // parse the complete subblock
+            do {
+                ExpressionParse(Parser, &(subResult));
+                OldParser = *(Parser);
+                subToken = LexGetToken(Parser, &LexValue, TRUE);
+            } while((int)subToken != TokenRightBrace);
+
+            *(Parser) = OldParser;
+        }
         else
         {
             /* it isn't a token from an expression */
