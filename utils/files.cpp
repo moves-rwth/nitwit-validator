@@ -3,31 +3,36 @@
 //
 
 #include "files.hpp"
+#include <cerrno>
+#include <cstring>
 
-char *readFile(const char *FileName)
-{
+char *readFile(const char *FileName) {
     struct stat FileInfo;
-    char *ReadText;
-    FILE *InFile;
+    char* ReadText;
+    FILE* InFile;
     int BytesRead;
 
-    if (stat(FileName, &FileInfo)) {
-        printf("Cannot read file %s\n", FileName);
+    int const statResult = stat(FileName, &FileInfo);
+    if (statResult != 0) {
+        printf("Cannot read file %s, stat failed with error '%s'.\n", FileName, strerror(errno));
         return nullptr;
     }
 
     ReadText = static_cast<char *>(malloc(FileInfo.st_size + 1));
-    if (ReadText == nullptr)
-        printf("Out of memory!\n");
+    if (ReadText == nullptr) {
+        printf("Failed to allocate memory for reading file, out of memory!\n");
+    }
 
     InFile = fopen(FileName, "r");
-    if (InFile == nullptr)
-        printf("Cannot read file %s\n", FileName);
+    if (InFile == nullptr) {
+        printf("Cannot read file %s, fopen() failed!\n", FileName);
+    }
 
     BytesRead = fread(ReadText, 1, FileInfo.st_size, InFile);
 
-    if (BytesRead == 0)
-        printf("Cannot read file %s\n", FileName);
+    if (BytesRead == 0) {
+        printf("Cannot read file %s, read 0 Bytes!\n", FileName);
+    }
 
     ReadText[BytesRead] = '\0';
     fclose(InFile);
