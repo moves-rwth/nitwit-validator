@@ -5,11 +5,11 @@
 #ifndef NITWIT_FILES_HPP
 #define NITWIT_FILES_HPP
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <sys/stat.h>
+#include <cstdlib>
+#include <cstdio>
 
+#include <string>
 
-char *readFile(const char *FileName);
+std::string readFile(const char *FileName, bool& error);
 
 #endif //NITWIT_FILES_HPP

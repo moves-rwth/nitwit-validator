@@ -95,11 +95,15 @@ int validate(const char *source_filename, const char *error_function_name) {
 	PicocIncludeAllSystemHeaders(&pc);
 #endif
 
-	char *source = readFile(source_filename);
-	if (!source) {
+	bool error = true;
+	std::string const sourceString = readFile(source_filename, error);
+	if (error) {
 		return 255;
 	}
-	PicocParse(&pc, source_filename, source, static_cast<int>(strlen(source)), TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
+	char const* source = sourceString.c_str();
+	int const sourceLength = static_cast<int>(strlen(source));
+
+	PicocParse(&pc, source_filename, source, sourceLength, TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
 
 	Value *MainFuncValue = nullptr;
 	VariableGet(&pc, nullptr, TableStrRegister(&pc, "main"), &MainFuncValue);
