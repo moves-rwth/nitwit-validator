@@ -189,8 +189,9 @@ Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *Retu
     if (!IsPtrDecl) {
         if (TableGet(&pc->GlobalTable, Identifier, &OldFuncValue, nullptr, nullptr, nullptr)) {
 
-            if (OldFuncValue->Val->FuncDef.Body.Pos != nullptr)
-                ProgramFail(Parser, "'%s' is already defined", Identifier);
+            if (OldFuncValue->Val->FuncDef.Body.Pos != nullptr) {
+                ProgramFail(Parser, "Function '%s' is already defined", Identifier);
+            }
 
             /* override an old function prototype */
             if (FuncValue->Val->FuncDef.Body.Pos == nullptr &&
@@ -203,9 +204,10 @@ Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *Retu
             }
         }
         if (!SkipDefinition &&
-            !TableSet(pc, &pc->GlobalTable, Identifier, FuncValue, (char *) Parser->FileName, Parser->Line,
-                      Parser->CharacterPos))
-            ProgramFail(Parser, "'%s' is already defined", Identifier);
+            !TableSet(pc, &pc->GlobalTable, Identifier, FuncValue, (char*)Parser->FileName, Parser->Line,
+                Parser->CharacterPos)) {
+            ProgramFail(Parser, "Function '%s' is already defined", Identifier);
+        }
     }
     // track the function
     Parser->CurrentFunction = FunctionBefore;

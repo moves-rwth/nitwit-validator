@@ -340,16 +340,16 @@ VariableDefine(Picoc *pc, ParseState *Parser, char *Ident, Value *InitValue, Val
             }
             if (!FoundEntry->p.v.ValShadows){ // save the current variable
                 FoundEntry->p.v.ValShadows = new Shadows();
-                FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(FoundEntry->p.v.Val->ScopeID, FoundEntry->p.v.Val));
+                FoundEntry->p.v.ValShadows->shadows.emplace(std::make_pair(FoundEntry->p.v.Val->ScopeID, FoundEntry->p.v.Val));
             }
-            FoundEntry->p.v.ValShadows->shadows.emplace(make_pair(ScopeID, AssignValue));
+            FoundEntry->p.v.ValShadows->shadows.emplace(std::make_pair(ScopeID, AssignValue));
             AssignValue->ShadowedVal = FoundEntry->p.v.Val;
             FoundEntry->p.v.Val = AssignValue;
     #ifdef VAR_SCOPE_DEBUG
             printf(">>> shadow the variable %s\n", Ident);
     #endif
         } else {
-            ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
+            ProgramFailWithExitCode(Parser, 246, "Variable '%s' is already defined", Ident);
         }
     }
 
@@ -367,7 +367,7 @@ Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *Ident, 
     
     /* is the type a forward declaration? */
     if (TypeIsForwardDeclared(Parser, Typ))
-        ProgramFailWithExitCode(Parser, 244,"type '%t' isn't defined", Typ);
+        ProgramFailWithExitCode(Parser, 244, "type '%t' isn't defined", Typ);
 
     if (IsStatic)
     {
