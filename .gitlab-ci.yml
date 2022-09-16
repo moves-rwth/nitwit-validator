@@ -1,4 +1,4 @@
-image: whatthefuckisadockerid666/cpp-image:latest
+image: registry.git.rwth-aachen.de/moves/docker-baseimage:latest
 
 stages:
   - build
