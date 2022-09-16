@@ -15,15 +15,15 @@ static int IntAlignBytes;
  **/
 void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
     NonDetList * head = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
-    head->IsNonDet = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
-    *(head->IsNonDet) = 1;
+    head->IsNonDet = static_cast<bool *>(VariableAlloc(Parser->pc, Parser, sizeof(bool), TRUE));
+    *(head->IsNonDet) = true;
 
     NonDetList * temp = head;
 
     for(int i=1; i<ArraySize; i++) {
         NonDetList * tail = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
-        tail->IsNonDet = static_cast<char *>(VariableAlloc(Parser->pc, Parser, sizeof(char), TRUE));
-        *(tail->IsNonDet) = 1;
+        tail->IsNonDet = static_cast<bool*>(VariableAlloc(Parser->pc, Parser, sizeof(bool), TRUE));
+        *(tail->IsNonDet) = true;
         temp->Next = tail;
         temp = temp->Next;
     }
@@ -31,7 +31,7 @@ void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
     Type->NDList = head;
 }
 
-int getNonDetListElement(NonDetList * List, int ArrayIndex) {
+bool getNonDetListElement(NonDetList * List, int ArrayIndex) {
     struct NonDetList * current = List;
     for (int i=0; i<ArrayIndex; i++) {
         current = current->Next;
@@ -39,7 +39,7 @@ int getNonDetListElement(NonDetList * List, int ArrayIndex) {
     return *(current->IsNonDet);
 }
 
-void setNonDetListElement(NonDetList * List, int ArrayIndex, int nonDet) {
+void setNonDetListElement(NonDetList * List, int ArrayIndex, bool nonDet) {
     struct NonDetList * current = List;
     for (int i=0; i<ArrayIndex; i++) {
         current = current->Next;
@@ -47,7 +47,7 @@ void setNonDetListElement(NonDetList * List, int ArrayIndex, int nonDet) {
     *(current->IsNonDet) = nonDet;
 }
 
-int TypeIsNonDeterministic(struct ValueType *Typ) {
+bool TypeIsNonDeterministic(struct ValueType *Typ) {
     return Typ->IsNonDet;
 }
 
@@ -219,7 +219,7 @@ int TypeSize(struct ValueType *Typ, int ArraySize, int Compact)
 }
 
 /* add a base type */
-void TypeAddBaseType(Picoc *pc, struct ValueType *TypeNode, enum BaseType Base, int Sizeof, int AlignBytes, int IsNonDet)
+void TypeAddBaseType(Picoc *pc, struct ValueType *TypeNode, enum BaseType Base, int Sizeof, int AlignBytes, bool IsNonDet)
 {
     TypeNode->Base = Base;
     TypeNode->ArraySize = 0;
@@ -253,42 +253,42 @@ void TypeInit(Picoc *pc)
     PointerAlignBytes = (char *)&pa.y - &pa.x;
     
     pc->UberType.DerivedTypeList = nullptr;
-    TypeAddBaseType(pc, &pc->IntType, TypeInt, sizeof(int), IntAlignBytes, FALSE);
-    TypeAddBaseType(pc, &pc->ShortType, TypeShort, sizeof(short), (char *) &sa.y - &sa.x, FALSE);
-    TypeAddBaseType(pc, &pc->CharType, TypeChar, sizeof(char), (char *) &ca.y - &ca.x, FALSE);
-    TypeAddBaseType(pc, &pc->LongType, TypeLong, sizeof(long), (char *) &la.y - &la.x, FALSE);
-    TypeAddBaseType(pc, &pc->LongLongType, TypeLongLong, sizeof(long long), (char * ) &lla.y - &lla.x, FALSE);
-    TypeAddBaseType(pc, &pc->UnsignedIntType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, FALSE);
-    TypeAddBaseType(pc, &pc->UnsignedShortType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x, FALSE);
-    TypeAddBaseType(pc, &pc->UnsignedLongType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, FALSE);
-    TypeAddBaseType(pc, &pc->UnsignedLongLongType, TypeUnsignedLongLong, sizeof(unsigned long long), (char * ) &lla.y - &lla.x, FALSE);
-    TypeAddBaseType(pc, &pc->UnsignedCharType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, FALSE);
-    TypeAddBaseType(pc, &pc->VoidType, TypeVoid, 0, 1, FALSE);
-    TypeAddBaseType(pc, &pc->FunctionType, TypeFunction, sizeof(int), IntAlignBytes, FALSE);
-    TypeAddBaseType(pc, &pc->MacroType, TypeMacro, sizeof(int), IntAlignBytes, FALSE);
-    TypeAddBaseType(pc, &pc->GotoLabelType, TypeGotoLabel, 0, 1, FALSE);
-    TypeAddBaseType(pc, &pc->FunctionPtrType, TypeFunctionPtr, sizeof(char *), PointerAlignBytes, FALSE);
-    TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *) &da.y - &da.x, FALSE);  /* must be large enough to cast to a double */
-    TypeAddBaseType(pc, &pc->StructType, TypeStruct, sizeof(int), IntAlignBytes, FALSE);
+    TypeAddBaseType(pc, &pc->IntType, TypeInt, sizeof(int), IntAlignBytes, false);
+    TypeAddBaseType(pc, &pc->ShortType, TypeShort, sizeof(short), (char *) &sa.y - &sa.x, false);
+    TypeAddBaseType(pc, &pc->CharType, TypeChar, sizeof(char), (char *) &ca.y - &ca.x, false);
+    TypeAddBaseType(pc, &pc->LongType, TypeLong, sizeof(long), (char *) &la.y - &la.x, false);
+    TypeAddBaseType(pc, &pc->LongLongType, TypeLongLong, sizeof(long long), (char * ) &lla.y - &lla.x, false);
+    TypeAddBaseType(pc, &pc->UnsignedIntType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, false);
+    TypeAddBaseType(pc, &pc->UnsignedShortType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x, false);
+    TypeAddBaseType(pc, &pc->UnsignedLongType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, false);
+    TypeAddBaseType(pc, &pc->UnsignedLongLongType, TypeUnsignedLongLong, sizeof(unsigned long long), (char * ) &lla.y - &lla.x, false);
+    TypeAddBaseType(pc, &pc->UnsignedCharType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, false);
+    TypeAddBaseType(pc, &pc->VoidType, TypeVoid, 0, 1, false);
+    TypeAddBaseType(pc, &pc->FunctionType, TypeFunction, sizeof(int), IntAlignBytes, false);
+    TypeAddBaseType(pc, &pc->MacroType, TypeMacro, sizeof(int), IntAlignBytes, false);
+    TypeAddBaseType(pc, &pc->GotoLabelType, TypeGotoLabel, 0, 1, false);
+    TypeAddBaseType(pc, &pc->FunctionPtrType, TypeFunctionPtr, sizeof(char *), PointerAlignBytes, false);
+    TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *) &da.y - &da.x, false);  /* must be large enough to cast to a double */
+    TypeAddBaseType(pc, &pc->StructType, TypeStruct, sizeof(int), IntAlignBytes, false);
 
     // NDs
-    TypeAddBaseType(pc, &pc->IntNDType, TypeInt, sizeof(int), IntAlignBytes, TRUE);
-    TypeAddBaseType(pc, &pc->ShortNDType, TypeShort, sizeof(short), (char *) &sa.y - &sa.x, TRUE);
-    TypeAddBaseType(pc, &pc->CharNDType, TypeChar, sizeof(char), (char *) &ca.y - &ca.x, TRUE);
-    TypeAddBaseType(pc, &pc->LongNDType, TypeLong, sizeof(long), (char *) &la.y - &la.x, TRUE);
-    TypeAddBaseType(pc, &pc->LongLongNDType, TypeLongLong, sizeof(long long), (char *) &lla.y - &lla.x, TRUE);
-    TypeAddBaseType(pc, &pc->UnsignedIntNDType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, TRUE);
-    TypeAddBaseType(pc, &pc->UnsignedShortNDType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x, TRUE);
-    TypeAddBaseType(pc, &pc->UnsignedCharNDType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, TRUE);
-    TypeAddBaseType(pc, &pc->UnsignedLongNDType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, TRUE);
-    TypeAddBaseType(pc, &pc->UnsignedLongLongNDType, TypeUnsignedLongLong, sizeof(unsigned long long), (char *) &lla.y - &lla.x, TRUE);
+    TypeAddBaseType(pc, &pc->IntNDType, TypeInt, sizeof(int), IntAlignBytes, true);
+    TypeAddBaseType(pc, &pc->ShortNDType, TypeShort, sizeof(short), (char *) &sa.y - &sa.x, true);
+    TypeAddBaseType(pc, &pc->CharNDType, TypeChar, sizeof(char), (char *) &ca.y - &ca.x, true);
+    TypeAddBaseType(pc, &pc->LongNDType, TypeLong, sizeof(long), (char *) &la.y - &la.x, true);
+    TypeAddBaseType(pc, &pc->LongLongNDType, TypeLongLong, sizeof(long long), (char *) &lla.y - &lla.x, true);
+    TypeAddBaseType(pc, &pc->UnsignedIntNDType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, true);
+    TypeAddBaseType(pc, &pc->UnsignedShortNDType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x, true);
+    TypeAddBaseType(pc, &pc->UnsignedCharNDType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, true);
+    TypeAddBaseType(pc, &pc->UnsignedLongNDType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, true);
+    TypeAddBaseType(pc, &pc->UnsignedLongLongNDType, TypeUnsignedLongLong, sizeof(unsigned long long), (char *) &lla.y - &lla.x, true);
 
 #ifndef NO_FP
-    TypeAddBaseType(pc, &pc->DoubleType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, FALSE);
-    TypeAddBaseType(pc, &pc->FloatType, TypeFloat, sizeof(float), (char *) &fa.y - &fa.x, FALSE);
+    TypeAddBaseType(pc, &pc->DoubleType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, false);
+    TypeAddBaseType(pc, &pc->FloatType, TypeFloat, sizeof(float), (char *) &fa.y - &fa.x, false);
     // NDs
-    TypeAddBaseType(pc, &pc->DoubleNDType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, TRUE);
-    TypeAddBaseType(pc, &pc->FloatNDType, TypeFloat, sizeof(float), (char *) &fa.y - &fa.x, TRUE);
+    TypeAddBaseType(pc, &pc->DoubleNDType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, true);
+    TypeAddBaseType(pc, &pc->FloatNDType, TypeFloat, sizeof(float), (char *) &fa.y - &fa.x, true);
 #else
     TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(struct ValueType *), PointerAlignBytes);
 #endif
