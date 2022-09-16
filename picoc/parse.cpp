@@ -9,9 +9,7 @@
 #ifdef DEBUG_EXPRESSIONS
 #define debugf printf
 #else
-void debugf(char* Format, ...)
-{
-}
+extern void debugf(char* Format, ...);
 #endif
 
 /* deallocate any memory */

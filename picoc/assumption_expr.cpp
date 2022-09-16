@@ -13,12 +13,11 @@
         else { ResultInt = AssignLongLong(Parser, BottomValue, (long long)(value), FALSE); ResultIsInt = TRUE; } \
 
 #define DEEP_PRECEDENCE (BRACKET_PRECEDENCE*1000)
+
 #ifdef DEBUG_EXPRESSIONS
-#define debugff printf
+#define debugf printf
 #else
-void debugff(char *Format, ...)
-{
-}
+extern void debugf(char* Format, ...);
 #endif
 /* local prototypes */
 enum OperatorOrder
@@ -445,7 +444,7 @@ void AssumptionExpressionPrefixOperator(struct ParseState *Parser, struct Expres
     Value *Result;
     union AnyValue *ValPtr;
 
-//    debugff("ExpressionPrefixOperator()\n");
+//    debugf("ExpressionPrefixOperator()\n");
     switch (Op)
     {
         case TokenAmpersand:
@@ -594,7 +593,7 @@ void AssumptionExpressionPrefixOperator(struct ParseState *Parser, struct Expres
 /* evaluate a postfix operator */
 void AssumptionExpressionPostfixOperator(struct ParseState *Parser, struct ExpressionStack **StackTop, enum LexToken Op, Value *TopValue)
 {
-    debugff("ExpressionPostfixOperator()\n");
+    debugf("ExpressionPostfixOperator()\n");
 #ifndef NO_FP
     if (TopValue->Typ->Base == TypeDouble)
     {
@@ -688,7 +687,7 @@ void AssumptionExpressionInfixOperator(struct ParseState *Parser, struct Express
     Value *StackValue;
     void *Pointer;
 
-    debugff("ExpressionInfixOperator()\n");
+    debugf("ExpressionInfixOperator()\n");
     if (BottomValue == nullptr || TopValue == nullptr)
         ProgramFail(Parser, "invalid expression");
 
@@ -1148,7 +1147,7 @@ void AssumptionExpressionStackCollapse(struct ParseState *Parser, struct Express
     struct ExpressionStack *TopStackNode = *StackTop;
     struct ExpressionStack *TopOperatorNode;
 
-    debugff("AssumptionExpressionStackCollapse(%d):\n", Precedence);
+    debugf("AssumptionExpressionStackCollapse(%d):\n", Precedence);
 #ifdef DEBUG_EXPRESSIONS
     ExpressionStackShow(Parser->pc, *StackTop);
 #endif
@@ -1170,7 +1169,7 @@ void AssumptionExpressionStackCollapse(struct ParseState *Parser, struct Express
             {
                 case OrderPrefix:
                     /* prefix evaluation */
-                    debugff("prefix evaluation\n");
+                    debugf("prefix evaluation\n");
                     TopValue = TopStackNode->Val;
 
                     /* pop the value and then the prefix operator - assume they'll still be there until we're done */
@@ -1193,7 +1192,7 @@ void AssumptionExpressionStackCollapse(struct ParseState *Parser, struct Express
 
                 case OrderPostfix:
                     /* postfix evaluation */
-                    debugff("postfix evaluation\n");
+                    debugf("postfix evaluation\n");
                     TopValue = TopStackNode->Next->Val;
 
                     /* pop the postfix operator and then the value - assume they'll still be there until we're done */
@@ -1216,7 +1215,7 @@ void AssumptionExpressionStackCollapse(struct ParseState *Parser, struct Express
 
                 case OrderInfix:
                     /* infix evaluation */
-                    debugff("infix evaluation\n");
+                    debugf("infix evaluation\n");
                     TopValue = TopStackNode->Val;
                     if (TopValue != nullptr)
                     {
@@ -1259,7 +1258,7 @@ void AssumptionExpressionStackCollapse(struct ParseState *Parser, struct Express
 #endif
         TopStackNode = *StackTop;
     }
-    debugff("AssumptionExpressionStackCollapse() finished\n");
+    debugf("AssumptionExpressionStackCollapse() finished\n");
 #ifdef DEBUG_EXPRESSIONS
     ExpressionStackShow(Parser->pc, *StackTop);
 #endif
@@ -1276,7 +1275,7 @@ void AssumptionExpressionStackPushOperator(struct ParseState *Parser, struct Exp
     StackNode->Op = Token;
     StackNode->Precedence = Precedence;
     *StackTop = StackNode;
-//    debugff("AssumptionExpressionStackPushOperator()\n");
+//    debugf("AssumptionExpressionStackPushOperator()\n");
 #ifdef FANCY_ERROR_MESSAGES
     StackNode->Line = Parser->Line;
     StackNode->CharacterPos = Parser->CharacterPos;
@@ -1344,7 +1343,7 @@ int AssumptionExpressionParse(struct ParseState *Parser, Value **Result)
     struct ExpressionStack *StackTop = nullptr;
     int TernaryDepth = 0;
 
-//    debugff("AssumptionExpressionParse():\n");
+//    debugf("AssumptionExpressionParse():\n");
     do
     {
         struct ParseState PreState;
@@ -1619,7 +1618,7 @@ int AssumptionExpressionParse(struct ParseState *Parser, Value **Result)
             HeapPopStack(Parser->pc, StackTop->Val, sizeof(struct ExpressionStack) + MEM_ALIGN(sizeof(Value)) + TypeStackSizeValue(StackTop->Val));
     }
 
-//    debugff("AssumptionExpressionParse() done\n\n");
+//    debugf("AssumptionExpressionParse() done\n\n");
 #ifdef DEBUG_EXPRESSIONS
     ExpressionStackShow(Parser->pc, StackTop);
 #endif
