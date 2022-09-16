@@ -77,6 +77,12 @@ extern jmp_buf ExitBuf;
 #  include <sys/stat.h>
 #  include <stdarg.h>
 #  include <setjmp.h>
+
+#include <iostream>
+#include <map>
+#include <memory>
+#include <string>
+
 #  include <math.h>
 #  define PICOC_MATH_LIBRARY
 #  undef BIG_ENDIAN

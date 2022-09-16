@@ -99,7 +99,7 @@ int validate(const char *source_filename, const char *error_function_name) {
 	if (!source) {
 		return 255;
 	}
-	PicocParse(&pc, source_filename, source, strlen(source), TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
+	PicocParse(&pc, source_filename, source, static_cast<int>(strlen(source)), TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
 
 	Value *MainFuncValue = nullptr;
 	VariableGet(&pc, nullptr, TableStrRegister(&pc, "main"), &MainFuncValue);
@@ -200,8 +200,65 @@ int main(int argc, char **argv) {
 	return exit_value;
 }
 
-
+#ifdef UNIX_HOST
 #include <sys/resource.h>
+#elif defined(WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <Windows.h>
+
+#define RUSAGE_SELF 0
+#include <Winsock2.h>
+struct rusage
+{
+	struct timeval ru_utime;	/* user time used */
+	struct timeval ru_stime;	/* system time used */
+};
+
+// Adapted from https://github.com/postgres/postgres/blob/7559d8ebfa11d98728e816f6b655582ce41150f3/src/port/getrusage.c
+int getrusage(int who, struct rusage* rusage) {
+	FILETIME    starttime;
+	FILETIME    exittime;
+	FILETIME    kerneltime;
+	FILETIME    usertime;
+	ULARGE_INTEGER li;
+
+	if (who != RUSAGE_SELF)
+	{
+		/* Only RUSAGE_SELF is supported in this implementation for now */
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (rusage == (struct rusage*)NULL)
+	{
+		errno = EFAULT;
+		return -1;
+	}
+	memset(rusage, 0, sizeof(struct rusage));
+	if (GetProcessTimes(GetCurrentProcess(),
+		&starttime, &exittime, &kerneltime, &usertime) == 0)
+	{
+		return -1;
+	}
+
+	/* Convert FILETIMEs (0.1 us) to struct timeval */
+	memcpy(&li, &kerneltime, sizeof(FILETIME));
+	li.QuadPart /= 10L;         /* Convert to microseconds */
+	rusage->ru_stime.tv_sec = li.QuadPart / 1000000L;
+	rusage->ru_stime.tv_usec = li.QuadPart % 1000000L;
+
+	memcpy(&li, &usertime, sizeof(FILETIME));
+	li.QuadPart /= 10L;         /* Convert to microseconds */
+	rusage->ru_utime.tv_sec = li.QuadPart / 1000000L;
+	rusage->ru_utime.tv_usec = li.QuadPart % 1000000L;
+
+	return 0;
+}
+#else
+#error This feature is not implemented for your architecture!
+#endif
 
 /**
  * Returns the peak (maximum so far) resident set size (physical
@@ -212,7 +269,7 @@ int main(int argc, char **argv) {
  * mem => MB
  * cpu => sec
  */
-void process_resource_usage(double &mem, double &cpu) {
+void process_resource_usage(double& mem, double& cpu) {
 	/* BSD, Linux, and OSX -------------------------------------- */
 	rusage rusage{};
 	getrusage(RUSAGE_SELF, &rusage);
@@ -220,3 +277,4 @@ void process_resource_usage(double &mem, double &cpu) {
 	cpu = rusage.ru_utime.tv_sec + rusage.ru_stime.tv_sec +
 		  (rusage.ru_utime.tv_usec + rusage.ru_stime.tv_usec) / (double) 1000000;
 }
+

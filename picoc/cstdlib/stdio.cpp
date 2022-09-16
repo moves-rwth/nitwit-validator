@@ -435,11 +435,7 @@ void StdioFerror(struct ParseState *Parser, Value *ReturnValue, Value **Param, i
 
 void StdioFileno(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
-#ifndef WIN32
     ReturnValue->Val->Integer = fileno((FILE*)Param[0]->Val->Pointer);
-#else
-    ReturnValue->Val->Integer = _fileno(Param[0]->Val->Pointer);
-#endif
 }
 
 void StdioFflush(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)

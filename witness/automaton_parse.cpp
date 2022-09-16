@@ -12,7 +12,7 @@ std::shared_ptr<DefaultKeyValues> parseKeys(pugi::xpath_node_set const& keyNodeS
 
 std::shared_ptr<DefaultKeyValues> getDefaultKeys();
 
-std::map<std::string, shared_ptr<Node>> parseNodes(pugi::xpath_node_set const& set, std::shared_ptr<DefaultKeyValues> const& defaultKeyValues);
+std::map<std::string, std::shared_ptr<Node>> parseNodes(pugi::xpath_node_set const& set, std::shared_ptr<DefaultKeyValues> const& defaultKeyValues);
 
 void setNodeAttributes(std::shared_ptr<Node> const& node, char const *name, char const *value);
 

@@ -120,7 +120,7 @@ public:
 //        for (auto& v: shadows)
 //            free(v.second);
     }
-    map<int, Value*> shadows;
+    std::map<int, Value*> shadows;
 };
 
 /* hash table data structure */
@@ -310,7 +310,7 @@ union AnyValue
     unsigned short UnsignedShortInteger;
     unsigned int UnsignedInteger;
     unsigned long UnsignedLongInteger;
-    unsigned long UnsignedLongLongInteger;
+    unsigned long long UnsignedLongLongInteger;
     unsigned char UnsignedCharacter;
 #ifndef NO_FP
     double Double;
