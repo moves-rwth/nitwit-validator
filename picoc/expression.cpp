@@ -76,67 +76,8 @@ static struct OpPrecedence OperatorPrecedence[] =
 void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionStack **StackTop, const char *FuncName, int RunIt);
 
 #ifdef DEBUG_EXPRESSIONS
-/* show the contents of the expression stack */
-void ExpressionStackShow(Picoc *pc, struct ExpressionStack *StackTop)
-{
-    printf("Expression stack [0x%lx,0x%lx]: ", (long)pc->HeapStackTop, (long)StackTop);
-    
-    while (StackTop != nullptr)
-    {
-        if (StackTop->Order == OrderNone)
-        { 
-            /* it's a value */
-            if (StackTop->Val->IsLValue)
-                printf("lvalue=");
-            else
-                printf("value=");
-                
-            switch (StackTop->Val->Typ->Base)
-            {
-                case TypeVoid:      printf("void"); break;
-                case TypeInt:       printf("%d:int", StackTop->Val->Val->Integer); break;
-                case TypeShort:     printf("%d:short", StackTop->Val->Val->ShortInteger); break;
-                case TypeChar:      printf("%d:char", StackTop->Val->Val->Character); break;
-                case TypeLong:      printf("%ld:long", StackTop->Val->Val->LongInteger); break;
-                case TypeUnsignedShort: printf("%d:unsigned short", StackTop->Val->Val->UnsignedShortInteger); break;
-                case TypeUnsignedInt: printf("%d:unsigned int", StackTop->Val->Val->UnsignedInteger); break;
-                case TypeUnsignedLong: printf("%ld:unsigned long", StackTop->Val->Val->UnsignedLongInteger); break;
-                case TypeDouble:        printf("%f:fp", StackTop->Val->Val->Double); break;
-                case TypeFunction:  printf("%s:function", StackTop->Val->Val->Identifier); break;
-                case TypeMacro:     printf("%s:macro", StackTop->Val->Val->Identifier); break;
-                case TypePointer:
-                    if (StackTop->Val->Val->Pointer == nullptr)
-                        printf("ptr(nullptr)");
-                    else if (StackTop->Val->Typ->FromType->Base == TypeChar)
-                        printf("\"%s\":string", (char *)StackTop->Val->Val->Pointer);
-                    else
-                        printf("ptr(0x%lx)", (long)StackTop->Val->Val->Pointer); 
-                    break;
-                case TypeArray:     printf("array"); break;
-                case TypeStruct:    printf("%s:struct", StackTop->Val->Val->Identifier); break;
-                case TypeUnion:     printf("%s:union", StackTop->Val->Val->Identifier); break;
-                case TypeEnum:      printf("%s:enum", StackTop->Val->Val->Identifier); break;
-                case Type_Type:     PrintType(StackTop->Val->Val->Typ, pc->CStdOut); printf(":type"); break;
-                default:            printf("unknown"); break;
-            }
-            printf("[0x%lx,0x%lx]", (long)StackTop, (long)StackTop->Val);
-        }
-        else
-        { 
-            /* it's an operator */
-            printf("op='%s' %s %d", OperatorPrecedence[(int)StackTop->Op].Name, 
-                (StackTop->Order == OrderPrefix) ? "prefix" : ((StackTop->Order == OrderPostfix) ? "postfix" : "infix"), 
-                StackTop->Precedence);
-            printf("[0x%lx]", (long)StackTop);
-        }
-        
-        StackTop = StackTop->Next;
-        if (StackTop != nullptr)
-            printf(", ");
-    }
-    
-    printf("\n");
-}
+// Defined in assumption_expr.cpp
+extern void ExpressionStackShow(Picoc* pc, struct ExpressionStack* StackTop);
 #endif
 
 int IsTypeToken(struct ParseState *Parser, enum LexToken t, Value *LexValue)
@@ -1370,15 +1311,20 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
 
         ParserCopy(&PreState, Parser);
         Token = LexGetToken(Parser, &LexValue, TRUE);
+        debugf("Looking at token 0x%x.\n", static_cast<int>(Token));
 
         if ((( (int)Token > TokenComma && (int)Token <= (int)TokenOpenBracket) ||
                (Token == TokenCloseBracket && BracketPrecedence != 0)) &&
                (Token != TokenColon || TernaryDepth > 0) )
         {
             /* it's an operator with precedence */
+            debugf("it's an operator with precedence\n");
+
             if (PrefixState)
             {
                 /* expect a prefix operator */
+                debugf("expecting a prefix operator\n");
+
                 if (OperatorPrecedence[(int)Token].PrefixPrecedence == 0)
                     ProgramFail(Parser, "operator not expected here");
 
@@ -1388,10 +1334,14 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                 if (Token == TokenOpenBracket)
                 {
                     /* it's either a new bracket level or a cast */
+                    debugf("it's either a new bracket level or a cast\n");
+
                     enum LexToken BracketToken = LexGetToken(Parser, &LexValue, FALSE);
                     if (IsTypeToken(Parser, BracketToken, LexValue) && (StackTop == nullptr || StackTop->Op != TokenSizeof) )
                     {
                         /* it's a cast - get the new type */
+                        debugf("it's a cast - get the new type\n");
+
                         struct ValueType *CastType;
                         char *CastIdentifier;
                         Value *CastTypeValue;
@@ -1399,7 +1349,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                         int IsConst;
                         TypeParse(Parser, &CastType, &CastIdentifier, nullptr, &IsConst, 0);
                         if (LexGetToken(Parser, &LexValue, TRUE) != TokenCloseBracket)
-                            ProgramFail(Parser, "brackets not closed");
+                            ProgramFail(Parser, "brackets not closed 1");
 
                         /* scan and collapse the stack to the precedence of this infix cast operator, then push */
                         Precedence = BracketPrecedence + OperatorPrecedence[(int)TokenCast].PrefixPrecedence;
@@ -1414,19 +1364,21 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                     else
                     {
                         /* boost the bracket operator precedence */
+                        debugf("boost the bracket operator precedence\n");
                         BracketPrecedence += BRACKET_PRECEDENCE;
                     }
                 }
                 else
                 {
                     /* scan and collapse the stack to the precedence of this operator, then push */
+                    debugf("scan and collapse the stack to the precedence of this operator, then push\n");
 
                     /* take some extra care for double prefix operators, e.g. x = - -5, or x = **y */
                     int NextToken = LexGetToken(Parser, nullptr, FALSE);
                     int TempPrecedenceBoost = 0;
                     if (NextToken > TokenComma && NextToken < TokenOpenBracket)
                     {
-                        int NextPrecedence = OperatorPrecedence[(int)NextToken].PrefixPrecedence;
+                        int NextPrecedence = OperatorPrecedence[NextToken].PrefixPrecedence;
 
                         /* two prefix operators with equal precedence? make sure the innermost one runs first */
                         /* FIXME - probably not correct, but can't find a test that fails at this */
@@ -1441,8 +1393,11 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
             else
             {
                 /* expect an infix or postfix operator */
+                debugf("expect an infix or postfix operator\n");
+
                 if (OperatorPrecedence[(int)Token].PostfixPrecedence != 0)
                 {
+                    debugf("PostfixPrecedence != 0\n");
                     Value * TopValue;
                     switch (Token)
                     {
@@ -1493,6 +1448,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                 }
                 else if (OperatorPrecedence[(int)Token].InfixPrecedence != 0)
                 {
+                    debugf("InfixPrecedence != 0\n");
                     /* scan and collapse the stack, then push */
                     Precedence = BracketPrecedence + OperatorPrecedence[(int)Token].InfixPrecedence;
 
@@ -1545,14 +1501,15 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                         ExpressionParseFunctionCall(Parser, &StackTop,
                             RunIt ? StackTop->Next->Val->Val->Identifier : Parser->pc->StrEmpty, RunIt);
                     }
-                }
-                else
+                } else {
                     ProgramFail(Parser, "operator not expected here");
+                }
             }
         }
         else if (Token == TokenIdentifier)
         {
             /* it's a variable, function or a macro */
+            debugf("Token = Identifier, expecting variable, function or macro\n");
             if (!PrefixState)
                 ProgramFail(Parser, "identifier not expected here");
 
@@ -1633,6 +1590,8 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
         else if ((int)Token > TokenCloseBracket && (int)Token <= TokenCharacterConstant)
         {
             /* it's a value of some sort, push it */
+            debugf("it's a value of some sort, push it\n");
+
             if (!PrefixState)
                 ProgramFail(Parser, "value not expected here");
 
@@ -1645,6 +1604,8 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
         else if (IsTypeToken(Parser, Token, LexValue))
         {
             /* it's a type. push it on the stack like a value. this is used in sizeof() */
+            debugf("it's a type. push it on the stack like a value. this is used in sizeof()\n");
+
             struct ValueType *Typ;
             char *Identifier;
             Value *TypeValue;
@@ -1679,15 +1640,22 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
         else
         {
             /* it isn't a token from an expression */
-            ParserCopy(Parser, &PreState);
-            Done = TRUE;
+            debugf("it isn't a token from an expression\n");
+
+            int const NextToken = LexGetToken(Parser, nullptr, FALSE);
+            if (NextToken == TokenComma) {
+                // Consume this expression
+            } else {
+                ParserCopy(Parser, &PreState);
+                Done = TRUE;
+            }
         }
 
     } while (!Done);
 
     /* check that brackets have been closed */
     if (BracketPrecedence > 0)
-        ProgramFail(Parser, "brackets not closed");
+        ProgramFail(Parser, "brackets not closed 2");
 
     /* scan and collapse the stack to precedence 0 */
     ExpressionStackCollapse(Parser, &StackTop, 0, &IgnorePrecedence);
@@ -1727,6 +1695,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
 /* do a parameterised macro call */
 void ExpressionParseMacroCall(struct ParseState *Parser, struct ExpressionStack **StackTop, const char *MacroName, struct MacroDef *MDef)
 {
+    debugf("ExpressionParseMacroCall()\n");
     Value *ReturnValue = nullptr;
     Value *Param;
     Value **ParamArray = nullptr;
@@ -1809,6 +1778,7 @@ void ExpressionParseMacroCall(struct ParseState *Parser, struct ExpressionStack 
 /* do a function call */
 void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionStack **StackTop, const char *FuncName, int RunIt)
 {
+    debugf("ExpressionParseFunctionCall()\n");
     Value *ReturnValue = nullptr;
     Value *FuncValue = nullptr;
     Value *Param;
@@ -1928,6 +1898,7 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
             const char * FunctionBefore = Parser->CurrentFunction;
             Parser->CurrentFunction = FuncName;
 
+            debugf("About to parse function '%s'.", FuncName);
             if (ParseStatement(&FuncParser, TRUE) != ParseResultOk)
                 ProgramFail(&FuncParser, "function body expected");
 
@@ -1966,6 +1937,7 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
 /* parse an expression */
 long long ExpressionParseLongLong(struct ParseState *Parser)
 {
+    debugf("ExpressionParseLongLong()\n");
     Value *Val = nullptr;
     long long Result = 0;
 

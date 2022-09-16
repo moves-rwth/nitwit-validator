@@ -77,9 +77,8 @@ void AssumptionExpressionParseFunctionCall(struct ParseState *Parser, struct Exp
 
 #ifdef DEBUG_EXPRESSIONS
 /* show the contents of the expression stack */
-void ExpressionStackShow(Picoc *pc, struct ExpressionStack *StackTop)
-{
-    printf("Expression stack [0x%lx,0x%lx]: ", (long long)pc->HeapStackTop, (long long)StackTop);
+void ExpressionStackShow(Picoc *pc, struct ExpressionStack *StackTop) {
+    printf("Expression stack [0x%llx,0x%llx]: ", (unsigned long long)pc->HeapStackTop, (unsigned long long)StackTop);
     
     while (StackTop != nullptr)
     {
@@ -97,10 +96,12 @@ void ExpressionStackShow(Picoc *pc, struct ExpressionStack *StackTop)
                 case TypeInt:       printf("%d:int", StackTop->Val->Val->Integer); break;
                 case TypeShort:     printf("%d:short", StackTop->Val->Val->ShortInteger); break;
                 case TypeChar:      printf("%d:char", StackTop->Val->Val->Character); break;
-                case TypeLong:      printf("%ld:long long", StackTop->Val->Val->LongInteger); break;
+                case TypeLong:      printf("%ld:long", StackTop->Val->Val->LongInteger); break;
+                case TypeLongLong:  printf("%lld:long long", StackTop->Val->Val->LongLongInteger); break;
                 case TypeUnsignedShort: printf("%d:unsigned short", StackTop->Val->Val->UnsignedShortInteger); break;
                 case TypeUnsignedInt: printf("%d:unsigned int", StackTop->Val->Val->UnsignedInteger); break;
-                case TypeUnsignedLong: printf("%ld:unsigned long long", StackTop->Val->Val->UnsignedLongInteger); break;
+                case TypeUnsignedLong: printf("%ld:unsigned long", StackTop->Val->Val->UnsignedLongInteger); break;
+                case TypeUnsignedLongLong: printf("%llud:unsigned long long", StackTop->Val->Val->UnsignedLongLongInteger); break;
                 case TypeDouble:        printf("%f:fp", StackTop->Val->Val->Double); break;
                 case TypeFunction:  printf("%s:function", StackTop->Val->Val->Identifier); break;
                 case TypeMacro:     printf("%s:macro", StackTop->Val->Val->Identifier); break;
@@ -110,7 +111,7 @@ void ExpressionStackShow(Picoc *pc, struct ExpressionStack *StackTop)
                     else if (StackTop->Val->Typ->FromType->Base == TypeChar)
                         printf("\"%s\":string", (char *)StackTop->Val->Val->Pointer);
                     else
-                        printf("ptr(0x%lx)", (long long)StackTop->Val->Val->Pointer); 
+                        printf("ptr(0x%llx)", (unsigned long long)StackTop->Val->Val->Pointer); 
                     break;
                 case TypeArray:     printf("array"); break;
                 case TypeStruct:    printf("%s:struct", StackTop->Val->Val->Identifier); break;
@@ -119,7 +120,7 @@ void ExpressionStackShow(Picoc *pc, struct ExpressionStack *StackTop)
                 case Type_Type:     PrintType(StackTop->Val->Val->Typ, pc->CStdOut); printf(":type"); break;
                 default:            printf("unknown"); break;
             }
-            printf("[0x%lx,0x%lx]", (long long)StackTop, (long long)StackTop->Val);
+            printf("[0x%llx,0x%llx]", (unsigned long long)StackTop, (unsigned long long)StackTop->Val);
         }
         else
         { 
@@ -127,7 +128,7 @@ void ExpressionStackShow(Picoc *pc, struct ExpressionStack *StackTop)
             printf("op='%s' %s %d", OperatorPrecedence[(int)StackTop->Op].Name, 
                 (StackTop->Order == OrderPrefix) ? "prefix" : ((StackTop->Order == OrderPostfix) ? "postfix" : "infix"), 
                 StackTop->Precedence);
-            printf("[0x%lx]", (long long)StackTop);
+            printf("[0x%llx]", (unsigned long long)StackTop);
         }
         
         StackTop = StackTop->Next;

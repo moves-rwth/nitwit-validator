@@ -20,6 +20,9 @@ endif()
 # Enable by default
 add_definitions(-DENABLE_TRANSITION_LIMIT)
 
+# Enable for debugging
+add_definitions(-DDEBUG_EXPRESSIONS)
+
 file(GLOB P_C_FILES picoc/**/*.cpp picoc/*.cpp picoc/values.cpp)
 file(GLOB P_H_FILES picoc/**/*.hpp picoc/*.hpp)
 file(GLOB W_SOURCE_FILES witness/**/*.hpp witness/**/*.cpp witness/*.cpp witness/*.hpp)

@@ -6,6 +6,14 @@
 /* for test cases only */
 #include <stdio.h>
 
+#ifdef DEBUG_EXPRESSIONS
+#define debugf printf
+#else
+void debugf(char* Format, ...)
+{
+}
+#endif
+
 /* deallocate any memory */
 void ParseCleanup(Picoc *pc)
 {
@@ -526,6 +534,7 @@ void ParseDeclarationAssignment(struct ParseState *Parser, Value *NewVariable, i
             ParseArrayInitialiser(Parser, NewVariable, DoAssignment);
     } else {
         /* this is a normal expression initialiser */
+        debugf("ParseStatement found a DeclarationAssignment, going into ExpressionParse().\n");
         if (!ExpressionParse(Parser, &CValue))
             ProgramFail(Parser, "expression expected");
 
@@ -710,10 +719,12 @@ void ParseFor(struct ParseState *Parser)
         ProgramFail(Parser, "statement expected");
 
     ParserCopyPos(&PreConditional, Parser);
-    if (LexGetToken(Parser, nullptr, FALSE) == TokenSemicolon)
+    if (LexGetToken(Parser, nullptr, FALSE) == TokenSemicolon) {
         Condition = TRUE;
-    else
+    } else {
+        debugf("ParseStatement found a For, going into ExpressionParse() to parse condition.\n");
         Condition = ExpressionParseLongLong(Parser);
+    }
 
     ConditionCallback(Parser, Condition);
 
@@ -741,10 +752,12 @@ void ParseFor(struct ParseState *Parser)
         ParseStatement(Parser, FALSE);
 
         ParserCopyPos(Parser, &PreConditional);
-        if (LexGetToken(Parser, nullptr, FALSE) == TokenSemicolon)
+        if (LexGetToken(Parser, nullptr, FALSE) == TokenSemicolon) {
             Condition = TRUE;
-        else
+        } else {
+            debugf("ParseStatement found a For, going into ExpressionParse() to parse condition.\n");
             Condition = ExpressionParseLongLong(Parser);
+        }
 
         if (Condition)
         {
@@ -951,6 +964,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         case TokenDecrement:
         case TokenOpenBracket:
             *Parser = PreState;
+            debugf("ParseStatement found a (, going into ExpressionParse().\n");
             ExpressionParse(Parser, &CValue);
             SkipDebugCheck = TRUE;
             if (Parser->Mode == RunModeRun)
@@ -966,6 +980,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             if (LexGetToken(Parser, nullptr, TRUE) != TokenOpenBracket)
                 ProgramFail(Parser, "'(' expected");
 
+            debugf("ParseStatement found an If, going into ExpressionParse().\n");
             Condition = ExpressionParseLongLong(Parser);
 
             ConditionCallback(Parser, Condition);
@@ -999,6 +1014,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 do
                 {
                     ParserCopyPos(Parser, &PreConditional);
+                    debugf("ParseStatement found a While, going into ExpressionParse() to parse condition.\n");
                     Condition = ExpressionParseLongLong(Parser);
                     ConditionCallback(Parser, Condition);
                     if (LexGetToken(Parser, nullptr, TRUE) != TokenCloseBracket)
@@ -1039,6 +1055,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                     if (LexGetToken(Parser, nullptr, TRUE) != TokenOpenBracket)
                         ProgramFail(Parser, "'(' expected");
 
+                    debugf("ParseStatement found a Do, going into ExpressionParse() to parse condition.\n");
                     Condition = ExpressionParseLongLong(Parser);
                     ConditionCallback(Parser, Condition);
                     if (LexGetToken(Parser, nullptr, TRUE) != TokenCloseBracket)
@@ -1121,6 +1138,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             if (LexGetToken(Parser, nullptr, TRUE) != TokenOpenBracket)
                 ProgramFail(Parser, "'(' expected");
 
+            debugf("ParseStatement found a Switch, going into ExpressionParse() to parse condition.\n");
             Condition = ExpressionParseLongLong(Parser);
 
             if (LexGetToken(Parser, nullptr, TRUE) != TokenCloseBracket)
@@ -1151,11 +1169,14 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             if (Parser->Mode == RunModeCaseSearch)
             {
                 Parser->Mode = RunModeRun;
+                debugf("ParseStatement found a Case, going into ExpressionParse() to parse condition.\n");
                 Condition = ExpressionParseLongLong(Parser);
                 Parser->Mode = RunModeCaseSearch;
             }
-            else
+            else {
+                debugf("ParseStatement found a Case, going into ExpressionParse() to parse condition.\n");
                 Condition = ExpressionParseLongLong(Parser);
+            }
 
             if (LexGetToken(Parser, nullptr, TRUE) != TokenColon)
                 ProgramFail(Parser, "':' expected");
@@ -1194,6 +1215,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 Parser->ReturnFromFunction = Parser->pc->TopStackFrame->FuncName;
                 if (!Parser->pc->TopStackFrame || Parser->pc->TopStackFrame->ReturnValue->Typ->Base != TypeVoid)
                 {
+                    debugf("ParseStatement found a Return, going into ExpressionParse().\n");
                     if (!ExpressionParse(Parser, &CValue))
                         ProgramFail(Parser, "value required in return");
 
@@ -1205,6 +1227,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 }
                 else
                 {
+                    debugf("ParseStatement found a Return, going into ExpressionParse().\n");
                     if (ExpressionParse(Parser, &CValue))
                         ProgramFail(Parser, "value in return from a void function");
                 }
@@ -1212,8 +1235,10 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
 
                 Parser->Mode = RunModeReturn;
             }
-            else
+            else {
+                debugf("ParseStatement found a Return, going into ExpressionParse().\n");
                 ExpressionParse(Parser, &CValue);
+            }
             break;
 
         case TokenTypedef:
