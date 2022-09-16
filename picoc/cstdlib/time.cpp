@@ -62,12 +62,10 @@ void StdStrftime(struct ParseState *Parser, Value *ReturnValue, Value **Param, i
 }
 
 #ifndef WIN32
-//extern char *strptime(const char *s, const char *format, struct tm *tm);
+extern char *strptime(const char *s, const char *format, struct tm *tm);
 
 void StdStrptime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
-    extern char *strptime(const char *s, const char *format, struct tm *tm);
-	  
     ReturnValue->Val->Pointer = strptime((const char*)Param[0]->Val->Pointer, (const char*)Param[1]->Val->Pointer, (struct tm*) Param[2]->Val->Pointer);
 }
 
