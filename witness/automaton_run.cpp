@@ -194,7 +194,7 @@ void WitnessAutomaton::consumeState(ParseState *state) {
 		ProgramFail(state, "limit to unsuccessful transitions exceeded");
 	}
 #endif
-	if (state->VerifierErrorCalled && !this->verifier_error_called) {
+	if (state->pc->VerifierErrorFunctionWasCalled && !this->verifier_error_called) {
 		this->verifier_error_called = true;
 		cw_verbose("Error function has been called!\n");
 	}

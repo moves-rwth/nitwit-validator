@@ -5,11 +5,11 @@
 #include "../interpreter.hpp"
 
 void VerifierAssertFail(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
-	//Parser->VerifierErrorCalled = TRUE;
+	//Parser->pc->VerifierErrorFunctionWasCalled = true;
 }
 
 void VerifierError(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
-	Parser->VerifierErrorCalled = TRUE;
+	Parser->pc->VerifierErrorFunctionWasCalled = true;
 }
 
 void VerifierAssume(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {

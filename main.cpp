@@ -72,17 +72,20 @@ void handleDebugBreakpoint(struct ParseState *ps) {
 	}
 }
 
-int validate(const char *source_filename, const char *error_function_name) {
+int validate(const char *source_filename, const char *error_function_name, bool& error_function_was_called) {
+	error_function_was_called = false;
 
 	Picoc pc;
 	PicocInitialise(&pc, 104857600); // stack size of 100 MiB
 	pc.VerifierErrorFuncName = error_function_name;
+	pc.VerifierErrorFunctionWasCalled = false;
 
 	// the interpreter will jump here after finding a violation
 	if (PicocPlatformSetExitPoint(&pc)) {
 		cw_verbose("===============Finished=================\n");
 		cw_verbose("Stopping the interpreter.\n");
 		int ret = pc.PicocExitValue;
+		error_function_was_called = pc.VerifierErrorFunctionWasCalled;
 		PicocCleanup(&pc);
 		return ret;
 	}
@@ -148,12 +151,15 @@ int main(int argc, char **argv) {
 		return RESULT_UNKNOWN;
 	}
 
-	int exit_value = validate(argv[2], argv[3]);
+	bool errorFunctionWasCalled = false;
+	int exit_value = validate(argv[2], argv[3], errorFunctionWasCalled);
+	errorFunctionWasCalled = errorFunctionWasCalled || wit_aut->wasVerifierErrorCalled();
+
 	std::cout << "Witness in violation state: " << (wit_aut->isInViolationState() ? "yes" : "no") << std::endl;
-	std::cout << "Error function \"" << argv[3] << "\" called during execution: " << (wit_aut->wasVerifierErrorCalled() ? "yes" : "no") << std::endl;
+	std::cout << "Error function \"" << argv[3] << "\" called during execution: " << (errorFunctionWasCalled ? "yes" : "no") << std::endl;
 
 	// check whether we finished in a violation state and if __VERIFIER_error was called
-	if ((!wit_aut->isInViolationState() || !wit_aut->wasVerifierErrorCalled()) &&
+	if ((!wit_aut->isInViolationState() || !errorFunctionWasCalled) &&
 		(exit_value >= NO_WITNESS_CODE && exit_value <= ALREADY_DEFINED)) {
 		cw_verbose("WitnessAutomaton finished in state %s, with error code %d.\n",
 				   wit_aut->getCurrentState()->id.c_str(),
@@ -169,16 +175,16 @@ int main(int argc, char **argv) {
 		}
 
 		// check whether we finished in a state where __VERIFIER_error was called
-		if (wit_aut->wasVerifierErrorCalled()) {
+		if (errorFunctionWasCalled) {
 			std::cout << ", error function '" << argv[3] << "' was called.";
 		} else {
 			std::cout << ", error function '" << argv[3] << "' was never called.";
 		}
 		std::cout << std::endl;
-	} else if (wit_aut->isInViolationState() && !wit_aut->wasVerifierErrorCalled()) {
+	} else if (wit_aut->isInViolationState() && !errorFunctionWasCalled) {
 		std::cout << " #*# FAILED: The error function '" << argv[3] << "' was never called, even though the witness IS in a violation state." << std::endl;
 		exit_value = UNVALIDATED_VIOLATION;
-	} else if (wit_aut->wasVerifierErrorCalled()) {
+	} else if (errorFunctionWasCalled) {
 		std::cout << std::endl;
 		if (wit_aut->isInViolationState()) {
 			std::cout << "VALIDATED: The state '" << wit_aut->getCurrentState()->id << "' has been reached. The state is a violation state." << std::endl;

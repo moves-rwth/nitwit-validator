@@ -685,7 +685,6 @@ void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText,
     Parser->EnterFunction = nullptr;
     Parser->ReturnFromFunction = nullptr;
     Parser->CurrentFunction = nullptr;
-    Parser->VerifierErrorCalled = FALSE;
     Parser->ResolvedNonDetVars = nullptr;
     Parser->FreshGotoSearch = FALSE;
     Parser->SkipIntrinsic = FALSE;

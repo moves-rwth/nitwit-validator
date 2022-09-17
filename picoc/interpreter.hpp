@@ -216,7 +216,6 @@ struct ParseState
     const char * EnterFunction;
     const char * CurrentFunction;
     const char * ReturnFromFunction;
-    int VerifierErrorCalled;
     struct ValueList * ResolvedNonDetVars;
     char FreshGotoSearch;
     char SkipIntrinsic;
@@ -555,6 +554,8 @@ struct Picoc_Struct
     
 	/* Verifier Error Function Name, if any */
 	const char *VerifierErrorFuncName;
+    /* Whether the Error Function was called*/
+    bool VerifierErrorFunctionWasCalled;
 	
     /* C library */
     int BigEndian;

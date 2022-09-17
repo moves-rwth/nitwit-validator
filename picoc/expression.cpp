@@ -1862,7 +1862,7 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
 		// We are entering a function, this might be a function hooked as the "error" function
 		if ((Parser->pc->VerifierErrorFuncName != nullptr) && (strcmp(FuncName, Parser->pc->VerifierErrorFuncName) == 0)) {
 			printf("Detected call to marked error function \"%s\"!\n", Parser->pc->VerifierErrorFuncName);
-			Parser->VerifierErrorCalled = TRUE;
+			Parser->pc->VerifierErrorFunctionWasCalled = true;
 		}
 
         if (FuncValue->Val->FuncDef.Intrinsic == nullptr)
