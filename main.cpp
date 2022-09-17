@@ -100,7 +100,8 @@ int validate(const char *source_filename, const char *error_function_name) {
 	if (error) {
 		return 255;
 	}
-	char const* source = sourceString.c_str();
+	char* source = static_cast<char*>(malloc(sourceString.length() + 1));
+	strcpy(source, sourceString.c_str());
 	int const sourceLength = static_cast<int>(strlen(source));
 
 	PicocParse(&pc, source_filename, source, sourceLength, TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
