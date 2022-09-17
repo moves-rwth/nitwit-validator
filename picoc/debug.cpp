@@ -59,7 +59,7 @@ void DebugSetBreakpoint(struct ParseState *Parser)
         /* add it to the table */
         auto *NewEntry = static_cast<TableEntry *>(HeapAllocMem(pc, sizeof(struct TableEntry)));
         if (NewEntry == nullptr) {
-            ProgramFailNoParser(pc, "out of memory");
+            ProgramFailNoParserWithExitCode(pc, 251, "Out of memory");
             return;
         }
             

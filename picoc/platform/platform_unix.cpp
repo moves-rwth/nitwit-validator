@@ -92,7 +92,7 @@ char *PlatformReadFile(Picoc *pc, const char *FileName)
     
     ReadText = static_cast<char *>(malloc(FileInfo.st_size + 1));
     if (ReadText == nullptr)
-        ProgramFailNoParser(pc, "out of memory\n");
+        ProgramFailNoParserWithExitCode(pc, 251, "Out of memory");
         
     InFile = fopen(FileName, "r");
     if (InFile == nullptr)

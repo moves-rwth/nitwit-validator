@@ -1709,7 +1709,7 @@ void ExpressionParseMacroCall(struct ParseState *Parser, struct ExpressionStack 
         HeapPushStackFrame(Parser->pc);
         ParamArray = static_cast<Value **>(HeapAllocStack(Parser->pc, sizeof(Value *) * MDef->NumParams));
         if (ParamArray == nullptr)
-            ProgramFail(Parser, "out of memory");
+            ProgramFailWithExitCode(Parser, 251, "Out of memory");
     }
     else
         ExpressionPushLongLong(Parser, StackTop, 0);
@@ -1803,7 +1803,7 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
         ParamArray = static_cast<Value **>(HeapAllocStack(Parser->pc,
                                                           sizeof(Value *) * FuncValue->Val->FuncDef.NumParams));
         if (ParamArray == nullptr)
-            ProgramFail(Parser, "out of memory");
+            ProgramFailWithExitCode(Parser, 251, "Out of memory");
     }
     else
     {

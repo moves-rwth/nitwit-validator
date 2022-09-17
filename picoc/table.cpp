@@ -151,7 +151,7 @@ char *TableSetIdentifier(Picoc *pc, struct Table *Tbl, const char *Ident, unsign
                                                                                  sizeof(TableEntry::TableEntryPayload) +
                                                                                  IdentLen + 1));
         if (NewEntry == nullptr)
-            ProgramFailNoParser(pc, "out of memory");
+            ProgramFailNoParserWithExitCode(pc, 251, "Out of memory");
             
         strncpy((char *)&NewEntry->p.Key[0], (char *)Ident, IdentLen);
         NewEntry->p.Key[IdentLen] = '\0';

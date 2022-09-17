@@ -172,6 +172,17 @@ void ProgramFailNoParser(Picoc *pc, const char *Message, ...)
     PlatformExit(pc, 1);
 }
 
+/* exit with a message and exit code, when we're not parsing a program */
+void ProgramFailNoParserWithExitCode(Picoc* pc, int exitCode, const char* Message, ...) {
+    va_list Args;
+
+    va_start(Args, Message);
+    PlatformVPrintf(pc->CStdOut, Message, Args);
+    va_end(Args);
+    PlatformPrintf(pc->CStdOut, "\n");
+    PlatformExit(pc, exitCode);
+}
+
 /* like ProgramFail() but gives descriptive error messages for assignment */
 void AssignFail(struct ParseState *Parser, const char *Format, struct ValueType *Type1, struct ValueType *Type2, int Num1, int Num2, const char *FuncName, int ParamNo)
 {

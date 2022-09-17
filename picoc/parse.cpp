@@ -1354,7 +1354,7 @@ void PicocParse(Picoc *pc, const char *FileName, const char *Source, int SourceL
     {
         NewCleanupNode = static_cast<CleanupTokenNode *>(HeapAllocMem(pc, sizeof(struct CleanupTokenNode)));
         if (NewCleanupNode == nullptr)
-            ProgramFailNoParser(pc, "out of memory");
+            ProgramFailNoParserWithExitCode(pc, 251, "Out of memory");
 
         NewCleanupNode->Tokens = Tokens;
         if (CleanupSource)

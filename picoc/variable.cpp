@@ -94,7 +94,7 @@ void *VariableAlloc(Picoc *pc, struct ParseState *Parser, int Size, int OnHeap)
         NewValue = HeapAllocStack(pc, Size);
     
     if (NewValue == nullptr)
-        ProgramFail(Parser, "out of memory");
+        ProgramFailWithExitCode(Parser, 251, "Out of memory");
     
 #ifdef DEBUG_HEAP
     if (!OnHeap)
@@ -195,6 +195,7 @@ void VariableRealloc(struct ParseState *Parser, Value *FromValue, int NewSize)
         HeapFreeMem(Parser->pc, FromValue->Val);
         
     FromValue->Val = static_cast<AnyValue *>(VariableAlloc(Parser->pc, Parser, NewSize, TRUE));
+    std::cout << "Re-alloced variable " << FromValue << std::endl;
     FromValue->AnyValOnHeap = TRUE;
 }
 
@@ -495,7 +496,7 @@ void VariableStackFrameAdd(struct ParseState *Parser, const char *FuncName, int 
     NewFrame = static_cast<StackFrame *>(HeapAllocStack(Parser->pc, sizeof(struct StackFrame) +
                                                                     sizeof(Value *) * NumParams));
     if (NewFrame == nullptr)
-        ProgramFail(Parser, "out of memory");
+        ProgramFailWithExitCode(Parser, 251, "Out of memory");
         
     ParserCopy(&NewFrame->ReturnParser, Parser);
     NewFrame->FuncName = FuncName;

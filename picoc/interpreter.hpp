@@ -739,6 +739,7 @@ void PrintSourceTextErrorLine(IOFILE *Stream, const char *FileName, const char *
 void ProgramFail(struct ParseState *Parser, const char *Message, ...);
 void ProgramFailWithExitCode(struct ParseState *Parser, int exitCode, const char *Message, ...);
 void ProgramFailNoParser(Picoc *pc, const char *Message, ...);
+void ProgramFailNoParserWithExitCode(Picoc* pc, int exitCode, const char* Message, ...);
 void AssignFail(struct ParseState *Parser, const char *Format, struct ValueType *Type1, struct ValueType *Type2, int Num1, int Num2, const char *FuncName, int ParamNo);
 void LexFail(Picoc *pc, struct LexState *Lexer, const char *Message, ...);
 void PlatformInit(Picoc *pc);
