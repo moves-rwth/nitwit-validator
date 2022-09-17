@@ -62,8 +62,9 @@ IncludeRegister(Picoc *pc, const char *IncludeName, void (*SetupFunction)(Picoc 
 void PicocIncludeAllSystemHeaders(Picoc *pc) {
     struct IncludeLibrary *ThisInclude = pc->IncludeLibList;
 
-    for (; ThisInclude != nullptr; ThisInclude = ThisInclude->NextLib)
+    for (; ThisInclude != nullptr; ThisInclude = ThisInclude->NextLib) {
         IncludeFile(pc, ThisInclude->IncludeName);
+    }
 }
 
 /* include one of a number of predefined libraries, or perhaps an actual file */
@@ -82,9 +83,9 @@ void IncludeFile(Picoc *pc, char *FileName) {
                     (*LInclude->SetupFunction)(pc);
 
                 /* parse the setup C source code - may define types etc. */
-                if (LInclude->SetupCSource != nullptr)
-                    PicocParse(pc, FileName, LInclude->SetupCSource, strlen(LInclude->SetupCSource), TRUE, TRUE, FALSE,
-                               FALSE, nullptr);
+                if (LInclude->SetupCSource != nullptr) {
+                    PicocParse(pc, FileName, LInclude->SetupCSource, strlen(LInclude->SetupCSource), TRUE, TRUE, FALSE, FALSE, nullptr);
+                }
 
                 /* set up the library functions */
                 if (LInclude->FuncList != nullptr)

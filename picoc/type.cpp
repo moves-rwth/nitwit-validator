@@ -10,7 +10,7 @@
 static int PointerAlignBytes;
 static int IntAlignBytes;
 
-/* initiliaze NonDet Array List all nd (1) at start
+/* initialize NonDet Array List all nd (1) at start
  * change to d (0) when element is initiliazed (assigned)
  **/
 void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
@@ -29,6 +29,19 @@ void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
     }
 
     Type->NDList = head;
+}
+
+void freeNonDetList(Picoc* pc, NonDetList* list) {
+    if (list != nullptr) {
+        NonDetList* next = list->Next;
+        HeapFreeMem(pc, list->IsNonDet);
+        HeapFreeMem(pc, list);
+        freeNonDetList(pc, next);
+    }
+}
+
+void freeNonDetList(Picoc* pc, ValueType* Type) {
+    freeNonDetList(pc, Type->NDList);
 }
 
 bool getNonDetListElement(NonDetList * List, int ArrayIndex) {
@@ -197,14 +210,16 @@ int TypeStackSizeValue(Value *Val)
 }
 
 /* memory used by a value */
-int TypeSizeValue(Value *Val, int Compact)
-{
-    if (IS_INTEGER_NUMERIC(Val) && !Compact)
+int TypeSizeValue(Value *Val, int Compact) {
+    if (IS_INTEGER_NUMERIC(Val) && !Compact) {
         return sizeof(ALIGN_TYPE);     /* allow some extra room for type extension */
-    else if (Val->Typ->Base != TypeArray)
+    } else if (Val->Typ->Base == BaseType::Type_Type) {
+        return sizeof(void*);
+    } else if (Val->Typ->Base != BaseType::TypeArray) {
         return Val->Typ->Sizeof;
-    else
+    } else {
         return Val->Typ->FromType->Sizeof * Val->Typ->ArraySize;
+    }
 }
 
 /* memory used by a variable given its type and array size */
@@ -311,6 +326,10 @@ void TypeCleanupNode(Picoc *pc, struct ValueType *Typ) {
     else
         SubType = nullptr;
 
+    if (Typ != nullptr) {
+        freeNonDetList(pc, Typ->NDList);
+    }
+
     // special case substruct element
     if (SubType != nullptr && (SubType->Next != nullptr && SubType->Next->Base == TypeStruct)) {
 
@@ -331,7 +350,7 @@ void TypeCleanupNode(Picoc *pc, struct ValueType *Typ) {
             }
         }
 
-        //clean highest SubType; lower members are alreadyay freeed
+        // clean highest SubType; lower members are already freed
         SubType = Typ->DerivedTypeList;
 
         TypeCleanupNode(pc, SubType);
@@ -927,7 +946,7 @@ ValueType *TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **I
 
     TypeParseFront(Parser, &BasicType, IsStatic, IsConst);
 
-    if (!TypeParseFunctionPointer(Parser, BasicType, Typ, Identifier, IsArgument)){
+    if (!TypeParseFunctionPointer(Parser, BasicType, Typ, Identifier, IsArgument)) {
         TypeParseIdentPart(Parser, BasicType, Typ, Identifier, IsConst);
     } else {
         Value * FuncValue = ParseFunctionDefinition(Parser, BasicType, *Identifier, TRUE);

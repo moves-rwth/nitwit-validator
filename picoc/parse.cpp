@@ -852,7 +852,11 @@ void ParseTypedef(struct ParseState *Parser)
 
 char *GetGotoIdentifier(const char *function_id, const char *goto_id) {
     int len = strlen(function_id) + strlen(goto_id) + 1;
-    char * s = static_cast<char *>(malloc(sizeof(char) * (len + 1)));
+    char* s = static_cast<char *>(malloc(sizeof(char) * (len + 1)));
+    if (s == nullptr) {
+        return nullptr;
+    }
+
     strcpy(s, function_id);
     s[strlen(function_id)] = ':';
     strcpy(s+strlen(function_id) + 1, goto_id);
