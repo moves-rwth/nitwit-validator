@@ -16,7 +16,7 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
 
 ## Changing behaviour with compiler options
  - VERBOSE (default on for debug, off for release) - outputs more info about program trace
- - NO_HEADER_INCLUDE (default on) - ignores any "extern" declarations and automatically includes all available libraries
+ - NO_HEADER_INCLUDE (default off) - ignores any "extern" declarations and automatically includes all available libraries
  - REQUIRE_MATCHING_ORIGINFILENAME (default off) - matches edges also depending on the "originfilename" argument 
  - ENABLE_TRANSITION_LIMIT (default on) - stops NITWIT after a certain limit of unsuccessful edge transitions is made
  - STOP_IN_SINK (default off) - terminate the validation once the sink state is reached
@@ -61,20 +61,20 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
  - 2   -> Parsing witness failed (file not found).
  - 3   -> Usage error (wrong arguments).
  - 4   -> Unspecified, probably failed in parsing C.
- - 5   -> Witness reached an error state, but __VERIFIER_error was not called (deprecated, code 250 instead).
+ - 5   -> Witness reached an error state, but the error function was not called (deprecated, code 250 instead).
 
 ### Some more specific exit codes
  - 240 -> Witness missing (deprecated).
  - 241 -> Witness got into a sink state.
- - 242 -> Program finished without calling __VERIFIER_error, witness not in an error state.
+ - 242 -> Program finished without calling error function, witness not in an error state.
  - 243 -> Witness is in an illegal state.
  - 244 -> A C identifier was undefined (usually when some C function/type cannot be resolved).
- - 245 -> The program called __VERIFIER_error, but the witness automaton did not finish in an error state.
+ - 245 -> The program called error function, but the witness automaton did not finish in an error state.
  - 246 -> A C identifier was defined twice.
  - 247 -> Unsupported nondeterministic operation for resolving variables (currently only = and == are allowed in assumptions).
- - 248 -> __VERIFIER_assume or assert() failed.
+ - 248 -> error function or assert() failed.
  - 249 -> Bad function definition.
- - 250 -> Witness reached an error state, but __VERIFIER_error was not called.
+ - 250 -> Witness reached an error state, but error function was not called.
  - 251 -> Out of memory.
  - 255 -> Wrapper script error.
 
@@ -127,7 +127,7 @@ Put both files in the same directory, for simplicity we assume they are named `m
 
 Now in the same directory, execute the following command:
 ```
-docker run --rm --name nitwit -v `pwd`:/nitwit/testfiles nitwit:latest -32 -w testfiles/witness.graphml testfiles/main.c 
+docker run --rm --name nitwit -v `pwd`:/nitwit/testfiles nitwit:latest -32 -w testfiles/witness.graphml testfiles/main.c __VERIFIER_error
 ```
 This will run NITWIT inside Docker to validate the program with semantics of a 32-bit CPU architecture.
 You could also specify the option `-64` instead to switch to 64-bit architecture.

@@ -3,7 +3,7 @@ project(nitwit CXX)
 
 option(NITWIT_ENABLE_TRANSITION_LIMIT "Whether the execution shall run ad infinitum or terminate after a high, but finite amount." ON)
 option(NITWIT_REQUIRE_MATCHING_ORIGINFILENAME "Whether matching of edges also depends on the origin filename." OFF)
-option(NITWIT_NO_HEADER_INCLUDE "Ignores any 'extern' declarations and automatically includes all available libraries." ON)
+option(NITWIT_NO_HEADER_INCLUDE "Ignores any 'extern' declarations and automatically includes all available libraries." OFF)
 option(NITWIT_STOP_IN_SINK "Whether the validation is terminated once the sink state is reached." OFF)
 option(NITWIT_STRICT_VALIDATION "Whether traces not accepted by the witness automaton are not allowed." OFF)
 set(NITWIT_TRANSITION_LIMIT "5000000" CACHE STRING "The maximum number of transitions taken when NITWIT_ENABLE_TRANSITION_LIMIT is enabled.")
