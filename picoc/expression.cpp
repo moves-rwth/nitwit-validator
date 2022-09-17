@@ -1642,13 +1642,8 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
             /* it isn't a token from an expression */
             debugf("it isn't a token from an expression\n");
 
-            int const NextToken = LexGetToken(Parser, nullptr, FALSE);
-            if (NextToken == TokenComma) {
-                // Consume this expression
-            } else {
-                ParserCopy(Parser, &PreState);
-                Done = TRUE;
-            }
+            ParserCopy(Parser, &PreState);
+            Done = TRUE;
         }
 
     } while (!Done);
