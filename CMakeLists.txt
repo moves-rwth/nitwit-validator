@@ -11,6 +11,7 @@ set(NITWIT_TRANSITION_LIMIT "5000000" CACHE STRING "The maximum number of transi
 # Debugging Support
 option(NITWIT_VERBOSE "Whether verbose output shall be produced. Warning, this slows down execution a lot!" OFF)
 option(NITWIT_DEBUG_EXPRESSIONS "Whether debug output shall be produced when traversing the expression stack." OFF)
+option(NITWIT_USE_ASAN "Whether to use Clang Address Sanitizer (ASAN)" OFF)
 
 if(MSVC)
 	set(CMAKE_CXX_STANDARD 17)
@@ -61,6 +62,10 @@ endif()
 
 if (NITWIT_DEBUG_EXPRESSIONS)
 	add_definitions(-DDEBUG_EXPRESSIONS)
+endif()
+
+if (NITWIT_USE_ASAN)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
 endif()
 
 file(GLOB P_C_FILES picoc/**/*.cpp picoc/*.cpp picoc/values.cpp)
