@@ -302,7 +302,7 @@ std::shared_ptr<Node> getDefaultNode(std::shared_ptr<DefaultKeyValues> const& de
 	n->is_loopHead = (def_values->getDefault("loopHead").default_val == "true");
 
 	// integers
-	string val = def_values->getDefault("thread").default_val;
+	std::string val = def_values->getDefault("thread").default_val;
 	n->thread_number = stringToSizeT(val);
 
 	return n;
@@ -351,7 +351,7 @@ void setKeyAttributes(Key *key, const char *name, const char *value) {
 }
 
 std::shared_ptr<DefaultKeyValues> parseKeys(pugi::xpath_node_set const& keyNodeSet) {
-	auto dkv = make_unique<DefaultKeyValues>();
+	auto dkv = std::make_unique<DefaultKeyValues>();
 
 	for (pugi::xpath_node xpath_node: keyNodeSet) {
 		if (!xpath_node.node()) {

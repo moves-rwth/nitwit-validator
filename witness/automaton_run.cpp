@@ -6,18 +6,18 @@
 //#include "../picoc/picoc.hpp"
 
 #ifndef VERBOSE
-void cw_verbose(const string& Format, ...){}
+void cw_verbose(std::string const& Format, ...){}
 #endif
 
-string baseFileName(const string& s) {
+std::string baseFileName(const std::string& s) {
 	return s.substr(s.find_last_of("/\\") + 1);
 }
 
 // fixme bugs: this function isn't ideal - it will not work with for instance x == "  ;";
-vector<string> split(string str, char delimiter) {
+std::vector<std::string> split(std::string const& str, char delimiter) {
 	int begin = 0;
-	size_t n = count(str.begin(), str.end(), delimiter);
-	auto result = vector<string>();
+	std::size_t n = std::count(str.begin(), str.end(), delimiter);
+	auto result = std::vector<std::string>();
 	if (n == 0 && str.empty()) {
 		return result;
 	} else if (n == 0) {
@@ -25,21 +25,21 @@ vector<string> split(string str, char delimiter) {
 		return result;
 	}
 	result.reserve(n);
-	for (size_t d = str.find_first_of(delimiter); d != string::npos; d = str.find_first_of(delimiter, d + 1)) {
+	for (std::size_t d = str.find_first_of(delimiter); d != std::string::npos; d = str.find_first_of(delimiter, d + 1)) {
 		if (0 < d && d + 1 < str.length() && str[d - 1] == '\'' && str[d + 1] == '\'') {
 			continue;
 		}
-		string ass = str.substr(begin, d - begin);
+		std::string ass = str.substr(begin, d - begin);
 		result.push_back(ass);
 		begin = d + 1;
 	}
 	return result;
 }
 
-bool satisfiesAssumptionsAndResolve(ParseState *state, const shared_ptr<Edge>& edge) {
+bool satisfiesAssumptionsAndResolve(ParseState *state, const std::shared_ptr<Edge>& edge) {
 	auto assumptions = split(edge->assumption, ';');
 
-	for (const string& ass: assumptions) {
+	for (std::string const& ass: assumptions) {
 		if (ass.empty()) {
 			continue;
 		}
@@ -181,8 +181,11 @@ bool WitnessAutomaton::canTransitionFurther() {
 	return true;
 }
 
-#define UNSUCCESSFUL_TRIES_LIMIT 1000000
-int unsuccessfulTries = 0;
+#if !defined(UNSUCCESSFUL_TRIES_LIMIT) || (UNSUCCESSFUL_TRIES_LIMIT <= 0)
+#error The macro UNSUCCESSFUL_TRIES_LIMIT macro is not defined or <= 0!
+#endif
+
+std::size_t unsuccessfulTries = 0;
 
 void WitnessAutomaton::consumeState(ParseState *state) {
 	++unsuccessfulTries;
@@ -193,7 +196,7 @@ void WitnessAutomaton::consumeState(ParseState *state) {
 #endif
 	if (state->VerifierErrorCalled && !this->verifier_error_called) {
 		this->verifier_error_called = true;
-		cw_verbose("__VERIFIER_error has been called!\n");
+		cw_verbose("Error function has been called!\n");
 	}
 	if (!canTransitionFurther()) {
 		return;

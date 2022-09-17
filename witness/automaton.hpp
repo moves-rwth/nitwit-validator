@@ -27,7 +27,7 @@
 #ifdef VERBOSE
 #define cw_verbose printf
 #else
-void cw_verbose(const string& Format, ...);
+void cw_verbose(std::string const& Format, ...);
 #endif
 
 

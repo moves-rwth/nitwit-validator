@@ -51,7 +51,6 @@
 #include <iostream>
 #include <map>
 #include <memory>
-using namespace std;
 # ifndef NO_FP
 #  include <math.h>
 #  define PICOC_MATH_LIBRARY
