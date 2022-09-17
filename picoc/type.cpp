@@ -24,6 +24,7 @@ void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
         NonDetList * tail = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
         tail->IsNonDet = static_cast<bool*>(VariableAlloc(Parser->pc, Parser, sizeof(bool), TRUE));
         *(tail->IsNonDet) = true;
+        tail->Next = nullptr;
         temp->Next = tail;
         temp = temp->Next;
     }
@@ -45,17 +46,33 @@ void freeNonDetList(Picoc* pc, ValueType* Type) {
 }
 
 bool getNonDetListElement(NonDetList * List, int ArrayIndex) {
+    if (List == nullptr) {
+        std::cerr << "Internal Error: Access to NonDetList that is null!" << std::endl;
+        return false;
+    }
     struct NonDetList * current = List;
     for (int i=0; i<ArrayIndex; i++) {
         current = current->Next;
+        if (current == nullptr) {
+            std::cerr << "Internal Error: Access to NonDetList that is null!" << std::endl;
+            return false;
+        }
     }
     return *(current->IsNonDet);
 }
 
 void setNonDetListElement(NonDetList * List, int ArrayIndex, bool nonDet) {
+    if (List == nullptr) {
+        std::cerr << "Internal Error: Access to NonDetList that is null!" << std::endl;
+        return;
+    }
     struct NonDetList * current = List;
     for (int i=0; i<ArrayIndex; i++) {
         current = current->Next;
+        if (current == nullptr) {
+            std::cerr << "Internal Error: Access to NonDetList that is null!" << std::endl;
+            return;
+        }
     }
     *(current->IsNonDet) = nonDet;
 }
@@ -246,6 +263,8 @@ void TypeAddBaseType(Picoc *pc, struct ValueType *TypeNode, enum BaseType Base, 
     TypeNode->DerivedTypeList = nullptr;
     TypeNode->OnHeap = FALSE;
     TypeNode->IsNonDet = IsNonDet;
+    TypeNode->NDList = nullptr;
+    TypeNode->NDListSize = 0;
     TypeNode->Next = pc->UberType.DerivedTypeList;
     pc->UberType.DerivedTypeList = TypeNode;
 }

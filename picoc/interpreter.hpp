@@ -277,6 +277,7 @@ struct ValueType
     // jsv
     bool IsNonDet;                  /* flag for when the variable is non-deterministic */
     struct NonDetList *NDList;     /* list of nd array element flags */
+    int NDListSize;                 /* the number of elements allocated in the list*/
 };
 
 /* function definition */

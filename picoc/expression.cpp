@@ -716,7 +716,10 @@ void ExpressionInfixOperator(struct ParseState *Parser, struct ExpressionStack *
         ArrayIndex = CoerceLongLong(TopValue);
 
         // set nondet value for BottomValue when it is a nondet array
-        if(BottomValue->Typ->NDList != NULL) {
+        if (BottomValue->Typ->NDList != nullptr) {
+            if (ArrayIndex >= BottomValue->Typ->NDListSize) {
+                ProgramFail(Parser, "array index out of bounds (%i >= %i)", ArrayIndex, BottomValue->Typ->NDListSize);
+            }
             BottomValue->Typ->IsNonDet = getNonDetListElement(BottomValue->Typ->NDList, ArrayIndex);
         }
 
