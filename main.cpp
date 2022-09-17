@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
 		cw_verbose("WitnessAutomaton finished in state %s, with error code %d.\n",
 				   wit_aut->getCurrentState()->id.c_str(),
 				   exit_value);
-		std::cout << "FAILED: Wasn't able to validate the witness.";
+		std::cout << "FAILED: Wasn't able to validate the witness." << std::endl;
 
 		// check whether we finished in a violation state
 		if (wit_aut->isInViolationState()) {
