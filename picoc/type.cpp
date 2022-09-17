@@ -30,6 +30,7 @@ void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
     }
 
     Type->NDList = head;
+    Type->NDListSize = ArraySize;
 }
 
 void freeNonDetList(Picoc* pc, NonDetList* list) {
