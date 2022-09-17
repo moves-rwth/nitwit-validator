@@ -38,7 +38,7 @@ build:clang:
   script:
     - mkdir build_clang
     - cd build_clang
-    - cmake -DCMAKE_BUILD_TYPE=Release -DNITWIT_USE_ASAN=On ..
+    - cmake -DCMAKE_BUILD_TYPE=Release -DNITWIT_USE_ASAN=Off ..
     - make -j8
   artifacts:
     paths:
