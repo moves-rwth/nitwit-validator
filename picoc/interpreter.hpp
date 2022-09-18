@@ -255,7 +255,7 @@ enum BaseType
 
 struct NonDetList {
     struct NonDetList * Next;
-    bool * IsNonDet;
+    bool IsNonDet;
 };
 
 /* data type */

@@ -15,15 +15,12 @@ static int IntAlignBytes;
  **/
 void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
     NonDetList * head = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
-    head->IsNonDet = static_cast<bool *>(VariableAlloc(Parser->pc, Parser, sizeof(bool), TRUE));
-    *(head->IsNonDet) = true;
+    head->IsNonDet = true;
 
     NonDetList * temp = head;
-
-    for(int i=1; i<ArraySize; i++) {
+    for (int i = 1; i < ArraySize; ++i) {
         NonDetList * tail = static_cast<NonDetList *>(VariableAlloc(Parser->pc, Parser, sizeof(NonDetList), TRUE));
-        tail->IsNonDet = static_cast<bool*>(VariableAlloc(Parser->pc, Parser, sizeof(bool), TRUE));
-        *(tail->IsNonDet) = true;
+        tail->IsNonDet = true;
         tail->Next = nullptr;
         temp->Next = tail;
         temp = temp->Next;
@@ -36,7 +33,6 @@ void initNonDetList (ParseState * Parser, ValueType * Type, int ArraySize) {
 void freeNonDetList(Picoc* pc, NonDetList* list) {
     if (list != nullptr) {
         NonDetList* next = list->Next;
-        HeapFreeMem(pc, list->IsNonDet);
         HeapFreeMem(pc, list);
         freeNonDetList(pc, next);
     }
@@ -52,14 +48,14 @@ bool getNonDetListElement(NonDetList * List, int ArrayIndex) {
         return false;
     }
     struct NonDetList * current = List;
-    for (int i=0; i<ArrayIndex; i++) {
+    for (int i=0; i<ArrayIndex; ++i) {
         current = current->Next;
         if (current == nullptr) {
             std::cerr << "Internal Error: Access to NonDetList that is null!" << std::endl;
             return false;
         }
     }
-    return *(current->IsNonDet);
+    return current->IsNonDet;
 }
 
 void setNonDetListElement(NonDetList * List, int ArrayIndex, bool nonDet) {
@@ -68,14 +64,14 @@ void setNonDetListElement(NonDetList * List, int ArrayIndex, bool nonDet) {
         return;
     }
     struct NonDetList * current = List;
-    for (int i=0; i<ArrayIndex; i++) {
+    for (int i = 0; i < ArrayIndex; ++i) {
         current = current->Next;
         if (current == nullptr) {
             std::cerr << "Internal Error: Access to NonDetList that is null!" << std::endl;
             return;
         }
     }
-    *(current->IsNonDet) = nonDet;
+    current->IsNonDet = nonDet;
 }
 
 bool TypeIsNonDeterministic(struct ValueType *Typ) {
