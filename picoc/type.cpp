@@ -195,7 +195,7 @@ ValueType *TypeGetMatching(Picoc *pc, ParseState *Parser, ValueType *ParentType,
     int AlignBytes;
     struct ValueType *ThisType = ParentType->DerivedTypeList;
     while (ThisType != nullptr && (ThisType->Base != Base || ThisType->ArraySize != ArraySize ||
-                        ThisType->Identifier != Identifier || (Nondet != nullptr && ThisType->IsNonDet == *Nondet)))
+                        ThisType->Identifier != Identifier || (Nondet != nullptr && ThisType->IsNonDet != *Nondet)))
         ThisType = ThisType->Next;
     
     if (ThisType != nullptr)
