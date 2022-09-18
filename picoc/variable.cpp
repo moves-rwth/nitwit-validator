@@ -6,6 +6,8 @@
 /* maximum size of a value to temporarily copy while we create a variable */
 #define MAX_TMP_COPY_BUF 1024
 
+/* whether debug information about allocation/deallocation is output. */
+//#define PRINT_VARIABLE_ALLOC_DEBUG
 
 /* initialise the variable system */
 void VariableInit(Picoc *pc)
@@ -16,10 +18,8 @@ void VariableInit(Picoc *pc)
 }
 
 /* deallocate the contents of a variable */
-void VariableFree(Picoc *pc, Value *Val)
-{
-    if (Val->ValOnHeap || Val->AnyValOnHeap)
-    {
+void VariableFree(Picoc* pc, Value* Val) {
+    if (Val->ValOnHeap || Val->AnyValOnHeap) {
         /* free function bodies, don't free function ptrs bodies  */
         if (Val->Typ == &pc->FunctionType && Val->Val->FuncDef.Intrinsic == nullptr && Val->Val->FuncDef.Body.Pos != nullptr)
             HeapFreeMem(pc, (void *)Val->Val->FuncDef.Body.Pos);
@@ -29,14 +29,22 @@ void VariableFree(Picoc *pc, Value *Val)
             HeapFreeMem(pc, (void *)Val->Val->MacroDef.Body.Pos);
 
         /* free the AnyValue */
-        if (Val->AnyValOnHeap)
+        if (Val->AnyValOnHeap) {
+#ifdef PRINT_VARIABLE_ALLOC_DEBUG
+            std::cout << "Debug: Freeing Val->Val = " << (void*)Val->Val << " in VariableFree." << std::endl;
+#endif
             HeapFreeMem(pc, Val->Val);
+        }
 
     }
 
     /* free the value */
-    if (Val->ValOnHeap)
+    if (Val->ValOnHeap) {
+#ifdef PRINT_VARIABLE_ALLOC_DEBUG
+        std::cout << "Debug: Freeing Val = " << (void*)Val << " in VariableFree." << std::endl;
+#endif
         HeapFreeMem(pc, Val);
+    }
 }
 
 /* deallocate the global table and the string literal table */
@@ -112,6 +120,9 @@ VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, in
     Value *NewValue = static_cast<Value *>(VariableAlloc(pc, Parser, MEM_ALIGN(sizeof(Value)) + DataSize,
                                                                 OnHeap));
     NewValue->Val = (union AnyValue *)((char *)NewValue + MEM_ALIGN(sizeof(Value)));
+#ifdef PRINT_VARIABLE_ALLOC_DEBUG
+    std::cout << "Debug: New Val = " << (void*)NewValue << " with Val->Val = " << (void*)NewValue->Val << " in AllocValueAndData." << std::endl;
+#endif
     NewValue->ValOnHeap = OnHeap;
     NewValue->AnyValOnHeap = FALSE;
     NewValue->ValOnStack = !OnHeap;
@@ -167,6 +178,9 @@ VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *
     Value *NewValue = static_cast<Value *>(VariableAlloc(Parser->pc, Parser, MEM_ALIGN(sizeof(Value)), FALSE));
     NewValue->Typ = Typ;
     NewValue->Val = FromValue;
+#ifdef PRINT_VARIABLE_ALLOC_DEBUG
+    std::cout << "Debug: New Val = " << (void*)NewValue << " with SHARED Val->Val = " << (void*)NewValue->Val << " in AllocValueFromExistingData." << std::endl;
+#endif
     NewValue->ValOnHeap = FALSE;
     NewValue->AnyValOnHeap = FALSE;
     NewValue->ValOnStack = FALSE;
@@ -191,11 +205,17 @@ Value *VariableAllocValueShared(struct ParseState *Parser, Value *FromValue)
 /* reallocate a variable so its data has a new size */
 void VariableRealloc(struct ParseState *Parser, Value *FromValue, int NewSize)
 {
-    if (FromValue->AnyValOnHeap)
+    if (FromValue->AnyValOnHeap) {
+#ifdef PRINT_VARIABLE_ALLOC_DEBUG
+        std::cout << "Debug: Freeing Val->Val = " << (void*)FromValue->Val << " in Realloc." << std::endl;
+#endif
         HeapFreeMem(Parser->pc, FromValue->Val);
+    }
         
     FromValue->Val = static_cast<AnyValue *>(VariableAlloc(Parser->pc, Parser, NewSize, TRUE));
-    std::cout << "Re-alloced variable " << FromValue << std::endl;
+#ifdef PRINT_VARIABLE_ALLOC_DEBUG
+    std::cout << "Debug: Realloced Val = " << (void*)FromValue << " with Val->Val = " << (void*)FromValue->Val << "." << std::endl;
+#endif
     FromValue->AnyValOnHeap = TRUE;
 }
 
