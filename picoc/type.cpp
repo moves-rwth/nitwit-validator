@@ -171,7 +171,7 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
 /* add a new type to the set of types we know about */
 struct ValueType *TypeAdd(Picoc *pc, struct ParseState *Parser, struct ValueType *ParentType, enum BaseType Base, int ArraySize, const char *Identifier, int Sizeof, int AlignBytes)
 {
-    auto *NewType = static_cast<ValueType *>(VariableAlloc(pc, Parser, sizeof(struct ValueType), TRUE));
+    auto *NewType = static_cast<ValueType *>(VariableAlloc(pc, Parser, MEM_ALIGN(sizeof(struct ValueType)), TRUE));
     NewType->Base = Base;
     NewType->ArraySize = ArraySize;
     NewType->Sizeof = Sizeof;
@@ -181,6 +181,9 @@ struct ValueType *TypeAdd(Picoc *pc, struct ParseState *Parser, struct ValueType
     NewType->FromType = ParentType;
     NewType->DerivedTypeList = nullptr;
     NewType->OnHeap = TRUE;
+    NewType->IsNonDet = false;
+    NewType->NDList = nullptr;
+    NewType->NDListSize = 0;
     NewType->Next = ParentType->DerivedTypeList;
     ParentType->DerivedTypeList = NewType;
     
