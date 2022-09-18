@@ -231,6 +231,14 @@ void parseEdgeProperties(pugi::xml_node const& node, std::map<std::string, std::
 			setEdgeAttributes(edge, nodes, key.value(), child.text().get());
 		}
 	}
+
+	// Fix for VeriAbs being stupid
+	if (edge->assumption_result_function.rfind("__VERIFIER_nondet_", 0) == 0) {
+		// Starts with __VERIFIER_nondet_
+		if (edge->assumption.rfind("result == ", 0) == 0) {
+			edge->assumption = "\\" + edge->assumption;
+		}
+	}
 }
 
 std::vector<std::shared_ptr<Edge>> parseEdges(pugi::xpath_node_set const& set, std::map<std::string, std::shared_ptr<Node>> const& graphNodes, std::shared_ptr<DefaultKeyValues> const& defaultKeyValues) {

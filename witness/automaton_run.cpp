@@ -49,7 +49,8 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const std::shared_ptr<Edg
 		void *heapbottom_before = state->pc->HeapBottom;
 		void *stackframe = state->pc->StackFrame;
 		HeapInit(state->pc, 1048576); // 1 MB
-		char *RegFileName = TableStrRegister(state->pc, ("assumption " + ass).c_str());
+		char* RegFileName = TableStrRegister(state->pc, ("assumption " + ass).c_str());
+		char* ResultString = TableStrRegister(state->pc, "result");
 
 		void *Tokens = nullptr;
 		if (setjmp(state->pc->AssumptionPicocExitBuf)) {
@@ -73,7 +74,7 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const std::shared_ptr<Edg
 
 		if (state->SkipIntrinsic && state->LastNonDetValue != nullptr &&
 			(LexGetToken(&Parser, &value, FALSE) == TokenWitnessResult ||
-			 (value != nullptr && value->Val->Identifier == TableStrRegister(state->pc, "result"))
+			 (value != nullptr && strcmp(value->Val->Identifier, ResultString) == 0)
 					// hack for VeriAbs - it outputs 'result' instead of '\result'
 			)) {
 			// handling \result in witnesses
