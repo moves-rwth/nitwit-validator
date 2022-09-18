@@ -121,7 +121,7 @@ VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, in
                                                                 OnHeap));
     NewValue->Val = (union AnyValue *)((char *)NewValue + MEM_ALIGN(sizeof(Value)));
 #ifdef PRINT_VARIABLE_ALLOC_DEBUG
-    std::cout << "Debug: New Val = " << (void*)NewValue << " with Val->Val = " << (void*)NewValue->Val << " in AllocValueAndData." << std::endl;
+    std::cout << "Debug: New Val = " << (void*)NewValue << " with Val->Val = " << (void*)NewValue->Val << " of size " << DataSize << " in AllocValueAndData." << std::endl;
 #endif
     NewValue->ValOnHeap = OnHeap;
     NewValue->AnyValOnHeap = FALSE;
@@ -493,8 +493,12 @@ void VariableStackPop(struct ParseState *Parser, Value *Var)
         
     if (Var->ValOnHeap)
     { 
-        if (Var->Val != nullptr)
+        if (Var->Val != nullptr) {
+#ifdef PRINT_VARIABLE_ALLOC_DEBUG
+            std::cout << "Debug: Freeing Val->Val = " << (void*)Var->Val << " in VariableStackPop." << std::endl;
+#endif
             HeapFreeMem(Parser->pc, Var->Val);
+        }
             
         Success = HeapPopStack(Parser->pc, Var, MEM_ALIGN(sizeof(Value)));                       /* free from heap */
     }
