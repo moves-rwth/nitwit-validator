@@ -17,7 +17,7 @@
 #ifdef DEBUG_EXPRESSIONS
 #define debugf printf
 #else
-extern void debugf(char* Format, ...);
+#define debugf(...)
 #endif
 /* local prototypes */
 enum OperatorOrder
