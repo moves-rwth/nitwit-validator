@@ -9,7 +9,7 @@
 /* initialise the debugger by clearing the breakpoint table */
 void DebugInit(Picoc *pc)
 {
-    TableInitTable(&pc->BreakpointTable, &pc->BreakpointHashTable[0], BREAKPOINT_TABLE_SIZE, TRUE);
+    nitwit::table::TableInitTable(&pc->BreakpointTable, &pc->BreakpointHashTable[0], BREAKPOINT_TABLE_SIZE, true);
     pc->BreakpointCount = 0;
 }
 
@@ -96,11 +96,11 @@ int DebugClearBreakpoint(struct ParseState *Parser)
 }
 
 /* before we run a statement, check if there's anything we have to do with the debugger here */
-void DebugCheckStatement(struct ParseState *Parser)
+void DebugCheckStatement(struct ParseState *Parser, bool wasMultiLineDeclaration, std::size_t const& lastLine)
 {
     if (Parser->DebuggerCallback != nullptr)
     {
-        Parser->DebuggerCallback(Parser);
+        Parser->DebuggerCallback(Parser, wasMultiLineDeclaration, lastLine);
     }
 }
 

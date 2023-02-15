@@ -21,6 +21,12 @@ def output(output_path: str,
 	with open(os.path.join(output_path, f"badly_parsed_witnesses.json"), "w") as badly_parsed_fp:
 		json.dump(badly_parsed, badly_parsed_fp)
 
+
+def delete_if_exists(path: str):
+	if os.path.isfile(path):
+		os.unlink(path)
+
+
 def save_table_to_file(table_data: str, name: str, TABLE_DIR: str):
 	tex_file = r'''\documentclass[notitlepage]{article}
 			\usepackage{booktabs}
@@ -29,15 +35,17 @@ def save_table_to_file(table_data: str, name: str, TABLE_DIR: str):
 			\begin{document}''' + table_data + '\end{document}'
 
 	path = f'{TABLE_DIR}/table_{name.lower()}.tex'
-	with open(path,'w') as f:
-	    f.write(tex_file)
-	
-	# generate pdflatex and redirect output too make console output readable
-	os.system(f"pdflatex -output-directory='{TABLE_DIR}' {TABLE_DIR}/table_{name.lower()}.tex > /dev/null")
+	with open(path, 'w') as f:
+		f.write(tex_file)
+
+	print(f"OS Name: {os.name}")
+	# generate pdflatex and redirect output to make console output readable
+	os.system(f"pdflatex -output-directory=\"{TABLE_DIR}\" {TABLE_DIR}/table_{name.lower()}.tex > /dev/null")
 	
 	# delete generated log and aux file
-	os.unlink(f"{TABLE_DIR}/table_{name.lower()}.log")
-	os.unlink(f"{TABLE_DIR}/table_{name.lower()}.aux")
+	delete_if_exists(f"{TABLE_DIR}/table_{name.lower()}.log")
+	delete_if_exists(f"{TABLE_DIR}/table_{name.lower()}.aux")
+
 
 def parse_message(errmsg, out, process):
 	if process.returncode != 0 and out is not None:
@@ -58,6 +66,7 @@ def parse_message(errmsg, out, process):
 	else:			
 		errmsg = 'Msg not parsed'
 	return errmsg
+
 
 def parse_loc_message(out, process):
 	if process.returncode != 0 and out is not None:
@@ -88,6 +97,7 @@ def parse_loc_message(out, process):
 	else:			
 		locMsg = 'Program failed!'
 	return locMsg
+
 
 def parse_stderr_message(stderr_list, err, process):
 	if err is not None:

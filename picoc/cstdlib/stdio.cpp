@@ -4,6 +4,8 @@
 #include <errno.h>
 #include "../interpreter.hpp"
 
+#include "../CoerceT.hpp"
+
 #define MAX_FORMAT 80
 #define MAX_SCANF_ARGS 10
 
@@ -214,11 +216,9 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                 {
                     case 'd': case 'i':     ShowType = &pc->IntType; break;     /* integer decimal */
                     case 'o': case 'u': case 'x': case 'X': ShowType = &pc->IntType; break; /* integer base conversions */
-#ifndef NO_FP
                     case 'e': case 'E':     ShowType = &pc->DoubleType; break;      /* double, exponent form */
                     case 'f': case 'F':     ShowType = &pc->DoubleType; break;      /* double, fixed-point */
                     case 'g': case 'G':     ShowType = &pc->DoubleType; break;      /* double, flexible format */
-#endif
                     case 'a': case 'A':     ShowType = &pc->IntType; break;     /* hexadecimal, 0x- format */
                     case 'c':               ShowType = &pc->IntType; break;     /* character */
                     case 's':               ShowType = pc->CharPtrType; break;  /* string */
@@ -243,7 +243,7 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                         case '\0':  OneFormatBuf[OneFormatCount] = '\0'; StdioOutPutc(*FPos, &SOStream); break;
                         case 'n':   
                             ThisArg = (Value *)((char *)ThisArg + MEM_ALIGN(sizeof(Value) + TypeStackSizeValue(ThisArg)));
-                            if (ThisArg->Typ->Base == TypeArray && ThisArg->Typ->FromType->Base == TypeInt)
+                            if (ThisArg->Typ->Base == BaseType::TypeArray && ThisArg->Typ->FromType->Base == BaseType::TypeInt)
                                 *(int *)ThisArg->Val->Pointer = SOStream.CharCount;
                             break;
                     }
@@ -268,16 +268,15 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                     {
                         /* show a signed integer */
                         if (IS_NUMERIC_COERCIBLE(ThisArg))
-                            StdioFprintfWord(&SOStream, OneFormatBuf, CoerceUnsignedLongLong(ThisArg));
+                            StdioFprintfWord(&SOStream, OneFormatBuf, CoerceT<unsigned long long>(ThisArg));
                         else
                             StdioOutPuts("XXX", &SOStream);
                     }
-#ifndef NO_FP
                     else if (ShowType == &pc->DoubleType)
                     {
                         /* show a floating point number */
                         if (IS_NUMERIC_COERCIBLE(ThisArg))
-                            StdioFprintfFP(&SOStream, OneFormatBuf, CoerceDouble(ThisArg));
+                            StdioFprintfFP(&SOStream, OneFormatBuf, CoerceT<double>(ThisArg));
                         else
                             StdioOutPuts("XXX", &SOStream);
                     }
@@ -285,17 +284,16 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                     {
                         /* show a floating point number */
                         if (IS_NUMERIC_COERCIBLE(ThisArg))
-                            StdioFprintfFP(&SOStream, OneFormatBuf, CoerceFloat(ThisArg));
+                            StdioFprintfFP(&SOStream, OneFormatBuf, CoerceT<float>(ThisArg));
                         else
                             StdioOutPuts("XXX", &SOStream);
                     }
-#endif
                     else if (ShowType == pc->CharPtrType)
                     {
-                        if (ThisArg->Typ->Base == TypePointer)
+                        if (ThisArg->Typ->Base == BaseType::TypePointer)
                             StdioFprintfPointer(&SOStream, OneFormatBuf, ThisArg->Val->Pointer);
                             
-                        else if (ThisArg->Typ->Base == TypeArray && ThisArg->Typ->FromType->Base == TypeChar)
+                        else if (ThisArg->Typ->Base == BaseType::TypeArray && ThisArg->Typ->FromType->Base == BaseType::TypeChar)
                             StdioFprintfPointer(&SOStream, OneFormatBuf, &ThisArg->Val->ArrayMem[0]);
                             
                         else
@@ -303,10 +301,10 @@ int StdioBasePrintf(struct ParseState *Parser, FILE *Stream, char *StrOut, int S
                     }
                     else if (ShowType == pc->VoidPtrType)
                     {
-                        if (ThisArg->Typ->Base == TypePointer)
+                        if (ThisArg->Typ->Base == BaseType::TypePointer)
                             StdioFprintfPointer(&SOStream, OneFormatBuf, ThisArg->Val->Pointer);
                             
-                        else if (ThisArg->Typ->Base == TypeArray)
+                        else if (ThisArg->Typ->Base == BaseType::TypeArray)
                             StdioFprintfPointer(&SOStream, OneFormatBuf, &ThisArg->Val->ArrayMem[0]);
                             
                         else
@@ -346,10 +344,10 @@ int StdioBaseScanf(struct ParseState *Parser, FILE *Stream, char *StrIn, char *F
     {
         ThisArg = (Value *)((char *)ThisArg + MEM_ALIGN(sizeof(Value) + TypeStackSizeValue(ThisArg)));
         
-        if (ThisArg->Typ->Base == TypePointer) 
+        if (ThisArg->Typ->Base == BaseType::TypePointer) 
             ScanfArg[ArgCount] = ThisArg->Val->Pointer;
         
-        else if (ThisArg->Typ->Base == TypeArray)
+        else if (ThisArg->Typ->Base == BaseType::TypeArray)
             ScanfArg[ArgCount] = &ThisArg->Val->ArrayMem[0];
         
         else
@@ -718,13 +716,13 @@ void StdioSetupFunc(Picoc *pc)
     struct ValueType *FilePtrType;
 
     /* make a "struct __FILEStruct" which is the same size as a native FILE structure */
-    StructFileType = TypeCreateOpaqueStruct(pc, nullptr, TableStrRegister(pc, "__FILEStruct"), sizeof(FILE));
+    StructFileType = TypeCreateOpaqueStruct(pc, nullptr, nitwit::table::TableStrRegister(pc, "__FILEStruct"), sizeof(FILE));
     
     /* get a FILE * type */
-    FilePtrType = TypeGetMatching(pc, nullptr, StructFileType, TypePointer, 0, pc->StrEmpty, TRUE, nullptr);
+    FilePtrType = TypeGetMatching(pc, nullptr, StructFileType, BaseType::TypePointer, 0, pc->StrEmpty, TRUE, nullptr);
 
     /* make a "struct __va_listStruct" which is the same size as our struct StdVararg */
-    TypeCreateOpaqueStruct(pc, nullptr, TableStrRegister(pc, "__va_listStruct"), sizeof(FILE));
+    TypeCreateOpaqueStruct(pc, nullptr, nitwit::table::TableStrRegister(pc, "__va_listStruct"), sizeof(FILE));
     
     /* define EOF equal to the system EOF */
     VariableDefinePlatformVar(pc, nullptr, "EOF", &pc->IntType, (union AnyValue *)&EOFValue, FALSE);
@@ -745,7 +743,7 @@ void StdioSetupFunc(Picoc *pc)
     VariableDefinePlatformVar(pc, nullptr, "stderr", FilePtrType, (union AnyValue *)&stderrValue, FALSE);
 
     /* define NULL, TRUE and FALSE */
-    if (!VariableDefined(pc, TableStrRegister(pc, "NULL")))
+    if (!VariableDefined(pc, nitwit::table::TableStrRegister(pc, "NULL")))
         VariableDefinePlatformVar(pc, nullptr, "NULL", &pc->IntType, (union AnyValue *)&Stdio_ZeroValue, FALSE);
 }
 

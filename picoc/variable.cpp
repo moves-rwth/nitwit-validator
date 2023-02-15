@@ -12,8 +12,8 @@
 /* initialise the variable system */
 void VariableInit(Picoc *pc)
 {
-    TableInitTable(&(pc->GlobalTable), &(pc->GlobalHashTable)[0], GLOBAL_TABLE_SIZE, TRUE);
-    TableInitTable(&pc->StringLiteralTable, &pc->StringLiteralHashTable[0], STRING_LITERAL_TABLE_SIZE, TRUE);
+    nitwit::table::TableInitTable(&(pc->GlobalTable), &(pc->GlobalHashTable)[0], GLOBAL_TABLE_SIZE, true);
+    nitwit::table::TableInitTable(&pc->StringLiteralTable, &pc->StringLiteralHashTable[0], STRING_LITERAL_TABLE_SIZE, true);
     pc->TopStackFrame = nullptr;
 }
 
@@ -106,7 +106,7 @@ void *VariableAlloc(Picoc *pc, struct ParseState *Parser, int Size, int OnHeap)
     
 #ifdef DEBUG_HEAP
     if (!OnHeap)
-        printf("pushing %d at 0x%lx\n", Size, (unsigned long)NewValue);
+        printf("pushing %d Bytes on Heap at 0x%lx\n", Size, (unsigned long)NewValue);
 #endif
         
     return NewValue;
@@ -121,7 +121,7 @@ VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, in
                                                                 OnHeap));
     NewValue->Val = (union AnyValue *)((char *)NewValue + MEM_ALIGN(sizeof(Value)));
 #ifdef PRINT_VARIABLE_ALLOC_DEBUG
-    std::cout << "Debug: New Val = " << (void*)NewValue << " with Val->Val = " << (void*)NewValue->Val << " of size " << DataSize << " in AllocValueAndData." << std::endl;
+    std::cout << "Debug: New Val = " << (void*)NewValue << " with Val->Val = " << (void*)NewValue->Val << " of size " << DataSize << " in AllocValueAndData, IsLValue = " << IsLValue << ", LValueFrom = " << (void*)LValueFrom << ", OnHeap = " << OnHeap << "." << std::endl;
 #endif
     NewValue->ValOnHeap = OnHeap;
     NewValue->AnyValOnHeap = FALSE;
@@ -136,6 +136,8 @@ VariableAllocValueAndData(Picoc *pc, struct ParseState *Parser, int DataSize, in
     NewValue->ConstQualifier = FALSE;
     NewValue->ShadowedVal = nullptr;
     NewValue->BitField = 0;
+    NewValue->ArrayRoot = nullptr;
+    NewValue->ArrayIndex = -1;
     return NewValue;
 }
 
@@ -144,6 +146,9 @@ Value *VariableAllocValueFromType(Picoc *pc, struct ParseState *Parser, struct V
 {
     int Size = TypeSize(Typ, Typ->ArraySize, FALSE);
     Value *NewValue = VariableAllocValueAndData(pc, Parser, Size, IsLValue, LValueFrom, OnHeap, nullptr);
+#ifdef PRINT_VARIABLE_ALLOC_DEBUG
+    std::cout << "Debug: New Val = " << (void*)NewValue << " with Val->Val = " << (void*)NewValue->Val << " of size " << Size << " in VariableAllocValueFromType with IsLValue = " << IsLValue << ", OnHeap = " << OnHeap << "." << std::endl;
+#endif
     assert(Size >= 0 || Typ == &pc->VoidType);
     NewValue->Typ = Typ;
     
@@ -167,6 +172,10 @@ Value *VariableAllocValueAndCopy(Picoc *pc, struct ParseState *Parser, Value *Fr
     NewValue->Typ = DType;
     memcpy((void *)NewValue->Val, (void *)&TmpBuf[0], CopySize);
     
+#ifdef PRINT_VARIABLE_ALLOC_DEBUG
+    std::cout << "Debug: New Val = " << (void*)NewValue << " with Val->Val = " << (void*)NewValue->Val << " of size " << CopySize << " in VariableAllocValueAndCopy with IsLValue = " << FromValue->IsLValue << ", OnHeap = " << OnHeap << "." << std::endl;
+#endif
+
     return NewValue;
 }
 
@@ -190,6 +199,8 @@ VariableAllocValueFromExistingData(struct ParseState *Parser, struct ValueType *
     NewValue->ConstQualifier = LValueFrom == nullptr ? FALSE : LValueFrom->ConstQualifier;
     NewValue->ShadowedVal = LValueFrom == nullptr ? FALSE : LValueFrom->ShadowedVal;
     NewValue->BitField = LValueFrom == nullptr ? 0 : LValueFrom->BitField;
+    NewValue->ArrayRoot = nullptr;
+    NewValue->ArrayIndex = -1;
 
     return NewValue;
 }
@@ -349,8 +360,8 @@ VariableDefine(Picoc *pc, ParseState *Parser, char *Ident, Value *InitValue, Val
     AssignValue->ScopeID = ScopeID;
     AssignValue->OutOfScope = FALSE;
 
-    if (!TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0)){
-        unsigned AddAt; TableEntry * FoundEntry = TableSearch(currentTable, Ident, &AddAt);
+    if (!nitwit::table::TableSet(pc, currentTable, Ident, AssignValue, Parser ? ((char *)Parser->FileName) : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0)){
+        unsigned AddAt; TableEntry * FoundEntry = nitwit::table::TableSearch(currentTable, Ident, &AddAt);
         if (MakeShadow) {
             // shadowing
             if (pc->TopStackFrame == nullptr) {
@@ -395,7 +406,7 @@ Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *Ident, 
         char MangledName[LINEBUFFER_MAX];
         char *MNPos = &MangledName[0];
         char *MNEnd = &MangledName[LINEBUFFER_MAX-1];
-        const char *RegisteredMangledName;
+        char *RegisteredMangledName;
         
         /* make the mangled static name (avoiding using sprintf() to minimise library impact) */
         memset((void *)&MangledName, '\0', sizeof(MangledName));
@@ -413,25 +424,30 @@ Value *VariableDefineButIgnoreIdentical(struct ParseState *Parser, char *Ident, 
             
         if (MNEnd - MNPos > 0) *MNPos++ = '/';
         strncpy(MNPos, Ident, MNEnd - MNPos);
-        RegisteredMangledName = TableStrRegister(pc, MangledName);
+        RegisteredMangledName = nitwit::table::TableStrRegister(pc, MangledName);
         
         /* is this static already defined? */
-        if (!TableGet(&pc->GlobalTable, RegisteredMangledName, &ExistingValue, &DeclFileName, &DeclLine, &DeclColumn))
+        if (!nitwit::table::TableGet(&pc->GlobalTable, RegisteredMangledName, &ExistingValue, &DeclFileName, &DeclLine, &DeclColumn))
         {
             // todo : what about non-det for static values from type?
             /* define the mangled-named static variable store in the global scope */
+#ifdef VERBOSE
+            std::cout << "Static variable '" << Ident << "' is not yet defined, defining." << std::endl;
+#endif
             ExistingValue = VariableAllocValueFromType(Parser->pc, Parser, Typ, TRUE, nullptr, TRUE);
-            TableSet(pc, &pc->GlobalTable, (char *)RegisteredMangledName, ExistingValue, (char *)Parser->FileName, Parser->Line, Parser->CharacterPos);
+            nitwit::table::TableSet(pc, &pc->GlobalTable, (char *)RegisteredMangledName, ExistingValue, (char *)Parser->FileName, Parser->Line, Parser->CharacterPos);
             *FirstVisit = TRUE;
         }
 
         /* static variable exists in the global scope - now make a mirroring variable in our own scope with the short name */
-        VariableDefinePlatformVar(Parser->pc, Parser, Ident, ExistingValue->Typ, ExistingValue->Val, TRUE);
-        return ExistingValue;
+        Value* platformVar = VariableDefinePlatformVar(Parser->pc, Parser, Ident, ExistingValue->Typ, ExistingValue->Val, TRUE);
+        platformVar->LValueFrom = ExistingValue;
+
+        return platformVar;
     }
     else
     {
-        int DidExist = TableGet((pc->TopStackFrame == nullptr) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable,
+        int DidExist = nitwit::table::TableGet((pc->TopStackFrame == nullptr) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable,
                                 Ident, &ExistingValue, &DeclFileName, &DeclLine, &DeclColumn);
         if (Parser->Line != 0 && DidExist && DeclFileName == Parser->FileName && DeclLine == Parser->Line && DeclColumn == Parser->CharacterPos) {
             return ExistingValue;
@@ -446,9 +462,9 @@ int VariableDefined(Picoc *pc, const char *Ident)
 {
     Value *FoundValue;
     
-    if (pc->TopStackFrame == nullptr || !TableGet(&pc->TopStackFrame->LocalTable, Ident, &FoundValue, nullptr, nullptr, nullptr))
+    if (pc->TopStackFrame == nullptr || !nitwit::table::TableGet(&pc->TopStackFrame->LocalTable, Ident, &FoundValue, nullptr, nullptr, nullptr))
     {
-        if (!TableGet(&pc->GlobalTable, Ident, &FoundValue, nullptr, nullptr, nullptr))
+        if (!nitwit::table::TableGet(&pc->GlobalTable, Ident, &FoundValue, nullptr, nullptr, nullptr))
             return FALSE;
     }
 
@@ -458,27 +474,37 @@ int VariableDefined(Picoc *pc, const char *Ident)
 /* get the value of a variable. must be defined. Ident must be registered */
 void VariableGet(Picoc *pc, struct ParseState *Parser, const char *Ident, Value **LVal)
 {
-    if (pc->TopStackFrame == nullptr || !TableGet(&pc->TopStackFrame->LocalTable, Ident, LVal, nullptr, nullptr, nullptr))
+    if (pc->TopStackFrame == nullptr || !nitwit::table::TableGet(&pc->TopStackFrame->LocalTable, Ident, LVal, nullptr, nullptr, nullptr))
     {
-        if (!TableGet(&pc->GlobalTable, Ident, LVal, nullptr, nullptr, nullptr))
+        if (!nitwit::table::TableGet(&pc->GlobalTable, Ident, LVal, nullptr, nullptr, nullptr))
         {
-            if (VariableDefinedAndOutOfScope(pc, Ident))
-                ProgramFail(Parser, "'%s' is out of scope", Ident);
-            else
-                ProgramFailWithExitCode(Parser, 244,"'%s' is undefined", Ident);
+            if (VariableDefinedAndOutOfScope(pc, Ident)) {
+                if (Parser != nullptr) ProgramFail(Parser, "'%s' is out of scope", Ident);
+                else ProgramFailNoParser(pc, "'%s' is out of scope", Ident);
+            }
+            else {
+                if (Parser != nullptr) ProgramFailWithExitCode(Parser, 244, "'%s' is undefined", Ident);
+                else ProgramFailNoParserWithExitCode(pc, 244, "'%s' is undefined", Ident);
+            }
         }
     }
 }
 
 /* define a global variable shared with a platform global. Ident will be registered */
-void VariableDefinePlatformVar(Picoc *pc, struct ParseState *Parser, const char *Ident, struct ValueType *Typ, union AnyValue *FromValue, int IsWritable)
+Value* VariableDefinePlatformVar(Picoc *pc, struct ParseState *Parser, const char *Ident, struct ValueType *Typ, union AnyValue *FromValue, int IsWritable)
 {
-    Value *SomeValue = VariableAllocValueAndData(pc, nullptr, 0, IsWritable, nullptr, TRUE, nullptr);
+    Value *SomeValue = VariableAllocValueAndData(pc, Parser, 0, IsWritable, nullptr, TRUE, nullptr);
     SomeValue->Typ = Typ;
     SomeValue->Val = FromValue;
+
+#ifdef PRINT_VARIABLE_ALLOC_DEBUG
+    std::cout << "Debug: Registered PlatformVar = " << (void*)SomeValue << " with Val->Val = " << (void*)SomeValue->Val << " of size " << 0 << " in VariableDefinePlatformVar with IsLValue = " << IsWritable << ", OnHeap = " << 1 << "." << std::endl;
+#endif
     
-    if (!TableSet(pc, (pc->TopStackFrame == nullptr) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable, TableStrRegister(pc, Ident), SomeValue, Parser ? Parser->FileName : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
+    if (!nitwit::table::TableSet(pc, (pc->TopStackFrame == nullptr) ? &pc->GlobalTable : &pc->TopStackFrame->LocalTable, nitwit::table::TableStrRegister(pc, Ident), SomeValue, Parser ? Parser->FileName : nullptr, Parser ? Parser->Line : 0, Parser ? Parser->CharacterPos : 0))
         ProgramFailWithExitCode(Parser, 246, "'%s' is already defined", Ident);
+
+    return SomeValue;
 }
 
 /* free and/or pop the top value off the stack. Var must be the top value on the stack! */
@@ -522,11 +548,11 @@ void VariableStackFrameAdd(struct ParseState *Parser, const char *FuncName, int 
     if (NewFrame == nullptr)
         ProgramFailWithExitCode(Parser, 251, "Out of memory");
         
-    ParserCopy(&NewFrame->ReturnParser, Parser);
+    nitwit::parse::ParserCopy(&NewFrame->ReturnParser, Parser);
     NewFrame->FuncName = FuncName;
     NewFrame->Parameter = static_cast<Value **>((NumParams > 0) ? ((void *) ((char *) NewFrame +
                                                                              sizeof(struct StackFrame))) : nullptr);
-    TableInitTable(&NewFrame->LocalTable, &NewFrame->LocalHashTable[0], LOCAL_TABLE_SIZE, FALSE);
+    nitwit::table::TableInitTable(&NewFrame->LocalTable, &NewFrame->LocalHashTable[0], LOCAL_TABLE_SIZE, false);
     NewFrame->PreviousStackFrame = Parser->pc->TopStackFrame;
     Parser->pc->TopStackFrame = NewFrame;
 }
@@ -537,7 +563,7 @@ void VariableStackFramePop(struct ParseState *Parser)
     if (Parser->pc->TopStackFrame == nullptr)
         ProgramFail(Parser, "stack is empty - can't go back");
         
-    ParserCopy(Parser, &Parser->pc->TopStackFrame->ReturnParser);
+    nitwit::parse::ParserCopy(Parser, &Parser->pc->TopStackFrame->ReturnParser);
     ShadowTableCleanup(Parser->pc, &Parser->pc->TopStackFrame->LocalTable);
     Parser->pc->TopStackFrame = Parser->pc->TopStackFrame->PreviousStackFrame;
     HeapPopStackFrame(Parser->pc);
@@ -548,7 +574,7 @@ Value *VariableStringLiteralGet(Picoc *pc, char *Ident)
 {
     Value *LVal = nullptr;
 
-    if (TableGet(&pc->StringLiteralTable, Ident, &LVal, nullptr, nullptr, nullptr))
+    if (nitwit::table::TableGet(&pc->StringLiteralTable, Ident, &LVal, nullptr, nullptr, nullptr))
         return LVal;
     else
         return nullptr;
@@ -557,7 +583,7 @@ Value *VariableStringLiteralGet(Picoc *pc, char *Ident)
 /* define a string literal. assumes that Ident is already registered */
 void VariableStringLiteralDefine(Picoc *pc, char *Ident, Value *Val)
 {
-    TableSet(pc, &pc->StringLiteralTable, Ident, Val, nullptr, 0, 0);
+    nitwit::table::TableSet(pc, &pc->StringLiteralTable, Ident, Val, nullptr, 0, 0);
 }
 
 /* check a pointer for validity and dereference it for use */

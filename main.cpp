@@ -45,7 +45,7 @@ void printProgramState(ParseState *ps) {
 	std::cout << std::endl;
 }
 
-void handleDebugBreakpoint(struct ParseState *ps) {
+void handleDebugBreakpoint(ParseState* ps, bool isMultiLineDeclaration, std::size_t const& endLine) {
 #ifdef VERBOSE
 	printProgramState(ps);
 #endif
@@ -64,7 +64,14 @@ void handleDebugBreakpoint(struct ParseState *ps) {
 #endif
 	}
 
-	wit_aut->consumeState(ps);
+	bool isInitialCheck = true;
+	while (wit_aut->consumeState(ps, isMultiLineDeclaration, endLine, isInitialCheck)) {
+		isInitialCheck = false;
+		if (wit_aut->wasVerifierErrorCalled()) {
+			PlatformExit(ps->pc, 0);
+			return;
+		}
+	}
 
 	if (wit_aut->wasVerifierErrorCalled()) {
 		PlatformExit(ps->pc, 0);
@@ -107,13 +114,13 @@ int validate(const char *source_filename, const char *error_function_name, bool&
 	strcpy(source, sourceString.c_str());
 	int const sourceLength = static_cast<int>(strlen(source));
 
-	PicocParse(&pc, source_filename, source, sourceLength, TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
+	nitwit::parse::PicocParse(&pc, source_filename, source, sourceLength, TRUE, FALSE, TRUE, TRUE, handleDebugBreakpoint);
 
 	Value *MainFuncValue = nullptr;
-	VariableGet(&pc, nullptr, TableStrRegister(&pc, "main"), &MainFuncValue);
+	VariableGet(&pc, nullptr, nitwit::table::TableStrRegister(&pc, "main"), &MainFuncValue);
 
 
-	if (MainFuncValue->Typ->Base != TypeFunction) {
+	if (MainFuncValue->Typ->Base != BaseType::TypeFunction) {
 		ProgramFailNoParser(&pc, "main is not a function - can't call it");
 	}
 
@@ -141,7 +148,7 @@ int main(int argc, char **argv) {
 	if (wit_aut && !wit_aut->isInIllegalState()) {
 		cw_verbose("Witness automaton reconstructed\n");
 	} else {
-		std::cout << "Reconstructing the witness automaton failed." << std::endl;
+		std::cerr << "Reconstructing the witness automaton failed." << std::endl;
 		return 2;
 	}
 
@@ -157,6 +164,7 @@ int main(int argc, char **argv) {
 
 	std::cout << "Witness in violation state: " << (wit_aut->isInViolationState() ? "yes" : "no") << std::endl;
 	std::cout << "Error function \"" << argv[3] << "\" called during execution: " << (errorFunctionWasCalled ? "yes" : "no") << std::endl;
+	std::cout << "Unsuccessful witness automaton transitions: " << wit_aut->getUnsuccessfulTries() << " of at most " << UNSUCCESSFUL_TRIES_LIMIT << "." << std::endl;
 
 	// check whether we finished in a violation state and if __VERIFIER_error was called
 	if ((!wit_aut->isInViolationState() || !errorFunctionWasCalled) &&
@@ -198,7 +206,7 @@ int main(int argc, char **argv) {
 			exit_value = PROGRAM_FINISHED_WITH_VIOLATION_THOUGH_NOT_IN_VIOLATION_STATE;
 		}
 	} else {
-		std::cout <<  "UNKNOWN: An unhandled error/termination occurred, probably a parsing error or program exited." << std::endl;
+		std::cout <<  "UNKNOWN: An unhandled error/termination occurred, probably a parsing error or program exited. Program return code was " << exit_value << "." << std::endl;
 		exit_value = RESULT_UNKNOWN;
 	}
 #ifdef VERBOSE
@@ -284,7 +292,11 @@ void process_resource_usage(double& mem, double& cpu) {
 	/* BSD, Linux, and OSX -------------------------------------- */
 	rusage rusage{};
 	getrusage(RUSAGE_SELF, &rusage);
+#if !defined(WIN32)
 	mem = (rusage.ru_maxrss * 1000L) / (double) 1000000;
+#else
+	mem = -1.0;
+#endif
 	cpu = rusage.ru_utime.tv_sec + rusage.ru_stime.tv_sec +
 		  (rusage.ru_utime.tv_usec + rusage.ru_stime.tv_usec) / (double) 1000000;
 }

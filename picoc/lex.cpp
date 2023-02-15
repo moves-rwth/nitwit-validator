@@ -2,6 +2,9 @@
 
 #include "interpreter.hpp"
 
+namespace nitwit {
+    namespace lex {
+
 #ifdef NO_CTYPE
 #define isalpha(c) (((c) >= 'a' && (c) <= 'z') || ((c) >= 'A' && (c) <= 'Z'))
 #define isdigit(c) ((c) >= '0' && (c) <= '9')
@@ -27,11 +30,11 @@
 
 #define MAX_CHAR_VALUE 255      /* maximum value which can be represented by a "char" data type */
 
-enum LexToken LexScanGetToken(Picoc *pc, struct LexState *Lexer, Value **Value);
+LexToken LexScanGetToken(Picoc *pc, LexState *Lexer, Value **Value);
 struct ReservedWord
 {
     const char *Word;
-    enum LexToken Token;
+    LexToken Token;
 };
 
 static struct ReservedWord ReservedWords[] =
@@ -51,15 +54,11 @@ static struct ReservedWord ReservedWords[] =
     { "default", TokenDefault },
     { "delete", TokenDelete },
     { "do", TokenDo },
-#ifndef NO_FP
     { "double", TokenDoubleType },
-#endif
     { "else", TokenElse },
     { "enum", TokenEnumType },
     { "extern", TokenExternType },
-#ifndef NO_FP
     { "float", TokenFloatType },
-#endif
     { "for", TokenFor },
     { "goto", TokenGoto },
     { "if", TokenIf },
@@ -106,11 +105,11 @@ static struct ReservedWord ReservedWords[] =
 /* initialise the lexer */
 void LexInit(Picoc *pc)
 {
-    TableInitTable(&pc->ReservedWordTable, &pc->ReservedWordHashTable[0], RESERVED_WORD_TABLE_SIZE, TRUE);
+    nitwit::table::TableInitTable(&pc->ReservedWordTable, &pc->ReservedWordHashTable[0], RESERVED_WORD_TABLE_SIZE, true);
 
-    for (unsigned Count = 0; Count < sizeof(ReservedWords) / sizeof(struct ReservedWord); Count++)
+    for (unsigned Count = 0; Count < sizeof(ReservedWords) / sizeof(ReservedWord); Count++)
     {
-        TableSet(pc, &pc->ReservedWordTable, TableStrRegister(pc, ReservedWords[Count].Word), (Value *)&ReservedWords[Count], nullptr, 0, 0);
+        nitwit::table::TableSet(pc, &pc->ReservedWordTable, nitwit::table::TableStrRegister(pc, ReservedWords[Count].Word), (Value *)&ReservedWords[Count], nullptr, 0, 0);
     }
 
     pc->LexValue.Typ = nullptr;
@@ -127,32 +126,32 @@ void LexCleanup(Picoc *pc)
 {
     LexInteractiveClear(pc, nullptr);
 
-    for (unsigned Count = 0; Count < sizeof(ReservedWords) / sizeof(struct ReservedWord); Count++)
-        TableDelete(pc, &pc->ReservedWordTable, TableStrRegister(pc, ReservedWords[Count].Word));
+    for (unsigned Count = 0; Count < sizeof(ReservedWords) / sizeof(ReservedWord); Count++)
+        nitwit::table::TableDelete(pc, &pc->ReservedWordTable, nitwit::table::TableStrRegister(pc, ReservedWords[Count].Word));
 }
 
 /* check if a word is a reserved word - used while scanning */
-enum LexToken LexCheckReservedWord(Picoc *pc, const char *Word)
+LexToken LexCheckReservedWord(Picoc *pc, const char *Word)
 {
     Value *val;
 
-    if (TableGet(&pc->ReservedWordTable, Word, &val, nullptr, nullptr, nullptr))
-        return ((struct ReservedWord *)val)->Token;
+    if (nitwit::table::TableGet(&pc->ReservedWordTable, Word, &val, nullptr, nullptr, nullptr))
+        return ((ReservedWord *)val)->Token;
     else
         return TokenNone;
 }
 
 /* get a numeric literal - used while scanning */
-enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, Value *Value)
+LexToken LexGetNumber(Picoc *pc, LexState *Lexer, Value *Value)
 {
     long long Result = 0;
     long Base = 10;
-    enum LexToken ResultToken;
+    LexToken ResultToken;
     char Unsigned = FALSE, LongLong = FALSE;
-#ifndef NO_FP
-    double FPResult;
-    double FPDiv;
-#endif
+    float FResult;
+    float FDiv;
+    double DResult;
+    double DDiv;
     /* long/unsigned flags */
 #if 0 /* unused for now */
     char IsLong = 0;
@@ -216,7 +215,6 @@ enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, Value *Value)
     if (Lexer->Pos == Lexer->End)
         return ResultToken;
 
-#ifndef NO_FP
     if (Lexer->Pos == Lexer->End)
     {
         return ResultToken;
@@ -227,15 +225,16 @@ enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, Value *Value)
         return ResultToken;
     }
 
-    Value->Typ = &pc->DoubleType;
-    FPResult = (double)Result;
+    DResult = (double)Result;
+    FResult = (float)Result;
 
     if (*Lexer->Pos == '.')
     {
         LEXER_INC(Lexer);
-        for (FPDiv = 1.0/Base; Lexer->Pos != Lexer->End && IS_BASE_DIGIT(*Lexer->Pos, Base); LEXER_INC(Lexer), FPDiv /= (double)Base)
+        for (DDiv = 1.0/Base, FDiv = 1.0 / Base; Lexer->Pos != Lexer->End && IS_BASE_DIGIT(*Lexer->Pos, Base); LEXER_INC(Lexer), DDiv /= (double)Base, FDiv /= (float)Base)
         {
-            FPResult += GET_BASE_DIGIT(*Lexer->Pos) * FPDiv;
+            DResult += GET_BASE_DIGIT(*Lexer->Pos) * DDiv;
+            FResult += GET_BASE_DIGIT(*Lexer->Pos) * FDiv;
         }
     }
 
@@ -261,32 +260,57 @@ enum LexToken LexGetNumber(Picoc *pc, struct LexState *Lexer, Value *Value)
             LEXER_INC(Lexer);
         }
 
-        FPResult *= pow((double)Base, (double)Result * ExponentSign);
+#ifdef DEBUG_EXPRESSIONS
+        printf("LEX - Using Base %.17g and exp %.17g, prior result is %.17g\n", (double)Base, (double)Result* ExponentSign, DResult);
+#endif
+        while (Result >= 10) {
+            Result -= 10;
+            DResult *= pow((double)Base, (double)10.0 * ExponentSign);
+            FResult *= pow((float)Base, (float)10.0f * ExponentSign);
+        }
+        if (Result > 0) {
+            DResult *= pow((double)Base, (double)Result * ExponentSign);
+            FResult *= pow((float)Base, (float)Result * ExponentSign);
+        }
     }
 
-    Value->Val->Double = FPResult;
-
-    if (*Lexer->Pos == 'f' || *Lexer->Pos == 'F' || *Lexer->Pos == 'l' || *Lexer->Pos == 'L')
-        LEXER_INC(Lexer);
-
-    return TokenFPConstant;
-#else
-    return ResultToken;
+    bool const isFp = (*Lexer->Pos == 'f' || *Lexer->Pos == 'F');
+    if (isFp) {
+#ifdef DEBUG_EXPRESSIONS
+        printf("LEX - Found float constant %.17g (double: %.17g)\n", FResult, DResult);
 #endif
+        Value->Typ = &pc->FloatType;
+        Value->Val->Float = FResult;
+    }
+    else {
+#ifdef DEBUG_EXPRESSIONS
+        printf("LEX - Found double constant %.17g\n", DResult);
+#endif
+        Value->Typ = &pc->DoubleType;
+        Value->Val->Double = DResult;
+    }
+
+    if (*Lexer->Pos == 'f' || *Lexer->Pos == 'F') {
+        LEXER_INC(Lexer);
+    } else if (*Lexer->Pos == 'l' || *Lexer->Pos == 'L') {
+        LEXER_INC(Lexer);
+    }
+
+    return isFp ? TokenFloatConstant : TokenDoubleConstant;
 }
 
 /* get a reserved word or identifier - used while scanning */
-enum LexToken LexGetWord(Picoc *pc, struct LexState *Lexer, Value *Value)
+LexToken LexGetWord(Picoc *pc, LexState *Lexer, Value *Value)
 {
     const char *StartPos = Lexer->Pos;
-    enum LexToken Token;
+    LexToken Token;
 
     do {
         LEXER_INC(Lexer);
     } while (Lexer->Pos != Lexer->End && isCident((int)*Lexer->Pos));
 
     Value->Typ = nullptr;
-    Value->Val->Identifier = TableStrRegister(pc, StartPos, Lexer->Pos - StartPos);
+    Value->Val->Identifier = nitwit::table::TableStrRegister(pc, StartPos, Lexer->Pos - StartPos);
 
     Token = LexCheckReservedWord(pc, Value->Val->Identifier);
     switch (Token)
@@ -376,9 +400,9 @@ unsigned char LexUnEscapeCharacter(const char **From, const char *End)
 }
 
 /* get a string constant - used while scanning */
-enum LexToken LexGetStringConstant(Picoc *pc, struct LexState *Lexer, Value *Value, char EndChar)
+LexToken LexGetStringConstant(Picoc *pc, LexState *Lexer, Value *Value, char EndChar)
 {
-    int Escape = FALSE;
+    bool Escape = false;
     const char *StartPos = Lexer->Pos;
     const char *EndPos;
     char *EscBuf;
@@ -401,10 +425,11 @@ enum LexToken LexGetStringConstant(Picoc *pc, struct LexState *Lexer, Value *Val
                 Lexer->EmitExtraNewlines++;
             }
 
-            Escape = FALSE;
+            Escape = false;
         }
-        else if (*Lexer->Pos == '\\')
-            Escape = TRUE;
+        else if (*Lexer->Pos == '\\') {
+            Escape = true;
+        }
 
         LEXER_INC(Lexer);
     }
@@ -418,7 +443,7 @@ enum LexToken LexGetStringConstant(Picoc *pc, struct LexState *Lexer, Value *Val
         *EscBufPos++ = LexUnEscapeCharacter(&Lexer->Pos, EndPos);
 
     /* try to find an existing copy of this string literal */
-    RegString = TableStrRegister(pc, EscBuf, EscBufPos - EscBuf);
+    RegString = nitwit::table::TableStrRegister(pc, EscBuf, EscBufPos - EscBuf);
     HeapPopStack(pc, EscBuf, EndPos - StartPos);
     ArrayValue = VariableStringLiteralGet(pc, RegString);
     if (ArrayValue == nullptr)
@@ -440,7 +465,7 @@ enum LexToken LexGetStringConstant(Picoc *pc, struct LexState *Lexer, Value *Val
 }
 
 /* get a character constant - used while scanning */
-enum LexToken LexGetCharacterConstant(Picoc *pc, struct LexState *Lexer, Value *Value)
+LexToken LexGetCharacterConstant(Picoc *pc, LexState *Lexer, Value *Value)
 {
     Value->Typ = &pc->CharType;
     Value->Val->Character = LexUnEscapeCharacter(&Lexer->Pos, Lexer->End);
@@ -452,7 +477,7 @@ enum LexToken LexGetCharacterConstant(Picoc *pc, struct LexState *Lexer, Value *
 }
 
 /* skip a comment - used while scanning */
-void LexSkipComment(struct LexState *Lexer, char NextChar, enum LexToken *ReturnToken)
+void LexSkipComment(LexState *Lexer, char NextChar, LexToken *ReturnToken)
 {
     if (NextChar == '*') {
         /* conventional C comment */
@@ -478,11 +503,11 @@ void LexSkipComment(struct LexState *Lexer, char NextChar, enum LexToken *Return
 }
 
 /* get a single token from the source - used while scanning */
-enum LexToken LexScanGetToken(Picoc *pc, struct LexState *Lexer, Value **Value)
+LexToken LexScanGetToken(Picoc *pc, LexState *Lexer, Value **Value)
 {
     char ThisChar;
     char NextChar;
-    enum LexToken GotToken = TokenNone;
+    LexToken GotToken = TokenNone;
 
     /* handle cases line multi-line comments or string constants which mess up the line count */
     if (Lexer->EmitExtraNewlines > 0)
@@ -519,13 +544,22 @@ enum LexToken LexScanGetToken(Picoc *pc, struct LexState *Lexer, Value **Value)
 
 
         ThisChar = *Lexer->Pos;
+        NextChar = (Lexer->Pos + 1 != Lexer->End) ? *(Lexer->Pos + 1) : 0;
+
+        // Handle Compiler comments from preprocessing: '# NUMBER'
+        if ((ThisChar == '#') && (NextChar == ' ')) {
+            while (Lexer->Pos != Lexer->End && *Lexer->Pos != '\n')
+                LEXER_INC(Lexer);
+            return LexScanGetToken(pc, Lexer, Value);
+        }
+
         if (isCidstart((int)ThisChar) || ThisChar == '\\')
             return LexGetWord(pc, Lexer, *Value);
 
         if (isdigit((int)ThisChar))
             return LexGetNumber(pc, Lexer, *Value);
 
-        NextChar = (Lexer->Pos + 1 != Lexer->End) ? *(Lexer->Pos + 1) : 0;
+        
         LEXER_INC(Lexer);
         switch (ThisChar)
         {
@@ -566,7 +600,7 @@ enum LexToken LexScanGetToken(Picoc *pc, struct LexState *Lexer, Value **Value)
 }
 
 /* what size value goes with each token */
-int LexTokenSize(enum LexToken Token)
+int LexTokenSize(LexToken const& Token)
 {
     switch (Token)
     {
@@ -576,15 +610,16 @@ int LexTokenSize(enum LexToken Token)
         case TokenLLConstanst: return sizeof(long long);
         case TokenUnsignedLLConstanst: return sizeof(unsigned long long);
         case TokenCharacterConstant: return sizeof(unsigned char);
-        case TokenFPConstant: return sizeof(double);
+        case TokenFloatConstant: return sizeof(float);
+        case TokenDoubleConstant: return sizeof(double);
         default: return 0;
     }
 }
 
 /* produce tokens from the lexer and return a heap buffer with the result - used for scanning */
-void *LexTokenise(Picoc *pc, struct LexState *Lexer, int *TokenLen)
+void *LexTokenise(Picoc *pc, LexState *Lexer, int *TokenLen)
 {
-    enum LexToken Token;
+    LexToken Token;
     void *HeapMem;
     Value *GotValue;
     int MemUsed = 0;
@@ -649,7 +684,7 @@ void *LexTokenise(Picoc *pc, struct LexState *Lexer, int *TokenLen)
 /* lexically analyse some source text */
 void *LexAnalyse(Picoc *pc, const char *FileName, const char *Source, int SourceLen, int *TokenLen)
 {
-    struct LexState Lexer;
+    LexState Lexer;
 
     Lexer.Pos = Source;
     Lexer.End = Source + SourceLen;
@@ -664,14 +699,14 @@ void *LexAnalyse(Picoc *pc, const char *FileName, const char *Source, int Source
 }
 
 /* prepare to parse a pre-tokenised buffer */
-void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText, void *TokenSource, char *FileName,
-                   int RunIt, int EnableDebugger, void (*DebuggerCallback)(struct ParseState *))
+void LexInitParser(ParseState *Parser, Picoc *pc, const char *SourceText, void *TokenSource, char *FileName,
+                   int RunIt, int EnableDebugger, void (*DebuggerCallback)(ParseState*, bool, std::size_t const&))
 {
     Parser->pc = pc;
     Parser->Pos = static_cast<const unsigned char *>(TokenSource);
     Parser->Line = 1;
     Parser->FileName = FileName;
-    Parser->Mode = RunIt ? RunModeRun : RunModeSkip;
+    Parser->Mode = RunIt ? RunMode::RunModeRun : RunMode::RunModeSkip;
     Parser->SearchLabel = 0;
     Parser->HashIfLevel = 0;
     Parser->HashIfEvaluateToLevel = 0;
@@ -692,9 +727,9 @@ void LexInitParser(struct ParseState *Parser, Picoc *pc, const char *SourceText,
 }
 
 /* get the next token, without pre-processing */
-enum LexToken LexGetRawToken(struct ParseState *Parser, Value **Value, int IncPos)
+LexToken LexGetRawToken(ParseState *Parser, Value **Value, bool IncPos)
 {
-    enum LexToken Token = TokenNone;
+    LexToken Token = TokenNone;
     int ValueSize;
     char *Prompt = nullptr;
     Picoc *pc = Parser->pc;
@@ -706,7 +741,7 @@ enum LexToken LexGetRawToken(struct ParseState *Parser, Value **Value, int IncPo
 
         if (Parser->FileName != pc->StrEmpty || pc->InteractiveHead != nullptr) {
             /* skip leading newlines */
-            while ((Token = (enum LexToken)*(unsigned char *)Parser->Pos) == TokenEndOfLine)
+            while ((Token = (LexToken)*(unsigned char *)Parser->Pos) == TokenEndOfLine)
             {
                 Parser->Line++;
                 Parser->Pos += TOKEN_DATA_OFFSET;
@@ -718,7 +753,7 @@ enum LexToken LexGetRawToken(struct ParseState *Parser, Value **Value, int IncPo
             char LineBuffer[LINEBUFFER_MAX];
             void *LineTokens;
             int LineBytes;
-            struct TokenLine *LineNode;
+            TokenLine *LineNode;
 
             if (pc->InteractiveHead == nullptr || (unsigned char *)Parser->Pos == &pc->InteractiveTail->Tokens[pc->InteractiveTail->NumBytes-TOKEN_DATA_OFFSET]) {
                 /* get interactive input */
@@ -735,7 +770,7 @@ enum LexToken LexGetRawToken(struct ParseState *Parser, Value **Value, int IncPo
 
                 /* put the new line at the end of the linked list of interactive lines */
                 LineTokens = LexAnalyse(pc, pc->StrEmpty, &LineBuffer[0], strlen(LineBuffer), &LineBytes);
-                LineNode = static_cast<TokenLine *>(VariableAlloc(pc, Parser, sizeof(struct TokenLine), TRUE));
+                LineNode = static_cast<TokenLine *>(VariableAlloc(pc, Parser, sizeof(TokenLine), TRUE));
                 LineNode->Tokens = static_cast<unsigned char *>(LineTokens);
                 LineNode->NumBytes = LineBytes;
                 if (pc->InteractiveHead == nullptr) {
@@ -765,7 +800,7 @@ enum LexToken LexGetRawToken(struct ParseState *Parser, Value **Value, int IncPo
                 Parser->Pos = pc->InteractiveCurrentLine->Tokens;
             }
 
-            Token = (enum LexToken)*(unsigned char *)Parser->Pos;
+            Token = (LexToken)*(unsigned char *)Parser->Pos;
         }
     } while ((Parser->FileName == pc->StrEmpty && Token == TokenEOF) || Token == TokenEndOfLine);
 
@@ -783,9 +818,8 @@ enum LexToken LexGetRawToken(struct ParseState *Parser, Value **Value, int IncPo
                 case TokenLLConstanst:               pc->LexValue.Typ = &pc->LongLongType; break;
                 case TokenUnsignedLLConstanst:       pc->LexValue.Typ = &pc->UnsignedLongLongType; break;
                 case TokenCharacterConstant:    pc->LexValue.Typ = &pc->CharType; break;
-#ifndef NO_FP
-                case TokenFPConstant:           pc->LexValue.Typ = &pc->DoubleType; break;
-#endif
+                case TokenFloatConstant:           pc->LexValue.Typ = &pc->FloatType; break;
+                case TokenDoubleConstant:           pc->LexValue.Typ = &pc->DoubleType; break;
                 default: break;
             }
 
@@ -814,26 +848,27 @@ enum LexToken LexGetRawToken(struct ParseState *Parser, Value **Value, int IncPo
 }
 
 /* correct the token position depending if we already incremented the position */
-void LexHashIncPos(struct ParseState *Parser, int IncPos)
+void LexHashIncPos(ParseState *Parser, bool IncPos)
 {
-    if (!IncPos)
-        LexGetRawToken(Parser, nullptr, TRUE);
+    if (!IncPos) {
+        LexGetRawToken(Parser, nullptr, true);
+    }
 }
 
 /* handle a #ifdef directive */
-void LexHashIfdef(struct ParseState *Parser, int IfNot)
+void LexHashIfdef(ParseState *Parser, bool IfNot)
 {
     /* get symbol to check */
     Value *IdentValue;
     Value *SavedValue;
     int IsDefined;
-    enum LexToken Token = LexGetRawToken(Parser, &IdentValue, TRUE);
+    LexToken Token = LexGetRawToken(Parser, &IdentValue, true);
 
     if (Token != TokenIdentifier)
         ProgramFail(Parser, "identifier expected");
 
     /* is the identifier defined? */
-    IsDefined = TableGet(&Parser->pc->GlobalTable, IdentValue->Val->Identifier, &SavedValue, nullptr, nullptr, nullptr);
+    IsDefined = nitwit::table::TableGet(&Parser->pc->GlobalTable, IdentValue->Val->Identifier, &SavedValue, nullptr, nullptr, nullptr);
     if (Parser->HashIfEvaluateToLevel == Parser->HashIfLevel && ( (IsDefined && !IfNot) || (!IsDefined && IfNot)) )
     {
         /* #if is active, evaluate to this new level */
@@ -844,25 +879,25 @@ void LexHashIfdef(struct ParseState *Parser, int IfNot)
 }
 
 /* handle a #if directive */
-void LexHashIf(struct ParseState *Parser)
+void LexHashIf(ParseState *Parser)
 {
     /* get symbol to check */
     Value *IdentValue;
     Value *SavedValue = nullptr;
-    struct ParseState MacroParser;
-    enum LexToken Token = LexGetRawToken(Parser, &IdentValue, TRUE);
+    ParseState MacroParser;
+    LexToken Token = LexGetRawToken(Parser, &IdentValue, true);
 
     if (Token == TokenIdentifier)
     {
         /* look up a value from a macro definition */
-        if (!TableGet(&Parser->pc->GlobalTable, IdentValue->Val->Identifier, &SavedValue, nullptr, nullptr, nullptr))
+        if (!nitwit::table::TableGet(&Parser->pc->GlobalTable, IdentValue->Val->Identifier, &SavedValue, nullptr, nullptr, nullptr))
             ProgramFailWithExitCode(Parser, 244, "'%s' is undefined", IdentValue->Val->Identifier);
 
-        if (SavedValue->Typ->Base != TypeMacro)
+        if (SavedValue->Typ->Base != BaseType::TypeMacro)
             ProgramFail(Parser, "value expected");
 
-        ParserCopy(&MacroParser, &SavedValue->Val->MacroDef.Body);
-        Token = LexGetRawToken(&MacroParser, &IdentValue, TRUE);
+        nitwit::parse::ParserCopy(&MacroParser, &SavedValue->Val->MacroDef.Body);
+        Token = LexGetRawToken(&MacroParser, &IdentValue, true);
     }
 
     if (!(Token == TokenCharacterConstant || (Token >= TokenIntegerConstant && Token <= TokenUnsignedLLConstanst)))
@@ -879,7 +914,7 @@ void LexHashIf(struct ParseState *Parser)
 }
 
 /* handle a #else directive */
-void LexHashElse(struct ParseState *Parser)
+void LexHashElse(ParseState *Parser)
 {
     if (Parser->HashIfEvaluateToLevel == Parser->HashIfLevel - 1)
         Parser->HashIfEvaluateToLevel++;     /* #if was not active, make this next section active */
@@ -895,7 +930,7 @@ void LexHashElse(struct ParseState *Parser)
 }
 
 /* handle a #endif directive */
-void LexHashEndif(struct ParseState *Parser)
+void LexHashEndif(ParseState *Parser)
 {
     if (Parser->HashIfLevel == 0)
         ProgramFail(Parser, "#endif without #if");
@@ -906,7 +941,7 @@ void LexHashEndif(struct ParseState *Parser)
 }
 
 #if 0 /* useful for debug */
-void LexPrintToken(enum LexToken Token)
+void LexPrintToken(LexToken Token)
 {
     char* TokenNames[] = {
         /* 0x00 */ "None", 
@@ -943,9 +978,9 @@ void LexPrintToken(enum LexToken Token)
 #endif
 
 /* get the next token given a parser state, pre-processing as we go */
-enum LexToken LexGetToken(struct ParseState *Parser, Value **Value, int IncPos)
+LexToken LexGetToken(ParseState *Parser, Value **Value, bool IncPos)
 {
-    enum LexToken Token;
+    LexToken Token;
     int TryNextToken;
 
     /* implements the pre-processor #if commands */
@@ -956,8 +991,8 @@ enum LexToken LexGetToken(struct ParseState *Parser, Value **Value, int IncPos)
         Token = LexGetRawToken(Parser, Value, IncPos);
         switch (Token)
         {
-            case TokenHashIfdef:    LexHashIncPos(Parser, IncPos); LexHashIfdef(Parser, FALSE); break;
-            case TokenHashIfndef:   LexHashIncPos(Parser, IncPos); LexHashIfdef(Parser, TRUE); break;
+            case TokenHashIfdef:    LexHashIncPos(Parser, IncPos); LexHashIfdef(Parser, false); break;
+            case TokenHashIfndef:   LexHashIncPos(Parser, IncPos); LexHashIfdef(Parser, true); break;
             case TokenHashIf:       LexHashIncPos(Parser, IncPos); LexHashIf(Parser); break;
             case TokenHashElse:     LexHashIncPos(Parser, IncPos); LexHashElse(Parser); break;
             case TokenHashEndif:    LexHashIncPos(Parser, IncPos); LexHashEndif(Parser); break;
@@ -966,8 +1001,9 @@ enum LexToken LexGetToken(struct ParseState *Parser, Value **Value, int IncPos)
 
         /* if we're going to reject this token, increment the token pointer to the next one */
         TryNextToken = (Parser->HashIfEvaluateToLevel < Parser->HashIfLevel && Token != TokenEOF) || WasPreProcToken;
-        if (!IncPos && TryNextToken)
-            LexGetRawToken(Parser, nullptr, TRUE);
+        if (!IncPos && TryNextToken) {
+            LexGetRawToken(Parser, nullptr, true);
+        }
 
     } while (TryNextToken);
 
@@ -975,33 +1011,35 @@ enum LexToken LexGetToken(struct ParseState *Parser, Value **Value, int IncPos)
 }
 
 /* take a quick peek at the next token, skipping any pre-processing */
-enum LexToken LexRawPeekToken(struct ParseState *Parser)
+LexToken LexRawPeekToken(ParseState *Parser)
 {
-    return (enum LexToken)*(unsigned char *)Parser->Pos;
+    return (LexToken)*(unsigned char *)Parser->Pos;
 }
 
 /* find the end of the line */
-void LexToEndOfLine(struct ParseState *Parser)
+void LexToEndOfLine(ParseState *Parser)
 {
     while (TRUE)
     {
-        enum LexToken Token = (enum LexToken)*(unsigned char *)Parser->Pos;
-        if (Token == TokenEndOfLine || Token == TokenEOF)
+        LexToken Token = (LexToken)*(unsigned char *)Parser->Pos;
+        if (Token == TokenEndOfLine || Token == TokenEOF) {
             return;
-        else
-            LexGetRawToken(Parser, nullptr, TRUE);
+        }
+        else {
+            LexGetRawToken(Parser, nullptr, true);
+        }
     }
 }
 
 /* copy the tokens from StartParser to EndParser into new memory, removing TokenEOFs and terminate with a TokenEndOfFunction */
-void *LexCopyTokens(struct ParseState *StartParser, struct ParseState *EndParser)
+void *LexCopyTokens(ParseState *StartParser, ParseState *EndParser)
 {
     int MemSize = 0;
     int CopySize;
     unsigned char *Pos = (unsigned char *)StartParser->Pos;
     unsigned char *NewTokens;
     unsigned char *NewTokenPos;
-    struct TokenLine *ILine;
+    TokenLine *ILine;
     Picoc *pc = StartParser->pc;
 
     if (pc->InteractiveHead == nullptr) {
@@ -1051,11 +1089,11 @@ void *LexCopyTokens(struct ParseState *StartParser, struct ParseState *EndParser
 }
 
 /* indicate that we've completed up to this point in the interactive input and free expired tokens */
-void LexInteractiveClear(Picoc *pc, struct ParseState *Parser)
+void LexInteractiveClear(Picoc *pc, ParseState *Parser)
 {
     while (pc->InteractiveHead != nullptr)
     {
-        struct TokenLine *NextLine = pc->InteractiveHead->Next;
+        TokenLine *NextLine = pc->InteractiveHead->Next;
 
         HeapFreeMem(pc, pc->InteractiveHead->Tokens);
         HeapFreeMem(pc, pc->InteractiveHead);
@@ -1069,11 +1107,11 @@ void LexInteractiveClear(Picoc *pc, struct ParseState *Parser)
 }
 
 /* indicate that we've completed up to this point in the interactive input and free expired tokens */
-void LexInteractiveCompleted(Picoc *pc, struct ParseState *Parser)
+void LexInteractiveCompleted(Picoc *pc, ParseState *Parser)
 {
     while (pc->InteractiveHead != nullptr && !(Parser->Pos >= &pc->InteractiveHead->Tokens[0] && Parser->Pos < &pc->InteractiveHead->Tokens[pc->InteractiveHead->NumBytes])) {
         /* this token line is no longer needed - free it */
-        struct TokenLine *NextLine = pc->InteractiveHead->Next;
+        TokenLine *NextLine = pc->InteractiveHead->Next;
 
         HeapFreeMem(pc, pc->InteractiveHead->Tokens);
         HeapFreeMem(pc, pc->InteractiveHead);
@@ -1091,4 +1129,8 @@ void LexInteractiveCompleted(Picoc *pc, struct ParseState *Parser)
 void LexInteractiveStatementPrompt(Picoc *pc)
 {
     pc->LexUseStatementPrompt = TRUE;
+}
+
+
+    }
 }

@@ -6,6 +6,7 @@
 #include "automaton.hpp"
 
 #include <cstdlib>
+#include <regex>
 #include <string>
 
 std::shared_ptr<DefaultKeyValues> parseKeys(pugi::xpath_node_set const& keyNodeSet);
@@ -174,6 +175,15 @@ std::string replace_equals(pugi::char_t const* value) {
 	return s;
 }
 
+std::string fixAssumption(std::string a) {
+	static std::regex re("return_value_[^ =;]+", std::regex_constants::icase);
+
+	// CBMC and others use "return_value___VERIFIER_nondet_double = -1.0;" instead of "\result"...
+	a = std::regex_replace(a, re, R"(\result)");
+
+	return a;
+}
+
 void setEdgeAttributes(std::shared_ptr<Edge>& edge, std::map<std::string, std::shared_ptr<Node>> const& nodes, pugi::char_t const* name, pugi::char_t const* value) {
 	if (strcmp(name, "source") == 0) {
 		edge->source_id = value;
@@ -184,7 +194,7 @@ void setEdgeAttributes(std::shared_ptr<Edge>& edge, std::map<std::string, std::s
 			edge->enterLoopHead = true;
 		}
 	} else if (strcmp(name, "assumption") == 0) {
-		edge->assumption = (value);
+		edge->assumption = fixAssumption(value);
 	} else if (strcmp(name, "assumption.scope") == 0) {
 		edge->assumption_scope = value;
 	} else if (strcmp(name, "assumption.resultfunction") == 0) {

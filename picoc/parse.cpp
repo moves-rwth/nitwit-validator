@@ -3,6 +3,8 @@
 #include "picoc.hpp"
 #include "interpreter.hpp"
 
+#include "CoerceT.hpp"
+
 /* for test cases only */
 #include <stdio.h>
 
@@ -11,6 +13,9 @@
 #else
 #define debugf(...)
 #endif
+
+namespace nitwit {
+    namespace parse {
 
 /* deallocate any memory */
 void ParseCleanup(Picoc *pc)
@@ -31,14 +36,14 @@ void ParseCleanup(Picoc *pc)
 /* parse a statement, but only run it if Condition is TRUE */
 enum ParseResult ParseStatementMaybeRun(struct ParseState *Parser, int Condition, int CheckTrailingSemicolon)
 {
-    if (Parser->Mode != RunModeSkip && !Condition)
+    if (Parser->Mode != RunMode::RunModeSkip && !Condition)
     {
         enum RunMode OldMode = Parser->Mode;
         int Result;
-        Parser->Mode = Parser->Mode == RunModeGoto ? RunModeGoto : RunModeSkip;
+        Parser->Mode = Parser->Mode == RunMode::RunModeGoto ? RunMode::RunModeGoto : RunMode::RunModeSkip;
         Result = ParseStatement(Parser, CheckTrailingSemicolon);
         // the goto could have been resolved now, in that case don't switch to the mode before
-        Parser->Mode = OldMode == RunModeGoto ? Parser->Mode : OldMode;
+        Parser->Mode = OldMode == RunMode::RunModeGoto ? Parser->Mode : OldMode;
         return static_cast<ParseResult>(Result);
     }
     else {
@@ -55,13 +60,13 @@ int ParseCountParams(struct ParseState *Parser)
 {
     int ParamCount = 0;
 
-    enum LexToken Token = LexGetToken(Parser, nullptr, TRUE);
+    LexToken Token = nitwit::lex::LexGetToken(Parser, nullptr, true);
     if (Token != TokenCloseBracket && Token != TokenEOF)
     {
         /* count the number of parameters */
         ParamCount++;
         int depth = 0;
-        while (((Token = LexGetToken(Parser, nullptr, TRUE)) != TokenCloseBracket
+        while (((Token = nitwit::lex::LexGetToken(Parser, nullptr, true)) != TokenCloseBracket
                 || depth != 0) && Token != TokenEOF)
         {
             if (Token == TokenComma && depth == 0)
@@ -77,15 +82,15 @@ int ParseCountParams(struct ParseState *Parser)
 }
 
 /* parse a function definition and store it for later */
-Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *ReturnType, char *Identifier, int IsPtrDecl)
+Value *ParseFunctionDefinition(ParseState *Parser, ValueType *ReturnType, char *Identifier, bool IsPtrDecl)
 {
-    struct ValueType *ParamType;
+    ValueType *ParamType;
     char *ParamIdentifier;
-    enum LexToken Token = TokenNone;
-    struct ParseState ParamParser;
+    LexToken Token = TokenNone;
+    ParseState ParamParser;
     Value *FuncValue;
     Value *OldFuncValue;
-    struct ParseState FuncBody;
+    ParseState FuncBody;
     int ParamCount = 0;
     Picoc *pc = Parser->pc;
 
@@ -95,7 +100,7 @@ Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *Retu
     const char * FunctionBefore = Parser->CurrentFunction;
     Parser->CurrentFunction = Identifier;
 
-    LexGetToken(Parser, nullptr, TRUE);  /* open bracket */
+    nitwit::lex::LexGetToken(Parser, nullptr, true);  /* open bracket */
     ParserCopy(&ParamParser, Parser);
     ParamCount = ParseCountParams(Parser);
     if (ParamCount > PARAMETER_MAX)
@@ -113,7 +118,7 @@ Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *Retu
     for (ParamCount = 0; ParamCount < FuncValue->Val->FuncDef.NumParams; ParamCount++)
     {
         /* harvest the parameters into the function definition */
-        if (ParamCount == FuncValue->Val->FuncDef.NumParams-1 && LexGetToken(&ParamParser, nullptr, FALSE) == TokenEllipsis)
+        if (ParamCount == FuncValue->Val->FuncDef.NumParams-1 && nitwit::lex::LexGetToken(&ParamParser, nullptr, false) == TokenEllipsis)
         {
             /* ellipsis at end */
             FuncValue->Val->FuncDef.NumParams--;
@@ -125,7 +130,7 @@ Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *Retu
             int IsConst;
             /* add a parameter */ // fixme: const parameters
             TypeParse(&ParamParser, &ParamType, &ParamIdentifier, nullptr, &IsConst, true);
-            if (ParamType->Base == TypeVoid)
+            if (ParamType->Base == BaseType::TypeVoid)
             {
                 /* this isn't a real parameter at all - delete it */
                 ParamCount--;
@@ -138,7 +143,7 @@ Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *Retu
             }
         }
 
-        Token = LexGetToken(&ParamParser, nullptr, TRUE);
+        Token = nitwit::lex::LexGetToken(&ParamParser, nullptr, true);
         if (Token != TokenComma && ParamCount < FuncValue->Val->FuncDef.NumParams-1)
             ProgramFail(&ParamParser, "comma expected");
     }
@@ -159,12 +164,12 @@ Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *Retu
     }
 
     /* look for a function body */
-    Token = LexGetToken(Parser, nullptr, FALSE);
+    Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
     if (Token == TokenSemicolon)
-        LexGetToken(Parser, nullptr, !IsPtrDecl);    /* it's a prototype or func ptr, absorb the trailing semicolon */
+        nitwit::lex::LexGetToken(Parser, nullptr, !IsPtrDecl);    /* it's a prototype or func ptr, absorb the trailing semicolon */
     else if (Token == TokenAttribute){ // it's a GCC attribute property
             do {
-                Token = LexGetToken(Parser, nullptr, TRUE);
+                Token = nitwit::lex::LexGetToken(Parser, nullptr, true);
             } while (Token != TokenSemicolon);
         }
     else if (!IsPtrDecl)
@@ -178,14 +183,14 @@ Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *Retu
             ProgramFail(Parser, "function definition expected");
 
         FuncValue->Val->FuncDef.Body = FuncBody;
-        FuncValue->Val->FuncDef.Body.Pos = static_cast<const unsigned char *>(LexCopyTokens(&FuncBody, Parser));
+        FuncValue->Val->FuncDef.Body.Pos = static_cast<const unsigned char *>(nitwit::lex::LexCopyTokens(&FuncBody, Parser));
 
     }
 
     char SkipDefinition = FALSE;
     /* is this function already in the global table? */
     if (!IsPtrDecl) {
-        if (TableGet(&pc->GlobalTable, Identifier, &OldFuncValue, nullptr, nullptr, nullptr)) {
+        if (nitwit::table::TableGet(&pc->GlobalTable, Identifier, &OldFuncValue, nullptr, nullptr, nullptr)) {
 
             if (OldFuncValue->Val->FuncDef.Body.Pos != nullptr) {
                 ProgramFail(Parser, "Function '%s' is already defined", Identifier);
@@ -198,11 +203,11 @@ Value *ParseFunctionDefinition(struct ParseState *Parser, struct ValueType *Retu
                 SkipDefinition = TRUE;
                 VariableFree(pc, FuncValue);
             } else {
-                VariableFree(pc, TableDelete(pc, &pc->GlobalTable, Identifier));
+                VariableFree(pc, nitwit::table::TableDelete(pc, &pc->GlobalTable, Identifier));
             }
         }
         if (!SkipDefinition &&
-            !TableSet(pc, &pc->GlobalTable, Identifier, FuncValue, (char*)Parser->FileName, Parser->Line,
+            !nitwit::table::TableSet(pc, &pc->GlobalTable, Identifier, FuncValue, (char*)Parser->FileName, Parser->Line,
                 Parser->CharacterPos)) {
             ProgramFail(Parser, "Function '%s' is already defined", Identifier);
         }
@@ -220,82 +225,80 @@ int ParseArrayInitialiser(struct ParseState *Parser, Value *NewVariable, int DoA
     enum LexToken Token;
     Value *CValue;
 
+    debugf("Parsing Array Initialiser, DoAssignment = %i, Parser->Mode = %i.\n", DoAssignment, Parser->Mode);
     /* count the number of elements in the array */
-    if (DoAssignment && Parser->Mode == RunModeRun)
+    if (DoAssignment && Parser->Mode == RunMode::RunModeRun)
     {
         struct ParseState CountParser;
         int NumElements;
 
         ParserCopy(&CountParser, Parser);
         NumElements = ParseArrayInitialiser(&CountParser, NewVariable, FALSE);
+        debugf("Array Initialiser has %i elements.\n", NumElements);
 
-        if (NewVariable->Typ->Base != TypeArray)
+        if (NewVariable->Typ->Base != BaseType::TypeArray)
             AssignFail(Parser, "%t from array initializer", NewVariable->Typ, nullptr, 0, 0, nullptr, 0);
 
         if (NewVariable->Typ->ArraySize == 0)
         {
+            debugf("Reallocating array with size %i.\n", TypeSizeValue(NewVariable, FALSE));
             NewVariable->Typ = TypeGetMatching(Parser->pc, Parser, NewVariable->Typ->FromType, NewVariable->Typ->Base,
                                                NumElements, NewVariable->Typ->Identifier, TRUE, nullptr);
             VariableRealloc(Parser, NewVariable, TypeSizeValue(NewVariable, FALSE));
         }
-        #ifdef DEBUG_ARRAY_INITIALIZER
-        PRINT_SOURCE_POS;
-        printf("array size: %d \n", NewVariable->Typ->ArraySize);
-        #endif
+        debugf("Array Size: %i\n", NewVariable->Typ->ArraySize);
     }
 
     /* parse the array initialiser */
-    Token = LexGetToken(Parser, nullptr, FALSE);
+    Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
     while (Token != TokenRightBrace)
     {
-        if (LexGetToken(Parser, nullptr, FALSE) == TokenLeftBrace)
+        if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenLeftBrace)
         {
             /* this is a sub-array initialiser */
             int SubArraySize = 0;
             Value *SubArray = NewVariable;
-            if (Parser->Mode == RunModeRun && DoAssignment)
+            if (Parser->Mode == RunMode::RunModeRun && DoAssignment)
             {
                 SubArraySize = TypeSize(NewVariable->Typ->FromType, NewVariable->Typ->FromType->ArraySize, TRUE);
                 SubArray = VariableAllocValueFromExistingData(Parser, NewVariable->Typ->FromType,
                                                               (union AnyValue *) (&NewVariable->Val->ArrayMem[0] +
                                                                                   SubArraySize * ArrayIndex), TRUE,
                                                               NewVariable, nullptr);
-                #ifdef DEBUG_ARRAY_INITIALIZER
+                #ifdef DEBUG_EXPRESSIONS
                 int FullArraySize = TypeSize(NewVariable->Typ, NewVariable->Typ->ArraySize, TRUE);
-                PRINT_SOURCE_POS;
-                PRINT_TYPE(NewVariable->Typ)
-                printf("[%d] subarray size: %d (full: %d,%d) \n", ArrayIndex, SubArraySize, FullArraySize, NewVariable->Typ->ArraySize);
+                PRINT_TYPE(NewVariable->Typ);
+                debugf("[%d] subarray size: %d (full: %d,%d)\n", ArrayIndex, SubArraySize, FullArraySize, NewVariable->Typ->ArraySize);
                 #endif
                 if (ArrayIndex >= NewVariable->Typ->ArraySize)
                     ProgramFail(Parser, "too many array elements");
             }
-            LexGetToken(Parser, nullptr, TRUE);
+            nitwit::lex::LexGetToken(Parser, nullptr, true);
             ParseArrayInitialiser(Parser, SubArray, DoAssignment);
         }
         else
         {
             Value *ArrayElement = nullptr;
 
-            if (Parser->Mode == RunModeRun && DoAssignment)
+            if (Parser->Mode == RunMode::RunModeRun && DoAssignment)
             {
                 struct ValueType * ElementType = NewVariable->Typ;
                 int TotalSize = 1;
                 int ElementSize = 0;
 
                 /* int x[3][3] = {1,2,3,4} => handle it just like int x[9] = {1,2,3,4} */
-                while (ElementType->Base == TypeArray)
+                while (ElementType->Base == BaseType::TypeArray)
                 {
                     TotalSize *= ElementType->ArraySize;
                     ElementType = ElementType->FromType;
 
                     /* char x[10][10] = {"abc", "def"} => assign "abc" to x[0], "def" to x[1] etc */
-                    if (LexGetToken(Parser, nullptr, FALSE) == TokenStringConstant && ElementType->FromType->Base == TypeChar)
+                    if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenStringConstant && ElementType->FromType->Base == BaseType::TypeChar)
                         break;
                 }
                 ElementSize = TypeSize(ElementType, ElementType->ArraySize, TRUE);
-                #ifdef DEBUG_ARRAY_INITIALIZER
-                PRINT_SOURCE_POS;
-                printf("[%d/%d] element size: %d (x%d) \n", ArrayIndex, TotalSize, ElementSize, ElementType->ArraySize);
+                #ifdef DEBUG_EXPRESSIONS
+                debugf("[%d/%d] element size: %d (x%d)\n", ArrayIndex, TotalSize, ElementSize, ElementType->ArraySize);
                 #endif
                 if (ArrayIndex >= TotalSize)
                     ProgramFail(Parser, "too many array elements");
@@ -303,15 +306,18 @@ int ParseArrayInitialiser(struct ParseState *Parser, Value *NewVariable, int DoA
                                                                   (union AnyValue *) (&NewVariable->Val->ArrayMem[0] +
                                                                                       ElementSize * ArrayIndex), TRUE,
                                                                   NewVariable, nullptr);
+                ArrayElement->ArrayRoot = NewVariable;
+                ArrayElement->ArrayIndex = ArrayIndex;
             }
 
             /* this is a normal expression initialiser */
-            if (!ExpressionParse(Parser, &CValue))
+            if (!nitwit::expressions::ExpressionParse(Parser, &CValue))
                 ProgramFail(Parser, "expression expected");
 
-            if (Parser->Mode == RunModeRun && DoAssignment)
+            if (Parser->Mode == RunMode::RunModeRun && DoAssignment)
             {
-                ExpressionAssign(Parser, ArrayElement, CValue, FALSE, nullptr, 0, FALSE);
+                debugf("About to perform ExpressionAssign() for array entry %i.\n", ArrayIndex);
+                nitwit::expressions::ExpressionAssign(Parser, ArrayElement, CValue, FALSE, nullptr, 0, FALSE);
                 VariableStackPop(Parser, CValue);
                 VariableStackPop(Parser, ArrayElement);
             }
@@ -319,18 +325,18 @@ int ParseArrayInitialiser(struct ParseState *Parser, Value *NewVariable, int DoA
 
         ArrayIndex++;
 
-        Token = LexGetToken(Parser, nullptr, FALSE);
+        Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
         if (Token == TokenComma)
         {
-            LexGetToken(Parser, nullptr, TRUE);
-            Token = LexGetToken(Parser, nullptr, FALSE);
+            nitwit::lex::LexGetToken(Parser, nullptr, true);
+            Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
         }
         else if (Token != TokenRightBrace)
             ProgramFail(Parser, "comma expected");
     }
 
     if (Token == TokenRightBrace)
-        LexGetToken(Parser, nullptr, TRUE);
+        nitwit::lex::LexGetToken(Parser, nullptr, true);
     else
         ProgramFail(Parser, "'}' expected");
 
@@ -346,8 +352,8 @@ int ParseSubStructInitialiser(struct ParseState *Parser, Value *NewVariable, Val
     int counter = 0;
 
     /* parse the sub struct initialiser */
-    LexGetToken(Parser, nullptr, TRUE);
-    Token = LexGetToken(Parser, nullptr, FALSE);
+    nitwit::lex::LexGetToken(Parser, nullptr, true);
+    Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
     ValueList *SubStructMember = NewVariable->Typ->MemberOrder;
 
     while (SubStructMember)
@@ -359,13 +365,13 @@ int ParseSubStructInitialiser(struct ParseState *Parser, Value *NewVariable, Val
         Value *SubMemberValue;
         char *DerefDataLoc = (char *)NewVariable->Val;
             
-        if (Parser->Mode == RunModeRun && DoAssignment)
+        if (Parser->Mode == RunMode::RunModeRun && DoAssignment)
         {
             if (SubStructMember == nullptr)
                 ProgramFail(Parser, "not that many elements in struct");
                 
             /* Get Value from Table by Identifier and parse into MemberValue */ 
-            TableGet(NewVariable->Typ->Members, SubStructMember->Identifier, &SubMemberValue, nullptr, nullptr, nullptr);
+            nitwit::table::TableGet(NewVariable->Typ->Members, SubStructMember->Identifier, &SubMemberValue, nullptr, nullptr, nullptr);
             // move to next member
             SubStructMember = SubStructMember->Next; 
 
@@ -378,25 +384,25 @@ int ParseSubStructInitialiser(struct ParseState *Parser, Value *NewVariable, Val
         }
 
         /* this is a normal expression initialiser */
-        if (!ExpressionParse(Parser, &CValue))
+        if (!nitwit::expressions::ExpressionParse(Parser, &CValue))
             ProgramFail(Parser, "expression expected"); // inc token by 1
 
-        if (Parser->Mode == RunModeRun && DoAssignment)
+        if (Parser->Mode == RunMode::RunModeRun && DoAssignment)
         {
-            ExpressionAssign(Parser, *StructElement, CValue, FALSE, nullptr, 0, FALSE);
+            nitwit::expressions::ExpressionAssign(Parser, *StructElement, CValue, FALSE, nullptr, 0, FALSE);
             VariableStackPop(Parser, CValue);
             VariableStackPop(Parser, *StructElement);
         }
     
-        Token = LexGetToken(Parser, nullptr, FALSE);
+        Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
         if (Token == TokenComma)
-            LexGetToken(Parser, nullptr, TRUE);
+            nitwit::lex::LexGetToken(Parser, nullptr, true);
         else if (Token != TokenRightBrace)
             ProgramFail(Parser, "comma expected");
     }
     
     if (Token == TokenRightBrace) {
-        LexGetToken(Parser, nullptr, TRUE);
+        nitwit::lex::LexGetToken(Parser, nullptr, true);
     } else {
         ProgramFail(Parser, "'}' expected");
     }
@@ -411,29 +417,30 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
     enum LexToken Token;
     Value *CValue;
 
+    debugf("Parsing Struct Initialiser...\n");
     /* parse the struct initialiser */
-    Token = LexGetToken(Parser, nullptr, FALSE);
+    Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
     ValueList *StructMember = NewVariable->Typ->MemberOrder;
 
     while (StructMember) {
         Value *StructElement = nullptr;
 
         // check for sub-struct initialiser
-        if (LexGetToken(Parser, nullptr, FALSE) == TokenLeftBrace) {
+        if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenLeftBrace) {
             // parse sub-struct initialiser
             Value *SubMemberValue;
             Value *SubStructElement = nullptr;
             char *DerefDataLoc = (char *) NewVariable->Val;
             int subElementsCounter = 0;
 
-            if (Parser->Mode == RunModeRun && DoAssignment) {
+            if (Parser->Mode == RunMode::RunModeRun && DoAssignment) {
                 if (StructMember == nullptr)
                     ProgramFail(Parser, "not that many elements in struct");
 
                 // get sub member value and initiliaze sub struct
-                TableGet(NewVariable->Typ->Members, StructMember->Identifier, &SubMemberValue, nullptr, nullptr,
+                nitwit::table::TableGet(NewVariable->Typ->Members, StructMember->Identifier, &SubMemberValue, nullptr, nullptr,
                          nullptr);
-                if (SubMemberValue->Typ->Base == TypeStruct) {
+                if (SubMemberValue->Typ->Base == BaseType::TypeStruct) {
                     // parse the sub struct
                     subElementsCounter = ParseSubStructInitialiser(Parser, SubMemberValue, &SubStructElement,
                                                                    DoAssignment);
@@ -458,20 +465,20 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
             }
 
             // assign sub struct element to main struct
-            if (Parser->Mode == RunModeRun && DoAssignment) {
-                ExpressionAssign(Parser, StructElement, SubMemberValue, FALSE, nullptr, 0, FALSE);
+            if (Parser->Mode == RunMode::RunModeRun && DoAssignment) {
+                nitwit::expressions::ExpressionAssign(Parser, StructElement, SubMemberValue, FALSE, nullptr, 0, FALSE);
                 VariableStackPop(Parser, StructElement);
             }
         } else {
             Value *MemberValue;
             char *DerefDataLoc = (char *) NewVariable->Val;
 
-            if (Parser->Mode == RunModeRun && DoAssignment) {
+            if (Parser->Mode == RunMode::RunModeRun && DoAssignment) {
                 if (StructMember == nullptr)
                     ProgramFail(Parser, "not that many elements in struct");
 
                 /* Get Value from Table by Identifier and parse into MemberValue */
-                TableGet(NewVariable->Typ->Members, StructMember->Identifier, &MemberValue, nullptr, nullptr, nullptr);
+                nitwit::table::TableGet(NewVariable->Typ->Members, StructMember->Identifier, &MemberValue, nullptr, nullptr, nullptr);
                 // move to next member
                 StructMember = StructMember->Next;
 
@@ -493,25 +500,25 @@ int ParseStructInitialiser(struct ParseState *Parser, Value *NewVariable, int Do
             }
 
             /* this is a normal expression initialiser */
-            if (!ExpressionParse(Parser, &CValue)) // increases token by 1 step
+            if (!nitwit::expressions::ExpressionParse(Parser, &CValue)) // increases token by 1 step
                 ProgramFail(Parser, "expression expected");
 
-            if (Parser->Mode == RunModeRun && DoAssignment) {
-                ExpressionAssign(Parser, StructElement, CValue, FALSE, nullptr, 0, FALSE);
+            if (Parser->Mode == RunMode::RunModeRun && DoAssignment) {
+                nitwit::expressions::ExpressionAssign(Parser, StructElement, CValue, FALSE, nullptr, 0, FALSE);
                 VariableStackPop(Parser, CValue);
                 VariableStackPop(Parser, StructElement);
             }
         }
 
-        Token = LexGetToken(Parser, nullptr, FALSE);
+        Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
         if (Token == TokenComma) {
-            LexGetToken(Parser, nullptr, TRUE);
+            nitwit::lex::LexGetToken(Parser, nullptr, true);
         } else if (Token != TokenRightBrace)
             ProgramFail(Parser, "comma expected");
     }
 
     if (Token == TokenRightBrace) {
-        LexGetToken(Parser, nullptr, TRUE);
+        nitwit::lex::LexGetToken(Parser, nullptr, true);
     } else {
         ProgramFail(Parser, "'}' expected");
     }
@@ -524,30 +531,32 @@ void ParseDeclarationAssignment(struct ParseState *Parser, Value *NewVariable, i
 {
     Value *CValue;
 
-    if (LexGetToken(Parser, nullptr, FALSE) == TokenLeftBrace)
+    if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenLeftBrace)
     {
         /* this is an array or struct initialiser */
-        LexGetToken(Parser, nullptr, TRUE);
-        if (NewVariable && NewVariable->Typ->Base == TypeStruct)
+        nitwit::lex::LexGetToken(Parser, nullptr, true);
+        if (NewVariable && NewVariable->Typ->Base == BaseType::TypeStruct) {
             ParseStructInitialiser(Parser, NewVariable, DoAssignment);
-        else
+        }
+        else {
             ParseArrayInitialiser(Parser, NewVariable, DoAssignment);
+        }
     } else {
         /* this is a normal expression initialiser */
         debugf("ParseStatement found a DeclarationAssignment, going into ExpressionParse().\n");
-        if (!ExpressionParse(Parser, &CValue))
+        if (!nitwit::expressions::ExpressionParse(Parser, &CValue))
             ProgramFail(Parser, "expression expected");
 
-        if (Parser->Mode == RunModeRun && DoAssignment)
+        if (Parser->Mode == RunMode::RunModeRun && DoAssignment)
         {
-            ExpressionAssign(Parser, NewVariable, CValue, FALSE, nullptr, 0, FALSE);
+            nitwit::expressions::ExpressionAssign(Parser, NewVariable, CValue, FALSE, nullptr, 0, FALSE);
             VariableStackPop(Parser, CValue);
         }
     }
 }
 
 /* declare a variable or function */
-int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
+int ParseDeclaration(struct ParseState *Parser, LexToken Token, bool& isFunctionDeclaration)
 {
     char *Identifier;
     struct ValueType *BasicType;
@@ -557,6 +566,8 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
     int IsConst = FALSE;
     int FirstVisit = FALSE;
     Picoc *pc = Parser->pc;
+
+    isFunctionDeclaration = false;
 
     TypeParseFront(Parser, &BasicType, &IsStatic, &IsConst);
     do
@@ -571,10 +582,11 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
         if (Identifier != pc->StrEmpty)
         {
             /* handle function definitions */
-            if (!(Typ == &pc->FunctionPtrType || (Typ->Base == TypeArray && Typ->FromType->Base == TypeFunctionPtr))
-                && LexGetToken(Parser, nullptr, FALSE) == TokenOpenBracket)
+            if (!(Typ == &pc->FunctionPtrType || (Typ->Base == BaseType::TypeArray && Typ->FromType->Base == BaseType::TypeFunctionPtr))
+                && nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenOpenBracket)
             {
-                ParseFunctionDefinition(Parser, Typ, Identifier, FALSE);
+                ParseFunctionDefinition(Parser, Typ, Identifier, false);
+                isFunctionDeclaration = true;
                 return FALSE;
             }
             else
@@ -582,32 +594,37 @@ int ParseDeclaration(struct ParseState *Parser, enum LexToken Token)
                 if (Typ == &pc->VoidType && Identifier != pc->StrEmpty)
                     ProgramFail(Parser, "can't define a void variable");
 
-                if (Typ == &pc->FunctionPtrType || (Typ->Base == TypeArray && Typ->FromType->Base == TypeFunctionPtr)) {
-                    FuncValue = ParseFunctionDefinition(Parser, BasicType, Identifier, TRUE); // fixme Typ should hold the return type
+                if (Typ == &pc->FunctionPtrType || (Typ->Base == BaseType::TypeArray && Typ->FromType->Base == BaseType::TypeFunctionPtr)) {
+                    FuncValue = ParseFunctionDefinition(Parser, BasicType, Identifier, true); // fixme Typ should hold the return type
+                    isFunctionDeclaration = true;
                 }
 
-                if (Parser->Mode == RunModeRun || Parser->Mode == RunModeGoto){
+                if (Parser->Mode == RunMode::RunModeRun || Parser->Mode == RunMode::RunModeGoto){
                     NewVariable = VariableDefineButIgnoreIdentical(Parser, Identifier, Typ, IsStatic, &FirstVisit);
                 }
                 if (FuncValue != nullptr) VariableFree(pc, FuncValue);
 
-                enum LexToken next_token = LexGetToken(Parser, nullptr, FALSE);
+                enum LexToken next_token = nitwit::lex::LexGetToken(Parser, nullptr, false);
                 if (next_token == TokenAssign)
                 {
                     /* we're assigning an initial value */
-                    LexGetToken(Parser, nullptr, TRUE);
+                    nitwit::lex::LexGetToken(Parser, nullptr, true);
+                    debugf("Found declaration of '%s' with assignment, IsStatic = %i, FirstVisit = %i\n", Identifier, IsStatic, FirstVisit);
                     ParseDeclarationAssignment(Parser, NewVariable, !IsStatic || FirstVisit);
                 } else if (NewVariable != nullptr && (next_token == TokenComma || next_token == TokenSemicolon)) {
                     NewVariable->Typ = TypeGetNonDeterministic(Parser, NewVariable->Typ);
+#ifdef VERBOSE
+                    cw_verbose("Creating new variable %s as NonDet.\n", Identifier);
+#endif
                 }
                 if (NewVariable != nullptr)
                     NewVariable->ConstQualifier = IsConst;
             }
         }
 
-        Token = LexGetToken(Parser, nullptr, FALSE);
+        Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
         if (Token == TokenComma)
-            LexGetToken(Parser, nullptr, TRUE);
+            nitwit::lex::LexGetToken(Parser, nullptr, true);
 
     } while (Token == TokenComma);
 
@@ -622,15 +639,15 @@ void ParseMacroDefinition(struct ParseState *Parser)
     Value *ParamName;
     Value *MacroValue;
 
-    if (LexGetToken(Parser, &MacroName, TRUE) != TokenIdentifier)
+    if (nitwit::lex::LexGetToken(Parser, &MacroName, true) != TokenIdentifier)
         ProgramFail(Parser, "identifier expected");
 
     MacroNameStr = MacroName->Val->Identifier;
 
-    if (LexRawPeekToken(Parser) == TokenOpenMacroBracket)
+    if (nitwit::lex::LexRawPeekToken(Parser) == TokenOpenMacroBracket)
     {
         /* it's a parameterised macro, read the parameters */
-        enum LexToken Token = LexGetToken(Parser, nullptr, TRUE);
+        enum LexToken Token = nitwit::lex::LexGetToken(Parser, nullptr, true);
         struct ParseState ParamParser;
         int NumParams;
         int ParamCount = 0;
@@ -643,7 +660,7 @@ void ParseMacroDefinition(struct ParseState *Parser)
         MacroValue->Val->MacroDef.NumParams = NumParams;
         MacroValue->Val->MacroDef.ParamName = (char **)((char *)MacroValue->Val + sizeof(struct MacroDef));
 
-        Token = LexGetToken(Parser, &ParamName, TRUE);
+        Token = nitwit::lex::LexGetToken(Parser, &ParamName, true);
 
         while (Token == TokenIdentifier)
         {
@@ -651,9 +668,9 @@ void ParseMacroDefinition(struct ParseState *Parser)
             MacroValue->Val->MacroDef.ParamName[ParamCount++] = ParamName->Val->Identifier;
 
             /* get the trailing comma */
-            Token = LexGetToken(Parser, nullptr, TRUE);
+            Token = nitwit::lex::LexGetToken(Parser, nullptr, true);
             if (Token == TokenComma)
-                Token = LexGetToken(Parser, &ParamName, TRUE);
+                Token = nitwit::lex::LexGetToken(Parser, &ParamName, true);
 
             else if (Token != TokenCloseBracket)
                 ProgramFail(Parser, "comma expected");
@@ -672,11 +689,10 @@ void ParseMacroDefinition(struct ParseState *Parser)
     /* copy the body of the macro to execute later */
     ParserCopy(&MacroValue->Val->MacroDef.Body, Parser);
     MacroValue->Typ = &Parser->pc->MacroType;
-    LexToEndOfLine(Parser);
-    MacroValue->Val->MacroDef.Body.Pos = static_cast<const unsigned char *>(LexCopyTokens(
-            &MacroValue->Val->MacroDef.Body, Parser));
+    nitwit::lex::LexToEndOfLine(Parser);
+    MacroValue->Val->MacroDef.Body.Pos = static_cast<const unsigned char *>(nitwit::lex::LexCopyTokens(&MacroValue->Val->MacroDef.Body, Parser));
 
-    if (!TableSet(Parser->pc, &Parser->pc->GlobalTable, MacroNameStr, MacroValue, (char *)Parser->FileName, Parser->Line, Parser->CharacterPos))
+    if (!nitwit::table::TableSet(Parser->pc, &Parser->pc->GlobalTable, MacroNameStr, MacroValue, (char *)Parser->FileName, Parser->Line, Parser->CharacterPos))
         ProgramFail(Parser, "'%s' is already defined", MacroNameStr);
 }
 
@@ -702,7 +718,7 @@ void ParserCopyPos(struct ParseState *To, struct ParseState *From)
 /* parse a "for" statement */
 void ParseFor(struct ParseState *Parser)
 {
-    int Condition;
+    bool Condition;
     struct ParseState PreConditional;
     struct ParseState PreIncrement;
     struct ParseState PreStatement;
@@ -712,51 +728,51 @@ void ParseFor(struct ParseState *Parser)
 
     int PrevScopeID = 0, ScopeID = VariableScopeBegin(Parser, &PrevScopeID);
 
-    if (LexGetToken(Parser, nullptr, TRUE) != TokenOpenBracket)
+    if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenOpenBracket)
         ProgramFail(Parser, "'(' expected");
 
     if (ParseStatement(Parser, TRUE) != ParseResultOk)
         ProgramFail(Parser, "statement expected");
 
     ParserCopyPos(&PreConditional, Parser);
-    if (LexGetToken(Parser, nullptr, FALSE) == TokenSemicolon) {
-        Condition = TRUE;
+    if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenSemicolon) {
+        Condition = true;
     } else {
         debugf("ParseStatement found a For, going into ExpressionParse() to parse condition.\n");
-        Condition = ExpressionParseLongLong(Parser);
+        Condition = nitwit::expressions::ExpressionParseLongLong(Parser) != 0;
     }
 
     ConditionCallback(Parser, Condition);
 
-    if (LexGetToken(Parser, nullptr, TRUE) != TokenSemicolon)
+    if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenSemicolon)
         ProgramFail(Parser, "';' expected");
 
     ParserCopyPos(&PreIncrement, Parser);
     ParseStatementMaybeRun(Parser, FALSE, FALSE);
 
-    if (LexGetToken(Parser, nullptr, TRUE) != TokenCloseBracket)
+    if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenCloseBracket)
         ProgramFail(Parser, "')' expected");
 
     ParserCopyPos(&PreStatement, Parser);
     if (ParseStatementMaybeRun(Parser, Condition, TRUE) != ParseResultOk)
         ProgramFail(Parser, "statement expected");
 
-    if (Parser->Mode == RunModeContinue && OldMode == RunModeRun)
-        Parser->Mode = RunModeRun;
+    if (Parser->Mode == RunMode::RunModeContinue && OldMode == RunMode::RunModeRun)
+        Parser->Mode = RunMode::RunModeRun;
 
     ParserCopyPos(&After, Parser);
 
-    while (Condition && Parser->Mode == RunModeRun)
+    while (Condition && Parser->Mode == RunMode::RunModeRun)
     {
         ParserCopyPos(Parser, &PreIncrement);
         ParseStatement(Parser, FALSE);
 
         ParserCopyPos(Parser, &PreConditional);
-        if (LexGetToken(Parser, nullptr, FALSE) == TokenSemicolon) {
-            Condition = TRUE;
+        if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenSemicolon) {
+            Condition = true;
         } else {
             debugf("ParseStatement found a For, going into ExpressionParse() to parse condition.\n");
-            Condition = ExpressionParseLongLong(Parser);
+            Condition = nitwit::expressions::ExpressionParseLongLong(Parser) != 0;
         }
 
         if (Condition)
@@ -766,25 +782,25 @@ void ParseFor(struct ParseState *Parser)
             ParserCopyPos(Parser, &PreStatement);
             ParseStatement(Parser, TRUE);
 
-            if (Parser->Mode == RunModeContinue)
-                Parser->Mode = RunModeRun;
+            if (Parser->Mode == RunMode::RunModeContinue)
+                Parser->Mode = RunMode::RunModeRun;
         }
     }
 
     ConditionCallback(Parser, Condition);
 
-    if (Parser->Mode == RunModeBreak && OldMode == RunModeRun)
-        Parser->Mode = RunModeRun;
+    if (Parser->Mode == RunMode::RunModeBreak && OldMode == RunMode::RunModeRun)
+        Parser->Mode = RunMode::RunModeRun;
 
     VariableScopeEnd(Parser, ScopeID, PrevScopeID);
 
     ParserCopyPos(Parser, &After);
 }
 
-void ConditionCallback(struct ParseState *Parser, int Condition) {
-    if (Parser->DebugMode && Parser->Mode == RunModeRun) {
+void ConditionCallback(struct ParseState *Parser, bool Condition) {
+    if (Parser->DebugMode && Parser->Mode == RunMode::RunModeRun) {
         Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
-        DebugCheckStatement(Parser);
+        DebugCheckStatement(Parser, false, 0);
         Parser->LastConditionBranch = ConditionUndefined;
     }
 }
@@ -794,17 +810,17 @@ enum RunMode ParseBlock(struct ParseState *Parser, int AbsorbOpenBrace, int Cond
 {
     int PrevScopeID = 0, ScopeID = VariableScopeBegin(Parser, &PrevScopeID);
 
-    if (AbsorbOpenBrace && LexGetToken(Parser, nullptr, TRUE) != TokenLeftBrace)
+    if (AbsorbOpenBrace && nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenLeftBrace)
         ProgramFail(Parser, "'{' expected");
 
-    if (Parser->Mode == RunModeSkip || !Condition)
+    if (Parser->Mode == RunMode::RunModeSkip || !Condition)
     {
         /* condition failed - skip this block instead */
         enum RunMode OldMode = Parser->Mode;
-        Parser->Mode = Parser->Mode == RunModeGoto ? RunModeGoto : RunModeSkip;
+        Parser->Mode = Parser->Mode == RunMode::RunModeGoto ? RunMode::RunModeGoto : RunMode::RunModeSkip;
         while (ParseStatement(Parser, TRUE) == ParseResultOk)
         {}
-        Parser->Mode = OldMode == RunModeGoto ? Parser->Mode : OldMode;
+        Parser->Mode = OldMode == RunMode::RunModeGoto ? Parser->Mode : OldMode;
     }
     else
     {
@@ -813,7 +829,7 @@ enum RunMode ParseBlock(struct ParseState *Parser, int AbsorbOpenBrace, int Cond
         {}
     }
 
-    if (LexGetToken(Parser, nullptr, TRUE) != TokenRightBrace)
+    if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenRightBrace)
         ProgramFail(Parser, "'}' expected");
 
     VariableScopeEnd(Parser, ScopeID, PrevScopeID);
@@ -832,7 +848,7 @@ void ParseTypedef(struct ParseState *Parser)
 
     TypeParse(Parser, &Typ, &TypeName, nullptr, nullptr, 0);
 
-    if (Parser->Mode == RunModeRun)
+    if (Parser->Mode == RunMode::RunModeRun)
     {
         TypPtr = &Typ;
         InitValue.Typ = &Parser->pc->TypeType;
@@ -874,20 +890,21 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     enum LexToken Token;
     char GotoCallback = FALSE;
     char SkipDebugCheck = FALSE;
+    bool isFunctionDeclaration = false;
 
     /* take note of where we are and then grab a token to see what statement we have */
     ParserCopy(&PreState, Parser);
-    Token = LexGetToken(Parser, &LexerValue, TRUE);
+    Token = nitwit::lex::LexGetToken(Parser, &LexerValue, true);
 
     struct ParseState ParserPrePosition;
     ParserCopyPos(&ParserPrePosition, Parser);
 
     /* if we're debugging, check for a breakpoint */
-    if (Parser->DebugMode && Parser->Mode == RunModeRun){
+    if (Parser->DebugMode && Parser->Mode == RunMode::RunModeRun){
         switch (Token)
         {
             case TokenIf:
-                DebugCheckStatement(Parser);
+                DebugCheckStatement(Parser, false, 0);
                 break;
             default:
                 break;
@@ -907,23 +924,23 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             if (VariableDefined(Parser->pc, LexerValue->Val->Identifier))
             {
                 VariableGet(Parser->pc, Parser, LexerValue->Val->Identifier, &VarValue);
-                if (VarValue->Typ->Base == Type_Type)
+                if (VarValue->Typ->Base == BaseType::Type_Type)
                 {
                     *Parser = PreState;
-                    CheckTrailingSemicolon = ParseDeclaration(Parser, Token);
+                    CheckTrailingSemicolon = ParseDeclaration(Parser, Token, isFunctionDeclaration);
                     break;
                 }
             }
             else
             {
                 /* it might be a goto label */
-                enum LexToken NextToken = LexGetToken(Parser, nullptr, FALSE);
+                enum LexToken NextToken = nitwit::lex::LexGetToken(Parser, nullptr, false);
                 if (NextToken == TokenColon)
                 {
                     /* declare the identifier as a goto label */
-                    LexGetToken(Parser, nullptr, TRUE);
-                    if (Parser->Mode == RunModeGoto && LexerValue->Val->Identifier == Parser->SearchGotoLabel) {
-                        Parser->Mode = RunModeRun;
+                    nitwit::lex::LexGetToken(Parser, nullptr, true);
+                    if (Parser->Mode == RunMode::RunModeGoto && LexerValue->Val->Identifier == Parser->SearchGotoLabel) {
+                        Parser->Mode = RunMode::RunModeRun;
                         Parser->SearchGotoLabel = nullptr;
                     }
 
@@ -941,8 +958,8 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                             Value *CValue;
                             char* Identifier = LexerValue->Val->Identifier;
 
-                            LexGetToken(Parser, nullptr, TRUE);
-                            if (!ExpressionParse(Parser, &CValue))
+                            nitwit::lex::LexGetToken(Parser, nullptr, true);
+                            if (!nitwit::expressions::ExpressionParse(Parser, &CValue))
                             {
                                 ProgramFail(Parser, "expected: expression");
                             }
@@ -969,9 +986,9 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         case TokenOpenBracket:
             *Parser = PreState;
             debugf("ParseStatement found a (, going into ExpressionParse().\n");
-            ExpressionParse(Parser, &CValue);
+            nitwit::expressions::ExpressionParse(Parser, &CValue);
             SkipDebugCheck = TRUE;
-            if (Parser->Mode == RunModeRun)
+            if (Parser->Mode == RunMode::RunModeRun)
                 VariableStackPop(Parser, CValue);
             break;
 
@@ -981,26 +998,26 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             break;
 
         case TokenIf:
-            if (LexGetToken(Parser, nullptr, TRUE) != TokenOpenBracket)
+            if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenOpenBracket)
                 ProgramFail(Parser, "'(' expected");
 
             debugf("ParseStatement found an If, going into ExpressionParse().\n");
-            Condition = ExpressionParseLongLong(Parser);
+            Condition = nitwit::expressions::ExpressionParseLongLong(Parser);
 
             ConditionCallback(Parser, Condition);
 
-            if (LexGetToken(Parser, nullptr, TRUE) != TokenCloseBracket)
+            if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenCloseBracket)
                 ProgramFail(Parser, "')' expected");
 
             if (ParseStatementMaybeRun(Parser, Condition, TRUE) != ParseResultOk)
                 ProgramFail(Parser, "statement expected");
 
-            if (LexGetToken(Parser, nullptr, FALSE) == TokenElse)
+            if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenElse)
             {
-                LexGetToken(Parser, nullptr, TRUE);
+                nitwit::lex::LexGetToken(Parser, nullptr, true);
                 if (ParseStatementMaybeRun(Parser,
-                        (!Condition && !(PreState.Mode == RunModeGoto
-                        && Parser->Mode== RunModeRun)), TRUE) != ParseResultOk)
+                        (!Condition && !(PreState.Mode == RunMode::RunModeGoto
+                        && Parser->Mode == RunMode::RunModeRun)), TRUE) != ParseResultOk)
                     ProgramFail(Parser, "statement expected");
             }
             CheckTrailingSemicolon = FALSE;
@@ -1011,7 +1028,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 struct ParseState PreConditional;
                 enum RunMode PreMode = Parser->Mode;
 
-                if (LexGetToken(Parser, nullptr, TRUE) != TokenOpenBracket)
+                if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenOpenBracket)
                     ProgramFail(Parser, "'(' expected");
 
                 ParserCopyPos(&PreConditional, Parser);
@@ -1019,21 +1036,21 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                 {
                     ParserCopyPos(Parser, &PreConditional);
                     debugf("ParseStatement found a While, going into ExpressionParse() to parse condition.\n");
-                    Condition = ExpressionParseLongLong(Parser);
+                    Condition = nitwit::expressions::ExpressionParseLongLong(Parser);
                     ConditionCallback(Parser, Condition);
-                    if (LexGetToken(Parser, nullptr, TRUE) != TokenCloseBracket)
+                    if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenCloseBracket)
                         ProgramFail(Parser, "')' expected");
 
                     if (ParseStatementMaybeRun(Parser, Condition, TRUE) != ParseResultOk)
                         ProgramFail(Parser, "statement expected");
 
-                    if (Parser->Mode == RunModeContinue)
-                        Parser->Mode = PreMode == RunModeGoto && Parser->SearchGotoLabel == nullptr ? RunModeRun : PreMode;
+                    if (Parser->Mode == RunMode::RunModeContinue)
+                        Parser->Mode = PreMode == RunMode::RunModeGoto && Parser->SearchGotoLabel == nullptr ? RunMode::RunModeRun : PreMode;
 
-                } while (Parser->Mode == RunModeRun && (Condition || (PreMode == RunModeGoto && Parser->SearchGotoLabel == nullptr)));
+                } while (Parser->Mode == RunMode::RunModeRun && (Condition || (PreMode == RunMode::RunModeGoto && Parser->SearchGotoLabel == nullptr)));
 
-                if (Parser->Mode == RunModeBreak)
-                    Parser->Mode = PreMode == RunModeGoto && Parser->SearchGotoLabel == nullptr ? RunModeRun : PreMode;
+                if (Parser->Mode == RunMode::RunModeBreak)
+                    Parser->Mode = PreMode == RunMode::RunModeGoto && Parser->SearchGotoLabel == nullptr ? RunMode::RunModeRun : PreMode;
 
                 CheckTrailingSemicolon = FALSE;
             }
@@ -1050,25 +1067,25 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                     if (ParseStatement(Parser, TRUE) != ParseResultOk)
                         ProgramFail(Parser, "statement expected");
 
-                    if (Parser->Mode == RunModeContinue)
-                        Parser->Mode = PreMode == RunModeGoto && Parser->SearchGotoLabel == nullptr ? RunModeRun : PreMode;
+                    if (Parser->Mode == RunMode::RunModeContinue)
+                        Parser->Mode = PreMode == RunMode::RunModeGoto && Parser->SearchGotoLabel == nullptr ? RunMode::RunModeRun : PreMode;
 
-                    if (LexGetToken(Parser, nullptr, TRUE) != TokenWhile)
+                    if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenWhile)
                         ProgramFail(Parser, "'while' expected");
 
-                    if (LexGetToken(Parser, nullptr, TRUE) != TokenOpenBracket)
+                    if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenOpenBracket)
                         ProgramFail(Parser, "'(' expected");
 
                     debugf("ParseStatement found a Do, going into ExpressionParse() to parse condition.\n");
-                    Condition = ExpressionParseLongLong(Parser);
+                    Condition = nitwit::expressions::ExpressionParseLongLong(Parser);
                     ConditionCallback(Parser, Condition);
-                    if (LexGetToken(Parser, nullptr, TRUE) != TokenCloseBracket)
+                    if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenCloseBracket)
                         ProgramFail(Parser, "')' expected");
 
-                } while (Condition && Parser->Mode == RunModeRun);
+                } while (Condition && Parser->Mode == RunMode::RunModeRun);
 
-                if (Parser->Mode == RunModeBreak)
-                    Parser->Mode = PreMode == RunModeGoto && Parser->SearchGotoLabel == nullptr ? RunModeRun : PreMode;
+                if (Parser->Mode == RunMode::RunModeBreak)
+                    Parser->Mode = PreMode == RunMode::RunModeGoto && Parser->SearchGotoLabel == nullptr ? RunMode::RunModeRun : PreMode;
             }
             break;
 
@@ -1101,14 +1118,14 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         case TokenExternType:
 #endif
             *Parser = PreState;
-            CheckTrailingSemicolon = ParseDeclaration(Parser, Token);
+            CheckTrailingSemicolon = ParseDeclaration(Parser, Token, isFunctionDeclaration);
             break;
 #ifndef NO_HEADER_INCLUDE
         case TokenExternType:
             // just ignore the externs...
-            for (Token = LexGetToken(Parser, nullptr, TRUE);
+            for (Token = nitwit::lex::LexGetToken(Parser, nullptr, true);
                 ;
-                Token = LexGetToken(Parser, nullptr, TRUE)) {
+                Token = nitwit::lex::LexGetToken(Parser, nullptr, true)) {
                 if (Token == TokenOpenBracket) {
                     if (bracket == -1) bracket = 0; // enable ignoring till end of block
                     bracket++;
@@ -1130,7 +1147,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
 
 #ifndef NO_HASH_INCLUDE
         case TokenHashInclude:
-            if (LexGetToken(Parser, &LexerValue, TRUE) != TokenStringConstant)
+            if (nitwit::lex::LexGetToken(Parser, &LexerValue, true) != TokenStringConstant)
                 ProgramFail(Parser, "\"filename.h\" expected");
 
             IncludeFile(Parser->pc, (char *)LexerValue->Val->Pointer);
@@ -1139,28 +1156,28 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
 #endif
 
         case TokenSwitch:
-            if (LexGetToken(Parser, nullptr, TRUE) != TokenOpenBracket)
+            if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenOpenBracket)
                 ProgramFail(Parser, "'(' expected");
 
             debugf("ParseStatement found a Switch, going into ExpressionParse() to parse condition.\n");
-            Condition = ExpressionParseLongLong(Parser);
+            Condition = nitwit::expressions::ExpressionParseLongLong(Parser);
 
-            if (LexGetToken(Parser, nullptr, TRUE) != TokenCloseBracket)
+            if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenCloseBracket)
                 ProgramFail(Parser, "')' expected");
 
-            if (LexGetToken(Parser, nullptr, FALSE) != TokenLeftBrace)
+            if (nitwit::lex::LexGetToken(Parser, nullptr, false) != TokenLeftBrace)
                 ProgramFail(Parser, "'{' expected");
 
             {
                 /* new block so we can store parser state */
                 enum RunMode OldMode = Parser->Mode;
                 int OldSearchLabel = Parser->SearchLabel;
-                Parser->Mode = RunModeCaseSearch;
+                Parser->Mode = RunMode::RunModeCaseSearch;
                 Parser->SearchLabel = Condition;
 
-                ParseBlock(Parser, TRUE, (OldMode != RunModeSkip) && (OldMode != RunModeReturn));
+                ParseBlock(Parser, TRUE, (OldMode != RunMode::RunModeSkip) && (OldMode != RunMode::RunModeReturn));
 
-                if (Parser->Mode != RunModeReturn)
+                if (Parser->Mode != RunMode::RunModeReturn)
                     Parser->Mode = OldMode;
 
                 Parser->SearchLabel = OldSearchLabel;
@@ -1170,78 +1187,81 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             break;
 
         case TokenCase:
-            if (Parser->Mode == RunModeCaseSearch)
+            if (Parser->Mode == RunMode::RunModeCaseSearch)
             {
-                Parser->Mode = RunModeRun;
+                Parser->Mode = RunMode::RunModeRun;
                 debugf("ParseStatement found a Case, going into ExpressionParse() to parse condition.\n");
-                Condition = ExpressionParseLongLong(Parser);
-                Parser->Mode = RunModeCaseSearch;
+                Condition = nitwit::expressions::ExpressionParseLongLong(Parser);
+                Parser->Mode = RunMode::RunModeCaseSearch;
             }
             else {
                 debugf("ParseStatement found a Case, going into ExpressionParse() to parse condition.\n");
-                Condition = ExpressionParseLongLong(Parser);
+                Condition = nitwit::expressions::ExpressionParseLongLong(Parser);
             }
 
-            if (LexGetToken(Parser, nullptr, TRUE) != TokenColon)
+            if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenColon)
                 ProgramFail(Parser, "':' expected");
 
-            if (Parser->Mode == RunModeCaseSearch && Condition == Parser->SearchLabel)
-                Parser->Mode = RunModeRun;
+            if (Parser->Mode == RunMode::RunModeCaseSearch && Condition == Parser->SearchLabel)
+                Parser->Mode = RunMode::RunModeRun;
 
             CheckTrailingSemicolon = FALSE;
             break;
 
         case TokenDefault:
-            if (LexGetToken(Parser, nullptr, TRUE) != TokenColon)
+            if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenColon)
                 ProgramFail(Parser, "':' expected");
 
-            if (Parser->Mode == RunModeCaseSearch)
-                Parser->Mode = RunModeRun;
+            if (Parser->Mode == RunMode::RunModeCaseSearch)
+                Parser->Mode = RunMode::RunModeRun;
 
             CheckTrailingSemicolon = FALSE;
             break;
 
         case TokenBreak:
-            if (Parser->Mode == RunModeRun)
-                Parser->Mode = RunModeBreak;
+            if (Parser->Mode == RunMode::RunModeRun)
+                Parser->Mode = RunMode::RunModeBreak;
             break;
 
         case TokenContinue:
-            if (Parser->Mode == RunModeRun)
-                Parser->Mode = RunModeContinue;
+            if (Parser->Mode == RunMode::RunModeRun)
+                Parser->Mode = RunMode::RunModeContinue;
             break;
 
         case TokenReturn:
-            if (Parser->Mode == RunModeRun)
+            if (Parser->Mode == RunMode::RunModeRun)
             {
                 // returning from this function;
                 const char *RetBeforeName = Parser->ReturnFromFunction;
                 Parser->ReturnFromFunction = Parser->pc->TopStackFrame->FuncName;
-                if (!Parser->pc->TopStackFrame || Parser->pc->TopStackFrame->ReturnValue->Typ->Base != TypeVoid)
+                if (!Parser->pc->TopStackFrame || Parser->pc->TopStackFrame->ReturnValue->Typ->Base != BaseType::TypeVoid)
                 {
                     debugf("ParseStatement found a Return, going into ExpressionParse().\n");
-                    if (!ExpressionParse(Parser, &CValue))
+                    if (!nitwit::expressions::ExpressionParse(Parser, &CValue)) {
                         ProgramFail(Parser, "value required in return");
+                    }
 
-                    if (!Parser->pc->TopStackFrame) /* return from top-level program? */
-                        PlatformExit(Parser->pc, CoerceLongLong(CValue));
-                    else
-                        ExpressionAssign(Parser, Parser->pc->TopStackFrame->ReturnValue, CValue, TRUE, nullptr, 0, FALSE);
+                    if (!Parser->pc->TopStackFrame) { /* return from top-level program? */
+                        PlatformExit(Parser->pc, CoerceT<long long>(CValue));
+                    }
+                    else {
+                        nitwit::expressions::ExpressionAssign(Parser, Parser->pc->TopStackFrame->ReturnValue, CValue, TRUE, nullptr, 0, FALSE);
+                    }
                     VariableStackPop(Parser, CValue);
                 }
                 else
                 {
                     debugf("ParseStatement found a Return, going into ExpressionParse().\n");
-                    if (ExpressionParse(Parser, &CValue))
+                    if (nitwit::expressions::ExpressionParse(Parser, &CValue))
                         ProgramFail(Parser, "value in return from a void function");
                 }
                 Parser->ReturnFromFunction = RetBeforeName;
 
-                Parser->Mode = RunModeReturn;
+                Parser->Mode = RunMode::RunModeReturn;
             }
             else {
                 debugf("ParseStatement found a Return, going into ExpressionParse().\n");
-                ExpressionParse(Parser, &CValue);
+                nitwit::expressions::ExpressionParse(Parser, &CValue);
             }
             break;
 
@@ -1250,14 +1270,14 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             break;
 
         case TokenGoto:
-            if (LexGetToken(Parser, &LexerValue, TRUE) != TokenIdentifier)
+            if (nitwit::lex::LexGetToken(Parser, &LexerValue, true) != TokenIdentifier)
                 ProgramFail(Parser, "identifier expected");
 
-            if (Parser->Mode == RunModeRun)
+            if (Parser->Mode == RunMode::RunModeRun)
             {
                 /* start scanning for the goto label */
                 Parser->SearchGotoLabel = LexerValue->Val->Identifier;
-                Parser->Mode = RunModeGoto;
+                Parser->Mode = RunMode::RunModeGoto;
                 Parser->FreshGotoSearch = TRUE;
                 GotoCallback = TRUE;
             }
@@ -1266,13 +1286,13 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         case TokenDelete:
         {
             /* try it as a function or variable name to delete */
-            if (LexGetToken(Parser, &LexerValue, TRUE) != TokenIdentifier)
+            if (nitwit::lex::LexGetToken(Parser, &LexerValue, true) != TokenIdentifier)
                 ProgramFail(Parser, "identifier expected");
 
-            if (Parser->Mode == RunModeRun)
+            if (Parser->Mode == RunMode::RunModeRun)
             {
                 /* delete this variable or function */
-                CValue = TableDelete(Parser->pc, &Parser->pc->GlobalTable, LexerValue->Val->Identifier);
+                CValue = nitwit::table::TableDelete(Parser->pc, &Parser->pc->GlobalTable, LexerValue->Val->Identifier);
 
                 if (CValue == nullptr)
                     ProgramFailWithExitCode(Parser, 244, "'%s' is not defined", LexerValue->Val->Identifier);
@@ -1290,15 +1310,18 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
     /* check if a semicolon is expected and if it occured */ 
     if (CheckTrailingSemicolon)
     {
-        if (LexGetToken(Parser, nullptr, TRUE) != TokenSemicolon)
+        if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenSemicolon)
             ProgramFail(Parser, "';' expected");
     }
 
     /* if we're debugging, check for a breakpoint */
-    if ((Parser->DebugMode && Parser->Mode == RunModeRun && !SkipDebugCheck) || GotoCallback){
+    if ((Parser->DebugMode && Parser->Mode == RunMode::RunModeRun && !SkipDebugCheck) || GotoCallback){
         struct ParseState NowPosition;
         ParserCopyPos(&NowPosition, Parser);
         ParserCopyPos(Parser, &ParserPrePosition);
+#ifdef DEBUG_WITNESS_EDGES
+        debugf("About to go into debugger - token is %s, position now is %zu, position before was %zu.\n", tokenToString(Token), NowPosition.Line, ParserPrePosition.Line);
+#endif
         switch (Token)
         {
             case TokenGoto:
@@ -1308,6 +1331,8 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenContinue:
             case TokenBreak:
             case TokenReturn:
+                DebugCheckStatement(Parser, false, 0);
+                break;
             case TokenTypedef:
             case TokenIdentifier:
             case TokenConst:
@@ -1327,7 +1352,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenAutoType:
             case TokenRegisterType:
             case TokenExternType:
-                DebugCheckStatement(Parser);
+                DebugCheckStatement(Parser, !isFunctionDeclaration, isFunctionDeclaration ? 0 : NowPosition.Line);
                 break;
             default:
                 break;
@@ -1340,14 +1365,14 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
 
 /* quick scan a source file for definitions */
 void PicocParse(Picoc *pc, const char *FileName, const char *Source, int SourceLen, int RunIt, int CleanupNow,
-                int CleanupSource, int EnableDebugger, void (*DebuggerCallback)(struct ParseState *))
+                int CleanupSource, int EnableDebugger, void (*DebuggerCallback)(ParseState*, bool, std::size_t const&))
 {
-    struct ParseState Parser;
-    enum ParseResult Ok;
-    struct CleanupTokenNode *NewCleanupNode;
-    char *RegFileName = TableStrRegister(pc, FileName);
+    ParseState Parser;
+    ParseResult Ok;
+    CleanupTokenNode *NewCleanupNode;
+    char *RegFileName = nitwit::table::TableStrRegister(pc, FileName);
 
-    void *Tokens = LexAnalyse(pc, RegFileName, Source, SourceLen, nullptr);
+    void *Tokens = nitwit::lex::LexAnalyse(pc, RegFileName, Source, SourceLen, nullptr);
 
     /* allocate a cleanup node so we can clean up the tokens later */
     if (!CleanupNow)
@@ -1367,7 +1392,7 @@ void PicocParse(Picoc *pc, const char *FileName, const char *Source, int SourceL
     }
 
     /* initialize the Parser */
-    LexInitParser(&Parser, pc, Source, Tokens, RegFileName, RunIt, EnableDebugger, DebuggerCallback);
+    nitwit::lex::LexInitParser(&Parser, pc, Source, Tokens, RegFileName, RunIt, EnableDebugger, DebuggerCallback);
 
     /* do the parsing */
     do {
@@ -1385,18 +1410,18 @@ void PicocParse(Picoc *pc, const char *FileName, const char *Source, int SourceL
 /* parse interactively */
 void PicocParseInteractiveNoStartPrompt(Picoc *pc, int EnableDebugger)
 {
-    struct ParseState Parser;
-    enum ParseResult Ok;
+    ParseState Parser;
+    ParseResult Ok;
 
-    LexInitParser(&Parser, pc, nullptr, nullptr, pc->StrEmpty, TRUE, EnableDebugger, nullptr);
+    nitwit::lex::LexInitParser(&Parser, pc, nullptr, nullptr, pc->StrEmpty, TRUE, EnableDebugger, nullptr);
     PicocPlatformSetExitPoint(pc);
-    LexInteractiveClear(pc, &Parser);
+    nitwit::lex::LexInteractiveClear(pc, &Parser);
 
     do
     {
-        LexInteractiveStatementPrompt(pc);
+        nitwit::lex::LexInteractiveStatementPrompt(pc);
         Ok = ParseStatement(&Parser, TRUE);
-        LexInteractiveCompleted(pc, &Parser);
+        nitwit::lex::LexInteractiveCompleted(pc, &Parser);
 
     } while (Ok == ParseResultOk);
 
@@ -1413,3 +1438,6 @@ void PicocParseInteractive(Picoc *pc)
     PicocParseInteractiveNoStartPrompt(pc, TRUE);
 }
 
+
+    }
+}

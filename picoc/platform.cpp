@@ -12,9 +12,9 @@ void PicocInitialise(Picoc *pc, int StackSize)
     PlatformInit(pc);
     BasicIOInit(pc);
     HeapInit(pc, StackSize);
-    TableInit(pc);
+    nitwit::table::TableInit(pc);
     VariableInit(pc);
-    LexInit(pc);
+    nitwit::lex::LexInit(pc);
     TypeInit(pc);
 #ifndef NO_HASH_INCLUDE
     IncludeInit(pc);
@@ -38,11 +38,11 @@ void PicocCleanup(Picoc *pc)
 #ifndef NO_HASH_INCLUDE
     IncludeCleanup(pc);
 #endif
-    ParseCleanup(pc);
-    LexCleanup(pc);
+    nitwit::parse::ParseCleanup(pc);
+    nitwit::lex::LexCleanup(pc);
     VariableCleanup(pc);
     TypeCleanup(pc);
-    TableStrFree(pc);
+    nitwit::table::TableStrFree(pc);
     HeapCleanup(pc);
     PlatformCleanup(pc);
 }
@@ -55,16 +55,16 @@ void PicocCleanup(Picoc *pc)
 #define CALL_MAIN_NO_ARGS_RETURN_INT "__exit_value = main();"
 #define CALL_MAIN_WITH_ARGS_RETURN_INT "__exit_value = main(__argc,__argv);"
 
-void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(struct ParseState *), int argc, char **argv)
+void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(ParseState* state, bool isMultiLineDeclaration, std::size_t const& endLine), int argc, char **argv)
 {
     /* check if the program wants arguments */
     Value *FuncValue = nullptr;
 
-    if (!VariableDefined(pc, TableStrRegister(pc, "main")))
+    if (!VariableDefined(pc, nitwit::table::TableStrRegister(pc, "main")))
         ProgramFailNoParser(pc, "main() is not defined");
         
-    VariableGet(pc, nullptr, TableStrRegister(pc, "main"), &FuncValue);
-    if (FuncValue->Typ->Base != TypeFunction)
+    VariableGet(pc, nullptr, nitwit::table::TableStrRegister(pc, "main"), &FuncValue);
+    if (FuncValue->Typ->Base != BaseType::TypeFunction)
         ProgramFailNoParser(pc, "main is not a function - can't call it");
 
     if (FuncValue->Val->FuncDef.NumParams != 0)
@@ -78,18 +78,18 @@ void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(struct ParseState *), int
     if (FuncValue->Val->FuncDef.ReturnType == &pc->VoidType)
     {
         if (FuncValue->Val->FuncDef.NumParams == 0)
-            PicocParse(pc, "startup", CALL_MAIN_NO_ARGS_RETURN_VOID, strlen(CALL_MAIN_NO_ARGS_RETURN_VOID), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
+            nitwit::parse::PicocParse(pc, "startup", CALL_MAIN_NO_ARGS_RETURN_VOID, strlen(CALL_MAIN_NO_ARGS_RETURN_VOID), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
         else
-            PicocParse(pc, "startup", CALL_MAIN_WITH_ARGS_RETURN_VOID, strlen(CALL_MAIN_WITH_ARGS_RETURN_VOID), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
+            nitwit::parse::PicocParse(pc, "startup", CALL_MAIN_WITH_ARGS_RETURN_VOID, strlen(CALL_MAIN_WITH_ARGS_RETURN_VOID), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
     }
     else
     {
         VariableDefinePlatformVar(pc, nullptr, "__exit_value", &pc->IntType, (union AnyValue *)&pc->PicocExitValue, TRUE);
 
         if (FuncValue->Val->FuncDef.NumParams == 0)
-            PicocParse(pc, "startup", CALL_MAIN_NO_ARGS_RETURN_INT, strlen(CALL_MAIN_NO_ARGS_RETURN_INT), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
+            nitwit::parse::PicocParse(pc, "startup", CALL_MAIN_NO_ARGS_RETURN_INT, strlen(CALL_MAIN_NO_ARGS_RETURN_INT), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
         else
-            PicocParse(pc, "startup", CALL_MAIN_WITH_ARGS_RETURN_INT, strlen(CALL_MAIN_WITH_ARGS_RETURN_INT), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
+            nitwit::parse::PicocParse(pc, "startup", CALL_MAIN_WITH_ARGS_RETURN_INT, strlen(CALL_MAIN_WITH_ARGS_RETURN_INT), TRUE, FALSE, FALSE, TRUE, DebuggerCallback);
     }
 }
 #endif
@@ -241,9 +241,7 @@ void PlatformVPrintf(IOFILE *Stream, const char *Format, va_list Args)
             case 'd': PrintSimpleInt(va_arg(Args, int), Stream); break;
             case 'c': PrintCh(va_arg(Args, int), Stream); break;
             case 't': PrintType(va_arg(Args, struct ValueType *), Stream); break;
-#ifndef NO_FP
             case 'f': PrintFP(va_arg(Args, double), Stream); break;
-#endif
             case '%': PrintCh('%', Stream); break;
             case '\0': FPos--; break;
             }
@@ -264,7 +262,7 @@ char *PlatformMakeTempName(Picoc *pc, char *TempNameBuffer)
         if (TempNameBuffer[CPos] < '9')
         {
             TempNameBuffer[CPos]++;
-            return TableStrRegister(pc, TempNameBuffer);
+            return nitwit::table::TableStrRegister(pc, TempNameBuffer);
         }
         else
         {
@@ -273,5 +271,5 @@ char *PlatformMakeTempName(Picoc *pc, char *TempNameBuffer)
         }
     }
 
-    return TableStrRegister(pc, TempNameBuffer);
+    return nitwit::table::TableStrRegister(pc, TempNameBuffer);
 }

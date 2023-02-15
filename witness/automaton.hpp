@@ -24,12 +24,7 @@
 #include <algorithm>
 #include <iostream>
 
-#ifdef VERBOSE
-#define cw_verbose printf
-#else
-void cw_verbose(std::string const& Format, ...);
-#endif
-
+#include "../picoc/verbose.hpp"
 
 class Node;
 
@@ -128,7 +123,7 @@ struct Data {
 };
 
 class WitnessAutomaton {
-
+private:
 	std::map<std::string, std::shared_ptr<Node>> nodes;
 	std::vector<std::shared_ptr<Edge>> edges;
 	Data data;
@@ -138,6 +133,7 @@ class WitnessAutomaton {
 	std::map<std::string, std::set<std::shared_ptr<Edge>>> predecessor_rel;
 	bool illegal_state = false;
 	bool verifier_error_called = false;
+	std::size_t unsuccessfulTries = 0;
 
 public:
 	WitnessAutomaton(std::map<std::string, std::shared_ptr<Node>> const& nodes, std::vector<std::shared_ptr<Edge>> const& edges, std::shared_ptr<Data>& data);
@@ -150,7 +146,7 @@ public:
 
 	void printRelations() const;
 
-	void consumeState(ParseState *state);
+	bool consumeState(ParseState *state, bool isMultiLineDeclaration, std::size_t const& endLine, bool isInitialCheck);
 
 	bool isInIllegalState() const;
 
@@ -165,6 +161,8 @@ public:
 	const std::shared_ptr<Node>& getCurrentState() const;
 
 	bool canTransitionFurther();
+
+	std::size_t getUnsuccessfulTries() const;
 };
 
 

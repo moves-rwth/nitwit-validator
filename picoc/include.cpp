@@ -10,11 +10,9 @@
 /* initialise the built-in include libraries */
 void IncludeInit(Picoc *pc) {
 #ifndef BUILTIN_MINI_STDLIB
-    IncludeRegister(pc, "ctype.h", nullptr, &StdCtypeFunctions[0], nullptr);
+    IncludeRegister(pc, "ctype.h", nullptr, &StdCTypeFunctions[0], nullptr);
     IncludeRegister(pc, "errno.h", &StdErrnoSetupFunc, nullptr, nullptr);
-# ifndef NO_FP
     IncludeRegister(pc, "math.h", &MathSetupFunc, &MathFunctions[0], nullptr);
-# endif
     IncludeRegister(pc, "stdbool.h", &StdboolSetupFunc, nullptr, StdboolDefs);
     IncludeRegister(pc, "stdio.h", &StdioSetupFunc, &StdioFunctions[0], StdioDefs);
     IncludeRegister(pc, "stdlib.h", &StdlibSetupFunc, &StdlibFunctions[0], nullptr);
@@ -50,7 +48,7 @@ void
 IncludeRegister(Picoc *pc, const char *IncludeName, void (*SetupFunction)(Picoc *pc), struct LibraryFunction *FuncList,
                 const char *SetupCSource) {
     auto *NewLib = static_cast<IncludeLibrary *>(HeapAllocMem(pc, sizeof(struct IncludeLibrary)));
-    NewLib->IncludeName = TableStrRegister(pc, IncludeName);
+    NewLib->IncludeName = nitwit::table::TableStrRegister(pc, IncludeName);
     NewLib->SetupFunction = SetupFunction;
     NewLib->FuncList = FuncList;
     NewLib->SetupCSource = SetupCSource;
@@ -84,7 +82,7 @@ void IncludeFile(Picoc *pc, char *FileName) {
 
                 /* parse the setup C source code - may define types etc. */
                 if (LInclude->SetupCSource != nullptr) {
-                    PicocParse(pc, FileName, LInclude->SetupCSource, strlen(LInclude->SetupCSource), TRUE, TRUE, FALSE, FALSE, nullptr);
+                    nitwit::parse::PicocParse(pc, FileName, LInclude->SetupCSource, strlen(LInclude->SetupCSource), TRUE, TRUE, FALSE, FALSE, nullptr);
                 }
 
                 /* set up the library functions */

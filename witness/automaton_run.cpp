@@ -5,9 +5,7 @@
 #include "automaton.hpp"
 //#include "../picoc/picoc.hpp"
 
-#ifndef VERBOSE
-void cw_verbose(std::string const& Format, ...){}
-#endif
+#include "../picoc/CoerceT.hpp"
 
 std::string baseFileName(const std::string& s) {
 	return s.substr(s.find_last_of("/\\") + 1);
@@ -43,14 +41,18 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const std::shared_ptr<Edg
 		if (ass.empty()) {
 			continue;
 		}
+#ifdef VERBOSE
+		std::cout << "Working on assumption '" << ass << "'..." << std::endl;
+#endif
 
 		void *heapstacktop_before = state->pc->HeapStackTop;
 		unsigned char *heapmemory_before = state->pc->HeapMemory;
 		void *heapbottom_before = state->pc->HeapBottom;
 		void *stackframe = state->pc->StackFrame;
 		HeapInit(state->pc, 1048576); // 1 MB
-		char* RegFileName = TableStrRegister(state->pc, ("assumption " + ass).c_str());
-		char* ResultString = TableStrRegister(state->pc, "result");
+		char* RegFileName = nitwit::table::TableStrRegister(state->pc, ("assumption " + ass).c_str());
+		char* ResultString = nitwit::table::TableStrRegister(state->pc, "result");
+		char* NaNString = nitwit::table::TableStrRegister(state->pc, "nan");
 
 		void *Tokens = nullptr;
 		if (setjmp(state->pc->AssumptionPicocExitBuf)) {
@@ -66,53 +68,59 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const std::shared_ptr<Edg
 		}
 
 		// initialize tokens and parser for assumption checking
-		Tokens = LexAnalyse(state->pc, RegFileName, ass.c_str(), ass.length(), nullptr);
+		Tokens = nitwit::lex::LexAnalyse(state->pc, RegFileName, ass.c_str(), ass.length(), nullptr);
 		ParseState Parser{};
-		LexInitParser(&Parser, state->pc, ass.c_str(), Tokens, RegFileName, TRUE, FALSE, nullptr);
+		nitwit::lex::LexInitParser(&Parser, state->pc, ass.c_str(), Tokens, RegFileName, TRUE, FALSE, nullptr);
 		int ret = 0;
 		Value *value = nullptr;
 
 		if (state->SkipIntrinsic && state->LastNonDetValue != nullptr &&
-			(LexGetToken(&Parser, &value, FALSE) == TokenWitnessResult ||
+			(nitwit::lex::LexGetToken(&Parser, &value, false) == TokenWitnessResult ||
 			 (value != nullptr && strcmp(value->Val->Identifier, ResultString) == 0)
 					// hack for VeriAbs - it outputs 'result' instead of '\result'
 			)) {
 			// handling \result in witnesses
 			LexToken token = TokenNone;
 			while (token != TokenEOF) {
-				token = LexGetToken(&Parser, nullptr, FALSE);
+				token = nitwit::lex::LexGetToken(&Parser, nullptr, false);
 				if ((!(token >= TokenIntegerConstant && token <= TokenCharacterConstant) &&
 					 token != TokenMinus)) {
-					token = LexGetToken(&Parser, nullptr, TRUE);
+					token = nitwit::lex::LexGetToken(&Parser, nullptr, true);
 				} else {
 					break;
 				}
 			}
 			bool positive = true;
-			if (LexGetToken(&Parser, nullptr, FALSE) == TokenMinus) {
-				LexGetToken(&Parser, nullptr, TRUE);
+			if (nitwit::lex::LexGetToken(&Parser, nullptr, false) == TokenMinus) {
+				nitwit::lex::LexGetToken(&Parser, nullptr, true);
 				positive = false;
 			}
-			LexGetToken(&Parser, &value, TRUE);
+			token = nitwit::lex::LexGetToken(&Parser, &value, true);
 			if (value != nullptr) {
+				// In case we read a "NaN", we need to fix this here
+				if (token == TokenIdentifier && (value->Val != nullptr) && (value->Val->Identifier != nullptr) && (strcmpi(value->Val->Identifier, NaNString) == 0)) {
+					value->Typ = &(Parser.pc->DoubleType);
+					value->Val->Double = std::numeric_limits<double>::quiet_NaN();
+				}
+
 				if (!positive) {
 					switch (value->Typ->Base) {
-						case TypeDouble:
+						case BaseType::TypeDouble:
 							value->Val->Double = -value->Val->Double;
 							break;
-						case TypeChar:
+						case BaseType::TypeChar:
 							value->Val->Character = -value->Val->Character;
 							break;
-						case TypeLong:
+						case BaseType::TypeLong:
 							value->Val->LongInteger = -value->Val->LongInteger;
 							break;
-						case TypeUnsignedLong:
+						case BaseType::TypeUnsignedLong:
 							value->Val->UnsignedLongInteger = -value->Val->UnsignedLongInteger;
 							break;
-						case TypeLongLong:
+						case BaseType::TypeLongLong:
 							value->Val->LongLongInteger = -value->Val->LongLongInteger;
 							break;
-						case TypeUnsignedLongLong:
+						case BaseType::TypeUnsignedLongLong:
 							value->Val->UnsignedLongLongInteger = -value->Val->UnsignedLongLongInteger;
 							break;
 						default:
@@ -121,14 +129,14 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const std::shared_ptr<Edg
 					}
 				}
 				state->LastNonDetValue->Typ = TypeGetDeterministic(state, state->LastNonDetValue->Typ);
-				ExpressionAssign(&Parser, state->LastNonDetValue, value, TRUE, nullptr, 0, TRUE);
+				nitwit::assumptions::ExpressionAssign(&Parser, state->LastNonDetValue, value, TRUE, nullptr, 0, TRUE);
 				state->LastNonDetValue = nullptr;
 				ret = 1;
 			}
 		} else if (state->SkipIntrinsic) {
 			ret = 0;
 		} else {
-			ret = AssumptionExpressionParseLongLong(&Parser);
+			ret = nitwit::assumptions::ExpressionParseLongLong(&Parser);
 		}
 		free(Tokens);
 		HeapCleanup(state->pc);
@@ -146,17 +154,23 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const std::shared_ptr<Edg
 				Value *val;
 				VariableGet(state->pc, state, I->Identifier, &val);
 				if (IS_FP(val)) {
-					double fp = CoerceDouble(val);
-					cw_verbose("Resolved var: %s: ---> %2.20f\n", I->Identifier, fp);
+					double fp = CoerceT<double>(val);
+					cw_verbose("Resolved var in run: %s: ---> %.17g\n", I->Identifier, fp);
 				} else {
-					int i = CoerceLongLong(val);
-					cw_verbose("Resolved var: %s: ---> %d\n", I->Identifier, i);
+					long long i = CoerceT<long long>(val);
+					cw_verbose("Resolved var in run: %s: ---> %lli\n", I->Identifier, i);
 				}
+				cw_verbose("Variable %s is NonDet: %s\n", I->Identifier, TypeIsNonDeterministic(val->Typ) ? "y" : "n");
 			}
 #endif
 			Next = Next->Next;
 			free(I);
 		}
+
+#ifdef VERBOSE
+		std::cout << "Work on assumption '" << ass << "' done." << std::endl;
+#endif
+
 		if (!ret) {
 			return false;
 		}
@@ -186,9 +200,19 @@ bool WitnessAutomaton::canTransitionFurther() {
 #error The macro UNSUCCESSFUL_TRIES_LIMIT macro is not defined or <= 0!
 #endif
 
-std::size_t unsuccessfulTries = 0;
+std::size_t WitnessAutomaton::getUnsuccessfulTries() const {
+	return unsuccessfulTries;
+}
 
-void WitnessAutomaton::consumeState(ParseState *state) {
+bool WitnessAutomaton::consumeState(ParseState *state, bool isMultiLineDeclaration, std::size_t const& endLine, bool isInitialCheck) {
+	static std::size_t lastLineUsed = 0;
+	static bool lastLineUsedValid = false;
+
+	if (isInitialCheck) {
+		lastLineUsedValid = false;
+	}
+
+	cw_verbose("Consuming state using witness automaton.\n");
 	++unsuccessfulTries;
 #ifdef ENABLE_TRANSITION_LIMIT
 	if (unsuccessfulTries > UNSUCCESSFUL_TRIES_LIMIT) {
@@ -200,7 +224,8 @@ void WitnessAutomaton::consumeState(ParseState *state) {
 		cw_verbose("Error function has been called!\n");
 	}
 	if (!canTransitionFurther()) {
-		return;
+		cw_verbose("Can not transition further.\n");
+		return false;
 	}
 
 	bool could_go_to_sink = false;
@@ -211,18 +236,33 @@ void WitnessAutomaton::consumeState(ParseState *state) {
 			continue;
 		}
 #endif
-		if (!(edge->start_line <= state->Line && state->Line <= edge->end_line)) {
+		if (!((edge->start_line <= state->Line && (state->Line <= edge->end_line)) || (isMultiLineDeclaration && state->Line <= edge->start_line && edge->end_line <= endLine))) {
 			if (!(edge->start_line == 0 && edge->end_line == 0)) {
+#ifdef DEBUG_WITNESS_EDGES
+				cw_verbose("Edge line constraints do not match, !((start_line = %zu <= %zu and %zu <= %zu = end_line) or (isMultiLineDeclaration = %i and state->Line = %zu <= %zu = start_line && end_line = %zu <= %zu = endLine)) for assumption '%s'.\n", edge->start_line, state->Line, state->Line, edge->end_line, isMultiLineDeclaration ? 1 : 0, state->Line, edge->start_line, edge->end_line, endLine, edge->assumption.c_str());
+#endif
 				continue;
 			}
 		}
 
+		// Check that we were not working on the same line
+		if (lastLineUsedValid && (edge->start_line == edge->end_line) && (edge->start_line == lastLineUsed)) {
+			continue;
+		}
+		lastLineUsedValid = false;
+#ifdef DEBUG_WITNESS_EDGES
+		
+
+		cw_verbose("Edge line constraints do match, (start_line = %zu <= %zu and %zu <= %zu = end_line) or (isMultiLineDeclaration = %i and state->Line = %zu <= %zu = start_line && end_line = %zu <= %zu = endLine) for assumption '%s'.\n", edge->start_line, state->Line, state->Line, edge->end_line, isMultiLineDeclaration ? 1 : 0, state->Line, edge->start_line, edge->end_line, endLine, edge->assumption.c_str());
+#endif
+
 		// check assumption
+		cw_verbose("About to check assumption '%s'.\n", edge->assumption.c_str());
 		if (!edge->assumption.empty() && !satisfiesAssumptionsAndResolve(state, edge)) {
-			cw_verbose("Unmet assumption %s.\n", edge->assumption.c_str());
+			cw_verbose("Unmet assumption '%s'.\n", edge->assumption.c_str());
 			continue;
 		} else if (!edge->assumption.empty()) {
-			cw_verbose("Assumption %s satisfied.\n", edge->assumption.c_str());
+			cw_verbose("Assumption '%s' satisfied.\n", edge->assumption.c_str());
 		}
 
 		// check enter function
@@ -258,12 +298,19 @@ void WitnessAutomaton::consumeState(ParseState *state) {
 		cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
 		state->pc->IsInAssumptionMode = FALSE;
 		unsuccessfulTries = 0; // reset counter
-		return;
+
+		lastLineUsedValid = (edge->start_line == edge->end_line);
+		lastLineUsed = edge->start_line;
+
+		return true;
 	}
 
 	if (could_go_to_sink) {
 		cw_verbose("\tTaking edge: %s --> sink\n", current_state->id.c_str());
 		current_state = nodes.find("sink")->second;
+		state->pc->IsInAssumptionMode = FALSE;
+		return true;
 	}
 	state->pc->IsInAssumptionMode = FALSE;
+	return false;
 }

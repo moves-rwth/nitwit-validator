@@ -8,7 +8,7 @@ void ShowBigList(Picoc *pc)
 {
     struct AllocNode *LPos;
     
-    printf("Heap: bottom=0x%lx 0x%lx-0x%lx, big freelist=", (long)pc->HeapBottom, (long)&(pc->HeapMemory)[0], (long)&(pc->HeapMemory)[HEAP_SIZE]);
+    printf("Heap: bottom=%p %p-0x%lx, big freelist=", (void*)pc->HeapBottom, (void*)&(pc->HeapMemory)[0], (long)-1);
     for (LPos = pc->FreeListBig; LPos != nullptr; LPos = LPos->NextFree)
         printf("0x%lx:%d ", (long)LPos, LPos->Size);
     
@@ -53,7 +53,7 @@ void* HeapAllocStack(Picoc* pc, int Size) {
     char *NewMem = static_cast<char *>(pc->HeapStackTop);
     char *NewTop = (char *)pc->HeapStackTop + MEM_ALIGN(Size);
 #ifdef DEBUG_HEAP
-    printf("HeapAllocStack(%ld) at 0x%lx\n", (unsigned long)MEM_ALIGN(Size), (unsigned long)pc->HeapStackTop);
+    printf("HeapAllocStack(%ld) at %p\n", (unsigned long)MEM_ALIGN(Size), (void*)pc->HeapStackTop);
 #endif
     if (NewTop > (char*)pc->HeapBottom || NewTop < NewMem) {
         return nullptr;
@@ -67,7 +67,7 @@ void* HeapAllocStack(Picoc* pc, int Size) {
 /* allocate some space on the stack, in the current stack frame */
 void HeapUnpopStack(Picoc* pc, int Size) {
 #ifdef DEBUG_HEAP
-    printf("HeapUnpopStack(%ld) at 0x%lx\n", (unsigned long)MEM_ALIGN(Size), (unsigned long)pc->HeapStackTop);
+    printf("HeapUnpopStack(%ld) at %p\n", (unsigned long)MEM_ALIGN(Size), (void*)pc->HeapStackTop);
 #endif
     pc->HeapStackTop = (void *)((char *)pc->HeapStackTop + MEM_ALIGN(Size));
 }
@@ -79,7 +79,7 @@ int HeapPopStack(Picoc* pc, void* Addr, int Size) {
         return FALSE;
     
 #ifdef DEBUG_HEAP
-    printf("HeapPopStack(0x%lx, %ld) back to 0x%lx\n", (unsigned long)Addr, (unsigned long)MEM_ALIGN(Size), (unsigned long)pc->HeapStackTop - ToLose);
+    printf("HeapPopStack(%p, %ld) back to %p\n", (void*)Addr, (unsigned long)MEM_ALIGN(Size), (void*)pc->HeapStackTop - ToLose);
 #endif
     pc->HeapStackTop = (void *)((char *)pc->HeapStackTop - ToLose);
     assert(Addr == nullptr || pc->HeapStackTop == Addr);
@@ -90,7 +90,7 @@ int HeapPopStack(Picoc* pc, void* Addr, int Size) {
 /* push a new stack frame on to the stack */
 void HeapPushStackFrame(Picoc* pc) {
 #ifdef DEBUG_HEAP
-    printf("Adding stack frame at 0x%lx\n", (unsigned long)pc->HeapStackTop);
+    printf("Adding stack frame at %p\n", (void*)pc->HeapStackTop);
 #endif
     *(void **)pc->HeapStackTop = pc->StackFrame;
     pc->StackFrame = pc->HeapStackTop;
@@ -104,7 +104,7 @@ int HeapPopStackFrame(Picoc* pc) {
         pc->HeapStackTop = pc->StackFrame;
         pc->StackFrame = *(void **)pc->StackFrame;
 #ifdef DEBUG_HEAP
-        printf("Popping stack frame back to 0x%lx\n", (unsigned long)pc->HeapStackTop);
+        printf("Popping stack frame back to %p\n", (void*)pc->HeapStackTop);
 #endif
         return TRUE;
     }

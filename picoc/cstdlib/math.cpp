@@ -2,7 +2,6 @@
 #include "../interpreter.hpp"
 
 #ifndef BUILTIN_MINI_STDLIB
-#ifndef NO_FP
 
 static double M_EValue = 2.7182818284590452354;   /* e */
 static double M_LOG2EValue = 1.4426950408889634074;   /* log_2 e */
@@ -23,7 +22,7 @@ static double M_NAN2 = nan("");  /* NAN */
 /* assign a floating point value */
 double AssignFP(Value *DestValue, double FromFP) {
     switch (DestValue->Typ->Base) {
-        case TypeFloat:
+        case BaseType::TypeFloat:
             DestValue->Val->Float = (float) FromFP;
             break;
         default:
@@ -40,7 +39,7 @@ int AssignIntMath(Value *DestValue, int FromInt) {
 
 double CoerceFP(Value *Val) {
     switch (Val->Typ->Base) {
-        case TypeFloat:
+        case BaseType::TypeFloat:
             return Val->Val->Float;
         default:
             return Val->Val->Double;
@@ -214,6 +213,10 @@ void MathCopysign(struct ParseState *Parser, Value *ReturnValue, Value **Param, 
 
 void MathNan(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
     AssignFP(ReturnValue, nan((const char *) Param[0]->Val->Pointer));
+}
+
+void MathNanF(struct ParseState* Parser, Value* ReturnValue, Value** Param, int NumArgs) {
+    AssignFP(ReturnValue, nanf((const char*)Param[0]->Val->Pointer));
 }
 
 void MathNextafter(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs) {
@@ -461,6 +464,9 @@ struct LibraryFunction MathFunctions[] =
                 // doubles
                 {MathCopysign,       "double copysign(double, double);"},
                 {MathNan,            "double nan(char *);"},
+                {MathNanF,           "float nanf(char *);"},
+                {MathNan,            "double __builtin_nan(char *);"},
+                {MathNanF,           "float __builtin_nanf(char *);"},
                 {MathNextafter,      "double nextafter(double, double);"},
                 {MathNexttoward,     "double nexttoward(double, double);"},
 
@@ -522,5 +528,4 @@ void MathSetupFunc(Picoc *pc) {
     // -- http://www.cplusplus.com/reference/cmath/HUGE_VALL/
 }
 
-#endif /* !NO_FP */
 #endif /* !BUILTIN_MINI_STDLIB */

@@ -128,7 +128,7 @@ void PicocPlatformScanFile(Picoc *pc, const char *FileName)
         SourceStr[1] = '/'; 
     }
 
-    PicocParse(pc, FileName, SourceStr, strlen(SourceStr), TRUE, FALSE, TRUE, TRUE, nullptr);
+    nitwit::parse::PicocParse(pc, FileName, SourceStr, strlen(SourceStr), TRUE, FALSE, TRUE, TRUE, nullptr);
 }
 
 /* exit the program */

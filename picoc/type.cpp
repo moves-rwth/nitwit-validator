@@ -3,6 +3,8 @@
 
 #include "interpreter.hpp"
 
+#include "CoerceT.hpp"
+
 /* flag if we do not accept zero element structs (Default: 0) */
 #define NO_ZERO_STRUCT 0
 
@@ -80,11 +82,11 @@ bool TypeIsNonDeterministic(struct ValueType *Typ) {
 
 int TypeIsUnsigned(struct ValueType * Typ) {
     switch (Typ->Base){
-        case TypeUnsignedInt: return true;
-        case TypeUnsignedShort: return true;
-        case TypeUnsignedLong: return true;
-        case TypeUnsignedLongLong: return true;
-        case TypeUnsignedChar: return true;
+        case BaseType::TypeUnsignedInt: return true;
+        case BaseType::TypeUnsignedShort: return true;
+        case BaseType::TypeUnsignedLong: return true;
+        case BaseType::TypeUnsignedLongLong: return true;
+        case BaseType::TypeUnsignedChar: return true;
         default: return false;
     }
 }
@@ -95,22 +97,20 @@ struct ValueType* TypeGetDeterministic(struct ParseState * Parser, struct ValueT
     else {
         struct ValueType * Base;
         switch (Typ->Base){
-            case TypeInt: Base = &Parser->pc->IntType; break;
-            case TypeShort: Base = &Parser->pc->ShortType; break;
-            case TypeChar: Base = &Parser->pc->CharType; break;
-            case TypeLong: Base = &Parser->pc->LongType; break;
-            case TypeLongLong: Base = &Parser->pc->LongLongType; break;
-            case TypeUnsignedInt: Base = &Parser->pc->UnsignedIntType; break;
-            case TypeUnsignedShort: Base = &Parser->pc->UnsignedShortType; break;
-            case TypeUnsignedLong: Base = &Parser->pc->UnsignedLongType; break;
-            case TypeUnsignedLongLong: Base = &Parser->pc->UnsignedLongLongType; break;
-            case TypeUnsignedChar: Base = &Parser->pc->UnsignedCharType; break;
-#ifndef NO_FP
-            case TypeDouble: Base = &Parser->pc->DoubleType; break;
-            case TypeFloat: Base = &Parser->pc->FloatType; break;
-#endif
+            case BaseType::TypeInt: Base = &Parser->pc->IntType; break;
+            case BaseType::TypeShort: Base = &Parser->pc->ShortType; break;
+            case BaseType::TypeChar: Base = &Parser->pc->CharType; break;
+            case BaseType::TypeLong: Base = &Parser->pc->LongType; break;
+            case BaseType::TypeLongLong: Base = &Parser->pc->LongLongType; break;
+            case BaseType::TypeUnsignedInt: Base = &Parser->pc->UnsignedIntType; break;
+            case BaseType::TypeUnsignedShort: Base = &Parser->pc->UnsignedShortType; break;
+            case BaseType::TypeUnsignedLong: Base = &Parser->pc->UnsignedLongType; break;
+            case BaseType::TypeUnsignedLongLong: Base = &Parser->pc->UnsignedLongLongType; break;
+            case BaseType::TypeUnsignedChar: Base = &Parser->pc->UnsignedCharType; break;
+            case BaseType::TypeDouble: Base = &Parser->pc->DoubleType; break;
+            case BaseType::TypeFloat: Base = &Parser->pc->FloatType; break;
             default:
-                fprintf(stderr, "Unsupported non-deterministic type conversion.\n");
+                fprintf(stderr, "Unsupported non-deterministic type conversion from type %s.\n", getType(Typ));
                 Base = Typ;
         }
         return Base;
@@ -124,24 +124,22 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
         struct ValueType * Base;
         bool nondet = true;
         switch (Typ->Base){
-            case TypeInt: Base = &Parser->pc->IntNDType; break;
-            case TypeShort: Base = &Parser->pc->ShortNDType; break;
-            case TypeChar: Base = &Parser->pc->CharNDType; break;
-            case TypeLong: Base = &Parser->pc->LongNDType; break;
-            case TypeLongLong: Base = &Parser->pc->LongLongNDType; break;
-            case TypeUnsignedInt: Base = &Parser->pc->UnsignedIntNDType; break;
-            case TypeUnsignedShort: Base = &Parser->pc->UnsignedShortNDType; break;
-            case TypeUnsignedLong: Base = &Parser->pc->UnsignedLongNDType; break;
-            case TypeUnsignedLongLong: Base = &Parser->pc->UnsignedLongLongNDType; break;
-            case TypeUnsignedChar: Base = &Parser->pc->UnsignedCharNDType; break;
-            case TypeUnion:
-            case TypeStruct: Base = Typ; break; // uninit struct/union should stay deterministic
-#ifndef NO_FP
-            case TypeDouble: Base = &Parser->pc->DoubleNDType; break;
-            case TypeFloat: Base = &Parser->pc->FloatNDType; break;
-#endif
+            case BaseType::TypeInt: Base = &Parser->pc->IntNDType; break;
+            case BaseType::TypeShort: Base = &Parser->pc->ShortNDType; break;
+            case BaseType::TypeChar: Base = &Parser->pc->CharNDType; break;
+            case BaseType::TypeLong: Base = &Parser->pc->LongNDType; break;
+            case BaseType::TypeLongLong: Base = &Parser->pc->LongLongNDType; break;
+            case BaseType::TypeUnsignedInt: Base = &Parser->pc->UnsignedIntNDType; break;
+            case BaseType::TypeUnsignedShort: Base = &Parser->pc->UnsignedShortNDType; break;
+            case BaseType::TypeUnsignedLong: Base = &Parser->pc->UnsignedLongNDType; break;
+            case BaseType::TypeUnsignedLongLong: Base = &Parser->pc->UnsignedLongLongNDType; break;
+            case BaseType::TypeUnsignedChar: Base = &Parser->pc->UnsignedCharNDType; break;
+            case BaseType::TypeUnion:
+            case BaseType::TypeStruct: Base = Typ; break; // uninit struct/union should stay deterministic
+            case BaseType::TypeDouble: Base = &Parser->pc->DoubleNDType; break;
+            case BaseType::TypeFloat: Base = &Parser->pc->FloatNDType; break;
             // TODO: array from type is deterministic -> nd in single values is missing
-            case TypeArray:
+            case BaseType::TypeArray:
                 Base = TypeGetMatching(Parser->pc, Parser,
                          TypeGetDeterministic(Parser, Typ->FromType),
                          Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet);
@@ -149,15 +147,15 @@ struct ValueType* TypeGetNonDeterministic(struct ParseState * Parser, struct Val
                     initNonDetList(Parser, Base, Base->ArraySize);
                 }
                 break;
-            case TypePointer: //Base = Parser->pc->VoidPtrType; break;
+            case BaseType::TypePointer: //Base = Parser->pc->VoidPtrType; break;
                 Base = TypeGetMatching(Parser->pc, Parser,
                                 TypeGetNonDeterministic(Parser, Typ->FromType),
                                 Typ->Base, Typ->ArraySize, Typ->Identifier, TRUE, &nondet); break;
 
-            case TypeFunctionPtr: Base = &Parser->pc->FunctionPtrType; break;
+            case BaseType::TypeFunctionPtr: Base = &Parser->pc->FunctionPtrType; break;
             // function ptrs aren't supported to be ND - not even in SV-COMP
             default:
-                fprintf(stderr, "Unsupported non-deterministic type conversion.\n");
+                fprintf(stderr, "Unsupported deterministic type conversion from type %s.\n", getType(Typ));
                 Base = Typ;
         }
         return Base;
@@ -208,9 +206,9 @@ ValueType *TypeGetMatching(Picoc *pc, ParseState *Parser, ValueType *ParentType,
         
     switch (Base)
     {
-        case TypePointer:   Sizeof = sizeof(void *); AlignBytes = PointerAlignBytes; break;
-        case TypeArray:     Sizeof = ArraySize * ParentType->Sizeof; AlignBytes = ParentType->AlignBytes; break;
-        case TypeEnum:      Sizeof = sizeof(int); AlignBytes = IntAlignBytes; break;
+        case BaseType::TypePointer:   Sizeof = sizeof(void *); AlignBytes = PointerAlignBytes; break;
+        case BaseType::TypeArray:     Sizeof = ArraySize * ParentType->Sizeof; AlignBytes = ParentType->AlignBytes; break;
+        case BaseType::TypeEnum:      Sizeof = sizeof(int); AlignBytes = IntAlignBytes; break;
         default:            Sizeof = 0; AlignBytes = 0; break;      /* structs and unions will get bigger when we add members to them */
     }
 
@@ -244,7 +242,7 @@ int TypeSize(struct ValueType *Typ, int ArraySize, int Compact)
 {
     if (IS_INTEGER_NUMERIC_TYPE(Typ) && !Compact)
         return sizeof(ALIGN_TYPE);     /* allow some extra room for type extension */
-    else if (Typ->Base != TypeArray)
+    else if (Typ->Base != BaseType::TypeArray)
         return Typ->Sizeof;
     else
         return Typ->FromType->Sizeof * ArraySize;
@@ -277,62 +275,56 @@ void TypeInit(Picoc *pc)
     struct CharAlign { char x; char y; } ca{};
     struct LongAlign { char x; long y; } la{};
     struct LongLongAlign { char x; long long y; } lla{};
-#ifndef NO_FP
     struct DoubleAlign { char x; double y; } da{};
     struct FloatAlign { char x; float y; } fa{};
-#endif
     struct PointerAlign { char x; void *y; } pa{};
 
     IntAlignBytes = (char *)&ia.y - &ia.x;
     PointerAlignBytes = (char *)&pa.y - &pa.x;
     
     pc->UberType.DerivedTypeList = nullptr;
-    TypeAddBaseType(pc, &pc->IntType, TypeInt, sizeof(int), IntAlignBytes, false);
-    TypeAddBaseType(pc, &pc->ShortType, TypeShort, sizeof(short), (char *) &sa.y - &sa.x, false);
-    TypeAddBaseType(pc, &pc->CharType, TypeChar, sizeof(char), (char *) &ca.y - &ca.x, false);
-    TypeAddBaseType(pc, &pc->LongType, TypeLong, sizeof(long), (char *) &la.y - &la.x, false);
-    TypeAddBaseType(pc, &pc->LongLongType, TypeLongLong, sizeof(long long), (char * ) &lla.y - &lla.x, false);
-    TypeAddBaseType(pc, &pc->UnsignedIntType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, false);
-    TypeAddBaseType(pc, &pc->UnsignedShortType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x, false);
-    TypeAddBaseType(pc, &pc->UnsignedLongType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, false);
-    TypeAddBaseType(pc, &pc->UnsignedLongLongType, TypeUnsignedLongLong, sizeof(unsigned long long), (char * ) &lla.y - &lla.x, false);
-    TypeAddBaseType(pc, &pc->UnsignedCharType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, false);
-    TypeAddBaseType(pc, &pc->VoidType, TypeVoid, 0, 1, false);
-    TypeAddBaseType(pc, &pc->FunctionType, TypeFunction, sizeof(int), IntAlignBytes, false);
-    TypeAddBaseType(pc, &pc->MacroType, TypeMacro, sizeof(int), IntAlignBytes, false);
-    TypeAddBaseType(pc, &pc->GotoLabelType, TypeGotoLabel, 0, 1, false);
-    TypeAddBaseType(pc, &pc->FunctionPtrType, TypeFunctionPtr, sizeof(char *), PointerAlignBytes, false);
-    TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(double), (char *) &da.y - &da.x, false);  /* must be large enough to cast to a double */
-    TypeAddBaseType(pc, &pc->StructType, TypeStruct, sizeof(int), IntAlignBytes, false);
+    TypeAddBaseType(pc, &pc->IntType, BaseType::TypeInt, sizeof(int), IntAlignBytes, false);
+    TypeAddBaseType(pc, &pc->ShortType, BaseType::TypeShort, sizeof(short), (char *) &sa.y - &sa.x, false);
+    TypeAddBaseType(pc, &pc->CharType, BaseType::TypeChar, sizeof(char), (char *) &ca.y - &ca.x, false);
+    TypeAddBaseType(pc, &pc->LongType, BaseType::TypeLong, sizeof(long), (char *) &la.y - &la.x, false);
+    TypeAddBaseType(pc, &pc->LongLongType, BaseType::TypeLongLong, sizeof(long long), (char * ) &lla.y - &lla.x, false);
+    TypeAddBaseType(pc, &pc->UnsignedIntType, BaseType::TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, false);
+    TypeAddBaseType(pc, &pc->UnsignedShortType, BaseType::TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x, false);
+    TypeAddBaseType(pc, &pc->UnsignedLongType, BaseType::TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, false);
+    TypeAddBaseType(pc, &pc->UnsignedLongLongType, BaseType::TypeUnsignedLongLong, sizeof(unsigned long long), (char * ) &lla.y - &lla.x, false);
+    TypeAddBaseType(pc, &pc->UnsignedCharType, BaseType::TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, false);
+    TypeAddBaseType(pc, &pc->VoidType, BaseType::TypeVoid, 0, 1, false);
+    TypeAddBaseType(pc, &pc->FunctionType, BaseType::TypeFunction, sizeof(int), IntAlignBytes, false);
+    TypeAddBaseType(pc, &pc->MacroType, BaseType::TypeMacro, sizeof(int), IntAlignBytes, false);
+    TypeAddBaseType(pc, &pc->GotoLabelType, BaseType::TypeGotoLabel, 0, 1, false);
+    TypeAddBaseType(pc, &pc->FunctionPtrType, BaseType::TypeFunctionPtr, sizeof(char *), PointerAlignBytes, false);
+    TypeAddBaseType(pc, &pc->TypeType, BaseType::Type_Type, sizeof(double), (char *) &da.y - &da.x, false);  /* must be large enough to cast to a double */
+    TypeAddBaseType(pc, &pc->StructType, BaseType::TypeStruct, sizeof(int), IntAlignBytes, false);
 
     // NDs
-    TypeAddBaseType(pc, &pc->IntNDType, TypeInt, sizeof(int), IntAlignBytes, true);
-    TypeAddBaseType(pc, &pc->ShortNDType, TypeShort, sizeof(short), (char *) &sa.y - &sa.x, true);
-    TypeAddBaseType(pc, &pc->CharNDType, TypeChar, sizeof(char), (char *) &ca.y - &ca.x, true);
-    TypeAddBaseType(pc, &pc->LongNDType, TypeLong, sizeof(long), (char *) &la.y - &la.x, true);
-    TypeAddBaseType(pc, &pc->LongLongNDType, TypeLongLong, sizeof(long long), (char *) &lla.y - &lla.x, true);
-    TypeAddBaseType(pc, &pc->UnsignedIntNDType, TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, true);
-    TypeAddBaseType(pc, &pc->UnsignedShortNDType, TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x, true);
-    TypeAddBaseType(pc, &pc->UnsignedCharNDType, TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, true);
-    TypeAddBaseType(pc, &pc->UnsignedLongNDType, TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, true);
-    TypeAddBaseType(pc, &pc->UnsignedLongLongNDType, TypeUnsignedLongLong, sizeof(unsigned long long), (char *) &lla.y - &lla.x, true);
+    TypeAddBaseType(pc, &pc->IntNDType, BaseType::TypeInt, sizeof(int), IntAlignBytes, true);
+    TypeAddBaseType(pc, &pc->ShortNDType, BaseType::TypeShort, sizeof(short), (char *) &sa.y - &sa.x, true);
+    TypeAddBaseType(pc, &pc->CharNDType, BaseType::TypeChar, sizeof(char), (char *) &ca.y - &ca.x, true);
+    TypeAddBaseType(pc, &pc->LongNDType, BaseType::TypeLong, sizeof(long), (char *) &la.y - &la.x, true);
+    TypeAddBaseType(pc, &pc->LongLongNDType, BaseType::TypeLongLong, sizeof(long long), (char *) &lla.y - &lla.x, true);
+    TypeAddBaseType(pc, &pc->UnsignedIntNDType, BaseType::TypeUnsignedInt, sizeof(unsigned int), IntAlignBytes, true);
+    TypeAddBaseType(pc, &pc->UnsignedShortNDType, BaseType::TypeUnsignedShort, sizeof(unsigned short), (char *) &sa.y - &sa.x, true);
+    TypeAddBaseType(pc, &pc->UnsignedCharNDType, BaseType::TypeUnsignedChar, sizeof(unsigned char), (char *) &ca.y - &ca.x, true);
+    TypeAddBaseType(pc, &pc->UnsignedLongNDType, BaseType::TypeUnsignedLong, sizeof(unsigned long), (char *) &la.y - &la.x, true);
+    TypeAddBaseType(pc, &pc->UnsignedLongLongNDType, BaseType::TypeUnsignedLongLong, sizeof(unsigned long long), (char *) &lla.y - &lla.x, true);
 
-#ifndef NO_FP
-    TypeAddBaseType(pc, &pc->DoubleType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, false);
-    TypeAddBaseType(pc, &pc->FloatType, TypeFloat, sizeof(float), (char *) &fa.y - &fa.x, false);
+    TypeAddBaseType(pc, &pc->DoubleType, BaseType::TypeDouble, sizeof(double), (char *) &da.y - &da.x, false);
+    TypeAddBaseType(pc, &pc->FloatType, BaseType::TypeFloat, sizeof(float), (char *) &fa.y - &fa.x, false);
     // NDs
-    TypeAddBaseType(pc, &pc->DoubleNDType, TypeDouble, sizeof(double), (char *) &da.y - &da.x, true);
-    TypeAddBaseType(pc, &pc->FloatNDType, TypeFloat, sizeof(float), (char *) &fa.y - &fa.x, true);
-#else
-    TypeAddBaseType(pc, &pc->TypeType, Type_Type, sizeof(struct ValueType *), PointerAlignBytes);
-#endif
-    pc->CharArrayType = TypeAdd(pc, nullptr, &pc->CharType, TypeArray, 0, pc->StrEmpty, sizeof(char), (char *)&ca.y - &ca.x);
-    pc->CharPtrType = TypeAdd(pc, nullptr, &pc->CharType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
-    pc->CharPtrPtrType = TypeAdd(pc, nullptr, pc->CharPtrType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
+    TypeAddBaseType(pc, &pc->DoubleNDType, BaseType::TypeDouble, sizeof(double), (char *) &da.y - &da.x, true);
+    TypeAddBaseType(pc, &pc->FloatNDType, BaseType::TypeFloat, sizeof(float), (char *) &fa.y - &fa.x, true);
+    pc->CharArrayType = TypeAdd(pc, nullptr, &pc->CharType, BaseType::TypeArray, 0, pc->StrEmpty, sizeof(char), (char *)&ca.y - &ca.x);
+    pc->CharPtrType = TypeAdd(pc, nullptr, &pc->CharType, BaseType::TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
+    pc->CharPtrPtrType = TypeAdd(pc, nullptr, pc->CharPtrType, BaseType::TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
 
-    pc->StructPtrType = TypeAdd(pc, nullptr, &pc->StructType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
+    pc->StructPtrType = TypeAdd(pc, nullptr, &pc->StructType, BaseType::TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
 
-    pc->VoidPtrType = TypeAdd(pc, nullptr, &pc->VoidType, TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
+    pc->VoidPtrType = TypeAdd(pc, nullptr, &pc->VoidType, BaseType::TypePointer, 0, pc->StrEmpty, sizeof(void *), PointerAlignBytes);
 }
 
 /* deallocate heap-allocated types */
@@ -350,7 +342,7 @@ void TypeCleanupNode(Picoc *pc, struct ValueType *Typ) {
     }
 
     // special case substruct element
-    if (SubType != nullptr && (SubType->Next != nullptr && SubType->Next->Base == TypeStruct)) {
+    if (SubType != nullptr && (SubType->Next != nullptr && SubType->Next->Base == BaseType::TypeStruct)) {
 
         //SubType = SubType->Next;
         for (SubType = SubType->Next; SubType != nullptr; SubType = NextSubType) {
@@ -420,12 +412,12 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     bool ZeroTypeStruct = FALSE;
     Picoc *pc = Parser->pc;
 
-    Token = LexGetToken(Parser, &LexValue, FALSE); // get name of struct
+    Token = nitwit::lex::LexGetToken(Parser, &LexValue, false); // get name of struct
     if (Token == TokenIdentifier)
     {
-        LexGetToken(Parser, &LexValue, TRUE);
+        nitwit::lex::LexGetToken(Parser, &LexValue, true);
         StructIdentifier = LexValue->Val->Identifier;
-        Token = LexGetToken(Parser, nullptr, FALSE);
+        Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
     }
     else
     {
@@ -433,13 +425,13 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
         StructIdentifier = PlatformMakeTempName(pc, TempNameBuf);
     }
     // create or fetch struct/union Type in PicoC type system
-    *Typ = TypeGetMatching(pc, Parser, &Parser->pc->UberType, IsStruct ? TypeStruct : TypeUnion, 0, StructIdentifier,
+    *Typ = TypeGetMatching(pc, Parser, &Parser->pc->UberType, IsStruct ? BaseType::TypeStruct : BaseType::TypeUnion, 0, StructIdentifier,
                            TRUE, nullptr);
 
     if (Token == TokenLeftBrace) {
         ParseState OldParser = *Parser;
-        LexGetToken(&(OldParser), nullptr, TRUE);
-        LexToken ZeroToken = LexGetToken(&(OldParser), nullptr, FALSE);
+        nitwit::lex::LexGetToken(&(OldParser), nullptr, true);
+        LexToken ZeroToken = nitwit::lex::LexGetToken(&(OldParser), nullptr, false);
         if (ZeroToken == TokenRightBrace) {
             ZeroTypeStruct = TRUE;
         } else {
@@ -449,12 +441,13 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
 
     if (Token == TokenLeftBrace && (*Typ)->Members != nullptr){ // consume the definition if struct already defined
         fprintf(stderr, "Warning: data type '%s' is already defined. Will skip this.", StructIdentifier);
-        while (LexGetToken(Parser, nullptr, FALSE) != TokenRightBrace)
-            LexGetToken(Parser, nullptr, TRUE);
-        LexGetToken(Parser, nullptr, TRUE);
+        while (nitwit::lex::LexGetToken(Parser, nullptr, false) != TokenRightBrace) {
+            nitwit::lex::LexGetToken(Parser, nullptr, true);
+        }
+        nitwit::lex::LexGetToken(Parser, nullptr, true);
     }
 
-    Token = LexGetToken(Parser, nullptr, FALSE);
+    Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
     if (Token != TokenLeftBrace)
     { 
         /* use the already defined structure */
@@ -468,12 +461,12 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
     if (pc->TopStackFrame != nullptr)
         ProgramFail(Parser, "struct/union definitions can only be globals");
     // allocate structs member table
-    LexGetToken(Parser, nullptr, TRUE);
+    nitwit::lex::LexGetToken(Parser, nullptr, true);
     (*Typ)->Members = static_cast<Table *>(VariableAlloc(pc, Parser, sizeof(struct Table) +
                                                                      STRUCT_TABLE_SIZE * sizeof(struct TableEntry),
                                                          TRUE));
     (*Typ)->Members->HashTable = (struct TableEntry **)((char *)(*Typ)->Members + sizeof(struct Table));
-    TableInitTable((*Typ)->Members, (struct TableEntry **)((char *)(*Typ)->Members + sizeof(struct Table)), STRUCT_TABLE_SIZE, TRUE);
+    nitwit::table::TableInitTable((*Typ)->Members, (struct TableEntry **)((char *)(*Typ)->Members + sizeof(struct Table)), STRUCT_TABLE_SIZE, true);
 
     // do the parsing of members if not zero element struct
     if(!NO_ZERO_STRUCT && !ZeroTypeStruct) {
@@ -494,15 +487,15 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
 
             MemberValue = VariableAllocValueAndData(pc, Parser, sizeof(int), FALSE, nullptr, TRUE, nullptr);
             MemberValue->Typ = MemberType;
-            LexToken NextToken = LexGetToken(Parser, nullptr, TRUE);
+            LexToken NextToken = nitwit::lex::LexGetToken(Parser, nullptr, true);
             if (NextToken == TokenColon) { // it is a bit field!
                 if (!IS_INTEGER_NUMERIC(MemberValue)) {
                     ProgramFail(Parser, "only integral types allowed in bit fields");
                 }
                 Value *bitlen = nullptr; // get bit field length from constant
-                LexGetToken(Parser, &bitlen, TRUE); // number
+                nitwit::lex::LexGetToken(Parser, &bitlen, true); // number
                 if (IS_INTEGER_NUMERIC_TYPE(bitlen->Typ)) {
-                    long length = CoerceInteger(bitlen);
+                    long long length = CoerceT<long long>(bitlen);
                     if (length < 0 || 8 * MemberValue->Typ->Sizeof < length) {
                         ProgramFail(Parser, "wrong size n: n > 0 and n <= sizeof");
                     }
@@ -515,7 +508,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
                 } else {
                     ProgramFail(Parser, "positive integer expected");
                 }
-                NextToken = LexGetToken(Parser, nullptr, TRUE); // semicolon
+                NextToken = nitwit::lex::LexGetToken(Parser, nullptr, true); // semicolon
             }
             if (IsStruct) {
                 /* allocate this member's location in the struct */
@@ -538,7 +531,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
                 (*Typ)->AlignBytes = MemberValue->Typ->AlignBytes;
 
             /* define it */
-            if (!TableSet(pc, (*Typ)->Members, MemberIdentifier, MemberValue, Parser->FileName, Parser->Line,
+            if (!nitwit::table::TableSet(pc, (*Typ)->Members, MemberIdentifier, MemberValue, Parser->FileName, Parser->Line,
                           Parser->CharacterPos))
                 ProgramFail(Parser, "member '%s' already defined", &MemberIdentifier);
             // add member id to list (is backwards, needs reverse)
@@ -552,7 +545,7 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
             }
 
 
-        } while (LexGetToken(Parser, nullptr, FALSE) != TokenRightBrace);
+        } while (nitwit::lex::LexGetToken(Parser, nullptr, false) != TokenRightBrace);
 
         /* now align the structure to the size of its largest member's alignment */
         AlignBoundary = (*Typ)->AlignBytes;
@@ -569,19 +562,19 @@ void TypeParseStruct(struct ParseState *Parser, struct ValueType **Typ, int IsSt
         }
         (*Typ)->MemberOrder = prev;
     }
-    LexGetToken(Parser, nullptr, TRUE);
+    nitwit::lex::LexGetToken(Parser, nullptr, true);
 }
 
 /* create a system struct which has no user-visible members */
 struct ValueType *TypeCreateOpaqueStruct(Picoc *pc, struct ParseState *Parser, const char *StructName, int Size)
 {
-    struct ValueType *Typ = TypeGetMatching(pc, Parser, &pc->UberType, TypeStruct, 0, StructName, FALSE, nullptr);
+    struct ValueType *Typ = TypeGetMatching(pc, Parser, &pc->UberType, BaseType::TypeStruct, 0, StructName, FALSE, nullptr);
     
     /* create the (empty) table */
     Typ->Members = static_cast<Table *>(VariableAlloc(pc, Parser, sizeof(struct Table) +
                                                                   STRUCT_TABLE_SIZE * sizeof(struct TableEntry), TRUE));
     Typ->Members->HashTable = (struct TableEntry **)((char *)Typ->Members + sizeof(struct Table));
-    TableInitTable(Typ->Members, (struct TableEntry **)((char *)Typ->Members + sizeof(struct Table)), STRUCT_TABLE_SIZE, TRUE);
+    nitwit::table::TableInitTable(Typ->Members, (struct TableEntry **)((char *)Typ->Members + sizeof(struct Table)), STRUCT_TABLE_SIZE, true);
     Typ->Sizeof = Size;
     
     return Typ;
@@ -592,17 +585,17 @@ void TypeParseEnum(struct ParseState *Parser, struct ValueType **Typ)
 {
     Value *LexValue;
     Value InitValue{};
-    enum LexToken Token;
+    LexToken Token;
     int EnumValue = 0;
     char *EnumIdentifier;
     Picoc *pc = Parser->pc;
     
-    Token = LexGetToken(Parser, &LexValue, FALSE);
+    Token = nitwit::lex::LexGetToken(Parser, &LexValue, false);
     if (Token == TokenIdentifier)
     {
-        LexGetToken(Parser, &LexValue, TRUE);
+        nitwit::lex::LexGetToken(Parser, &LexValue, true);
         EnumIdentifier = LexValue->Val->Identifier;
-        Token = LexGetToken(Parser, nullptr, FALSE);
+        Token = nitwit::lex::LexGetToken(Parser, nullptr, false);
     }
     else
     {
@@ -610,7 +603,7 @@ void TypeParseEnum(struct ParseState *Parser, struct ValueType **Typ)
         EnumIdentifier = PlatformMakeTempName(pc, TempNameBuf);
     }
 
-    TypeGetMatching(pc, Parser, &pc->UberType, TypeEnum, 0, EnumIdentifier, Token != TokenLeftBrace, nullptr);
+    TypeGetMatching(pc, Parser, &pc->UberType, BaseType::TypeEnum, 0, EnumIdentifier, Token != TokenLeftBrace, nullptr);
     *Typ = &pc->IntType;
     if (Token != TokenLeftBrace)
     { 
@@ -624,25 +617,25 @@ void TypeParseEnum(struct ParseState *Parser, struct ValueType **Typ)
     if (pc->TopStackFrame != nullptr)
         ProgramFail(Parser, "enum definitions can only be globals");
         
-    LexGetToken(Parser, nullptr, TRUE);
+    nitwit::lex::LexGetToken(Parser, nullptr, true);
     (*Typ)->Members = &pc->GlobalTable;
     memset((void *)&InitValue, '\0', sizeof(Value));
     InitValue.Typ = &pc->IntType;
     InitValue.Val = (union AnyValue *)&EnumValue;
     do {
-        if (LexGetToken(Parser, &LexValue, TRUE) != TokenIdentifier)
+        if (nitwit::lex::LexGetToken(Parser, &LexValue, true) != TokenIdentifier)
             ProgramFail(Parser, "identifier expected");
         
         EnumIdentifier = LexValue->Val->Identifier;
-        if (LexGetToken(Parser, nullptr, FALSE) == TokenAssign)
+        if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenAssign)
         {
-            LexGetToken(Parser, nullptr, TRUE);
-            EnumValue = ExpressionParseLongLong(Parser);
+            nitwit::lex::LexGetToken(Parser, nullptr, true);
+            EnumValue = nitwit::expressions::ExpressionParseLongLong(Parser);
         }
 
         VariableDefine(pc, Parser, EnumIdentifier, &InitValue, nullptr, FALSE, false);
             
-        Token = LexGetToken(Parser, nullptr, TRUE);
+        Token = nitwit::lex::LexGetToken(Parser, nullptr, true);
         if (Token != TokenComma && Token != TokenRightBrace)
             ProgramFail(Parser, "comma expected");
         
@@ -654,9 +647,9 @@ void TypeParseEnum(struct ParseState *Parser, struct ValueType **Typ)
 /* parse a type - just the basic type */
 int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsStatic, int *IsConst)
 {
-    struct ParseState Before{};
+    ParseState Before{};
     Value *LexerValue;
-    enum LexToken Token;
+    LexToken Token;
     int Unsigned = FALSE;
     Value *VarValue;
     int StaticQualifier = FALSE;
@@ -667,8 +660,8 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
     *Typ = nullptr;
 
     /* ignore leading type qualifiers */
-    ParserCopy(&Before, Parser);
-    Token = LexGetToken(Parser, &LexerValue, TRUE);
+    nitwit::parse::ParserCopy(&Before, Parser);
+    Token = nitwit::lex::LexGetToken(Parser, &LexerValue, true);
     while (Token == TokenStaticType || Token == TokenAutoType || Token == TokenRegisterType || Token == TokenExternType
             || Token == TokenConst)
     {
@@ -676,26 +669,26 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
             StaticQualifier = TRUE;
         if (Token == TokenConst)
             ConstQualifier = TRUE;
-        Token = LexGetToken(Parser, &LexerValue, TRUE);
+        Token = nitwit::lex::LexGetToken(Parser, &LexerValue, true);
     }
     
     if (IsStatic != nullptr)
         *IsStatic = StaticQualifier;
 
     if (Token == TokenLongType){
-        enum LexToken FollowToken = LexGetToken(Parser, nullptr, FALSE);
+        LexToken FollowToken = nitwit::lex::LexGetToken(Parser, nullptr, false);
         if (FollowToken != TokenIdentifier
                 && (FollowToken == TokenSignedType || FollowToken == TokenUnsignedType ||
                     FollowToken == TokenIntType || FollowToken == TokenLongType)){
             LongQualifier = TRUE;
-            Token = LexGetToken(Parser, nullptr, TRUE);
-            FollowToken = LexGetToken(Parser, nullptr, FALSE);
+            Token = nitwit::lex::LexGetToken(Parser, nullptr, true);
+            FollowToken = nitwit::lex::LexGetToken(Parser, nullptr, false);
             if (FollowToken != TokenIdentifier
                 && (FollowToken == TokenSignedType || FollowToken == TokenUnsignedType ||
                     FollowToken == TokenIntType || FollowToken == TokenLongType)){
                 if (Token == TokenLongType){
                     LongLongQualifier = TRUE;
-                    Token = LexGetToken(Parser, nullptr, TRUE);
+                    Token = nitwit::lex::LexGetToken(Parser, nullptr, true);
                 }
             }
         }
@@ -704,7 +697,7 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
     /* handle signed/unsigned with no trailing type */
     if (Token == TokenSignedType || Token == TokenUnsignedType)
     {
-        enum LexToken FollowToken = LexGetToken(Parser, &LexerValue, FALSE);
+        LexToken FollowToken = nitwit::lex::LexGetToken(Parser, &LexerValue, false);
         Unsigned = (Token == TokenUnsignedType);
         
         if (FollowToken != TokenIntType && FollowToken != TokenLongType && FollowToken != TokenShortType && FollowToken != TokenCharType)
@@ -723,7 +716,7 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
             return TRUE;
         }
         
-        Token = LexGetToken(Parser, &LexerValue, TRUE);
+        Token = nitwit::lex::LexGetToken(Parser, &LexerValue, true);
     }
 
     switch (Token)
@@ -738,28 +731,26 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
             }
             break;
         case TokenShortType: *Typ = Unsigned ? &pc->UnsignedShortType : &pc->ShortType;
-            if (LexGetToken(Parser, nullptr, FALSE) == TokenIntType)
-                LexGetToken(Parser, nullptr, TRUE);
+            if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenIntType)
+                nitwit::lex::LexGetToken(Parser, nullptr, true);
             break;
         case TokenCharType: 
             *Typ = Unsigned ? &pc->UnsignedCharType : &pc->CharType;
             break;
         case TokenLongType:
-            if (LexGetToken(Parser, nullptr, FALSE) == TokenLongType){
-                LexGetToken(Parser, nullptr, TRUE);
+            if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenLongType){
+                nitwit::lex::LexGetToken(Parser, nullptr, true);
                 *Typ = Unsigned ? &pc->UnsignedLongLongType : &pc->LongLongType;
             } else if (LongQualifier == TRUE){
                 *Typ = Unsigned ? &pc->UnsignedLongLongType : &pc->LongLongType;
             } else {
                 *Typ = Unsigned ? &pc->UnsignedLongType : &pc->LongType;
             }
-            if (LexGetToken(Parser, nullptr, FALSE) == TokenIntType)
-                LexGetToken(Parser, nullptr, TRUE);
+            if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenIntType)
+                nitwit::lex::LexGetToken(Parser, nullptr, true);
             break;
-#ifndef NO_FP
         case TokenFloatType: *Typ = &pc->FloatType; break;
         case TokenDoubleType: *Typ = &pc->DoubleType; break;
-#endif
         case TokenVoidType: *Typ = &pc->VoidType; break;
 
         case TokenStructType: case TokenUnionType:
@@ -786,12 +777,12 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
             *Typ = VarValue->Val->Typ;
             break;
         default: 
-            ParserCopy(Parser, &Before); 
+            nitwit::parse::ParserCopy(Parser, &Before);
             return FALSE;
     }
 
-    if (LexGetToken(Parser, nullptr, FALSE) == TokenConst) {
-        LexGetToken(Parser, nullptr, TRUE);
+    if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenConst) {
+        nitwit::lex::LexGetToken(Parser, nullptr, true);
         if (ConstQualifier == TRUE)
             ProgramFail(Parser, "const already specified, consts are still experimental, so this might not be a real error");
 
@@ -806,19 +797,19 @@ int TypeParseFront(struct ParseState *Parser, struct ValueType **Typ, int *IsSta
 /* parse a type - the part at the end after the identifier. eg. array specifications etc. */
 struct ValueType *TypeParseBack(struct ParseState *Parser, struct ValueType *FromType)
 {
-    enum LexToken Token;
-    struct ParseState Before{};
+    LexToken Token;
+    ParseState Before{};
 
-    ParserCopy(&Before, Parser);
-    Token = LexGetToken(Parser, nullptr, TRUE);
+    nitwit::parse::ParserCopy(&Before, Parser);
+    Token = nitwit::lex::LexGetToken(Parser, nullptr, true);
     if (Token == TokenLeftSquareBracket)
     {
         /* add another array bound */
-        if (LexGetToken(Parser, nullptr, FALSE) == TokenRightSquareBracket)
+        if (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenRightSquareBracket)
         {
             /* an unsized array */
-            LexGetToken(Parser, nullptr, TRUE);
-            return TypeGetMatching(Parser->pc, Parser, TypeParseBack(Parser, FromType), TypeArray, 0,
+            nitwit::lex::LexGetToken(Parser, nullptr, true);
+            return TypeGetMatching(Parser->pc, Parser, TypeParseBack(Parser, FromType), BaseType::TypeArray, 0,
                                    Parser->pc->StrEmpty, TRUE, nullptr);
         }
         else
@@ -827,49 +818,49 @@ struct ValueType *TypeParseBack(struct ParseState *Parser, struct ValueType *Fro
 //            enum RunMode OldMode = Parser->Mode;
             int ArraySize;
 //            Parser->Mode = RunModeRun;
-            ArraySize = ExpressionParseLongLong(Parser);
+            ArraySize = nitwit::expressions::ExpressionParseLongLong(Parser);
 //            Parser->Mode = OldMode;
             
-            if (LexGetToken(Parser, nullptr, TRUE) != TokenRightSquareBracket)
+            if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenRightSquareBracket)
                 ProgramFail(Parser, "']' expected");
             
-            return TypeGetMatching(Parser->pc, Parser, TypeParseBack(Parser, FromType), TypeArray, ArraySize,
+            return TypeGetMatching(Parser->pc, Parser, TypeParseBack(Parser, FromType), BaseType::TypeArray, ArraySize,
                                    Parser->pc->StrEmpty, TRUE, nullptr);
         }
     }
     else
     {
         /* the type specification has finished */
-        ParserCopy(Parser, &Before);
+        nitwit::parse::ParserCopy(Parser, &Before);
         return FromType;
     }
 }
 
 int TypeParseFunctionPointer(ParseState *Parser, ValueType *BasicType, ValueType **Type, char **Identifier, bool IsArgument) {
     Value *LexValue;
-    struct ParseState Before{};
+    ParseState Before{};
     *Identifier = Parser->pc->StrEmpty;
     *Type = BasicType;
-    ParserCopy(&Before, Parser);
+    nitwit::parse::ParserCopy(&Before, Parser);
     bool BracketsAsterisk = true;
 
-    while (LexGetToken(Parser, nullptr, FALSE) == TokenAsterisk){
-        LexGetToken(Parser, nullptr, TRUE);
+    while (nitwit::lex::LexGetToken(Parser, nullptr, false) == TokenAsterisk){
+        nitwit::lex::LexGetToken(Parser, nullptr, true);
         if (*Type == nullptr)
             ProgramFail(Parser, "bad type declaration");
-        *Type = TypeGetMatching(Parser->pc, Parser, *Type, TypePointer, 0, Parser->pc->StrEmpty, TRUE, nullptr);
+        *Type = TypeGetMatching(Parser->pc, Parser, *Type, BaseType::TypePointer, 0, Parser->pc->StrEmpty, TRUE, nullptr);
     }
-    enum LexToken Token;
-    Token = LexGetToken(Parser, &LexValue, TRUE);
+    LexToken Token;
+    Token = nitwit::lex::LexGetToken(Parser, &LexValue, true);
     if (Token == TokenOpenBracket){
-        Token = LexGetToken(Parser, nullptr, TRUE);
+        Token = nitwit::lex::LexGetToken(Parser, nullptr, true);
         if (Token != TokenAsterisk) goto ERROR;
-        Token = LexGetToken(Parser, &LexValue, TRUE);
+        Token = nitwit::lex::LexGetToken(Parser, &LexValue, true);
 
         *Type = &Parser->pc->FunctionPtrType;
         while (Token == TokenAsterisk){
-            *Type = TypeGetMatching(Parser->pc, Parser, *Type, TypePointer, 0, Parser->pc->StrEmpty, TRUE, nullptr);
-            Token = LexGetToken(Parser, &LexValue, TRUE);
+            *Type = TypeGetMatching(Parser->pc, Parser, *Type, BaseType::TypePointer, 0, Parser->pc->StrEmpty, TRUE, nullptr);
+            Token = nitwit::lex::LexGetToken(Parser, &LexValue, true);
         }
     } else if (IsArgument) {
         BracketsAsterisk = false;
@@ -881,7 +872,7 @@ int TypeParseFunctionPointer(ParseState *Parser, ValueType *BasicType, ValueType
     else if (Token == TokenIdentifier) {
         *Identifier = LexValue->Val->Identifier;
         *Type = TypeParseBack(Parser, *Type);
-        Token = LexGetToken(Parser, nullptr, BracketsAsterisk);
+        Token = nitwit::lex::LexGetToken(Parser, nullptr, BracketsAsterisk);
     } else goto ERROR;
 
     if (BracketsAsterisk) {
@@ -897,7 +888,7 @@ int TypeParseFunctionPointer(ParseState *Parser, ValueType *BasicType, ValueType
     return TRUE;
 
     ERROR:
-        ParserCopy(Parser, &Before);
+        nitwit::parse::ParserCopy(Parser, &Before);
         *Type = BasicType;
         return FALSE;
 }
@@ -907,8 +898,8 @@ void
 TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct ValueType **Typ, char **Identifier,
                    int *IsConst)
 {
-    struct ParseState Before{};
-    enum LexToken Token;
+    ParseState Before{};
+    LexToken Token;
     Value *LexValue;
     int Done = FALSE;
     *Typ = BasicTyp;
@@ -916,8 +907,8 @@ TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct
     
     while (!Done)
     {
-        ParserCopy(&Before, Parser);
-        Token = LexGetToken(Parser, &LexValue, TRUE);
+        nitwit::parse::ParserCopy(&Before, Parser);
+        Token = nitwit::lex::LexGetToken(Parser, &LexValue, true);
         switch (Token)
         {
             case TokenOpenBracket:
@@ -925,14 +916,14 @@ TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct
                     ProgramFail(Parser, "bad type declaration");
 
                 TypeParse(Parser, Typ, Identifier, nullptr, IsConst, 0);
-                if (LexGetToken(Parser, nullptr, TRUE) != TokenCloseBracket)
+                if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenCloseBracket)
                     ProgramFail(Parser, "')' expected");
                 break;
             case TokenAsterisk:
                 if (*Typ == nullptr)
                     ProgramFail(Parser, "bad type declaration");
 
-                *Typ = TypeGetMatching(Parser->pc, Parser, *Typ, TypePointer, 0, Parser->pc->StrEmpty, TRUE, nullptr);
+                *Typ = TypeGetMatching(Parser->pc, Parser, *Typ, BaseType::TypePointer, 0, Parser->pc->StrEmpty, TRUE, nullptr);
                 break;
             
             case TokenIdentifier:
@@ -943,7 +934,7 @@ TypeParseIdentPart(struct ParseState *Parser, struct ValueType *BasicTyp, struct
                 Done = TRUE;
                 break;
                 
-            default: ParserCopy(Parser, &Before); Done = TRUE; break;
+            default: nitwit::parse::ParserCopy(Parser, &Before); Done = TRUE; break;
         }
     }
     
@@ -968,7 +959,7 @@ ValueType *TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **I
     if (!TypeParseFunctionPointer(Parser, BasicType, Typ, Identifier, IsArgument)) {
         TypeParseIdentPart(Parser, BasicType, Typ, Identifier, IsConst);
     } else {
-        Value * FuncValue = ParseFunctionDefinition(Parser, BasicType, *Identifier, TRUE);
+        Value * FuncValue = nitwit::parse::ParseFunctionDefinition(Parser, BasicType, *Identifier, true);
         if (FuncValue != nullptr) VariableFree(Parser->pc, FuncValue);
     }
     return BasicType;
@@ -977,10 +968,10 @@ ValueType *TypeParse(struct ParseState *Parser, struct ValueType **Typ, char **I
 /* check if a type has been fully defined - otherwise it's just a forward declaration */
 int TypeIsForwardDeclared(struct ParseState *Parser, struct ValueType *Typ)
 {
-    if (Typ->Base == TypeArray)
+    if (Typ->Base == BaseType::TypeArray)
         return TypeIsForwardDeclared(Parser, Typ->FromType);
     
-    if ( (Typ->Base == TypeStruct || Typ->Base == TypeUnion) && Typ->Members == nullptr)
+    if ( (Typ->Base == BaseType::TypeStruct || Typ->Base == BaseType::TypeUnion) && Typ->Members == nullptr)
         return TRUE;
         
     return FALSE;

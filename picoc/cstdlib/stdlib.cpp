@@ -5,12 +5,10 @@
 
 static int Stdlib_ZeroValue = 0;
 
-#ifndef NO_FP
 void StdlibAtof(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = atof((const char*)Param[0]->Val->Pointer);
 }
-#endif
 
 void StdlibAtoi(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
@@ -22,12 +20,10 @@ void StdlibAtol(struct ParseState *Parser, Value *ReturnValue, Value **Param, in
     ReturnValue->Val->Integer = atol((const char*)Param[0]->Val->Pointer);
 }
 
-#ifndef NO_FP
 void StdlibStrtod(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = strtod((const char*)Param[0]->Val->Pointer, (char**)Param[1]->Val->Pointer);
 }
-#endif
 
 void StdlibStrtol(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
@@ -134,10 +130,8 @@ typedef struct { \
 /* all stdlib.h functions */
 struct LibraryFunction StdlibFunctions[] =
 {
-#ifndef NO_FP
     { StdlibAtof,           "float atof(char *);" },
     { StdlibStrtod,         "float strtod(char *,char **);" },
-#endif
     { StdlibAtoi,           "int atoi(char *);" },
     { StdlibAtol,           "int atol(char *);" },
     { StdlibStrtol,         "int strtol(char *,char **,int);" },
@@ -167,7 +161,7 @@ struct LibraryFunction StdlibFunctions[] =
 void StdlibSetupFunc(Picoc *pc)
 {
     /* define nullptr, TRUE and FALSE */
-    if (!VariableDefined(pc, TableStrRegister(pc, "NULL")))
+    if (!VariableDefined(pc, nitwit::table::TableStrRegister(pc, "NULL")))
         VariableDefinePlatformVar(pc, nullptr, "NULL", &pc->IntType, (union AnyValue *)&Stdlib_ZeroValue, FALSE);
 }
 

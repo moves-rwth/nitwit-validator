@@ -29,12 +29,10 @@ void StdCtime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int 
     ReturnValue->Val->Pointer = ctime((const time_t*)Param[0]->Val->Pointer);
 }
 
-#ifndef NO_FP
 void StdDifftime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
     ReturnValue->Val->Double = difftime((time_t)Param[0]->Val->Integer, Param[1]->Val->Integer);
 }
-#endif
 
 void StdGmtime(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs)
 {
@@ -89,9 +87,7 @@ struct LibraryFunction StdTimeFunctions[] =
     { StdAsctime,       "char *asctime(struct tm *);" },
     { StdClock,         "time_t clock();" },
     { StdCtime,         "char *ctime(int *);" },
-#ifndef NO_FP
     { StdDifftime,      "double difftime(int, int);" },
-#endif
     { StdGmtime,        "struct tm *gmtime(int *);" },
     { StdLocaltime,     "struct tm *localtime(int *);" },
     { StdMktime,        "int mktime(struct tm *ptm);" },
@@ -110,7 +106,7 @@ struct LibraryFunction StdTimeFunctions[] =
 void StdTimeSetupFunc(Picoc *pc)
 {
     /* make a "struct tm" which is the same size as a native tm structure */
-    TypeCreateOpaqueStruct(pc, nullptr, TableStrRegister(pc, "tm"), sizeof(struct tm));
+    TypeCreateOpaqueStruct(pc, nullptr, nitwit::table::TableStrRegister(pc, "tm"), sizeof(struct tm));
     
     /* define CLK_PER_SEC etc. */
     VariableDefinePlatformVar(pc, nullptr, "CLOCKS_PER_SEC", &pc->IntType, (union AnyValue *)&CLOCKS_PER_SECValue, FALSE);

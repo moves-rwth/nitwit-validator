@@ -16,7 +16,7 @@ void LibraryInit(Picoc *pc)
 {
     
     /* define the version number macro */
-    pc->VersionString = TableStrRegister(pc, PICOC_VERSION);
+    pc->VersionString = nitwit::table::TableStrRegister(pc, PICOC_VERSION);
     VariableDefinePlatformVar(pc, nullptr, "PICOC_VERSION", pc->CharPtrType, (union AnyValue *)&pc->VersionString, FALSE);
 
     /* define endian-ness macros */
@@ -36,15 +36,15 @@ void LibraryAdd(Picoc *pc, struct Table *GlobalTable, const char *LibraryName, s
     struct ValueType *ReturnType;
     Value *NewValue;
     void *Tokens;
-    char *IntrinsicName = TableStrRegister(pc, "c library");
+    char *IntrinsicName = nitwit::table::TableStrRegister(pc, "c library");
     
     /* read all the library definitions */
     for (Count = 0; FuncList[Count].Prototype != nullptr; Count++)
     {
-        Tokens = LexAnalyse(pc, IntrinsicName, FuncList[Count].Prototype, static_cast<int>(strlen((char *)FuncList[Count].Prototype)), nullptr);
-        LexInitParser(&Parser, pc, FuncList[Count].Prototype, Tokens, IntrinsicName, TRUE, FALSE, nullptr);
+        Tokens = nitwit::lex::LexAnalyse(pc, IntrinsicName, FuncList[Count].Prototype, static_cast<int>(strlen((char *)FuncList[Count].Prototype)), nullptr);
+        nitwit::lex::LexInitParser(&Parser, pc, FuncList[Count].Prototype, Tokens, IntrinsicName, TRUE, FALSE, nullptr);
         TypeParse(&Parser, &ReturnType, &Identifier, nullptr, nullptr, false);
-        NewValue = ParseFunctionDefinition(&Parser, ReturnType, Identifier, 0);
+        NewValue = nitwit::parse::ParseFunctionDefinition(&Parser, ReturnType, Identifier, false);
         NewValue->Val->FuncDef.Intrinsic = FuncList[Count].Func;
         HeapFreeMem(pc, Tokens);
     }
@@ -55,31 +55,29 @@ void PrintType(struct ValueType *Typ, IOFILE *Stream)
 {
     switch (Typ->Base)
     {
-        case TypeVoid:              PrintStr("void", Stream); break;
-        case TypeInt:               PrintStr("int", Stream); break;
-        case TypeShort:             PrintStr("short", Stream); break;
-        case TypeChar:              PrintStr("char", Stream); break;
-        case TypeLong:              PrintStr("long", Stream); break;
-        case TypeLongLong:          PrintStr("long long", Stream); break;
-        case TypeUnsignedInt:       PrintStr("unsigned int", Stream); break;
-        case TypeUnsignedShort:     PrintStr("unsigned short", Stream); break;
-        case TypeUnsignedLong:      PrintStr("unsigned long", Stream); break;
-        case TypeUnsignedLongLong:  PrintStr("unsigned long long", Stream); break;
-        case TypeUnsignedChar:      PrintStr("unsigned char", Stream); break;
-#ifndef NO_FP
-        case TypeDouble:            PrintStr("double", Stream); break;
-        case TypeFloat:             PrintStr("float", Stream); break;
-#endif
-        case TypeFunction:          PrintStr("function", Stream); break;
-        case TypeMacro:             PrintStr("macro", Stream); break;
-        case TypePointer:           if (Typ->FromType) PrintType(Typ->FromType, Stream); PrintCh('*', Stream); break;
-        case TypeArray:             PrintType(Typ->FromType, Stream); PrintCh('[', Stream); if (Typ->ArraySize != 0) PrintSimpleInt(Typ->ArraySize, Stream); PrintCh(']', Stream); break;
-        case TypeStruct:            PrintStr("struct ", Stream); PrintStr( Typ->Identifier, Stream); break;
-        case TypeUnion:             PrintStr("union ", Stream); PrintStr(Typ->Identifier, Stream); break;
-        case TypeEnum:              PrintStr("enum ", Stream); PrintStr(Typ->Identifier, Stream); break;
-        case TypeGotoLabel:         PrintStr("goto label ", Stream); break;
-        case Type_Type:             PrintStr("type ", Stream); break;
-        case TypeFunctionPtr:       PrintStr("fptr ", Stream); break;
+        case BaseType::TypeVoid:              PrintStr("void", Stream); break;
+        case BaseType::TypeInt:               PrintStr("int", Stream); break;
+        case BaseType::TypeShort:             PrintStr("short", Stream); break;
+        case BaseType::TypeChar:              PrintStr("char", Stream); break;
+        case BaseType::TypeLong:              PrintStr("long", Stream); break;
+        case BaseType::TypeLongLong:          PrintStr("long long", Stream); break;
+        case BaseType::TypeUnsignedInt:       PrintStr("unsigned int", Stream); break;
+        case BaseType::TypeUnsignedShort:     PrintStr("unsigned short", Stream); break;
+        case BaseType::TypeUnsignedLong:      PrintStr("unsigned long", Stream); break;
+        case BaseType::TypeUnsignedLongLong:  PrintStr("unsigned long long", Stream); break;
+        case BaseType::TypeUnsignedChar:      PrintStr("unsigned char", Stream); break;
+        case BaseType::TypeDouble:            PrintStr("double", Stream); break;
+        case BaseType::TypeFloat:             PrintStr("float", Stream); break;
+        case BaseType::TypeFunction:          PrintStr("function", Stream); break;
+        case BaseType::TypeMacro:             PrintStr("macro", Stream); break;
+        case BaseType::TypePointer:           if (Typ->FromType) PrintType(Typ->FromType, Stream); PrintCh('*', Stream); break;
+        case BaseType::TypeArray:             PrintType(Typ->FromType, Stream); PrintCh('[', Stream); if (Typ->ArraySize != 0) PrintSimpleInt(Typ->ArraySize, Stream); PrintCh(']', Stream); break;
+        case BaseType::TypeStruct:            PrintStr("struct ", Stream); PrintStr( Typ->Identifier, Stream); break;
+        case BaseType::TypeUnion:             PrintStr("union ", Stream); PrintStr(Typ->Identifier, Stream); break;
+        case BaseType::TypeEnum:              PrintStr("enum ", Stream); PrintStr(Typ->Identifier, Stream); break;
+        case BaseType::TypeGotoLabel:         PrintStr("goto label ", Stream); break;
+        case BaseType::Type_Type:             PrintStr("type ", Stream); break;
+        case BaseType::TypeFunctionPtr:       PrintStr("fptr ", Stream); break;
     }
 }
 
@@ -189,7 +187,6 @@ void PrintInt(long Num, int FieldWidth, int ZeroPad, int LeftJustify, struct Out
     PrintUnsigned((unsigned long)Num, 10, FieldWidth, ZeroPad, LeftJustify, Stream);
 }
 
-#ifndef NO_FP
 /* print a double to a stream without using printf/sprintf */
 void PrintFP(double Num, struct OutputStream *Stream)
 {
@@ -225,7 +222,6 @@ void PrintFP(double Num, struct OutputStream *Stream)
         PrintInt(Exponent, 0, FALSE, FALSE, Stream);
     }
 }
-#endif
 
 /* intrinsic functions made available to the language */
 void GenericPrintf(struct ParseState *Parser, Value *ReturnValue, Value **Param, int NumArgs, struct OutputStream *Stream)
@@ -268,9 +264,7 @@ void GenericPrintf(struct ParseState *Parser, Value *ReturnValue, Value **Param,
             {
                 case 's': FormatType = CharPtrType; break;
                 case 'd': case 'u': case 'x': case 'b': case 'c': FormatType = &IntType; break;
-#ifndef NO_FP
                 case 'f': FormatType = &DoubleType; break;
-#endif
                 case '%': PrintCh('%', Stream); FormatType = nullptr; break;
                 case '\0': FPos--; FormatType = nullptr; break;
                 default:  PrintCh(*FPos, Stream); FormatType = nullptr; break;
@@ -286,8 +280,8 @@ void GenericPrintf(struct ParseState *Parser, Value *ReturnValue, Value **Param,
                     NextArg = (Value *)((char *)NextArg + MEM_ALIGN(sizeof(Value) + TypeStackSizeValue(NextArg)));
                     if (NextArg->Typ != FormatType && 
                             !((FormatType == &IntType || *FPos == 'f') && IS_NUMERIC_COERCIBLE(NextArg)) &&
-                            !(FormatType == CharPtrType && (NextArg->Typ->Base == TypePointer || 
-                                                             (NextArg->Typ->Base == TypeArray && NextArg->Typ->FromType->Base == TypeChar) ) ) )
+                            !(FormatType == CharPtrType && (NextArg->Typ->Base == BaseType::TypePointer || 
+                                                             (NextArg->Typ->Base == BaseType::TypeArray && NextArg->Typ->FromType->Base == BaseType::TypeChar) ) ) )
                         PrintStr("XXX", Stream);   /* bad type for format */
                     else
                     {
@@ -297,7 +291,7 @@ void GenericPrintf(struct ParseState *Parser, Value *ReturnValue, Value **Param,
                             {
                                 char *Str;
                                 
-                                if (NextArg->Typ->Base == TypePointer)
+                                if (NextArg->Typ->Base == BaseType::TypePointer)
                                     Str = NextArg->Val->Pointer;
                                 else
                                     Str = &NextArg->Val->ArrayMem[0];
@@ -313,9 +307,7 @@ void GenericPrintf(struct ParseState *Parser, Value *ReturnValue, Value **Param,
                             case 'x': PrintUnsigned(ExpressionCoerceUnsignedInteger(NextArg), 16, FieldWidth, ZeroPad, LeftJustify, Stream); break;
                             case 'b': PrintUnsigned(ExpressionCoerceUnsignedInteger(NextArg), 2, FieldWidth, ZeroPad, LeftJustify, Stream); break;
                             case 'c': PrintCh(ExpressionCoerceUnsignedInteger(NextArg), Stream); break;
-#ifndef NO_FP
                             case 'f': PrintFP(ExpressionCoerceFP(NextArg), Stream); break;
-#endif
                         }
                     }
                 }

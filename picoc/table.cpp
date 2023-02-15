@@ -3,6 +3,9 @@
  
 #include "interpreter.hpp"
 
+namespace nitwit {
+    namespace table {
+
 /* initialise the shared string system */
 void TableInit(Picoc *pc)
 {
@@ -29,18 +32,18 @@ static unsigned int TableHash(const char *Key, unsigned Len)
 }
 
 /* initialise a table */
-void TableInitTable(struct Table *Tbl, struct TableEntry **HashTable, unsigned Size, int OnHeap)
+void TableInitTable(Table *Tbl, TableEntry **HashTable, unsigned Size, bool OnHeap)
 {
     Tbl->Size = Size;
     Tbl->OnHeap = OnHeap;
     Tbl->HashTable = HashTable;
-    memset((void *)HashTable, '\0', sizeof(struct TableEntry *) * Size);
+    memset((void *)HashTable, '\0', sizeof(TableEntry *) * Size);
 }
 
 /* check a hash table entry for a key */
-struct TableEntry *TableSearch(struct Table *Tbl, const char *Key, unsigned *AddAt)
+TableEntry *TableSearch(Table *Tbl, const char *Key, unsigned *AddAt)
 {
-    struct TableEntry *Entry;
+    TableEntry *Entry;
     int HashValue = ((unsigned long)Key) % Tbl->Size;   /* shared strings have unique addresses so we don't need to hash them */
     
     for (Entry = Tbl->HashTable[HashValue]; Entry != nullptr; Entry = Entry->Next)
@@ -55,14 +58,14 @@ struct TableEntry *TableSearch(struct Table *Tbl, const char *Key, unsigned *Add
 
 /* set an identifier to a value. returns FALSE if it already exists. 
  * Key must be a shared string from TableStrRegister() */
-int TableSet(Picoc *pc, struct Table *Tbl, char *Key, Value *Val, const char *DeclFileName, unsigned DeclLine, unsigned DeclColumn)
+int TableSet(Picoc *pc, Table *Tbl, char *Key, Value *Val, const char *DeclFileName, unsigned DeclLine, unsigned DeclColumn)
 {
     unsigned AddAt;
-    struct TableEntry *FoundEntry = TableSearch(Tbl, Key, &AddAt);
+    TableEntry *FoundEntry = TableSearch(Tbl, Key, &AddAt);
     
     if (FoundEntry == nullptr)
     {   /* add it to the table */
-        struct TableEntry *NewEntry = static_cast<TableEntry *>(VariableAlloc(pc, nullptr, sizeof(struct TableEntry),
+        TableEntry *NewEntry = static_cast<TableEntry *>(VariableAlloc(pc, nullptr, sizeof(TableEntry),
                                                                               Tbl->OnHeap));
         NewEntry->DeclFileName = DeclFileName;
         NewEntry->DeclLine = DeclLine;
@@ -79,10 +82,10 @@ int TableSet(Picoc *pc, struct Table *Tbl, char *Key, Value *Val, const char *De
 
 /* find a value in a table. returns FALSE if not found. 
  * Key must be a shared string from TableStrRegister() */
-int TableGet(struct Table *Tbl, const char *Key, Value **Val, const char **DeclFileName, unsigned int *DeclLine, unsigned int *DeclColumn)
+int TableGet(Table *Tbl, const char *Key, Value **Val, const char **DeclFileName, unsigned int *DeclLine, unsigned int *DeclColumn)
 {
     unsigned AddAt;
-    struct TableEntry *FoundEntry = TableSearch(Tbl, Key, &AddAt);
+    TableEntry *FoundEntry = TableSearch(Tbl, Key, &AddAt);
     if (FoundEntry == nullptr)
         return FALSE;
     
@@ -100,16 +103,16 @@ int TableGet(struct Table *Tbl, const char *Key, Value **Val, const char **DeclF
 
 
 /* remove an entry from the table */
-Value *TableDelete(Picoc *pc, struct Table *Tbl, const char *Key)
+Value *TableDelete(Picoc *pc, Table *Tbl, const char *Key)
 {
-    struct TableEntry **EntryPtr;
+    TableEntry **EntryPtr;
     int HashValue = ((unsigned long)Key) % Tbl->Size;   /* shared strings have unique addresses so we don't need to hash them */
     
     for (EntryPtr = &Tbl->HashTable[HashValue]; *EntryPtr != nullptr; EntryPtr = &(*EntryPtr)->Next)
     {
         if ((*EntryPtr)->p.v.Key == Key)
         {
-            struct TableEntry *DeleteEntry = *EntryPtr;
+            TableEntry *DeleteEntry = *EntryPtr;
             Value *Val = DeleteEntry->p.v.Val;
             *EntryPtr = DeleteEntry->Next;
             HeapFreeMem(pc, DeleteEntry);
@@ -122,9 +125,9 @@ Value *TableDelete(Picoc *pc, struct Table *Tbl, const char *Key)
 }
 
 /* check a hash table entry for an identifier */
-static struct TableEntry *TableSearchIdentifier(struct Table *Tbl, const char *Key, unsigned Len, unsigned *AddAt)
+static TableEntry *TableSearchIdentifier(Table *Tbl, const char *Key, unsigned Len, unsigned *AddAt)
 {
-    struct TableEntry *Entry;
+    TableEntry *Entry;
     int HashValue = TableHash(Key, Len) % Tbl->Size;
     
     for (Entry = Tbl->HashTable[HashValue]; Entry != nullptr; Entry = Entry->Next)
@@ -138,16 +141,16 @@ static struct TableEntry *TableSearchIdentifier(struct Table *Tbl, const char *K
 }
 
 /* set an identifier and return the identifier. share if possible */
-char *TableSetIdentifier(Picoc *pc, struct Table *Tbl, const char *Ident, unsigned IdentLen)
+char *TableSetIdentifier(Picoc *pc, Table *Tbl, const char *Ident, unsigned IdentLen)
 {
     unsigned AddAt;
-    struct TableEntry *FoundEntry = TableSearchIdentifier(Tbl, Ident, IdentLen, &AddAt);
+    TableEntry *FoundEntry = TableSearchIdentifier(Tbl, Ident, IdentLen, &AddAt);
     
     if (FoundEntry != nullptr)
         return &FoundEntry->p.Key[0];
     else
     {   /* add it to the table - we economise by not allocating the whole structure here */
-        auto *NewEntry = static_cast<TableEntry *>(HeapAllocMem(pc, sizeof(struct TableEntry) -
+        auto *NewEntry = static_cast<TableEntry *>(HeapAllocMem(pc, sizeof(TableEntry) -
                                                                                  sizeof(TableEntry::TableEntryPayload) +
                                                                                  IdentLen + 1));
         if (NewEntry == nullptr)
@@ -174,8 +177,8 @@ char *TableStrRegister(Picoc *pc, const char *Str, unsigned Len)
 /* free all the strings */
 void TableStrFree(Picoc *pc)
 {
-    struct TableEntry *Entry;
-    struct TableEntry *NextEntry;
+    TableEntry *Entry;
+    TableEntry *NextEntry;
     int Count;
     
     for (Count = 0; Count < pc->StringTable.Size; Count++)
@@ -185,5 +188,9 @@ void TableStrFree(Picoc *pc)
             NextEntry = Entry->Next;
             HeapFreeMem(pc, Entry);
         }
+    }
+}
+
+
     }
 }

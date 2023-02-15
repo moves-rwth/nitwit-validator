@@ -181,7 +181,7 @@ struct LibraryFunction StringFunctions[] =
 void StringSetupFunc(Picoc *pc)
 {
     /* define nullptr */
-    if (!VariableDefined(pc, TableStrRegister(pc, "NULL")))
+    if (!VariableDefined(pc, nitwit::table::TableStrRegister(pc, "NULL")))
         VariableDefinePlatformVar(pc, nullptr, "NULL", &pc->IntType, (union AnyValue *)&String_ZeroValue, FALSE);
 }
 

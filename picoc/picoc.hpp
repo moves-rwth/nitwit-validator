@@ -26,20 +26,17 @@
 #define PicocPlatformSetExitPoint(pc) setjmp((pc)->PicocExitBuf)
 #endif
 
-#ifdef SURVEYOR_HOST
-/* mark where to end the program for platforms which require this */
-extern int PicocExitBuf[];
-
-#define PicocPlatformSetExitPoint(pc) setjmp((pc)->PicocExitBuf)
-#endif
-
 /* parse.c */
-void PicocParse(Picoc *pc, const char *FileName, const char *Source, int SourceLen, int RunIt, int CleanupNow,
-                int CleanupSource, int EnableDebugger, void (*DebuggerCallback)(struct ParseState *));
-void PicocParseInteractive(Picoc *pc);
+namespace nitwit {
+    namespace parse {
+        void PicocParse(Picoc* pc, const char* FileName, const char* Source, int SourceLen, int RunIt, int CleanupNow,
+                int CleanupSource, int EnableDebugger, void (*DebuggerCallback)(ParseState* state, bool isMultiLineDeclaration, std::size_t const& endLine));
+        void PicocParseInteractive(Picoc* pc);
+    }
+}
 
 /* platform.c */
-void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(struct ParseState *), int argc, char **argv);
+void PicocCallMain(Picoc *pc, void (*DebuggerCallback)(ParseState* state, bool isMultiLineDeclaration, std::size_t const& endLine), int argc, char **argv);
 void PicocInitialise(Picoc *pc, int StackSize);
 void PicocCleanup(Picoc *pc);
 void PicocPlatformScanFile(Picoc *pc, const char *FileName);
