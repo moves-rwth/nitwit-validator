@@ -800,6 +800,7 @@ void ParseFor(struct ParseState *Parser)
 void ConditionCallback(struct ParseState *Parser, bool Condition) {
     if (Parser->DebugMode && Parser->Mode == RunMode::RunModeRun) {
         Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
+        debugf("Parser - Performing debug check for condition.\n");
         DebugCheckStatement(Parser, false, 0);
         Parser->LastConditionBranch = ConditionUndefined;
     }
@@ -904,6 +905,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         switch (Token)
         {
             case TokenIf:
+                debugf("Parser - Performing debug check for If.\n");
                 DebugCheckStatement(Parser, false, 0);
                 break;
             default:
@@ -1331,6 +1333,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenContinue:
             case TokenBreak:
             case TokenReturn:
+                debugf("Parser - Performing debug check for control flow modifier.\n");
                 DebugCheckStatement(Parser, false, 0);
                 break;
             case TokenTypedef:
@@ -1352,6 +1355,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenAutoType:
             case TokenRegisterType:
             case TokenExternType:
+                debugf("Parser - Performing debug check for type declaration.\n");
                 DebugCheckStatement(Parser, !isFunctionDeclaration, isFunctionDeclaration ? 0 : NowPosition.Line);
                 break;
             default:

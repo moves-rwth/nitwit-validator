@@ -1705,7 +1705,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
 #ifdef EXPR_TEMPLATE_VIA_ASSUMPTIONS
         /* if we're debugging, check for a breakpoint */
         if (Parser->DebugMode && Parser->Mode == RunMode::RunModeRun) {
-            debugf(EXPR_TEMPLATE_STRING_PREFIX "Performing debug check.\n");
+            debugf(EXPR_TEMPLATE_STRING_PREFIX "Performing debug check before ExpressionParse() run.\n");
             DebugCheckStatement(Parser, false, 0);
         }
 #endif
@@ -1924,6 +1924,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
 #ifndef EXPR_TEMPLATE_VIA_ASSUMPTIONS
                 if (Parser->DebugMode && RunIt) {
                     Parser->EnterFunction = FuncName;
+                    debugf(EXPR_TEMPLATE_STRING_PREFIX "Performing debug check before parsing function call.\n");
                     DebugCheckStatement(Parser, false, 0);
                     Parser->EnterFunction = nullptr;
                 }
@@ -1933,6 +1934,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                 ExpressionParseFunctionCall(Parser, &StackTop, FuncName, RunIt);
 #ifndef EXPR_TEMPLATE_VIA_ASSUMPTIONS
                 if (Parser->DebugMode && Parser->Mode == RunMode::RunModeRun) {
+                    debugf(EXPR_TEMPLATE_STRING_PREFIX "Performing debug check after returning from function call.\n");
                     DebugCheckStatement(Parser, false, 0);
                     Parser->ReturnFromFunction = nullptr;
                 }
@@ -2084,6 +2086,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
 #ifndef EXPR_TEMPLATE_VIA_ASSUMPTIONS
     /* After parsing an expression, now all of the assignments would be finished -> important for assumptions. */
     if (Parser->DebugMode && Parser->Mode == RunMode::RunModeRun) {
+        debugf(EXPR_TEMPLATE_STRING_PREFIX "Performing debug check after ExpressionParse() run.\n");
         DebugCheckStatement(Parser, false, 0);
     }
 #endif
@@ -2293,6 +2296,8 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
             for (Count = 0; Count < FuncValue->Val->FuncDef.NumParams; Count++) {
                 Value * defined = VariableDefine(Parser->pc, Parser, FuncValue->Val->FuncDef.ParamName[Count], ParamArray[Count], nullptr, TRUE, false);
                 debugf(EXPR_TEMPLATE_STRING_PREFIX "Defining variable #%i of func '%s': '%s' with type %s.\n", Count, FuncName, FuncValue->Val->FuncDef.ParamName[Count], getType(defined));
+                debugf(EXPR_TEMPLATE_STRING_PREFIX "Param value: %lli, IsNonDet: %i\n", CoerceT<long long int>(ParamArray[Count]), TypeIsNonDeterministic(ParamArray[Count]->Typ)?1:0);
+                debugf(EXPR_TEMPLATE_STRING_PREFIX "Defined Param value: %lli, IsNonDet: %i\n", CoerceT<long long int>(defined), TypeIsNonDeterministic(defined->Typ) ? 1 : 0);
                 if (ParamArray[Count]->Typ->Base == BaseType::TypeArray){
                     defined->Val = ParamArray[Count]->Val;
                 }
