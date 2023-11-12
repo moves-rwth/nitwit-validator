@@ -4,6 +4,9 @@
 #        ./build.sh
 #        ./build.sh -debug
 
+set -o errexit   # abort on nonzero exitstatus
+#set -o nounset   # abort on unbound variable
+set -o pipefail  # don't hide errors within pipes
 
 if [[ $1 == "-v" || $1 == "--version" ]]
 then
@@ -56,6 +59,9 @@ else
   cp picoc/LICENSE submission/nitwit/picoc/
   cp nitwit.sh submission/nitwit/
   cp README.md submission/nitwit/
+  
+  # Should the file be in DOS format, we need to ensure it being converted
+  dos2unix submission/nitwit/nitwit.sh
 
   chmod +x submission/nitwit/bin/nitwit32
   chmod +x submission/nitwit/bin/nitwit64
