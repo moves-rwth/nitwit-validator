@@ -3,7 +3,23 @@
 //
 
 #include "witness.hpp"
+#include <fstream>
 #include <iostream>
+
+WitnessFormat detectWitnessFormat(std::string const& filename) {
+    std::ifstream file(filename, std::ios::binary);
+    char c;
+    while (file.get(c)) {
+        unsigned char const u = static_cast<unsigned char>(c);
+        // skip whitespace and a UTF-8 byte order mark
+        if (u == ' ' || u == '\t' || u == '\r' || u == '\n' || u == 0xEF || u == 0xBB || u == 0xBF) {
+            continue;
+        }
+        // GraphML is XML, which starts with a declaration, comment or element
+        return (c == '<') ? WitnessFormat::GraphML : WitnessFormat::Yaml;
+    }
+    return WitnessFormat::GraphML;
+}
 
 std::shared_ptr<pugi::xml_document> parseGraphmlWitness(std::string const& filename) {
     if (filename.empty()) {

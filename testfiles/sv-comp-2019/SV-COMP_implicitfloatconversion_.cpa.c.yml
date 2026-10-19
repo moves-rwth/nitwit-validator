@@ -1,0 +1,38 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "2c0bb3fa-a8e8-38a1-9013-06f13081a035"
+    creation_time: "2026-10-19T22:57:33+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "SV-COMP_implicitfloatconversion_.c"
+      input_file_hashes:
+        SV-COMP_implicitfloatconversion_.c: "6b1b595cb9ad69d184a63981482be467877f381e89323341468f410b6382dd32"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "SV-COMP_implicitfloatconversion_.c"
+          line: 6
+          column: 3
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "SV-COMP_implicitfloatconversion_.c"
+          line: 10
+          column: 10
+          function: "main"

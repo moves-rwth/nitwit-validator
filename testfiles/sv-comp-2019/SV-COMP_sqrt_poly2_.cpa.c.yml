@@ -1,0 +1,61 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "b076d0c0-cf97-3f2b-b427-3fef3be13754"
+    creation_time: "2026-10-19T23:00:44+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "SV-COMP_sqrt_poly2_.c"
+      input_file_hashes:
+        SV-COMP_sqrt_poly2_.c: "4e353031310d806cc0996328c4767650523a7d3c2ffa9ed6e5abafee57b65cf0"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(x == 8.5899345920000000e+9)"
+          format: "c_expression"
+        location:
+          file_name: "SV-COMP_sqrt_poly2_.c"
+          line: 56
+          column: 3
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "false"
+        location:
+          file_name: "SV-COMP_sqrt_poly2_.c"
+          line: 38
+          column: 3
+          function: "sqrt_custom"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "SV-COMP_sqrt_poly2_.c"
+          line: 9
+          column: 36
+          function: "__VERIFIER_assert"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "SV-COMP_sqrt_poly2_.c"
+          line: 9
+          column: 58
+          function: "__VERIFIER_assert"

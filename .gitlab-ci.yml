@@ -25,6 +25,7 @@ test:gcc:
   tags:
     - gcc
   script:
+    - ./run-tests.sh build_gcc yaml-witnesses reach_error
     - ./run-tests.sh build_gcc sv-comp-2019 __VERIFIER_error
 
 
@@ -49,4 +50,5 @@ test:clang:
   tags:
     - clang
   script:
+    - ./run-tests.sh build_clang yaml-witnesses reach_error
     - ./run-tests.sh build_clang sv-comp-2019 __VERIFIER_error

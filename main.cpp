@@ -8,6 +8,7 @@
 
 #include "utils/files.hpp"
 #include "witness/witness.hpp"
+#include "witness/witness_yaml.hpp"
 #include "witness/automaton.hpp"
 
 std::shared_ptr<WitnessAutomaton> wit_aut;
@@ -86,6 +87,7 @@ int validate(const char *source_filename, const char *error_function_name, bool&
 	PicocInitialise(&pc, 104857600); // stack size of 100 MiB
 	pc.VerifierErrorFuncName = error_function_name;
 	pc.VerifierErrorFunctionWasCalled = false;
+	pc.DebugAtStatementStarts = wit_aut->getData().is_yaml_format;
 
 	// the interpreter will jump here after finding a violation
 	if (PicocPlatformSetExitPoint(&pc)) {
@@ -134,15 +136,32 @@ int validate(const char *source_filename, const char *error_function_name, bool&
 
 int main(int argc, char **argv) {
 	if (argc < 4) {
-		std::cout << "Usage: <nitwit> witness.graphml source-file.c errorFunctionName" << std::endl;
+		std::cout << "Usage: <nitwit> witness.graphml|witness.yml source-file.c errorFunctionName" << std::endl;
 		return 3;
 	}
 
-	auto doc = parseGraphmlWitness(argv[1]);
-	if (doc == nullptr) {
-		return 2;
+	if (detectWitnessFormat(argv[1]) == WitnessFormat::Yaml) {
+		YamlWitness yamlWitness;
+		if (!parseYamlWitness(argv[1], yamlWitness)) {
+			return 2;
+		}
+		if (!yamlWitness.has_violation_sequence) {
+			std::cout << "UNKNOWN: NITWIT expects a violation witness yet the witness contains no violation_sequence entry." << std::endl;
+			return RESULT_UNKNOWN;
+		}
+		std::string const unsupported = checkViolationSequenceSupported(yamlWitness.violation_sequence);
+		if (!unsupported.empty()) {
+			std::cout << "UNKNOWN: NITWIT does not support " << unsupported << "." << std::endl;
+			return RESULT_UNKNOWN;
+		}
+		wit_aut = WitnessAutomaton::automatonFromYamlWitness(yamlWitness.violation_sequence);
+	} else {
+		auto doc = parseGraphmlWitness(argv[1]);
+		if (doc == nullptr) {
+			return 2;
+		}
+		wit_aut = WitnessAutomaton::automatonFromWitness(doc);
 	}
-	wit_aut = WitnessAutomaton::automatonFromWitness(doc);
 
 	// check if witness automaton was successfully constructed
 	if (wit_aut && !wit_aut->isInIllegalState()) {

@@ -1,0 +1,146 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "0ca804dc-4b65-311a-bc00-bff5c513279b"
+    creation_time: "2026-10-19T22:55:32+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "06.nondet.c"
+      input_file_hashes:
+        06.nondet.c: "d97cbda2b481a9c56a946b16872ad9829818a30c82969b8753c5ae994eac95c6"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(a1 == 1)"
+          format: "c_expression"
+        location:
+          file_name: "06.nondet.c"
+          line: 14
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(a2 == 1U)"
+          format: "c_expression"
+        location:
+          file_name: "06.nondet.c"
+          line: 15
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(a3 == 1U)"
+          format: "c_expression"
+        location:
+          file_name: "06.nondet.c"
+          line: 16
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(a4 == 1)"
+          format: "c_expression"
+        location:
+          file_name: "06.nondet.c"
+          line: 17
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(a5 == 1L)"
+          format: "c_expression"
+        location:
+          file_name: "06.nondet.c"
+          line: 18
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(a6 == 1UL)"
+          format: "c_expression"
+        location:
+          file_name: "06.nondet.c"
+          line: 19
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(a7 == 1)"
+          format: "c_expression"
+        location:
+          file_name: "06.nondet.c"
+          line: 20
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(a8 == 1U)"
+          format: "c_expression"
+        location:
+          file_name: "06.nondet.c"
+          line: 21
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(a9 == 1.0000000000000000e+00)"
+          format: "c_expression"
+        location:
+          file_name: "06.nondet.c"
+          line: 24
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "06.nondet.c"
+          line: 24
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "06.nondet.c"
+          line: 34
+          column: 9
+          function: "main"

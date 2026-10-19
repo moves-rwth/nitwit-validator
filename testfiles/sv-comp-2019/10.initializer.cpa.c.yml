@@ -1,0 +1,27 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "31b7e00b-b08a-3ca6-bafe-ceb3940a87fa"
+    creation_time: "2026-10-19T22:55:38+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "10.initializer.c"
+      input_file_hashes:
+        10.initializer.c: "fc88ee01e5378ece9435b1d9bf7ab12f8e89eb991cb4c480af56e6dac1c236e7"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "10.initializer.c"
+          line: 16
+          column: 5
+          function: "main"

@@ -1,0 +1,38 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "638bf75f-73bf-367c-bc8d-bcc0af88241e"
+    creation_time: "2026-10-19T22:57:15+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "21.bitfield.c"
+      input_file_hashes:
+        21.bitfield.c: "282b4a31e518c88ea1bc62fffbb1e117de600193f79126f4780acbb5b36043a9"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "21.bitfield.c"
+          line: 37
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "21.bitfield.c"
+          line: 38
+          column: 9
+          function: "main"

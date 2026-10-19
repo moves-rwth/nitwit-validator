@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 
-# Usage: ./run-tests.sh <build-dir> <SV_comp-dir> <err_func_name>
+# Usage: ./run-tests.sh <build-dir> <test-dir> <err_func_name>
+# Witnesses are looked up next to each <name>.c as <name>.*.c.graphml / <name>.*.c.yml (format 1.0 / 2.x),
+# with an additional .invalid suffix for witnesses that must NOT be validated (the test passes if NITWIT exits with
+# a code != 0).
+# Set NITWIT_BINARY=nitwit64 to test the 64bit executable instead of nitwit32.
+
+NITWIT_BINARY=${NITWIT_BINARY:-nitwit32}
 
 if [[ -d $1 ]]
 then
-    cd $1 && make || exit 1
+    cd $1 && make $NITWIT_BINARY || exit 1
     cd ..
 else
     echo "Error: build path non-existent"
@@ -38,10 +44,10 @@ for C_FILE in testfiles/$2/*.c ; do
     extension="${filename##*.}"
     filename="${filename%.*}"
 
-    for WITNESS in testfiles/$2/$filename.*.c.graphml ; do
-        [[ -f "$WITNESS" ]] || break
+    for WITNESS in testfiles/$2/$filename.*.c.graphml testfiles/$2/$filename.*.c.yml ; do
+        [[ -f "$WITNESS" ]] || continue
         let "n_tests=n_tests+1"
-        $1/nitwit32 $WITNESS $C_FILE $3> /dev/null
+        $1/$NITWIT_BINARY $WITNESS $C_FILE $3> /dev/null
 
         exit_val=$?
         if [[ ${exit_val} -eq 0 || ${exit_val} -eq 245 ]]
@@ -65,10 +71,10 @@ for C_FILE in testfiles/$2/*.c ; do
         fi
     done
 
-    for WITNESS in testfiles/$2/$filename.*.c.graphml.invalid ; do
-        [[ -f "$WITNESS" ]] || break
+    for WITNESS in testfiles/$2/$filename.*.c.graphml.invalid testfiles/$2/$filename.*.c.yml.invalid ; do
+        [[ -f "$WITNESS" ]] || continue
         let "n_tests=n_tests+1"
-        $1/nitwit32 $WITNESS $C_FILE $3> /dev/null
+        $1/$NITWIT_BINARY $WITNESS $C_FILE $3> /dev/null
 
         exit_val=$?
         if [[ ${exit_val} -ne 0 ]]

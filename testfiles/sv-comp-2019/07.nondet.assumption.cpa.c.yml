@@ -1,0 +1,50 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "e4c8cb2e-cd58-3923-b590-2bea4a9014fb"
+    creation_time: "2026-10-19T22:55:34+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "07.nondet.assumption.c"
+      input_file_hashes:
+        07.nondet.assumption.c: "89424a700ec6ab4b4852a00b5371b0644d7e7ee0b678df8da05fe0e5fe39ad05"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(a == 2)"
+          format: "c_expression"
+        location:
+          file_name: "07.nondet.assumption.c"
+          line: 6
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "07.nondet.assumption.c"
+          line: 6
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "07.nondet.assumption.c"
+          line: 7
+          column: 9
+          function: "main"

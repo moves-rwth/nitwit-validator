@@ -1,0 +1,50 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "b04008e6-134e-3e79-a866-268d11a6b3f6"
+    creation_time: "2026-10-19T22:55:46+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "16.shadowing.c"
+      input_file_hashes:
+        16.shadowing.c: "d06db388081bd840a5d6933223921ffb5ccc377032534e6805d05844f6ce2170"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(f == 2.70000000e+01f)"
+          format: "c_expression"
+        location:
+          file_name: "16.shadowing.c"
+          line: 18
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "16.shadowing.c"
+          line: 25
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "16.shadowing.c"
+          line: 26
+          column: 9
+          function: "main"

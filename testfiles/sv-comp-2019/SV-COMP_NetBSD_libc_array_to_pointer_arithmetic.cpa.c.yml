@@ -1,0 +1,93 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "41db1d6f-b222-315a-876d-c724e7a63242"
+    creation_time: "2026-10-19T22:57:25+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "SV-COMP_NetBSD_libc_array_to_pointer_arithmetic.c"
+      input_file_hashes:
+        SV-COMP_NetBSD_libc_array_to_pointer_arithmetic.c: "c334ead1326477729f39cb378a9a1b1a1771dd8f6629a8102a7af0dfe0aabc53"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "SV-COMP_NetBSD_libc_array_to_pointer_arithmetic.c"
+          line: 18
+          column: 3
+          function: "glob2"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "false"
+        location:
+          file_name: "SV-COMP_NetBSD_libc_array_to_pointer_arithmetic.c"
+          line: 4
+          column: 3
+          function: "__VERIFIER_assert"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "SV-COMP_NetBSD_libc_array_to_pointer_arithmetic.c"
+          line: 18
+          column: 3
+          function: "glob2"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "false"
+        location:
+          file_name: "SV-COMP_NetBSD_libc_array_to_pointer_arithmetic.c"
+          line: 4
+          column: 3
+          function: "__VERIFIER_assert"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "SV-COMP_NetBSD_libc_array_to_pointer_arithmetic.c"
+          line: 18
+          column: 3
+          function: "glob2"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "SV-COMP_NetBSD_libc_array_to_pointer_arithmetic.c"
+          line: 4
+          column: 3
+          function: "__VERIFIER_assert"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "SV-COMP_NetBSD_libc_array_to_pointer_arithmetic.c"
+          line: 5
+          column: 12
+          function: "__VERIFIER_assert"

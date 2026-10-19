@@ -26,6 +26,7 @@ void PicocInitialise(Picoc *pc, int StackSize)
 #endif
     PlatformLibraryInit(pc);
     DebugInit(pc);
+    pc->DebugAtStatementStarts = FALSE;
     pc->IsInAssumptionMode = FALSE;
 }
 

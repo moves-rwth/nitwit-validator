@@ -1,0 +1,72 @@
+# Shortened version of function-enter.handwritten.c.yml, where entering the loop is an avoid waypoint: with x == 10
+# the loop is entered, so the execution passes the avoid waypoint and is not represented by this witness.
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "c2a8f7d1-5e6b-4a3c-9d0f-1b2e3c4d5e6f"
+    creation_time: "2026-10-19T12:00:00+02:00"
+    producer:
+      name: "hand-written"
+      version: "1.0"
+    task:
+      input_files:
+      - "function-enter.c"
+      input_file_hashes:
+        "function-enter.c": "77298c70be5b3d71ea25e491902e5768279d091559898341e3f187b736c1c299"
+      specification: "G ! call(reach_error())"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "x == 10"
+          format: "c_expression"
+        location:
+          file_name: "function-enter.c"
+          line: 10
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "avoid"
+        constraint:
+          value: "true"
+        location:
+          file_name: "function-enter.c"
+          line: 10
+          column: 5
+          function: "main"
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "false"
+        location:
+          file_name: "function-enter.c"
+          line: 10
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "function-enter.c"
+          line: 13
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "function-enter.c"
+          line: 14
+          column: 9
+          function: "main"

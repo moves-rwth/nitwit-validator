@@ -1,0 +1,20 @@
+# A non-termination witness (cycle waypoints, format 2.1), which NITWIT does not support.
+- entry_type: violation_sequence
+  metadata:
+    format_version: "2.1"
+    uuid: "f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b"
+    creation_time: "2026-10-19T12:00:00+02:00"
+    producer: {name: hand-written, version: "1.0"}
+    task:
+      input_files: [function-enter.c]
+      input_file_hashes: {function-enter.c: 77298c70be5b3d71ea25e491902e5768279d091559898341e3f187b736c1c299}
+      specification: F end
+      data_model: ILP32
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: branching
+        action: cycle
+        location: {file_name: function-enter.c, line: 10, column: 5, function: main}
+        constraint: {value: "true"}

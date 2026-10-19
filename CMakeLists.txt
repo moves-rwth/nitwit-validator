@@ -78,10 +78,15 @@ file(GLOB P_H_FILES picoc/**/*.hpp picoc/*.hpp)
 file(GLOB W_SOURCE_FILES witness/**/*.hpp witness/**/*.cpp witness/*.cpp witness/*.hpp)
 file(GLOB U_SOURCE_FILES utils/**/*.hpp utils/**/*.cpp utils/*.cpp utils/*.hpp)
 
-add_executable(nitwit32 main.cpp ${P_C_FILES} ${P_H_FILES} ${W_SOURCE_FILES} ${U_SOURCE_FILES})
+# Vendored yaml-cpp, used for parsing YAML (format 2.x) witnesses. Compiled into each executable, like pugixml.
+file(GLOB YAML_CPP_SOURCE_FILES utils/yaml-cpp/src/*.cpp utils/yaml-cpp/src/*.h)
+include_directories(utils/yaml-cpp/include)
+add_definitions(-DYAML_CPP_STATIC_DEFINE)
+
+add_executable(nitwit32 main.cpp ${P_C_FILES} ${P_H_FILES} ${W_SOURCE_FILES} ${U_SOURCE_FILES} ${YAML_CPP_SOURCE_FILES})
 set_target_properties(nitwit32 PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
 
-add_executable(nitwit64 main.cpp ${P_C_FILES} ${P_H_FILES} ${W_SOURCE_FILES} ${U_SOURCE_FILES})
+add_executable(nitwit64 main.cpp ${P_C_FILES} ${P_H_FILES} ${W_SOURCE_FILES} ${U_SOURCE_FILES} ${YAML_CPP_SOURCE_FILES})
 
 target_link_libraries(nitwit32 m)
 target_link_libraries(nitwit64 m)

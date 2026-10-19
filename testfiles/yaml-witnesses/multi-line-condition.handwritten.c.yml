@@ -1,0 +1,49 @@
+# Written like the example in the SPIN 2024 paper on witnesses 2.0: no metadata, no columns and unquoted booleans.
+# Covers assumptions holding before a declaration, the ternary operator and an if condition spanning two lines.
+- entry_type: violation_sequence
+  content:
+    - segment:
+      - waypoint:
+          action: follow
+          type: assumption
+          location:
+            file_name: multi-line-condition.c
+            line: 6
+          constraint:
+            value: x == 3
+            format: c_expression
+    - segment:
+      - waypoint:
+          action: follow
+          type: assumption
+          location:
+            file_name: multi-line-condition.c
+            line: 7
+          constraint:
+            value: (y == 4) && (x == 3)
+            format: c_expression
+    - segment:
+      - waypoint:
+          action: follow
+          type: branching
+          location:
+            file_name: multi-line-condition.c
+            line: 7
+          constraint:
+            value: true
+    - segment:
+      - waypoint:
+          action: follow
+          type: branching
+          location:
+            file_name: multi-line-condition.c
+            line: 8
+          constraint:
+            value: true
+    - segment:
+      - waypoint:
+          action: follow
+          type: target
+          location:
+            file_name: multi-line-condition.c
+            line: 10

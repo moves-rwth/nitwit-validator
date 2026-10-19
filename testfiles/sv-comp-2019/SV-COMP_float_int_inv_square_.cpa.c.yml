@@ -1,0 +1,50 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "e2c4b5e8-2eba-3d20-9f2a-31821424274d"
+    creation_time: "2026-10-19T22:57:32+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "SV-COMP_float_int_inv_square_.c"
+      input_file_hashes:
+        SV-COMP_float_int_inv_square_.c: "a23b5711430c4d7f1128ebcc1bfb9b57e287ff63a03849de7cc93dd846df1308"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(x == 2)"
+          format: "c_expression"
+        location:
+          file_name: "SV-COMP_float_int_inv_square_.c"
+          line: 14
+          column: 3
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "SV-COMP_float_int_inv_square_.c"
+          line: 6
+          column: 36
+          function: "__VERIFIER_assert"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "SV-COMP_float_int_inv_square_.c"
+          line: 6
+          column: 58
+          function: "__VERIFIER_assert"

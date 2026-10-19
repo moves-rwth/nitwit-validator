@@ -36,6 +36,8 @@ class DefaultKeyValues;
 
 struct Data;
 
+struct ViolationSequence;
+
 class ProgramState;
 
 class Node {
@@ -73,6 +75,10 @@ public:
 	std::size_t start_offset;
 	std::size_t end_offset;
 	bool enterLoopHead;
+	// Witness format 2.x: function_enter / function_return waypoints do not name the function, they match the entry
+	// into / the return from any function called at their location
+	bool enter_any_function{};
+	bool return_from_any_function{};
 
 	void print() const;
 };
@@ -118,6 +124,8 @@ struct Data {
 	std::string architecture;
 	std::string producer;
 	std::string witness_type;
+	// witness in the YAML based format 2.x (as opposed to GraphML, format 1.0)
+	bool is_yaml_format{};
 
 	void print() const;
 };
@@ -151,6 +159,9 @@ public:
 	bool isInIllegalState() const;
 
 	static std::shared_ptr<WitnessAutomaton> automatonFromWitness(std::shared_ptr<pugi::xml_document> const& doc);
+
+	// Returns nullptr if the violation sequence is invalid.
+	static std::shared_ptr<WitnessAutomaton> automatonFromYamlWitness(ViolationSequence const& sequence);
 
 	bool isInViolationState() const;
 

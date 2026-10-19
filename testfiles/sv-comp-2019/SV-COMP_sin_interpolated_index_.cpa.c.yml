@@ -1,0 +1,83 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "58ade63d-9ddc-31b9-b805-9897d0f9ca39"
+    creation_time: "2026-10-19T23:00:37+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "SV-COMP_sin_interpolated_index_.c"
+      input_file_hashes:
+        SV-COMP_sin_interpolated_index_.c: "83739d410aa204f9a414657e1a840c448fda71e9bfdeb3341b854e81045d7817"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(a == 1.8000000000000000e+02)"
+          format: "c_expression"
+        location:
+          file_name: "SV-COMP_sin_interpolated_index_.c"
+          line: 150
+          column: 3
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "false"
+        location:
+          file_name: "SV-COMP_sin_interpolated_index_.c"
+          line: 141
+          column: 3
+          function: "SIN"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "false"
+        location:
+          file_name: "SV-COMP_sin_interpolated_index_.c"
+          line: 135
+          column: 3
+          function: "SIN_POS"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "false"
+        location:
+          file_name: "SV-COMP_sin_interpolated_index_.c"
+          line: 129
+          column: 3
+          function: "SIN_180"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "SV-COMP_sin_interpolated_index_.c"
+          line: 13
+          column: 36
+          function: "__VERIFIER_assert"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "SV-COMP_sin_interpolated_index_.c"
+          line: 13
+          column: 58
+          function: "__VERIFIER_assert"

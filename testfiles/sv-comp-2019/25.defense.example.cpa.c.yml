@@ -1,0 +1,95 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "48a54021-2924-3a14-b7cd-97d9c2700d39"
+    creation_time: "2026-10-19T22:57:22+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "25.defense.example.c"
+      input_file_hashes:
+        25.defense.example.c: "171d363c841ea75289be35680cee132112d22a78a9bc2751bcddd1c8f32110e6"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(x == 2147483647)"
+          format: "c_expression"
+        location:
+          file_name: "25.defense.example.c"
+          line: 11
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "25.defense.example.c"
+          line: 12
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(b == 0)"
+          format: "c_expression"
+        location:
+          file_name: "25.defense.example.c"
+          line: 14
+          column: 9
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "false"
+        location:
+          file_name: "25.defense.example.c"
+          line: 14
+          column: 9
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "false"
+        location:
+          file_name: "25.defense.example.c"
+          line: 12
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "25.defense.example.c"
+          line: 6
+          column: 5
+          function: "__VERIFIER_assert"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "25.defense.example.c"
+          line: 6
+          column: 16
+          function: "__VERIFIER_assert"

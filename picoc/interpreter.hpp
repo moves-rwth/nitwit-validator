@@ -461,7 +461,11 @@ struct Picoc_Struct
     struct TableEntry *BreakpointHashTable[BREAKPOINT_TABLE_SIZE];
     int BreakpointCount;
     int DebugManualBreak;
-    
+    /* whether the debugger callback is also called before each statement (not only before if statements) and reports
+     * the line of the keyword for conditions of branching statements, as locations of witnesses in format 2.x refer
+     * to the start of statements: their assumptions hold before the statement, branchings are located at the keyword */
+    int DebugAtStatementStarts;
+
 	/* Verifier Error Function Name, if any */
 	const char *VerifierErrorFuncName;
     /* Whether the Error Function was called*/
@@ -535,7 +539,8 @@ namespace nitwit {
         void ParseCleanup(Picoc *pc);
         void ParserCopyPos(struct ParseState *To, struct ParseState *From);
         void ParserCopy(struct ParseState *To, struct ParseState *From);
-        void ConditionCallback(struct ParseState *Parser, bool Condition);
+        /* KeywordLine is the line of the if/while/do/for keyword, 0 for the current line */
+        void ConditionCallback(struct ParseState *Parser, bool Condition, std::size_t KeywordLine = 0);
     }
 }
 

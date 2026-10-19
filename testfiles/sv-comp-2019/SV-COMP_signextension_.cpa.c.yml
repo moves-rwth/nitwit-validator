@@ -1,0 +1,38 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "83029a70-9b9f-3fe7-97ff-6482448f5edb"
+    creation_time: "2026-10-19T23:00:35+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "SV-COMP_signextension_.c"
+      input_file_hashes:
+        SV-COMP_signextension_.c: "8d39710a9759cda6c47269dfa9f5bb850b936147cc5de34a7016f5d4f8b049c5"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "SV-COMP_signextension_.c"
+          line: 19
+          column: 3
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "SV-COMP_signextension_.c"
+          line: 25
+          column: 10
+          function: "main"

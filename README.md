@@ -1,5 +1,6 @@
 # NITWIT Validator
 A simple but fast interpreter-based violation witness validator for C code.
+It validates violation witnesses in both the GraphML based format 1.0 and the YAML based format 2.x, see [Witness format 2.x](#witness-format-2x-yaml).
 
 ## Why the name?
 The name is an acronym: iNterpretation-based vIolaTion WITness Validator
@@ -7,7 +8,7 @@ The name is an acronym: iNterpretation-based vIolaTion WITness Validator
 Since the tool does not use any advanced modelchecking techniques, there may be an error state hiding in the bushes, but NITWIT will only follow down one path.
 
 ## License
-NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.com/zsaleeba/picoc), licensed under different terms. See [`LICENSE`](LICENSE) for more information.
+NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.com/zsaleeba/picoc) and [yaml-cpp](https://github.com/jbeder/yaml-cpp), licensed under different terms. See [`LICENSE`](LICENSE) for more information.
 
 ## Prerequisites
  - Linux (for CPU + Memory measurements, though this dependency can be removed from main.cpp and compiled on any platform if required)
@@ -29,6 +30,10 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
     ```./build.sh```
  - To execute a basic test suite on the data from SV-comp 2019:
     ```./run-tests.sh cmake-build-release sv-comp-2019 __VERIFIER_error```
+ - To execute the tests for features of the witness format 2.x not covered by the witnesses above:
+    ```./run-tests.sh cmake-build-release yaml-witnesses reach_error```
+
+   Both run `nitwit32`; set `NITWIT_BINARY=nitwit64` to test the 64bit executable instead.
   
  - Then, to run a whole benchmark on a config with a 3s timeout and four parallel processes (in directory ./bench):
 	``` 
@@ -53,14 +58,34 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
 	./nitwit.sh -v
 	./nitwit.sh -w witness.graphml [-p/--property <property-file>] program.c
 	./nitwit.sh -64 -w witness.graphml program.c
+	./nitwit.sh -w witness.yml program.c
 	```
+	The witness format is detected from the content of the witness file, not from its name.
+
+## Witness format 2.x (YAML)
+NITWIT reads violation witnesses in the [witness format 2.x](https://gitlab.com/sosy-lab/benchmarking/sv-witnesses/-/blob/main/user-guide/Witness-Format.md) (versions 2.0 to 2.3, for C programs).
+The `violation_sequence` is translated into a witness automaton with one state per segment, which is then matched against the execution just like a GraphML witness:
+the follow waypoint of a segment leads to the next state, its avoid waypoints lead to the sink state, and the target waypoint of the last segment leads to the violation state.
+
+ - `assumption` waypoints have to hold before the statement starting in their line is executed. As with GraphML witnesses, an equality like `x == 5` for a variable holding a nondeterministic value resolves the value.
+ - `branching` waypoints are matched at the line of the `if`/`while`/`do`/`for` keyword (or the `?` of a conditional operator), even if the condition spans several lines. Branchings of `switch` statements are only matched by their line.
+ - `function_enter` and `function_return` waypoints match the entry into and the return from any function called in their line. The `\result` constraint of a `function_return` waypoint resolves the value returned by `__VERIFIER_nondet_X()`; relations other than `==` to an integer constant are replaced by an equality with a value satisfying them (e.g. `\result > 5` becomes `\result == 6`). For other functions, the constraint is not checked.
+ - `target` waypoints are matched in their line; as for GraphML witnesses, the validation succeeds when the error function is called.
+
+Deviations from the format and limitations:
+ - Locations are matched by their line only, columns are ignored. Several waypoints in the same line are distinguished by the order of their segments.
+ - As for GraphML witnesses, a follow waypoint does not have to be passed the first time it is evaluated: the automaton stays in its state until the waypoint matches.
+ - `avoid` waypoints of type `assumption` or `function_return` are ignored, as checking their constraint might resolve nondeterministic values.
+ - The `metadata` of the witness (e.g. `data_model`, the architecture is chosen by the option `-32`/`-64` of `nitwit.sh` instead), `file_name` and the `format` of constraints are not checked.
+ - NITWIT does not search for values the witness does not provide. For example, the 2.x witnesses of CPAchecker do not contain the values of nondeterministic calls used directly in a condition or of uninitialized variables, so NITWIT executes such programs with default values.
+ - Witnesses NITWIT cannot validate result in UNKNOWN (code 4): correctness witnesses (`invariant_set`, `ghost_instrumentation`), `cycle` waypoints (non-termination), waypoints of threads other than the main thread (`thread_id`) and segments with several target waypoints (data races).
 
 ## Output codes
  - 0   -> Successful validation. Violation found.
  - 1   -> (Not in use anymore.)
- - 2   -> Parsing witness failed (file not found).
+ - 2   -> Parsing witness failed (file not found, malformed or invalid witness).
  - 3   -> Usage error (wrong arguments).
- - 4   -> Unspecified, probably failed in parsing C.
+ - 4   -> Unspecified, probably failed in parsing C. Also used for witnesses that are not violation witnesses or use unsupported features.
  - 5   -> Witness reached an error state, but the error function was not called (deprecated, code 250 instead).
 
 ### Some more specific exit codes

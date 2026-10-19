@@ -1,0 +1,50 @@
+# Format 2.1 witness pinning every nondeterministic value by function_return waypoints (like Symbiotic does), with
+# relational "\result" constraints in both operand orders and two calls in the same line. Written partly in flow style.
+- entry_type: violation_sequence
+  metadata:
+    format_version: "2.1"
+    uuid: "5d1f6c33-8f0e-4b7e-9a51-6f2b8a0d4c11"
+    creation_time: "2026-10-19T12:00:00+02:00"
+    producer: {name: hand-written, version: "1.0"}
+    task:
+      input_files: [function-return.c]
+      input_file_hashes: {function-return.c: d58b17f3a8bb0c6c69737662ccacb2edaf3072ec9a4514c02c6e6e42e68045e8}
+      specification: G ! call(reach_error())
+      data_model: ILP32
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location: {file_name: function-return.c, line: 6, column: 35, function: main}
+        constraint: {value: '\result > 5', format: ext_c_expression}
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location: {file_name: function-return.c, line: 7, column: 35, function: main}
+        constraint: {value: '(\result != 0)', format: ext_c_expression}
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location: {file_name: function-return.c, line: 7, column: 68, function: main}
+        constraint: {value: '-3 > \result', format: acsl_expression}
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location: {file_name: function-return.c, line: 8, column: 47, function: main}
+        constraint: {value: '\result >= 255U', format: ext_c_expression}
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        location: {file_name: function-return.c, line: 9, column: 5, function: main}
+        constraint: {value: "true"}
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location: {file_name: function-return.c, line: 10, column: 9, function: main}

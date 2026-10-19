@@ -1,0 +1,50 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "223f0883-60c3-3101-aa32-a55eed0220a2"
+    creation_time: "2026-10-19T22:57:23+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "26.falsifier.c"
+      input_file_hashes:
+        26.falsifier.c: "a4ab5ab436ea2a1b0aaec13fde478b547a7049956fa0186d97c561c7300aa747"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(i == 0)"
+          format: "c_expression"
+        location:
+          file_name: "26.falsifier.c"
+          line: 7
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "26.falsifier.c"
+          line: 7
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "26.falsifier.c"
+          line: 8
+          column: 9
+          function: "main"

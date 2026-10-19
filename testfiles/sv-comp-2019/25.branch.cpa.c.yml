@@ -1,0 +1,50 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "cdba3caf-622e-37ca-b94d-d2202508f830"
+    creation_time: "2026-10-19T22:57:21+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "25.branch.c"
+      input_file_hashes:
+        25.branch.c: "086ae4569f3a15be84770cd3c2f90026f715dadeda62ff73d8da8fda8d9d428b"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "(i == 27)"
+          format: "c_expression"
+        location:
+          file_name: "25.branch.c"
+          line: 7
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "25.branch.c"
+          line: 7
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "25.branch.c"
+          line: 8
+          column: 9
+          function: "main"

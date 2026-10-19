@@ -1,0 +1,38 @@
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "0cd110b3-2053-32c2-a452-8375f256ced7"
+    creation_time: "2026-10-19T22:55:47+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.2.2"
+      configuration: "svcomp25"
+    task:
+      input_files:
+      - "17.ternary.c"
+      input_file_hashes:
+        17.ternary.c: "bd936334d64183c594c2a83bc4bf47c5a4fdc3da00373d4a546929c9f92a3ed3"
+      specification: "CHECK( init(main()), LTL(G ! call(__VERIFIER_error())) )"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "17.ternary.c"
+          line: 23
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "17.ternary.c"
+          line: 24
+          column: 9
+          function: "main"

@@ -179,6 +179,14 @@ bool satisfiesAssumptionsAndResolve(ParseState *state, const std::shared_ptr<Edg
 	return true;
 }
 
+// Whether the state is right after the return from one of the __VERIFIER_nondet_X() intrinsics, whose return value can
+// be resolved by an assumption of the form "\result == <constant>".
+bool returnedFromNondetFunction(ParseState const* state) {
+	static char const* const nondetPrefix = "__VERIFIER_nondet_";
+	return state->ReturnFromFunction != nullptr && state->SkipIntrinsic && state->LastNonDetValue != nullptr &&
+		   strncmp(state->ReturnFromFunction, nondetPrefix, strlen(nondetPrefix)) == 0;
+}
+
 bool WitnessAutomaton::canTransitionFurther() {
 	if (current_state == nullptr || this->isInIllegalState()) {
 		this->illegal_state = true;
@@ -256,12 +264,22 @@ bool WitnessAutomaton::consumeState(ParseState *state, bool isMultiLineDeclarati
 		cw_verbose("Edge line constraints do match, (start_line = %zu <= %zu and %zu <= %zu = end_line) or (isMultiLineDeclaration = %i and state->Line = %zu <= %zu = start_line && end_line = %zu <= %zu = endLine) for assumption '%s'.\n", edge->start_line, state->Line, state->Line, edge->end_line, isMultiLineDeclaration ? 1 : 0, state->Line, edge->start_line, edge->end_line, endLine, edge->assumption.c_str());
 #endif
 
+		// Witness format 2.x: function_enter / function_return waypoints match the entry into / the return from any
+		// function. Checked before the assumption, as checking the "\result" assumption of a function_return waypoint
+		// resolves the value returned by the last nondeterministic function.
+		if ((edge->enter_any_function && state->EnterFunction == nullptr) || (edge->return_from_any_function && state->ReturnFromFunction == nullptr)) {
+			continue;
+		}
+		// The "\result" constraint of a function_return waypoint can only be used for resolving the value returned by
+		// a __VERIFIER_nondet_X() function, the return values of all other functions are determined by the execution.
+		bool const checkAssumption = !edge->assumption.empty() && (!edge->return_from_any_function || returnedFromNondetFunction(state));
+
 		// check assumption
 		cw_verbose("About to check assumption '%s'.\n", edge->assumption.c_str());
-		if (!edge->assumption.empty() && !satisfiesAssumptionsAndResolve(state, edge)) {
+		if (checkAssumption && !satisfiesAssumptionsAndResolve(state, edge)) {
 			cw_verbose("Unmet assumption '%s'.\n", edge->assumption.c_str());
 			continue;
-		} else if (!edge->assumption.empty()) {
+		} else if (checkAssumption) {
 			cw_verbose("Assumption '%s' satisfied.\n", edge->assumption.c_str());
 		}
 

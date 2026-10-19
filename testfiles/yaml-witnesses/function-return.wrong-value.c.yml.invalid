@@ -1,0 +1,49 @@
+# Like function-return.handwritten.c.yml, but a = 5 does not lead to the violation.
+- entry_type: violation_sequence
+  metadata:
+    format_version: "2.1"
+    uuid: "0b7e2b55-1c4a-4f61-8e0e-0d6f3b3f9a27"
+    creation_time: "2026-10-19T12:00:00+02:00"
+    producer: {name: hand-written, version: "1.0"}
+    task:
+      input_files: [function-return.c]
+      input_file_hashes: {function-return.c: d58b17f3a8bb0c6c69737662ccacb2edaf3072ec9a4514c02c6e6e42e68045e8}
+      specification: G ! call(reach_error())
+      data_model: ILP32
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location: {file_name: function-return.c, line: 6, column: 35, function: main}
+        constraint: {value: '\result <= 5', format: ext_c_expression}
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location: {file_name: function-return.c, line: 7, column: 35, function: main}
+        constraint: {value: '\result == 1', format: ext_c_expression}
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location: {file_name: function-return.c, line: 7, column: 68, function: main}
+        constraint: {value: '\result == -4', format: ext_c_expression}
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location: {file_name: function-return.c, line: 8, column: 47, function: main}
+        constraint: {value: '\result == 255', format: ext_c_expression}
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        location: {file_name: function-return.c, line: 9, column: 5, function: main}
+        constraint: {value: "true"}
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location: {file_name: function-return.c, line: 10, column: 9, function: main}

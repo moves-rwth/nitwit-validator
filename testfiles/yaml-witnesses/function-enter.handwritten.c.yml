@@ -1,0 +1,105 @@
+# Format 2.0 witness with an assumption before a loop, the loop iterations as consecutive branching waypoints at the
+# same location, and function_enter / function_return waypoints for a call of a function defined in the program.
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "9a3c0e8e-2d7b-4c1e-b6f4-3e5a1d7c8b90"
+    creation_time: "2026-10-19T12:00:00+02:00"
+    producer:
+      name: "hand-written"
+      version: "1.0"
+    task:
+      input_files:
+      - "function-enter.c"
+      input_file_hashes:
+        "function-enter.c": "77298c70be5b3d71ea25e491902e5768279d091559898341e3f187b736c1c299"
+      specification: "G ! call(reach_error())"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "x == 10"
+          format: "c_expression"
+        location:
+          file_name: "function-enter.c"
+          line: 10
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "function-enter.c"
+          line: 10
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "function-enter.c"
+          line: 10
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "false"
+        location:
+          file_name: "function-enter.c"
+          line: 10
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "function_enter"
+        action: "follow"
+        location:
+          file_name: "function-enter.c"
+          line: 13
+          column: 16
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "function_return"
+        action: "follow"
+        constraint:
+          value: "\\result == 1"
+          format: "acsl_expression"
+        location:
+          file_name: "function-enter.c"
+          line: 13
+          column: 16
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "function-enter.c"
+          line: 13
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "function-enter.c"
+          line: 14
+          column: 9
+          function: "main"

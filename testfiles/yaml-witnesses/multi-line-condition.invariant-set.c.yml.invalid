@@ -1,0 +1,19 @@
+# A correctness witness, which NITWIT has to reject as it only validates violation witnesses.
+- entry_type: invariant_set
+  metadata:
+    format_version: "2.1"
+    uuid: "e4b1c9a2-7f3d-4e8a-b5c6-0d1e2f3a4b5c"
+    creation_time: "2026-10-19T12:00:00+02:00"
+    producer: {name: hand-written, version: "1.0"}
+    task:
+      input_files: [multi-line-condition.c]
+      input_file_hashes: {multi-line-condition.c: 736f81dd91efe5e5aadb41fe039fb1d864cc361e8a765476e57b86a66344adad}
+      specification: G ! call(reach_error())
+      data_model: ILP32
+      language: C
+  content:
+  - invariant:
+      type: location_invariant
+      location: {file_name: multi-line-condition.c, line: 8, column: 5, function: main}
+      value: z == 0 || x == 3
+      format: c_expression
