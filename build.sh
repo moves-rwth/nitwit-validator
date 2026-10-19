@@ -52,6 +52,7 @@ else
   # Submission Archive
   mkdir -p submission/nitwit/bin
   mkdir -p submission/nitwit/picoc
+  mkdir -p submission/nitwit/smoketest
 
   cp cmake-build-release/nitwit32 submission/nitwit/bin/
   cp cmake-build-release/nitwit64 submission/nitwit/bin/
@@ -59,13 +60,17 @@ else
   cp picoc/LICENSE submission/nitwit/picoc/
   cp nitwit.sh submission/nitwit/
   cp README.md submission/nitwit/
-  
+  cp smoketest.sh submission/nitwit/
+  cp smoketest/* submission/nitwit/smoketest/
+
   # Should the file be in DOS format, we need to ensure it being converted
   dos2unix submission/nitwit/nitwit.sh
+  dos2unix submission/nitwit/smoketest.sh
 
   chmod +x submission/nitwit/bin/nitwit32
   chmod +x submission/nitwit/bin/nitwit64
   chmod +x submission/nitwit/nitwit.sh
+  chmod +x submission/nitwit/smoketest.sh
 
   pushd submission
   zip -r val_nitwit.zip nitwit

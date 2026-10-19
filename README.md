@@ -28,6 +28,8 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
   For building NITWIT, we require support for compiling 32bit applications on 64bit systems, so packages like `gcc-multilib` and `g++-multilib` are necessary.
  - To build (in the root directory):
     ```./build.sh```
+
+   The release build also creates the submission archive `submission/val_nitwit.zip`, whose `smoketest.sh` validates a small witness to check that the archive works.
  - To execute a basic test suite on the data from SV-comp 2019:
     ```./run-tests.sh cmake-build-release sv-comp-2019 __VERIFIER_error```
  - To execute the tests for features of the witness format 2.x not covered by the witnesses above:

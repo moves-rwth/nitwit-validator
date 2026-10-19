@@ -9,5 +9,5 @@ fi
 ./build.sh
 
 mkdir nitwit
-cp --parent nitwit.sh bin/nitwit* LICENSE picoc/LICENSE README.md nitwit/.
+cp --parent nitwit.sh bin/nitwit* LICENSE picoc/LICENSE README.md smoketest.sh smoketest/* nitwit/.
 zip -r val_nitwit.zip nitwit/*
