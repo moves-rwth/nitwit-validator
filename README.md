@@ -8,7 +8,7 @@ The name is an acronym: iNterpretation-based vIolaTion WITness Validator
 Since the tool does not use any advanced modelchecking techniques, there may be an error state hiding in the bushes, but NITWIT will only follow down one path.
 
 ## License
-NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.com/zsaleeba/picoc) and [yaml-cpp](https://github.com/jbeder/yaml-cpp), licensed under different terms. See [`LICENSE`](LICENSE) for more information.
+NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.com/zsaleeba/picoc), [pugixml](https://pugixml.org/) and [yaml-cpp](https://github.com/jbeder/yaml-cpp), licensed under different terms. See [`LICENSE`](LICENSE) for more information.
 
 ## Prerequisites
  - Linux (for CPU + Memory measurements, though this dependency can be removed from main.cpp and compiled on any platform if required)
