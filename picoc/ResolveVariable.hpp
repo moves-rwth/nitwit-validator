@@ -13,6 +13,10 @@ template<typename NonDetType, typename DetType>
 bool CheckAndResolveVariable(ParseState* Parser, Value* NonDetValue, Value* DetValue, LexToken const& Op) {
     if (TypeIsNonDeterministic(NonDetValue->Typ) != TypeIsNonDeterministic(DetValue->Typ)) {
         /* one of the values is nondet */
+        if (!Parser->pc->ResolveNonDetInAssumptions) {
+            /* the assumption does not hold, this ends its evaluation (assumptions are evaluated in assumption mode) */
+            PlatformExit(Parser->pc, 0);
+        }
         char* Identifier = NonDetValue->VarIdentifier;
 
         /* nondet resolution */

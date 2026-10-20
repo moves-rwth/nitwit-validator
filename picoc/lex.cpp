@@ -2,6 +2,8 @@
 
 #include "interpreter.hpp"
 
+#include <vector>
+
 namespace nitwit {
     namespace lex {
 
@@ -26,7 +28,8 @@ namespace nitwit {
 
 #define LEXER_INC(l) ( (l)->Pos++, (l)->CharacterPos++ )
 #define LEXER_INCN(l, n) ( (l)->Pos+=(n), (l)->CharacterPos+=(n) )
-#define TOKEN_DATA_OFFSET 2
+/* each token is stored as its token byte, the column it starts in (unsigned short) and its value, if any */
+#define TOKEN_DATA_OFFSET static_cast<int>(1 + sizeof(unsigned short))
 
 #define MAX_CHAR_VALUE 255      /* maximum value which can be represented by a "char" data type */
 
@@ -322,8 +325,10 @@ LexToken LexGetWord(Picoc *pc, LexState *Lexer, Value *Value)
             // just ignore the __attributes__
             for (; Lexer->Pos != Lexer->End && *Lexer->Pos != ';'
                     ; LEXER_INC(Lexer)) {
-                if (*Lexer->Pos == '\n')
+                if (*Lexer->Pos == '\n') {
                     ++Lexer->EmitExtraNewlines;
+                    Lexer->CharacterPos = 0; /* the next character is in column 1 */
+                }
             }
             return TokenSemicolon;
         case TokenPragma:
@@ -421,7 +426,7 @@ LexToken LexGetStringConstant(Picoc *pc, LexState *Lexer, Value *Value, char End
             {
                 Lexer->Line++;
                 Lexer->Pos++;
-                Lexer->CharacterPos = 0;
+                Lexer->CharacterPos = 1;
                 Lexer->EmitExtraNewlines++;
             }
 
@@ -483,8 +488,10 @@ void LexSkipComment(LexState *Lexer, char NextChar, LexToken *ReturnToken)
         /* conventional C comment */
         while (Lexer->Pos != Lexer->End && (*(Lexer->Pos-1) != '*' || *Lexer->Pos != '/'))
         {
-            if (*Lexer->Pos == '\n')
+            if (*Lexer->Pos == '\n') {
                 Lexer->EmitExtraNewlines++;
+                Lexer->CharacterPos = 0; /* the next character is in column 1 */
+            }
 
             LEXER_INC(Lexer);
         }
@@ -527,7 +534,7 @@ LexToken LexScanGetToken(Picoc *pc, LexState *Lexer, Value **Value)
                 Lexer->Line++;
                 Lexer->Pos++;
                 Lexer->Mode = LexModeNormal;
-                Lexer->CharacterPos = 0;
+                Lexer->CharacterPos = 1;
                 return TokenEndOfLine;
             }
             else if (Lexer->Mode == LexModeHashDefine || Lexer->Mode == LexModeHashDefineSpace)
@@ -539,6 +546,7 @@ LexToken LexScanGetToken(Picoc *pc, LexState *Lexer, Value **Value)
             LEXER_INC(Lexer);
         }
 
+        Lexer->TokenColumn = Lexer->CharacterPos;
         if (Lexer->Pos == Lexer->End || *Lexer->Pos == '\0')
             return TokenEOF;
 
@@ -622,50 +630,38 @@ void *LexTokenise(Picoc *pc, LexState *Lexer, int *TokenLen)
     LexToken Token;
     void *HeapMem;
     Value *GotValue;
-    int MemUsed = 0;
+    int MemUsed;
     int ValueSize;
-    int ReserveSpace = (Lexer->End - Lexer->Pos) * 4 + 16;
-    void *TokenSpace = HeapAllocStack(pc, ReserveSpace);
-    char *TokenPos = (char *)TokenSpace;
-    int LastCharacterPos = 0;
-
-    if (TokenSpace == nullptr)
-        LexFail(pc, Lexer, "out of memory");
+    /* a token with its value can take more bytes than its source text, so the buffer has to grow as needed */
+    std::vector<unsigned char> TokenSpace;
+    TokenSpace.reserve((Lexer->End - Lexer->Pos) * 4 + 16);
 
     do {
-        /* store the token at the end of the stack area */
         Token = LexScanGetToken(pc, Lexer, &GotValue);
 
 #ifdef DEBUG_LEXER
         printf("Token: %02x\n", Token);
 #endif
-        *(unsigned char *)TokenPos = Token;
-        TokenPos++;
-        MemUsed++;
+        TokenSpace.push_back(static_cast<unsigned char>(Token));
 
-        *(unsigned char *)TokenPos = (unsigned char)LastCharacterPos;
-        TokenPos++;
-        MemUsed++;
+        /* the column the token starts in (1-based), see LexGetToken */
+        unsigned short Column = static_cast<unsigned short>(Lexer->TokenColumn > 0xFFFF ? 0xFFFF : Lexer->TokenColumn);
+        TokenSpace.insert(TokenSpace.end(), reinterpret_cast<unsigned char *>(&Column), reinterpret_cast<unsigned char *>(&Column) + sizeof(Column));
 
         ValueSize = LexTokenSize(Token);
         if (ValueSize > 0) {
             /* store a value as well */
-            memcpy((void *)TokenPos, (void *)GotValue->Val, ValueSize);
-            TokenPos += ValueSize;
-            MemUsed += ValueSize;
+            unsigned char *ValueBytes = reinterpret_cast<unsigned char *>(GotValue->Val);
+            TokenSpace.insert(TokenSpace.end(), ValueBytes, ValueBytes + ValueSize);
         }
-
-        LastCharacterPos = Lexer->CharacterPos;
-
     } while (Token != TokenEOF);
 
+    MemUsed = static_cast<int>(TokenSpace.size());
     HeapMem = HeapAllocMem(pc, MemUsed);
     if (HeapMem == nullptr)
         LexFail(pc, Lexer, "out of memory");
 
-    assert(ReserveSpace >= MemUsed);
-    memcpy(HeapMem, TokenSpace, MemUsed);
-    HeapPopStack(pc, TokenSpace, ReserveSpace);
+    memcpy(HeapMem, TokenSpace.data(), MemUsed);
 #ifdef DEBUG_LEXER
     {
         int Count;
@@ -693,6 +689,7 @@ void *LexAnalyse(Picoc *pc, const char *FileName, const char *Source, int Source
     Lexer.Mode = LexModeNormal;
     Lexer.EmitExtraNewlines = 0;
     Lexer.CharacterPos = 1;
+    Lexer.TokenColumn = 1;
     Lexer.SourceText = Source;
 
     return LexTokenise(pc, &Lexer, TokenLen);
@@ -804,7 +801,9 @@ LexToken LexGetRawToken(ParseState *Parser, Value **Value, bool IncPos)
         }
     } while ((Parser->FileName == pc->StrEmpty && Token == TokenEOF) || Token == TokenEndOfLine);
 
-    Parser->CharacterPos = *((unsigned char *)Parser->Pos + 1);
+    unsigned short Column;
+    memcpy(&Column, Parser->Pos + 1, sizeof(Column));
+    Parser->CharacterPos = Column;
     ValueSize = LexTokenSize(Token);
     if (ValueSize > 0) {
         /* this token requires a value - unpack it */

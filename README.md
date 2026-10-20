@@ -66,20 +66,25 @@ NITWIT is governed by the New BSD license, but includes [PicoC](https://gitlab.c
 
 ## Witness format 2.x (YAML)
 NITWIT reads violation witnesses in the [witness format 2.x](https://gitlab.com/sosy-lab/benchmarking/sv-witnesses/-/blob/main/user-guide/Witness-Format.md) (versions 2.0 to 2.3, for C programs).
-The `violation_sequence` is translated into a witness automaton with one state per segment, which is then matched against the execution just like a GraphML witness:
+The `violation_sequence` is translated into a witness automaton with one state per segment:
 the follow waypoint of a segment leads to the next state, its avoid waypoints lead to the sink state, and the target waypoint of the last segment leads to the violation state.
+Each waypoint is evaluated at its evaluation point, which is given by its type, line and column (if the column is missing, the first suitable position in the line):
 
- - `assumption` waypoints have to hold before the statement starting in their line is executed. As with GraphML witnesses, an equality like `x == 5` for a variable holding a nondeterministic value resolves the value.
- - `branching` waypoints are matched at the line of the `if`/`while`/`do`/`for` keyword (or the `?` of a conditional operator), even if the condition spans several lines. Branchings of `switch` statements are only matched by their line.
- - `function_enter` and `function_return` waypoints match the entry into and the return from any function called in their line. The `\result` constraint of a `function_return` waypoint resolves the value returned by `__VERIFIER_nondet_X()`; relations other than `==` to an integer constant are replaced by an equality with a value satisfying them (e.g. `\result > 5` becomes `\result == 6`). For other functions, the constraint is not checked.
- - `target` waypoints are matched in their line; as for GraphML witnesses, the validation succeeds when the error function is called.
+ - `assumption` waypoints are evaluated before the statement starting at their location. As with GraphML witnesses, an equality like `x == 5` for a variable holding a nondeterministic value resolves the value.
+ - `branching` waypoints are evaluated after the condition of the `if`/`while`/`do`/`for` statement whose keyword is at their location, even if the condition spans several lines. For a `switch` statement, the case value is checked before the statement as an assumption `<controlling expression> == <value>` (`default` is not checked).
+ - `function_enter` waypoints are evaluated after the arguments of the call whose closing parenthesis is at their location, `function_return` waypoints after the call returned. The `\result` constraint of a `function_return` waypoint resolves the value returned by `__VERIFIER_nondet_X()`; relations other than `==` to an integer constant are replaced by an equality with a value satisfying them (e.g. `\result > 5` becomes `\result == 6`). For other functions, the constraint is not checked.
+ - `target` waypoints are matched before the statement at their location. The witness is confirmed when the error function is called after its target has been reached.
+
+A follow waypoint has to pass the first time its evaluation point is reached, and an avoid waypoint must not pass when it is evaluated (after the follow waypoint at the same evaluation point); otherwise the witness does not describe the execution and the automaton goes to the sink state.
+Avoid waypoints are checked without resolving nondeterministic values, except that the value returned by `__VERIFIER_nondet_X()` at an avoid `function_return` waypoint is chosen such that the waypoint does not pass.
+If the error function is called but the witness was not followed to its target, NITWIT reports code 252 instead of confirming the violation.
 
 Deviations from the format and limitations:
- - Locations are matched by their line only, columns are ignored. Several waypoints in the same line are distinguished by the order of their segments.
- - As for GraphML witnesses, a follow waypoint does not have to be passed the first time it is evaluated: the automaton stays in its state until the waypoint matches.
- - `avoid` waypoints of type `assumption` or `function_return` are ignored, as checking their constraint might resolve nondeterministic values.
+ - The position of a `?:` operator is not known, so its branching waypoints are matched by their line only and are not rejected when they do not pass.
+ - Several waypoints evaluated before the same statement may pass at the same time (e.g. assumptions about several nondeterministic values); such a waypoint is not rejected there, as it might belong to a later execution of the statement.
  - The `metadata` of the witness (e.g. `data_model`, the architecture is chosen by the option `-32`/`-64` of `nitwit.sh` instead), `file_name` and the `format` of constraints are not checked.
- - NITWIT does not search for values the witness does not provide. For example, the 2.x witnesses of CPAchecker do not contain the values of nondeterministic calls used directly in a condition or of uninitialized variables, so NITWIT executes such programs with default values.
+ - Some producers write `\result` into double quoted YAML strings, where `\r` is a carriage return; NITWIT repairs such constraints.
+ - NITWIT does not search for values the witness does not provide. For example, the 2.x witnesses of Automizer, Taipan and Kojak contain no values at all, and those of CPAchecker do not contain the values of nondeterministic calls used directly in a condition or of uninitialized variables. NITWIT executes such programs with default values, so a branching waypoint that depends on such a value often does not pass and the witness is rejected.
  - Witnesses NITWIT cannot validate result in UNKNOWN (code 4): correctness witnesses (`invariant_set`, `ghost_instrumentation`), `cycle` waypoints (non-termination), waypoints of threads other than the main thread (`thread_id`) and segments with several target waypoints (data races).
 
 ## Output codes
@@ -103,6 +108,7 @@ Deviations from the format and limitations:
  - 249 -> Bad function definition.
  - 250 -> Witness reached an error state, but error function was not called.
  - 251 -> Out of memory.
+ - 252 -> The error function was called, but the witness (format 2.x) was not followed to its target.
  - 255 -> Wrapper script error.
 
 ## Docker

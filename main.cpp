@@ -1,6 +1,8 @@
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 
 #include "picoc/picoc.hpp"
 
@@ -29,6 +31,7 @@ int ASSERTION_FAILED = 248;
 int BAD_FUNCTION_DEF = 249;
 int UNVALIDATED_VIOLATION = 250;
 int OUT_OF_MEMORY = 251;
+int VIOLATION_OUTSIDE_OF_WITNESS = 252;
 
 void process_resource_usage(double &mem, double &cpu);
 
@@ -154,7 +157,10 @@ int main(int argc, char **argv) {
 			std::cout << "UNKNOWN: NITWIT does not support " << unsupported << "." << std::endl;
 			return RESULT_UNKNOWN;
 		}
-		wit_aut = WitnessAutomaton::automatonFromYamlWitness(yamlWitness.violation_sequence);
+		std::ifstream programStream(argv[2]);
+		std::stringstream programSource;
+		programSource << programStream.rdbuf();
+		wit_aut = WitnessAutomaton::automatonFromYamlWitness(yamlWitness.violation_sequence, programSource.str());
 	} else {
 		auto doc = parseGraphmlWitness(argv[1]);
 		if (doc == nullptr) {
@@ -216,6 +222,10 @@ int main(int argc, char **argv) {
 		if (wit_aut->isInViolationState()) {
 			std::cout << "VALIDATED: The state '" << wit_aut->getCurrentState()->id << "' has been reached. The state is a violation state." << std::endl;
 			exit_value = 0;
+		} else if (wit_aut->getData().is_yaml_format) {
+			// Witness format 2.x: the violation has to happen once the target waypoint is reached
+			std::cout << "FAILED: The error function '" << argv[3] << "' was called, but the witness was not followed to its target, the state '" << wit_aut->getCurrentState()->id << "' has been reached." << std::endl;
+			exit_value = VIOLATION_OUTSIDE_OF_WITNESS;
 		} else {
 #ifdef STRICT_VALIDATION
 			std::cout << "FAILED: The error function '" << argv[3] << "' was called and the state '" << wit_aut->getCurrentState()->id << "' has been reached. However, this state is NOT a violation state. (strict mode)" << std::endl;

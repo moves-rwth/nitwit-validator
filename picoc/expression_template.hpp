@@ -1706,7 +1706,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
         /* if we're debugging, check for a breakpoint */
         if (Parser->DebugMode && Parser->Mode == RunMode::RunModeRun) {
             debugf(EXPR_TEMPLATE_STRING_PREFIX "Performing debug check before ExpressionParse() run.\n");
-            DebugCheckStatement(Parser, false, 0);
+            DebugCheckStatement(Parser, false, 0, DebugCheckPoint::AfterExpression);
         }
 #endif
 
@@ -1925,7 +1925,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
                 if (Parser->DebugMode && RunIt) {
                     Parser->EnterFunction = FuncName;
                     debugf(EXPR_TEMPLATE_STRING_PREFIX "Performing debug check before parsing function call.\n");
-                    DebugCheckStatement(Parser, false, 0);
+                    DebugCheckStatement(Parser, false, 0, DebugCheckPoint::BeforeCall);
                     Parser->EnterFunction = nullptr;
                 }
 #endif
@@ -1935,7 +1935,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
 #ifndef EXPR_TEMPLATE_VIA_ASSUMPTIONS
                 if (Parser->DebugMode && Parser->Mode == RunMode::RunModeRun) {
                     debugf(EXPR_TEMPLATE_STRING_PREFIX "Performing debug check after returning from function call.\n");
-                    DebugCheckStatement(Parser, false, 0);
+                    DebugCheckStatement(Parser, false, 0, DebugCheckPoint::AfterCall);
                     Parser->ReturnFromFunction = nullptr;
                 }
 #endif
@@ -2087,7 +2087,7 @@ int ExpressionParse(struct ParseState *Parser, Value **Result)
     /* After parsing an expression, now all of the assignments would be finished -> important for assumptions. */
     if (Parser->DebugMode && Parser->Mode == RunMode::RunModeRun) {
         debugf(EXPR_TEMPLATE_STRING_PREFIX "Performing debug check after ExpressionParse() run.\n");
-        DebugCheckStatement(Parser, false, 0);
+        DebugCheckStatement(Parser, false, 0, DebugCheckPoint::AfterExpression);
     }
 #endif
     Parser->ReturnFromFunction = nullptr;
@@ -2262,6 +2262,14 @@ void ExpressionParseFunctionCall(struct ParseState *Parser, struct ExpressionSta
 
     if (RunIt)
     {
+#ifndef EXPR_TEMPLATE_VIA_ASSUMPTIONS
+        /* witness format 2.x: a function is entered after its arguments are evaluated, the position is the closing
+         * parenthesis of the call, which has just been read */
+        if (Parser->DebugMode && Parser->pc->DebugAtStatementStarts) {
+            Parser->EnterFunction = FuncName;
+            DebugCheckStatement(Parser, false, 0, DebugCheckPoint::AfterArguments);
+        }
+#endif
         Parser->EnterFunction = nullptr; // remove the enter function identifier before call
         /* run the function */
         if (ArgCount < FuncValue->Val->FuncDef.NumParams)

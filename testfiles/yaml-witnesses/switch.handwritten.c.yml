@@ -1,0 +1,37 @@
+# Format 2.1 witness for switch statements: the case values give the values of the nondeterministic variables, and the
+# avoid waypoint for case 1 must only reject executions that take case 1.
+- entry_type: violation_sequence
+  metadata:
+    format_version: "2.1"
+    uuid: "0d6c1f0e-3a5b-4c8d-9e2f-7a1b3c5d7e9f"
+    creation_time: "2026-10-20T12:00:00+02:00"
+    producer: {name: hand-written, version: "1.0"}
+    task:
+      input_files: [switch.c]
+      input_file_hashes: {switch.c: 2e36a11e1c67e5e9c9e6d8f280c30c2d4dcdd5223e09c52334a211f794e34cff}
+      specification: G ! call(reach_error())
+      data_model: ILP32
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: branching
+        action: avoid
+        location: {file_name: switch.c, line: 8, column: 5, function: main}
+        constraint: {value: "1"}
+    - waypoint:
+        type: branching
+        action: follow
+        location: {file_name: switch.c, line: 8, column: 5, function: main}
+        constraint: {value: "2"}
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        location: {file_name: switch.c, line: 12, column: 9, function: main}
+        constraint: {value: "3"}
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location: {file_name: switch.c, line: 14, column: 13, function: main}

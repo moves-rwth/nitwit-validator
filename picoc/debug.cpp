@@ -96,10 +96,11 @@ int DebugClearBreakpoint(struct ParseState *Parser)
 }
 
 /* before we run a statement, check if there's anything we have to do with the debugger here */
-void DebugCheckStatement(struct ParseState *Parser, bool wasMultiLineDeclaration, std::size_t const& lastLine)
+void DebugCheckStatement(struct ParseState *Parser, bool wasMultiLineDeclaration, std::size_t const& lastLine, DebugCheckPoint Point)
 {
     if (Parser->DebuggerCallback != nullptr)
     {
+        Parser->pc->CheckPoint = Point;
         Parser->DebuggerCallback(Parser, wasMultiLineDeclaration, lastLine);
     }
 }

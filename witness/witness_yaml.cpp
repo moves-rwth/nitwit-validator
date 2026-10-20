@@ -57,6 +57,20 @@ namespace {
 		return scalarToString(map[key], context + "." + key);
 	}
 
+	void replaceAll(std::string& s, std::string const& from, std::string const& to) {
+		for (std::size_t pos = s.find(from); pos != std::string::npos; pos = s.find(from, pos + to.size())) {
+			s.replace(pos, from.size(), to);
+		}
+	}
+
+	// Some producers write "\result" or "\at" into double quoted YAML strings, where "\r" and "\a" are escape
+	// sequences for a carriage return and a bell, so a correct YAML parser returns "<CR>esult" and "<BEL>t".
+	std::string repairEscapes(std::string value) {
+		replaceAll(value, "\result", "\\result");
+		replaceAll(value, "\at(", "\\at(");
+		return value;
+	}
+
 	WaypointType parseWaypointType(std::string const& type, std::string const& context) {
 		if (type == "assumption") {
 			return WaypointType::Assumption;
@@ -96,13 +110,16 @@ namespace {
 		if (w.location.line == 0) {
 			throw std::runtime_error(locationContext + ".line must be at least 1");
 		}
+		if (hasKey(location, "column")) {
+			w.location.column = location["column"].as<std::size_t>();
+		}
 		w.location.function = getOptionalString(location, "function", locationContext);
 
 		if (hasKey(node, "constraint")) {
 			std::string const constraintContext = context + ".constraint";
 			YAML::Node const constraint = requireMap(node["constraint"], constraintContext);
 			w.has_constraint = true;
-			w.constraint_value = getRequiredString(constraint, "value", constraintContext);
+			w.constraint_value = repairEscapes(getRequiredString(constraint, "value", constraintContext));
 		}
 
 		if (hasKey(node, "thread_id")) {

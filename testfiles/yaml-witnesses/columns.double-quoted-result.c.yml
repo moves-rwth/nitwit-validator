@@ -1,0 +1,38 @@
+# Like columns.handwritten.c.yml, but "\result" is written in a double quoted string (as done by Mopsa), where YAML
+# reads "\r" as a carriage return. NITWIT repairs such constraints.
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "7e9d1c3b-5a2f-4d6e-8b0a-2c4e6f8a0b1d"
+    creation_time: "2026-10-20T12:00:00+02:00"
+    producer:
+      name: "hand-written"
+      version: "1.0"
+    task:
+      input_files:
+      - "columns.c"
+      input_file_hashes:
+        "columns.c": "c113c13f71875ae561ca4570463004152f37f62a7df610c60e3cb9262bafa61d"
+      specification: "G ! call(reach_error())"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        action: "follow"
+        constraint:
+          format: acsl_expression
+          value: "\result == 7"
+        location:
+          file_name: "columns.c"
+          line: 5
+          column: 68
+        type: "function_return"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "columns.c"
+          line: 7
+          column: 9

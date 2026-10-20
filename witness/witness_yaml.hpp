@@ -24,10 +24,11 @@ enum class WaypointAction {
 	Cycle
 };
 
-// The column of a location is not read, as NITWIT only matches lines.
 struct WaypointLocation {
 	std::string file_name;
 	std::size_t line = 0;
+	// 1-based, 0 if not given (then the first suitable position on the line is meant)
+	std::size_t column = 0;
 	std::string function;
 };
 

@@ -34,8 +34,8 @@ std::vector<std::string> split(std::string const& str, char delimiter) {
 	return result;
 }
 
-bool satisfiesAssumptionsAndResolve(ParseState *state, const std::shared_ptr<Edge>& edge) {
-	auto assumptions = split(edge->assumption, ';');
+bool satisfiesAssumptionsAndResolve(ParseState *state, std::string const& assumption) {
+	auto assumptions = split(assumption, ';');
 
 	for (std::string const& ass: assumptions) {
 		if (ass.empty()) {
@@ -187,6 +187,32 @@ bool returnedFromNondetFunction(ParseState const* state) {
 		   strncmp(state->ReturnFromFunction, nondetPrefix, strlen(nondetPrefix)) == 0;
 }
 
+// Witness format 2.x: whether the execution passes the avoid waypoint of the edge, at its evaluation point. Constraints
+// are checked without resolving nondeterministic values. A value returned by a __VERIFIER_nondet_X() function is chosen
+// such that it does not pass the waypoint instead.
+bool passesAvoidWaypoint(ParseState *state, std::shared_ptr<Edge> const& edge) {
+	if ((edge->enter_any_function && state->EnterFunction == nullptr) || (edge->return_from_any_function && state->ReturnFromFunction == nullptr)) {
+		return false;
+	}
+	if (edge->controlCondition != ConditionUndefined && edge->controlCondition != state->LastConditionBranch) {
+		return false;
+	}
+	if (!edge->avoid_resolution.empty()) {
+		if (returnedFromNondetFunction(state)) {
+			satisfiesAssumptionsAndResolve(state, edge->avoid_resolution);
+		}
+		// a return value that was already known is not checked
+		return false;
+	}
+	if (!edge->assumption.empty()) {
+		state->pc->ResolveNonDetInAssumptions = FALSE;
+		bool const passes = satisfiesAssumptionsAndResolve(state, edge->assumption);
+		state->pc->ResolveNonDetInAssumptions = TRUE;
+		return passes;
+	}
+	return true;
+}
+
 bool WitnessAutomaton::canTransitionFurther() {
 	if (current_state == nullptr || this->isInIllegalState()) {
 		this->illegal_state = true;
@@ -236,7 +262,22 @@ bool WitnessAutomaton::consumeState(ParseState *state, bool isMultiLineDeclarati
 		return false;
 	}
 
+	auto takeEdge = [&](std::shared_ptr<Edge> const& edge) {
+		current_state = nodes.find(edge->target_id)->second;
+		cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
+		state->pc->IsInAssumptionMode = FALSE;
+		unsuccessfulTries = 0; // reset counter
+
+		lastLineUsedValid = (edge->start_line == edge->end_line);
+		lastLineUsed = edge->start_line;
+		return true;
+	};
+
+	// whether this check point already caused a transition
+	bool const transitionAtThisCheck = lastLineUsedValid;
 	bool could_go_to_sink = false;
+	bool followFailed = false;
+	std::shared_ptr<Edge> followEdge;
 	state->pc->IsInAssumptionMode = TRUE;
 	for (auto const& edge: successor_rel.find(current_state->id)->second) {
 #ifdef REQUIRE_MATCHING_ORIGINFILENAME
@@ -244,6 +285,10 @@ bool WitnessAutomaton::consumeState(ParseState *state, bool isMultiLineDeclarati
 			continue;
 		}
 #endif
+		// Witness format 2.x: avoid waypoints are evaluated after the follow waypoint, see below
+		if (data.is_yaml_format && edge->target_id == "sink") {
+			continue;
+		}
 		if (!((edge->start_line <= state->Line && (state->Line <= edge->end_line)) || (isMultiLineDeclaration && state->Line <= edge->start_line && edge->end_line <= endLine))) {
 			if (!(edge->start_line == 0 && edge->end_line == 0)) {
 #ifdef DEBUG_WITNESS_EDGES
@@ -254,8 +299,15 @@ bool WitnessAutomaton::consumeState(ParseState *state, bool isMultiLineDeclarati
 		}
 
 		// Check that we were not working on the same line
+		bool sameCheckAgain = false;
 		if (lastLineUsedValid && (edge->start_line == edge->end_line) && (edge->start_line == lastLineUsed)) {
-			continue;
+			// Witness format 2.x: several waypoints may be evaluated before the same statement, e.g. assumptions about
+			// several nondeterministic values. Such a waypoint is not rejected if it does not pass, as it might belong
+			// to a later execution of the statement.
+			if (!(edge->requires_check_point && edge->check_point == DebugCheckPoint::BeforeStatement)) {
+				continue;
+			}
+			sameCheckAgain = true;
 		}
 		lastLineUsedValid = false;
 #ifdef DEBUG_WITNESS_EDGES
@@ -264,10 +316,23 @@ bool WitnessAutomaton::consumeState(ParseState *state, bool isMultiLineDeclarati
 		cw_verbose("Edge line constraints do match, (start_line = %zu <= %zu and %zu <= %zu = end_line) or (isMultiLineDeclaration = %i and state->Line = %zu <= %zu = start_line && end_line = %zu <= %zu = endLine) for assumption '%s'.\n", edge->start_line, state->Line, state->Line, edge->end_line, isMultiLineDeclaration ? 1 : 0, state->Line, edge->start_line, edge->end_line, endLine, edge->assumption.c_str());
 #endif
 
+		// Witness format 2.x: a waypoint is only evaluated at its evaluation point, i.e. at its check point and column.
+		// The column is 0 where it is not known (e.g. for "?:"), then only the line is matched and a failing follow
+		// waypoint is not rejected.
+		bool atEvaluationPoint = false;
+		if (edge->requires_check_point) {
+			bool const columnKnown = (state->CharacterPos != 0);
+			if (state->pc->CheckPoint != edge->check_point || (edge->column != 0 && columnKnown && state->CharacterPos != edge->column)) {
+				continue;
+			}
+			atEvaluationPoint = edge->strict && !sameCheckAgain && (edge->column == 0 || columnKnown);
+		}
+
 		// Witness format 2.x: function_enter / function_return waypoints match the entry into / the return from any
 		// function. Checked before the assumption, as checking the "\result" assumption of a function_return waypoint
 		// resolves the value returned by the last nondeterministic function.
 		if ((edge->enter_any_function && state->EnterFunction == nullptr) || (edge->return_from_any_function && state->ReturnFromFunction == nullptr)) {
+			followFailed |= atEvaluationPoint;
 			continue;
 		}
 		// The "\result" constraint of a function_return waypoint can only be used for resolving the value returned by
@@ -276,8 +341,9 @@ bool WitnessAutomaton::consumeState(ParseState *state, bool isMultiLineDeclarati
 
 		// check assumption
 		cw_verbose("About to check assumption '%s'.\n", edge->assumption.c_str());
-		if (checkAssumption && !satisfiesAssumptionsAndResolve(state, edge)) {
+		if (checkAssumption && !satisfiesAssumptionsAndResolve(state, edge->assumption)) {
 			cw_verbose("Unmet assumption '%s'.\n", edge->assumption.c_str());
+			followFailed |= atEvaluationPoint;
 			continue;
 		} else if (checkAssumption) {
 			cw_verbose("Assumption '%s' satisfied.\n", edge->assumption.c_str());
@@ -302,6 +368,7 @@ bool WitnessAutomaton::consumeState(ParseState *state, bool isMultiLineDeclarati
 		// check control branch
 		if (edge->controlCondition != ConditionUndefined || state->LastConditionBranch != ConditionUndefined) {
 			if (edge->controlCondition != state->LastConditionBranch) {
+				followFailed |= atEvaluationPoint;
 				continue;
 			}
 		}
@@ -312,19 +379,39 @@ bool WitnessAutomaton::consumeState(ParseState *state, bool isMultiLineDeclarati
 			// prefer to follow through to other edges than sink,
 			// but if nothing else is possible, take it
 		}
-		current_state = nodes.find(edge->target_id)->second;
-		cw_verbose("\tTaking edge: %s --> %s\n", edge->source_id.c_str(), edge->target_id.c_str());
-		state->pc->IsInAssumptionMode = FALSE;
-		unsuccessfulTries = 0; // reset counter
-
-		lastLineUsedValid = (edge->start_line == edge->end_line);
-		lastLineUsed = edge->start_line;
-
-		return true;
+		if (data.is_yaml_format) {
+			followEdge = edge;
+			break;
+		}
+		return takeEdge(edge);
 	}
 
-	if (could_go_to_sink) {
-		cw_verbose("\tTaking edge: %s --> sink\n", current_state->id.c_str());
+	if (data.is_yaml_format) {
+		// Witness format 2.x: an avoid waypoint is evaluated after the follow waypoint at the same evaluation point
+		// (which may have resolved nondeterministic values), and an execution passing it is not described by the
+		// witness. The avoid waypoints of a segment are not evaluated where the previous segment ended.
+		for (auto const& edge: successor_rel.find(current_state->id)->second) {
+			if (transitionAtThisCheck || edge->target_id != "sink" || edge->start_line != state->Line || state->pc->CheckPoint != edge->check_point) {
+				continue;
+			}
+			if (edge->column != 0 && state->CharacterPos != 0 && state->CharacterPos != edge->column) {
+				continue;
+			}
+			if (passesAvoidWaypoint(state, edge)) {
+				could_go_to_sink = true;
+				cw_verbose("\tAvoid waypoint at line %zu passed.\n", edge->start_line);
+				break;
+			}
+		}
+		if (!could_go_to_sink && followEdge != nullptr) {
+			return takeEdge(followEdge);
+		}
+	}
+
+	if (could_go_to_sink || followFailed) {
+		// Witness format 2.x: a follow waypoint that does not pass the first time it is evaluated means that the
+		// witness does not describe this execution
+		cw_verbose("\tTaking edge: %s --> sink%s\n", current_state->id.c_str(), followFailed ? " (follow waypoint not passed at its evaluation point)" : "");
 		current_state = nodes.find("sink")->second;
 		state->pc->IsInAssumptionMode = FALSE;
 		return true;

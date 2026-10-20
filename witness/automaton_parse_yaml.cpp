@@ -3,13 +3,17 @@
 //
 // The violation sequence is translated into an automaton with one state per segment: the follow waypoint of segment i
 // becomes an edge from state i to state i + 1, its avoid waypoints become edges from state i to the sink state (except
-// those of type assumption and function_return, see below). The target waypoint of the last segment leads to the
-// violation state.
+// those whose constraint can not be checked). The target waypoint of the last segment leads to the violation state.
+//
+// Each edge is matched at the check point of the interpreter where its waypoint is evaluated (see DebugCheckPoint), at
+// the line and column of the waypoint. A follow waypoint that does not pass the first time its evaluation point is
+// reached leads to the sink state as well, as the witness then does not describe the execution.
 //
 
 #include "automaton.hpp"
 #include "witness_yaml.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <exception>
 #include <map>
@@ -132,9 +136,10 @@ namespace {
 	// taking the first constant found after "\result". The constraint of a function_return waypoint may also be of
 	// the form "\result <op> <constant>" with op in ==, !=, <=, <, >, >= (format 2.0), so for integer constants the
 	// relation is replaced by an equality with a value satisfying it.
+	std::regex const resultFirst(R"(^\\result\s*(==|!=|<=|>=|<|>)\s*(.+)$)");
+	std::regex const resultLast(R"(^(.+?)\s*(==|!=|<=|>=|<|>)\s*\\result$)");
+
 	std::string normalizeResultConstraint(std::string const& conjunct) {
-		static std::regex const resultFirst(R"(^\\result\s*(==|!=|<=|>=|<|>)\s*(.+)$)");
-		static std::regex const resultLast(R"(^(.+?)\s*(==|!=|<=|>=|<|>)\s*\\result$)");
 		static std::regex const integerLiteral(R"(^(-?)\s*(0[xX][0-9a-fA-F]+|[0-9]+)([uUlL]*)$)");
 
 		std::smatch match;
@@ -179,6 +184,29 @@ namespace {
 		return "\\result == " + std::string(negative ? "-" : "") + std::to_string(magnitude) + suffix;
 	}
 
+	// For an avoid function_return waypoint: the assumption "\result == <constant>" choosing a return value that does not
+	// satisfy the constraint (the negation of its first relation of "\result" to an integer constant), or an empty
+	// string if there is no such relation.
+	std::string returnValueNotSatisfying(std::string const& constraint) {
+		static std::map<std::string, std::string> const negated = {{"==", "!="}, {"!=", "=="}, {"<", ">="}, {">=", "<"}, {">", "<="}, {"<=", ">"}};
+		for (auto const& conjunct: splitConjunction(constraint)) {
+			std::smatch match;
+			std::string negation;
+			if (std::regex_match(conjunct, match, resultFirst)) {
+				negation = "\\result " + negated.at(match[1]) + " " + trim(match[2]);
+			} else if (std::regex_match(conjunct, match, resultLast)) {
+				negation = trim(match[1]) + " " + negated.at(match[2]) + " \\result";
+			} else {
+				continue;
+			}
+			std::string const value = normalizeResultConstraint(negation);
+			if (value.rfind("\\result == ", 0) == 0) {
+				return value + ";";
+			}
+		}
+		return "";
+	}
+
 	std::string toLower(std::string s) {
 		for (auto& c: s) {
 			c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -186,7 +214,65 @@ namespace {
 		return s;
 	}
 
-	std::shared_ptr<Edge> edgeFromWaypoint(Waypoint const& waypoint, std::string const& sourceId, std::string const& targetId) {
+	bool isSwitchBranching(Waypoint const& waypoint) {
+		std::string const value = toLower(trim(waypoint.constraint_value));
+		return waypoint.type == WaypointType::Branching && value != "true" && value != "false";
+	}
+
+	// The controlling expression of the switch statement at the given position (the first one in the line if the
+	// column is 0), or an empty string if there is none.
+	std::string switchControllingExpression(std::vector<std::string> const& sourceLines, std::size_t line, std::size_t column) {
+		if (line == 0 || line > sourceLines.size()) {
+			return "";
+		}
+		// the controlling expression may continue in the following lines
+		std::string text = sourceLines[line - 1].substr(column == 0 ? 0 : std::min(column - 1, sourceLines[line - 1].size()));
+		for (std::size_t i = line; i < sourceLines.size() && i < line + 10; ++i) {
+			text += " " + sourceLines[i];
+		}
+		static std::regex const switchStart(R"(^\s*switch\s*\()");
+		std::smatch match;
+		std::size_t const keyword = (column == 0) ? text.find("switch") : 0;
+		if (keyword == std::string::npos) {
+			return "";
+		}
+		std::string const fromKeyword = text.substr(keyword);
+		if (!std::regex_search(fromKeyword, match, switchStart)) {
+			return "";
+		}
+		std::string const rest = fromKeyword.substr(match.length());
+		int depth = 1;
+		std::size_t end = std::string::npos;
+		forEachCodeCharacter(rest, [&](std::size_t i) {
+			if (rest[i] == '(') {
+				++depth;
+			} else if (rest[i] == ')' && --depth == 0) {
+				end = i;
+				return false;
+			}
+			return true;
+		});
+		return (end == std::string::npos) ? "" : trim(rest.substr(0, end));
+	}
+
+	// The check point of the interpreter where a waypoint of the given type is evaluated, see DebugCheckPoint.
+	DebugCheckPoint evaluationCheckPoint(Waypoint const& waypoint) {
+		switch (waypoint.type) {
+			case WaypointType::Branching:
+				// the value of a switch statement is checked before the statement, see edgeFromWaypoint
+				return isSwitchBranching(waypoint) ? DebugCheckPoint::BeforeStatement : DebugCheckPoint::Condition;
+			case WaypointType::FunctionEnter:
+				return DebugCheckPoint::AfterArguments;
+			case WaypointType::FunctionReturn:
+				return DebugCheckPoint::AfterCall;
+			case WaypointType::Assumption:
+			case WaypointType::Target:
+				break;
+		}
+		return DebugCheckPoint::BeforeStatement;
+	}
+
+	std::shared_ptr<Edge> edgeFromWaypoint(Waypoint const& waypoint, std::string const& sourceId, std::string const& targetId, std::vector<std::string> const& sourceLines) {
 		auto e = std::make_shared<Edge>();
 		e->source_id = sourceId;
 		e->target_id = targetId;
@@ -197,6 +283,11 @@ namespace {
 		e->end_offset = 0;
 		e->controlCondition = ConditionUndefined;
 		e->enterLoopHead = false;
+		e->requires_check_point = true;
+		e->check_point = evaluationCheckPoint(waypoint);
+		e->column = waypoint.location.column;
+		// target waypoints are never evaluated, avoid waypoints lead to the sink when they pass
+		e->strict = (waypoint.action == WaypointAction::Follow && waypoint.type != WaypointType::Target);
 
 		switch (waypoint.type) {
 			case WaypointType::Assumption:
@@ -213,12 +304,15 @@ namespace {
 				} else if (value == "false") {
 					e->control = "condition-false";
 					e->controlCondition = ConditionFalse;
-				} else {
-					// A switch statement (value is a case constant or "default"): NITWIT does not report which case
-					// was taken, so the edge only requires reaching the line.
-#ifdef VERBOSE
-					std::cerr << " ### Branching waypoint with value '" << waypoint.constraint_value << "' at line " << waypoint.location.line << " is only matched by its line." << std::endl;
-#endif
+				} else if (value != "default") {
+					// The value of a switch statement is the case taken, it has to be the value of the controlling
+					// expression. "default" (no case matches) can not be expressed this way.
+					std::string const expression = switchControllingExpression(sourceLines, waypoint.location.line, waypoint.location.column);
+					if (!expression.empty()) {
+						static std::regex const identifier(R"(^[A-Za-z_]\w*$)");
+						bool const plain = std::regex_match(expression, identifier);
+						e->assumption = (plain ? expression : "(" + expression + ")") + " == " + trim(waypoint.constraint_value) + ";";
+					}
 				}
 				break;
 			}
@@ -253,9 +347,16 @@ namespace {
 	}
 }
 
-std::shared_ptr<WitnessAutomaton> WitnessAutomaton::automatonFromYamlWitness(ViolationSequence const& sequence) {
+std::shared_ptr<WitnessAutomaton> WitnessAutomaton::automatonFromYamlWitness(ViolationSequence const& sequence, std::string const& programSource) {
 	std::map<std::string, std::shared_ptr<Node>> nodes;
 	std::vector<std::shared_ptr<Edge>> edges;
+
+	std::vector<std::string> sourceLines;
+	for (std::size_t begin = 0; begin <= programSource.size();) {
+		std::size_t const end = programSource.find('\n', begin);
+		sourceLines.push_back(programSource.substr(begin, end == std::string::npos ? std::string::npos : end - begin));
+		begin = (end == std::string::npos) ? programSource.size() + 1 : end + 1;
+	}
 
 	std::size_t const segmentCount = sequence.segments.size();
 	if (segmentCount == 0) {
@@ -291,14 +392,20 @@ std::shared_ptr<WitnessAutomaton> WitnessAutomaton::automatonFromYamlWitness(Vio
 				std::cerr << " ### Segment " << (i + 1) << " contains a target waypoint with action avoid." << std::endl;
 				return nullptr;
 			}
-			if (waypoint.type == WaypointType::Assumption || waypoint.type == WaypointType::FunctionReturn) {
-				// Checking a constraint resolves nondeterministic values, which would turn into a side effect here.
+			auto avoid = edgeFromWaypoint(waypoint, stateId(i), SINK_NODE_ID, sourceLines);
+			if (waypoint.type == WaypointType::FunctionReturn) {
+				// the returned value is chosen not to pass the waypoint, see passesAvoidWaypoint
+				avoid->assumption.clear();
+				avoid->avoid_resolution = returnValueNotSatisfying(waypoint.constraint_value);
+			}
+			if ((waypoint.type == WaypointType::FunctionReturn && avoid->avoid_resolution.empty()) || (isSwitchBranching(waypoint) && avoid->assumption.empty())) {
+				// e.g. "default" of a switch statement, which is not checked
 #ifdef VERBOSE
-				std::cerr << " ### Ignoring avoid waypoint with a constraint in segment " << (i + 1) << " at line " << waypoint.location.line << "." << std::endl;
+				std::cerr << " ### Ignoring avoid waypoint in segment " << (i + 1) << " at line " << waypoint.location.line << ", its constraint can not be checked." << std::endl;
 #endif
 				continue;
 			}
-			edges.push_back(edgeFromWaypoint(waypoint, stateId(i), SINK_NODE_ID));
+			edges.push_back(avoid);
 		}
 
 		if (follow == nullptr) {
@@ -309,7 +416,7 @@ std::shared_ptr<WitnessAutomaton> WitnessAutomaton::automatonFromYamlWitness(Vio
 			std::cerr << " ### Exactly the last segment has to end in a target waypoint, but segment " << (i + 1) << (isLastSegment ? " does not." : " does.") << std::endl;
 			return nullptr;
 		}
-		edges.push_back(edgeFromWaypoint(*follow, stateId(i), stateId(i + 1)));
+		edges.push_back(edgeFromWaypoint(*follow, stateId(i), stateId(i + 1), sourceLines));
 	}
 
 	auto data = std::make_shared<Data>();

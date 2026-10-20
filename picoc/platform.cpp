@@ -27,7 +27,9 @@ void PicocInitialise(Picoc *pc, int StackSize)
     PlatformLibraryInit(pc);
     DebugInit(pc);
     pc->DebugAtStatementStarts = FALSE;
+    pc->CheckPoint = DebugCheckPoint::BeforeStatement;
     pc->IsInAssumptionMode = FALSE;
+    pc->ResolveNonDetInAssumptions = TRUE;
 }
 
 /* free memory */

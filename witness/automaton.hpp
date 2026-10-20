@@ -79,6 +79,15 @@ public:
 	// into / the return from any function called at their location
 	bool enter_any_function{};
 	bool return_from_any_function{};
+	// Witness format 2.x: a waypoint is evaluated at a specific check point of the interpreter, at its column (0 if
+	// the column is not given). A follow waypoint has to pass the first time its evaluation point is reached.
+	bool requires_check_point{};
+	DebugCheckPoint check_point{};
+	std::size_t column{};
+	bool strict{};
+	// Witness format 2.x: for an avoid function_return waypoint, the assumption "\result == <constant>" that chooses a
+	// value returned by a __VERIFIER_nondet_X() function not passing the waypoint
+	std::string avoid_resolution;
 
 	void print() const;
 };
@@ -160,8 +169,9 @@ public:
 
 	static std::shared_ptr<WitnessAutomaton> automatonFromWitness(std::shared_ptr<pugi::xml_document> const& doc);
 
-	// Returns nullptr if the violation sequence is invalid.
-	static std::shared_ptr<WitnessAutomaton> automatonFromYamlWitness(ViolationSequence const& sequence);
+	// Returns nullptr if the violation sequence is invalid. The program source is needed for the values of switch
+	// statements.
+	static std::shared_ptr<WitnessAutomaton> automatonFromYamlWitness(ViolationSequence const& sequence, std::string const& programSource);
 
 	bool isInViolationState() const;
 

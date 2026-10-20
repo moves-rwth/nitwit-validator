@@ -727,6 +727,7 @@ void ParseFor(struct ParseState *Parser)
     enum RunMode OldMode = Parser->Mode;
     /* the "for" keyword has just been read */
     std::size_t KeywordLine = Parser->Line;
+    unsigned short KeywordColumn = Parser->CharacterPos;
 
     int PrevScopeID = 0, ScopeID = VariableScopeBegin(Parser, &PrevScopeID);
 
@@ -744,7 +745,7 @@ void ParseFor(struct ParseState *Parser)
         Condition = nitwit::expressions::ExpressionParseLongLong(Parser) != 0;
     }
 
-    ConditionCallback(Parser, Condition, KeywordLine);
+    ConditionCallback(Parser, Condition, KeywordLine, KeywordColumn);
 
     if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenSemicolon)
         ProgramFail(Parser, "';' expected");
@@ -779,7 +780,7 @@ void ParseFor(struct ParseState *Parser)
 
         if (Condition)
         {
-            ConditionCallback(Parser, Condition, KeywordLine);
+            ConditionCallback(Parser, Condition, KeywordLine, KeywordColumn);
 
             ParserCopyPos(Parser, &PreStatement);
             ParseStatement(Parser, TRUE);
@@ -789,7 +790,7 @@ void ParseFor(struct ParseState *Parser)
         }
     }
 
-    ConditionCallback(Parser, Condition, KeywordLine);
+    ConditionCallback(Parser, Condition, KeywordLine, KeywordColumn);
 
     if (Parser->Mode == RunMode::RunModeBreak && OldMode == RunMode::RunModeRun)
         Parser->Mode = RunMode::RunModeRun;
@@ -799,16 +800,22 @@ void ParseFor(struct ParseState *Parser)
     ParserCopyPos(Parser, &After);
 }
 
-void ConditionCallback(struct ParseState *Parser, bool Condition, std::size_t KeywordLine) {
+void ConditionCallback(struct ParseState *Parser, bool Condition, std::size_t KeywordLine, unsigned short KeywordColumn) {
     if (Parser->DebugMode && Parser->Mode == RunMode::RunModeRun) {
         Parser->LastConditionBranch = Condition ? ConditionTrue : ConditionFalse;
         debugf("Parser - Performing debug check for condition.\n");
-        /* the condition might span several lines, report the line of the keyword instead of where the condition ends */
+        /* the condition might span several lines, report the position of the keyword instead of where the condition
+         * ends (column 0 if it is not known) */
         std::size_t ConditionLine = Parser->Line;
-        if (Parser->pc->DebugAtStatementStarts && KeywordLine != 0)
-            Parser->Line = KeywordLine;
-        DebugCheckStatement(Parser, false, 0);
+        unsigned short ConditionColumn = Parser->CharacterPos;
+        if (Parser->pc->DebugAtStatementStarts) {
+            if (KeywordLine != 0)
+                Parser->Line = KeywordLine;
+            Parser->CharacterPos = KeywordColumn;
+        }
+        DebugCheckStatement(Parser, false, 0, DebugCheckPoint::Condition);
         Parser->Line = ConditionLine;
+        Parser->CharacterPos = ConditionColumn;
         Parser->LastConditionBranch = ConditionUndefined;
     }
 }
@@ -913,7 +920,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
         {
             case TokenIf:
                 debugf("Parser - Performing debug check for If.\n");
-                DebugCheckStatement(Parser, false, 0);
+                DebugCheckStatement(Parser, false, 0, DebugCheckPoint::BeforeStatement);
                 break;
             case TokenEOF:
                 /* no statement left to check */
@@ -921,7 +928,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             default:
                 if (Parser->pc->DebugAtStatementStarts) {
                     debugf("Parser - Performing debug check before statement.\n");
-                    DebugCheckStatement(Parser, false, 0);
+                    DebugCheckStatement(Parser, false, 0, DebugCheckPoint::BeforeStatement);
                 }
                 break;
         }
@@ -1020,7 +1027,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             debugf("ParseStatement found an If, going into ExpressionParse().\n");
             Condition = nitwit::expressions::ExpressionParseLongLong(Parser);
 
-            ConditionCallback(Parser, Condition, ParserPrePosition.Line);
+            ConditionCallback(Parser, Condition, ParserPrePosition.Line, ParserPrePosition.CharacterPos);
 
             if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenCloseBracket)
                 ProgramFail(Parser, "')' expected");
@@ -1053,7 +1060,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
                     ParserCopyPos(Parser, &PreConditional);
                     debugf("ParseStatement found a While, going into ExpressionParse() to parse condition.\n");
                     Condition = nitwit::expressions::ExpressionParseLongLong(Parser);
-                    ConditionCallback(Parser, Condition, ParserPrePosition.Line);
+                    ConditionCallback(Parser, Condition, ParserPrePosition.Line, ParserPrePosition.CharacterPos);
                     if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenCloseBracket)
                         ProgramFail(Parser, "')' expected");
 
@@ -1094,7 +1101,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
 
                     debugf("ParseStatement found a Do, going into ExpressionParse() to parse condition.\n");
                     Condition = nitwit::expressions::ExpressionParseLongLong(Parser);
-                    ConditionCallback(Parser, Condition, ParserPrePosition.Line);
+                    ConditionCallback(Parser, Condition, ParserPrePosition.Line, ParserPrePosition.CharacterPos);
                     if (nitwit::lex::LexGetToken(Parser, nullptr, true) != TokenCloseBracket)
                         ProgramFail(Parser, "')' expected");
 
@@ -1348,7 +1355,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenBreak:
             case TokenReturn:
                 debugf("Parser - Performing debug check for control flow modifier.\n");
-                DebugCheckStatement(Parser, false, 0);
+                DebugCheckStatement(Parser, false, 0, DebugCheckPoint::AfterStatement);
                 break;
             case TokenTypedef:
             case TokenIdentifier:
@@ -1370,7 +1377,7 @@ enum ParseResult ParseStatement(struct ParseState *Parser, int CheckTrailingSemi
             case TokenRegisterType:
             case TokenExternType:
                 debugf("Parser - Performing debug check for type declaration.\n");
-                DebugCheckStatement(Parser, !isFunctionDeclaration, isFunctionDeclaration ? 0 : NowPosition.Line);
+                DebugCheckStatement(Parser, !isFunctionDeclaration, isFunctionDeclaration ? 0 : NowPosition.Line, DebugCheckPoint::AfterStatement);
                 break;
             default:
                 break;

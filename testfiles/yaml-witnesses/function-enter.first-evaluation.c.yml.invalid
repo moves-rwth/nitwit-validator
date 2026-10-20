@@ -1,0 +1,63 @@
+# The loop condition has to be false the first time it is evaluated, but with x == 10 it is true. A follow waypoint has
+# to pass the first time it is evaluated, so the witness does not describe the execution (even though the program later
+# reaches the violation when x == 12).
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "2b4d6f8a-0c1e-4a3b-9d5f-6e8a0c2e4f6a"
+    creation_time: "2026-10-20T12:00:00+02:00"
+    producer:
+      name: "hand-written"
+      version: "1.0"
+    task:
+      input_files:
+      - "function-enter.c"
+      input_file_hashes:
+        "function-enter.c": "77298c70be5b3d71ea25e491902e5768279d091559898341e3f187b736c1c299"
+      specification: "G ! call(reach_error())"
+      data_model: "ILP32"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        constraint:
+          value: "x == 10"
+          format: "c_expression"
+        location:
+          file_name: "function-enter.c"
+          line: 10
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "false"
+        location:
+          file_name: "function-enter.c"
+          line: 10
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        constraint:
+          value: "true"
+        location:
+          file_name: "function-enter.c"
+          line: 13
+          column: 5
+          function: "main"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "function-enter.c"
+          line: 14
+          column: 9
+          function: "main"

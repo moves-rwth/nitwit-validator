@@ -132,6 +132,17 @@ enum ConditionControl {
     ConditionTrue, ConditionFalse, ConditionUndefined
 };
 
+/* where the debugger callback is called from, see DebugCheckStatement */
+enum class DebugCheckPoint {
+    BeforeStatement,        /* the position is the first token of the statement */
+    Condition,              /* after evaluating the condition of a branching statement (position: its keyword) or of "?:" */
+    BeforeCall,             /* before the arguments of a function call are evaluated */
+    AfterArguments,         /* after the arguments of a function call are evaluated (position: the closing parenthesis) */
+    AfterCall,              /* after a function call returned (position: the closing parenthesis) */
+    AfterExpression,
+    AfterStatement
+};
+
 struct ValueList {
     struct ValueList * Next;
     const char * Identifier;
@@ -297,7 +308,8 @@ struct LexState
     const char *End;
     const char *FileName;
     int Line;
-    int CharacterPos;
+    int CharacterPos;           /* column (1-based) of the character at Pos */
+    int TokenColumn;            /* column (1-based) the last scanned token starts in */
     const char *SourceText;
     enum LexMode Mode;
     int EmitExtraNewlines;
@@ -461,6 +473,8 @@ struct Picoc_Struct
     struct TableEntry *BreakpointHashTable[BREAKPOINT_TABLE_SIZE];
     int BreakpointCount;
     int DebugManualBreak;
+    /* where the debugger callback was called from (kept here and not in ParseState, which is copied a lot on the stack) */
+    enum DebugCheckPoint CheckPoint;
     /* whether the debugger callback is also called before each statement (not only before if statements) and reports
      * the line of the keyword for conditions of branching statements, as locations of witnesses in format 2.x refer
      * to the start of statements: their assumptions hold before the statement, branchings are located at the keyword */
@@ -487,6 +501,8 @@ struct Picoc_Struct
     jmp_buf AssumptionPicocExitBuf;
 #endif
     int IsInAssumptionMode;
+    /* whether an assumption may resolve nondeterministic values, otherwise it does not hold for them */
+    int ResolveNonDetInAssumptions;
     
     /* string table */
     struct Table StringTable;
@@ -539,8 +555,9 @@ namespace nitwit {
         void ParseCleanup(Picoc *pc);
         void ParserCopyPos(struct ParseState *To, struct ParseState *From);
         void ParserCopy(struct ParseState *To, struct ParseState *From);
-        /* KeywordLine is the line of the if/while/do/for keyword, 0 for the current line */
-        void ConditionCallback(struct ParseState *Parser, bool Condition, std::size_t KeywordLine = 0);
+        /* KeywordLine and KeywordColumn are the position of the if/while/do/for keyword, 0 for the current line and an
+         * unknown column (e.g. for "?:") */
+        void ConditionCallback(struct ParseState *Parser, bool Condition, std::size_t KeywordLine = 0, unsigned short KeywordColumn = 0);
     }
 }
 
@@ -686,7 +703,7 @@ void IncludeFile(Picoc *pc, char *Filename);
 /* debug.c */
 void DebugInit(Picoc *pc);
 void DebugCleanup(Picoc *pc);
-void DebugCheckStatement(ParseState* Parser, bool wasMultiLineDeclaration, std::size_t const& lastLine);
+void DebugCheckStatement(ParseState* Parser, bool wasMultiLineDeclaration, std::size_t const& lastLine, DebugCheckPoint Point);
 void DebugSetBreakpoint(ParseState* Parser);
 
 
