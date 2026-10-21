@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- A violation witness in format 1.0 with the keys as declared by CPAchecker, using every edge key NITWIT reads. -->
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <key attr.name="originFileName" attr.type="string" for="edge" id="originfile">
+  <default>program.c</default>
+ </key>
+ <key attr.name="invariant" attr.type="string" for="node" id="invariant"/>
+ <key attr.name="isViolationNode" attr.type="boolean" for="node" id="violation">
+  <default>false</default>
+ </key>
+ <key attr.name="isEntryNode" attr.type="boolean" for="node" id="entry">
+  <default>false</default>
+ </key>
+ <key attr.name="isSinkNode" attr.type="boolean" for="node" id="sink">
+  <default>false</default>
+ </key>
+ <key attr.name="enterLoopHead" attr.type="boolean" for="edge" id="enterLoopHead">
+  <default>false</default>
+ </key>
+ <key attr.name="threadId" attr.type="string" for="edge" id="threadId"/>
+ <key attr.name="sourcecodeLanguage" attr.type="string" for="graph" id="sourcecodelang"/>
+ <key attr.name="programFile" attr.type="string" for="graph" id="programfile"/>
+ <key attr.name="programHash" attr.type="string" for="graph" id="programhash"/>
+ <key attr.name="specification" attr.type="string" for="graph" id="specification"/>
+ <key attr.name="architecture" attr.type="string" for="graph" id="architecture"/>
+ <key attr.name="producer" attr.type="string" for="graph" id="producer"/>
+ <key attr.name="creationTime" attr.type="string" for="graph" id="creationtime"/>
+ <key attr.name="startline" attr.type="int" for="edge" id="startline"/>
+ <key attr.name="endline" attr.type="int" for="edge" id="endline"/>
+ <key attr.name="startoffset" attr.type="int" for="edge" id="startoffset"/>
+ <key attr.name="endoffset" attr.type="int" for="edge" id="endoffset"/>
+ <key attr.name="control" attr.type="string" for="edge" id="control"/>
+ <key attr.name="assumption" attr.type="string" for="edge" id="assumption"/>
+ <key attr.name="assumption.resultfunction" attr.type="string" for="edge" id="assumption.resultfunction"/>
+ <key attr.name="assumption.scope" attr.type="string" for="edge" id="assumption.scope"/>
+ <key attr.name="enterFunction" attr.type="string" for="edge" id="enterFunction"/>
+ <key attr.name="returnFromFunction" attr.type="string" for="edge" id="returnFrom"/>
+ <key attr.name="witness-type" attr.type="string" for="graph" id="witness-type"/>
+ <graph edgedefault="directed">
+  <data key="witness-type">violation_witness</data>
+  <data key="sourcecodelang">C</data>
+  <data key="producer">CPAchecker 2.3</data>
+  <data key="specification">CHECK( init(main()), LTL(G ! call(reach_error())) )</data>
+  <data key="programfile">/tmp/program.c</data>
+  <data key="programhash">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</data>
+  <data key="architecture">32bit</data>
+  <data key="creationtime">2026-10-21T12:00:00+02:00</data>
+  <node id="N1">
+   <data key="entry">true</data>
+  </node>
+  <node id="N2"/>
+  <node id="N3"/>
+  <node id="sink">
+   <data key="sink">true</data>
+  </node>
+  <node id="N4">
+   <data key="violation">true</data>
+  </node>
+  <edge source="N1" target="N2">
+   <data key="enterFunction">main</data>
+   <data key="threadId">0</data>
+   <data key="startline">7</data>
+   <data key="endline">7</data>
+   <data key="startoffset">120</data>
+   <data key="endoffset">135</data>
+  </edge>
+  <edge source="N2" target="N3">
+   <data key="startline">8</data>
+   <data key="endline">8</data>
+   <data key="assumption">\result == 5;</data>
+   <data key="assumption.scope">main</data>
+   <data key="assumption.resultfunction">__VERIFIER_nondet_int</data>
+  </edge>
+  <edge source="N3" target="sink">
+   <data key="startline">9</data>
+   <data key="control">condition-false</data>
+   <data key="enterLoopHead">true</data>
+  </edge>
+  <edge source="N3" target="N4">
+   <data key="startline">9</data>
+   <data key="control">condition-true</data>
+   <data key="originfile">header.h</data>
+   <data key="returnFrom">main</data>
+  </edge>
+ </graph>
+</graphml>

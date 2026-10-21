@@ -1,0 +1,71 @@
+# A complete violation witness in format 2.0 with every waypoint type.
+- entry_type: "violation_sequence"
+  metadata:
+    format_version: "2.0"
+    uuid: "0b6d3f6e-8a0c-4d6a-9f5e-2a1b3c4d5e6f"
+    creation_time: "2026-10-21T12:00:00+02:00"
+    producer:
+      name: "CPAchecker"
+      version: "4.0"
+      configuration: "svcomp26"
+    task:
+      input_files:
+      - "program.c"
+      input_file_hashes:
+        "program.c": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      specification: "G ! call(reach_error())"
+      data_model: "LP64"
+      language: "C"
+  content:
+  - segment:
+    - waypoint:
+        type: "assumption"
+        action: "follow"
+        location:
+          file_name: "program.c"
+          line: 10
+          column: 5
+          function: "main"
+        constraint:
+          value: "x == 1"
+          format: "c_expression"
+  - segment:
+    - waypoint:
+        type: "function_enter"
+        action: "avoid"
+        location:
+          file_name: "program.c"
+          line: 11
+          column: 12
+          function: "main"
+    - waypoint:
+        type: "branching"
+        action: "follow"
+        location:
+          file_name: "program.c"
+          line: 12
+          column: 5
+          function: "main"
+        constraint:
+          value: "true"
+  - segment:
+    - waypoint:
+        type: "function_return"
+        action: "follow"
+        location:
+          file_name: "program.c"
+          line: 13
+          column: 30
+          function: "main"
+        constraint:
+          value: "\\result == 7"
+          format: "acsl_expression"
+  - segment:
+    - waypoint:
+        type: "target"
+        action: "follow"
+        location:
+          file_name: "program.c"
+          line: 15
+          column: 9
+          function: "main"

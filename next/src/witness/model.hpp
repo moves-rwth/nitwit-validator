@@ -27,7 +27,9 @@ struct Constraint {
     /// the value of the case label (or "default"). Strings that YAML escape processing mangled are repaired, see
     /// parseYamlWitness.
     std::string value;
-    std::string format = "c_expression"; // or "acsl"
+    /// As written, e.g. "c_expression", "ext_c_expression" or "acsl_expression"; empty if not given. Which formats a
+    /// waypoint type allows depends on the format version and is checked by the validation layer.
+    std::string format;
 };
 
 struct Waypoint {
@@ -35,7 +37,7 @@ struct Waypoint {
     WaypointAction action = WaypointAction::Follow;
     Location location;
     std::optional<Constraint> constraint;
-    std::optional<std::uint32_t> threadId; // format 2.1, concurrent programs
+    std::optional<std::uint32_t> threadId; // format 2.2, concurrent programs
 };
 
 struct Segment {
@@ -55,7 +57,7 @@ struct Task {
 };
 
 struct Metadata {
-    std::string formatVersion; // "2.0" or "2.1"
+    std::string formatVersion; // e.g. "2.0", "2.1" or "2.2"
     Producer producer;
     Task task;
 };
