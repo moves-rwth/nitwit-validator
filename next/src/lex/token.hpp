@@ -13,6 +13,7 @@ namespace nitwit::lex {
 enum class TokenKind : std::uint8_t {
     EndOfFile,
     Unknown, // a character that starts no token; the lexer reports it
+    Pragma,  // a whole `#pragma` directive, from '#' to the end of its line; the parser interprets it
 
     Identifier,
     IntegerLiteral,   // spelling decoded by decodeIntegerLiteral
@@ -135,10 +136,14 @@ enum class TokenKind : std::uint8_t {
     Comma,               // ,
 };
 
-/// The canonical spelling of a keyword or punctuator, or a description such as "identifier" for the other kinds.
+/// The canonical spelling of a keyword or punctuator, "#pragma" for Pragma, or a description such as "identifier" for
+/// the other kinds.
 [[nodiscard]] std::string_view spelling(TokenKind kind);
 
+// Both rely on the order of TokenKind: the keywords run from KwAuto to KwBuiltinChooseExpr, the punctuators from
+// LeftSquare to Comma.
 [[nodiscard]] bool isKeyword(TokenKind kind);
+[[nodiscard]] bool isPunctuator(TokenKind kind);
 
 struct Token {
     TokenKind kind = TokenKind::EndOfFile;

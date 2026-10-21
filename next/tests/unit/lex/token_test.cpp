@@ -26,6 +26,7 @@ TEST(TokenTest, PunctuatorsSpellTheirText) {
 
 TEST(TokenTest, OtherKindsAreDescribed) {
     EXPECT_EQ(spelling(TokenKind::EndOfFile), "end of file");
+    EXPECT_EQ(spelling(TokenKind::Pragma), "#pragma");
     EXPECT_EQ(spelling(TokenKind::Identifier), "identifier");
     EXPECT_EQ(spelling(TokenKind::IntegerLiteral), "integer literal");
     EXPECT_EQ(spelling(TokenKind::StringLiteral), "string literal");
@@ -46,6 +47,17 @@ TEST(TokenTest, IsKeywordHoldsExactlyForKeywords) {
     EXPECT_FALSE(isKeyword(TokenKind::StringLiteral));
     EXPECT_FALSE(isKeyword(TokenKind::LeftSquare));
     EXPECT_FALSE(isKeyword(TokenKind::EndOfFile));
+    EXPECT_FALSE(isKeyword(TokenKind::Pragma));
+}
+
+TEST(TokenTest, IsPunctuatorHoldsExactlyForPunctuators) {
+    EXPECT_TRUE(isPunctuator(TokenKind::LeftSquare));
+    EXPECT_TRUE(isPunctuator(TokenKind::Ellipsis));
+    EXPECT_TRUE(isPunctuator(TokenKind::Comma));
+    EXPECT_FALSE(isPunctuator(TokenKind::KwBuiltinChooseExpr));
+    EXPECT_FALSE(isPunctuator(TokenKind::Pragma));
+    EXPECT_FALSE(isPunctuator(TokenKind::Unknown));
+    EXPECT_FALSE(isPunctuator(TokenKind::StringLiteral));
 }
 
 TEST(TokenTest, RangeCoversTheSpelling) {

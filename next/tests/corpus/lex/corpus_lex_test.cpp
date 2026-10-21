@@ -2,10 +2,10 @@
 // Usage: corpus_lex <dataset-dir> <repository-root>
 //
 // For every file it checks that the tokens are ordered and do not overlap, that only whitespace, comments,
-// backslash-newlines and the directives the lexer handles lie between them, that identifiers, keywords and
-// punctuators match their spelling, and that every literal decodes (adjacent string literals together). It reports
-// the files that need the preprocessor and the throughput of lexFile. The exit code is 1 if any check fails or any
-// file has a lexer error.
+// backslash-newlines and the directives the lexer skips (line markers, #line, #ident, #) lie between them, that
+// identifiers, keywords, punctuators and pragmas match their spelling, and that every literal decodes (adjacent string
+// literals together). It reports the files that need the preprocessor, the pragmas, the warnings and the throughput
+// of lexFile. The exit code is 1 if any check fails or any file has a lexer error.
 
 #include <algorithm>
 #include <atomic>
@@ -41,36 +41,56 @@ struct FileResult {
     std::size_t tokens = 0;
     std::chrono::duration<double> lexTime{};
     bool needsPreprocessing = false;
+    std::size_t pragmas = 0;
     std::vector<Finding> lexerErrors;
+    std::vector<Finding> lexerWarnings;
     std::vector<Finding> decodeFailures;
     std::vector<Finding> checkFailures; // unexpected text between tokens, overlapping tokens, wrong spellings
 };
 
+// Whitespace other than newlines; the lexer also skips null characters.
 bool isBlank(char c) {
-    return c == ' ' || c == '\t' || c == '\r' || c == '\f' || c == '\v';
+    return c == ' ' || c == '\t' || c == '\r' || c == '\f' || c == '\v' || c == '\0';
 }
 
+// A backslash, optional blanks and a newline.
 std::size_t spliceLength(std::string_view text, std::size_t at) {
-    if (text.substr(at).starts_with("\\\n")) {
-        return 2;
+    if (!text.substr(at).starts_with('\\')) {
+        return 0;
     }
-    return text.substr(at).starts_with("\\\r\n") ? 3 : 0;
+    const std::size_t newline = text.find_first_not_of(" \t\r\f\v", at + 1);
+    return newline != std::string_view::npos && text[newline] == '\n' ? newline + 1 - at : 0;
 }
 
 // The position of the newline that ends the line containing `at`, following backslash-newlines.
 std::size_t endOfLogicalLine(std::string_view text, std::size_t at) {
     std::size_t newline = text.find('\n', at);
-    while (newline != std::string_view::npos
-           && ((newline >= 1 && text[newline - 1] == '\\')
-               || (newline >= 2 && text[newline - 1] == '\r' && text[newline - 2] == '\\'))) {
+    while (newline != std::string_view::npos) {
+        const std::size_t lastVisible = text.find_last_not_of(" \t\r\f\v", newline - 1);
+        if (lastVisible == std::string_view::npos || lastVisible < at || text[lastVisible] != '\\') {
+            break;
+        }
         newline = text.find('\n', newline + 1);
     }
     return newline == std::string_view::npos ? text.size() : newline;
 }
 
-// Whether the directive at text[at] ('#' or '%:') is one the lexer skips: a line marker, #line, #pragma, #ident or
-// the null directive.
-bool isHandledDirective(std::string_view text, std::size_t at) {
+// The offset after the block comment starting at text[at], whose end may be split by backslash-newlines, or npos.
+std::size_t endOfBlockComment(std::string_view text, std::size_t at) {
+    for (std::size_t star = text.find('*', at + 2); star != std::string_view::npos; star = text.find('*', star + 1)) {
+        std::size_t next = star + 1;
+        while (const std::size_t length = spliceLength(text, next)) {
+            next += length;
+        }
+        if (next < text.size() && text[next] == '/') {
+            return next + 1;
+        }
+    }
+    return std::string_view::npos;
+}
+
+// The name of the directive at text[at] ('#' or '%:'): an identifier, a line number, or empty.
+std::string_view directiveName(std::string_view text, std::size_t at) {
     std::size_t i = at + (text[at] == '#' ? 1 : 2);
     while (i < text.size() && isBlank(text[i])) {
         ++i;
@@ -79,13 +99,19 @@ bool isHandledDirective(std::string_view text, std::size_t at) {
     while (i < text.size() && (std::isalnum(static_cast<unsigned char>(text[i])) != 0 || text[i] == '_')) {
         ++i;
     }
-    const std::string_view name = text.substr(nameStart, i - nameStart);
-    return name.empty() || std::ranges::all_of(name, [](char c) { return c >= '0' && c <= '9'; }) || name == "pragma"
-           || name == "ident" || name == "line";
+    return text.substr(nameStart, i - nameStart);
+}
+
+// Whether the directive at text[at] is one the lexer skips: a line marker, #line, #ident or the null directive.
+bool isSkippedDirective(std::string_view text, std::size_t at) {
+    const std::string_view name = directiveName(text, at);
+    return name.empty() || std::ranges::all_of(name, [](char c) { return c >= '0' && c <= '9'; }) || name == "ident"
+           || name == "line";
 }
 
 // An independent scanner for the text between two tokens. Returns the offset of the first byte that is not
-// whitespace, a comment, a backslash-newline or a handled directive.
+// whitespace, a comment, a backslash-newline or a skipped directive. A directive must start a logical line: only a
+// newline outside comments and splices starts one.
 std::optional<std::size_t> findUnexpectedText(std::string_view text, std::size_t begin, std::size_t end,
                                               bool atLineStart) {
     std::size_t i = begin;
@@ -99,16 +125,14 @@ std::optional<std::size_t> findUnexpectedText(std::string_view text, std::size_t
         } else if (rest.starts_with("//")) {
             i = endOfLogicalLine(text, i);
         } else if (rest.starts_with("/*")) {
-            const std::size_t close = text.find("*/", i + 2);
-            if (close == std::string_view::npos || close + 2 > end) {
+            const std::size_t commentEnd = endOfBlockComment(text, i);
+            if (commentEnd == std::string_view::npos || commentEnd > end) {
                 return i;
             }
-            atLineStart = atLineStart || text.substr(i, close - i).contains('\n');
-            i = close + 2;
+            i = commentEnd;
         } else if (const std::size_t length = spliceLength(text, i); length > 0) {
-            atLineStart = true;
             i += length;
-        } else if (atLineStart && (rest[0] == '#' || rest.starts_with("%:")) && isHandledDirective(text, i)) {
+        } else if (atLineStart && (rest[0] == '#' || rest.starts_with("%:")) && isSkippedDirective(text, i)) {
             i = endOfLogicalLine(text, i);
         } else {
             return i;
@@ -128,7 +152,11 @@ std::optional<std::string> checkSpelling(const Token& token, std::string_view te
         if (token.identifier.text() != text) {
             return "identifier symbol differs from its spelling";
         }
-    } else if (token.kind >= TokenKind::LeftSquare) {
+    } else if (token.is(TokenKind::Pragma)) {
+        if (!(text.starts_with('#') || text.starts_with("%:")) || directiveName(text, 0) != "pragma") {
+            return "pragma token is not a #pragma directive";
+        }
+    } else if (isPunctuator(token.kind)) {
         if (text != spelling(token.kind) && !isDigraphOf(text, token.kind)) {
             return "punctuator differs from its spelling";
         }
@@ -240,8 +268,10 @@ FileResult lexOne(const fs::path& path) {
     result.bytes = sources.contents(*file).size();
     result.tokens = lexed.tokens.size();
     result.needsPreprocessing = lexed.needsPreprocessing;
+    result.pragmas = static_cast<std::size_t>(std::ranges::count(lexed.tokens, TokenKind::Pragma, &Token::kind));
     for (const Diagnostic& diagnostic : diagnostics.diagnostics()) {
-        result.lexerErrors.push_back({diagnostic.message, diagnostics.format(diagnostic)});
+        auto& findings = diagnostic.severity == Severity::Error ? result.lexerErrors : result.lexerWarnings;
+        findings.push_back({diagnostic.message, diagnostics.format(diagnostic)});
     }
     checkTokens(sources, *file, lexed, result);
     return result;
@@ -337,8 +367,11 @@ int run(const fs::path& datasetDir, const fs::path& repositoryRoot) {
     double maxTokensPerByte = 0;
     std::chrono::duration<double> lexTime{};
     std::size_t filesWithErrors = 0;
+    std::size_t pragmas = 0;
+    std::size_t filesWithPragmas = 0;
     std::vector<std::string> needPreprocessing;
     MessageCounter lexerErrors;
+    MessageCounter lexerWarnings;
     MessageCounter decodeFailures;
     MessageCounter checkFailures;
     for (std::size_t i = 0; i < files.size(); ++i) {
@@ -346,6 +379,10 @@ int run(const fs::path& datasetDir, const fs::path& repositoryRoot) {
         bytes += result.bytes;
         tokens += result.tokens;
         lexTime += result.lexTime;
+        pragmas += result.pragmas;
+        if (result.pragmas > 0) {
+            ++filesWithPragmas;
+        }
         if (result.bytes > 0) {
             maxTokensPerByte =
                 std::max(maxTokensPerByte, static_cast<double>(result.tokens) / static_cast<double>(result.bytes));
@@ -357,6 +394,7 @@ int run(const fs::path& datasetDir, const fs::path& repositoryRoot) {
             ++filesWithErrors;
         }
         std::ranges::for_each(result.lexerErrors, [&](const Finding& f) { lexerErrors.add(f); });
+        std::ranges::for_each(result.lexerWarnings, [&](const Finding& f) { lexerWarnings.add(f); });
         std::ranges::for_each(result.decodeFailures, [&](const Finding& f) { decodeFailures.add(f); });
         std::ranges::for_each(result.checkFailures, [&](const Finding& f) { checkFailures.add(f); });
     }
@@ -371,8 +409,10 @@ int run(const fs::path& datasetDir, const fs::path& repositoryRoot) {
     for (const std::string& path : needPreprocessing) {
         std::println("  {}", path);
     }
+    std::println("pragma tokens: {} in {} files", pragmas, filesWithPragmas);
     std::println("files with lexer errors: {}", filesWithErrors);
     lexerErrors.print("lexer errors");
+    lexerWarnings.print("lexer warnings");
     decodeFailures.print("literal decoding failures");
     checkFailures.print("check failures");
 

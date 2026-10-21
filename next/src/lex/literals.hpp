@@ -21,21 +21,26 @@ struct IntegerLiteral {
 };
 
 /// Decodes decimal, octal, hexadecimal and binary (0b, a GNU extension) integer constants with any suffix
-/// combination of u/U and l/L/ll/LL. Fails on malformed spellings and on values above 2^64 - 1.
+/// combination of u/U and l/L/ll/LL. Fails on malformed spellings, on values above 2^64 - 1, and on imaginary
+/// constants (suffix i or j, a GNU extension), which are not supported.
 [[nodiscard]] std::expected<IntegerLiteral, Error> decodeIntegerLiteral(std::string_view spelling);
 
-enum class FloatingSuffix : std::uint8_t { None, F, L, F128 }; // f/F; l/L; f128/F128/q/Q
+// The suffixes f/F; l/L; f128/F128/q/Q; f32/F32; f64/F64; f32x/F32x; f64x/F64x.
+enum class FloatingSuffix : std::uint8_t { None, F, L, F128, F32, F64, F32x, F64x };
 
 struct FloatingLiteral {
     FloatingSuffix suffix = FloatingSuffix::None;
-    // The value rounded once, directly to the precision of the literal's type: only the member for `suffix` is set
-    // (`longDoubleValue` for L and F128).
+    // The value rounded once, directly to the precision of the literal's type. Only one member is set: `floatValue`
+    // for F and F32, `doubleValue` for None, F64 and F32x, `longDoubleValue` for L, F64x and F128. F128 values are
+    // rounded to the x87 long double, not to binary128.
     float floatValue = 0;
     double doubleValue = 0;
     long double longDoubleValue = 0;
 };
 
-/// Decodes decimal and hexadecimal floating constants. Rounding is to nearest, as GCC does.
+/// Decodes decimal and hexadecimal floating constants. Rounding is to nearest, as GCC does. Values beyond the range
+/// of the type become infinity or zero, which GCC accepts with a warning. The suffix w (__float80) and imaginary
+/// constants (suffix i or j) are not supported.
 [[nodiscard]] std::expected<FloatingLiteral, Error> decodeFloatingLiteral(std::string_view spelling);
 
 enum class CharEncoding : std::uint8_t { Plain, Wide, Utf8, Utf16, Utf32 }; // none, L, u8, u, U
@@ -47,7 +52,8 @@ struct CharacterLiteral {
     std::int64_t value = 0;
 };
 
-/// Decodes a character constant, including all escape sequences of C17 6.4.4.4 and GNU's `\e`.
+/// Decodes a character constant, including all escape sequences of C17 6.4.4.4 and GNU's `\e`. An octal or
+/// hexadecimal escape whose value does not fit in a code unit is an error here, while GCC only warns.
 [[nodiscard]] std::expected<CharacterLiteral, Error> decodeCharacterLiteral(std::string_view spelling);
 
 struct StringLiteral {
@@ -59,7 +65,8 @@ struct StringLiteral {
 
 /// Decodes one or more adjacent string literal tokens into one string (C17 6.4.5p5). The prefixed tokens determine
 /// the encoding, and mixing different prefixes is an error. Every token is then decoded in that encoding, as GCC
-/// does: in `L"a" "\xff"`, the escape gives the wide code unit 0xFF.
+/// does: in `L"a" "\xff"`, the escape gives the wide code unit 0xFF. Escapes out of range are errors, as in
+/// decodeCharacterLiteral.
 [[nodiscard]] std::expected<StringLiteral, Error> decodeStringLiteral(std::span<const std::string_view> spellings);
 
 } // namespace nitwit::lex

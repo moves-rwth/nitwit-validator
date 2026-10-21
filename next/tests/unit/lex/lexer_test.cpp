@@ -224,7 +224,13 @@ TEST_F(LexerTest, CommentsAreSkipped) {
 }
 
 TEST_F(LexerTest, BackslashNewlineContinuesALineComment) {
-    EXPECT_THAT(spellings("a // b \\\n c\nd // e \\\r\n f\r\ng"), ElementsAre("a", "d", "g"));
+    EXPECT_THAT(spellings("a // b \\\n c\nd // e \\\r\n f\r\ng // h \\  \n i\nj"), ElementsAre("a", "d", "g", "j"));
+    EXPECT_TRUE(diagnostics_.diagnostics().empty()); // GCC does not warn about blanks after the backslash in comments
+}
+
+TEST_F(LexerTest, BackslashNewlineMaySplitTheEndOfABlockComment) {
+    EXPECT_THAT(spellings("a /* x *\\\n/ b /* y *\\\r\n\\\n/ c /* *\\ */ d"), ElementsAre("a", "b", "c", "d"));
+    EXPECT_FALSE(diagnostics_.hasErrors());
 }
 
 TEST_F(LexerTest, ColumnsCountTabsAsOneColumn) {
@@ -253,6 +259,12 @@ TEST_F(LexerTest, FileWithoutTrailingNewlineEndsAfterTheLastToken) {
     EXPECT_FALSE(diagnostics_.hasErrors());
 }
 
+TEST_F(LexerTest, TokenVectorOfASparseFileIsShrunk) {
+    const LexResult result = lex("x" + std::string(1000, ' ') + "y");
+    EXPECT_EQ(result.tokens.size(), 3u);
+    EXPECT_LE(result.tokens.capacity(), 2 * result.tokens.size());
+}
+
 TEST_F(LexerTest, EndOfFileAfterNewlineStartsALine) {
     const LexResult result = lex("x;\n");
     EXPECT_TRUE(result.tokens.back().atStartOfLine);
@@ -261,10 +273,10 @@ TEST_F(LexerTest, EndOfFileAfterNewlineStartsALine) {
 
 TEST_F(LexerTest, CarriageReturnLineEndingsAreLineBreaks) {
     const LexResult result = lex("a\r\n b\r\n#pragma x\r\nc\r\n");
-    EXPECT_THAT(spellings(result), ElementsAre("a", "b", "c"));
+    EXPECT_THAT(spellings(result), ElementsAre("a", "b", "#pragma x", "c"));
     EXPECT_TRUE(result.tokens[1].atStartOfLine);
     EXPECT_EQ(position(result.tokens[1]), (LineColumn{2, 2}));
-    EXPECT_EQ(position(result.tokens[2]), (LineColumn{4, 1}));
+    EXPECT_EQ(position(result.tokens[3]), (LineColumn{4, 1}));
     EXPECT_FALSE(diagnostics_.hasErrors());
 }
 
@@ -336,7 +348,8 @@ TEST_F(LexerTest, BackslashNewlineContinuesADirective) {
 
 TEST_F(LexerTest, DigraphOfHashStartsADirective) {
     const LexResult result = lex("%:line 9\nx\n%:pragma once\ny");
-    EXPECT_THAT(spellings(result), ElementsAre("x", "y"));
+    EXPECT_THAT(spellings(result), ElementsAre("x", "%:pragma once", "y"));
+    EXPECT_TRUE(result.tokens[1].is(K::Pragma));
     EXPECT_EQ(presumed(result.tokens[0]).line, 9u);
     EXPECT_FALSE(diagnostics_.hasErrors());
 }
@@ -356,13 +369,33 @@ INSTANTIATE_TEST_SUITE_P(LexerTest, InvalidLineMarkerTest,
                                            "# 99999999999", "#line 3 \"a.c\" junk", "#line 3 \"a.c\" 1", "# 3 \"a.c",
                                            "# 3 L\"a.c\"", "# 3 \"\\x\""));
 
-TEST_F(LexerTest, PragmaAndIdentLinesAreSkipped) {
-    EXPECT_THAT(spellings("#pragma once\n#ident \"v1\"\n# pragma omp parallel \\\n for\nx"), ElementsAre("x"));
+TEST_F(LexerTest, EachPragmaBecomesOneToken) {
+    const LexResult result = lex("int a;\n#pragma pack(push, 1)\nstruct s;\n  # pragma omp parallel \\\n for\n"
+                                 "#pragma pack(pop)");
+    EXPECT_THAT(spellings(result), ElementsAre("int", "a", ";", "#pragma pack(push, 1)", "struct", "s", ";",
+                                               "# pragma omp parallel \\\n for", "#pragma pack(pop)"));
+    EXPECT_THAT(kinds(result), ElementsAre(K::KwInt, K::Identifier, K::Semicolon, K::Pragma, K::KwStruct, K::Identifier,
+                                           K::Semicolon, K::Pragma, K::Pragma));
+    const Token& indented = result.tokens[7];
+    EXPECT_TRUE(indented.atStartOfLine);
+    EXPECT_TRUE(indented.hasLeadingSpace);
+    EXPECT_EQ(position(indented), (LineColumn{4, 3}));
+    EXPECT_TRUE(result.tokens[8].atStartOfLine);
+    EXPECT_FALSE(result.tokens[8].hasLeadingSpace);
     EXPECT_FALSE(diagnostics_.hasErrors());
 }
 
-TEST_F(LexerTest, PragmaWithQuotedTextAndCommentsIsSkipped) {
-    EXPECT_THAT(spellings("#pragma message(\"a // b\") /* c\nd */ e\n#pragma it's\nx"), ElementsAre("x"));
+TEST_F(LexerTest, PragmaTokenIncludesQuotedTextAndComments) {
+    const LexResult result = lex("#pragma message(\"a // b\") /* c\nd */ e\n#pragma it's // f\nx");
+    EXPECT_THAT(spellings(result), ElementsAre("#pragma message(\"a // b\") /* c\nd */ e", "#pragma it's // f", "x"));
+    EXPECT_TRUE(result.tokens[0].is(K::Pragma));
+    EXPECT_TRUE(result.tokens[0].atStartOfLine);
+    EXPECT_FALSE(result.tokens[0].hasLeadingSpace);
+    EXPECT_FALSE(diagnostics_.hasErrors());
+}
+
+TEST_F(LexerTest, IdentLinesAreSkipped) {
+    EXPECT_THAT(spellings("#ident \"v1\"\n# ident \"v2\" \\\n \"v3\"\nx"), ElementsAre("x"));
     EXPECT_FALSE(diagnostics_.hasErrors());
 }
 
@@ -405,7 +438,20 @@ TEST_F(LexerTest, DoubleHashIsNotADirective) {
 }
 
 TEST_F(LexerTest, HashAfterACommentAtLineStartStartsADirective) {
-    EXPECT_THAT(spellings("/* c */ #pragma x\ny"), ElementsAre("y"));
+    const LexResult result = lex("/* c */ #pragma x\nint y;\n/* d\n e */ #ident \"z\"\n");
+    EXPECT_THAT(spellings(result), ElementsAre("#pragma x", "int", "y", ";"));
+    EXPECT_TRUE(result.tokens[0].hasLeadingSpace);
+    EXPECT_FALSE(diagnostics_.hasErrors());
+}
+
+TEST_F(LexerTest, DirectivesStartOnlyLogicalLines) {
+    // After a block comment that started on the line of a token, or after a backslash-newline, '#' is in the middle
+    // of a logical line, as in GCC.
+    const LexResult result = lex("a /* b\n */ #pragma c\nd \\\n# define e\n");
+    EXPECT_THAT(spellings(result), ElementsAre("a", "#", "pragma", "c", "d", "#", "define", "e"));
+    EXPECT_FALSE(result.needsPreprocessing);
+    EXPECT_THAT(messages(),
+                ElementsAre("test.c:2:5: error: stray '#' in program", "test.c:4:1: error: stray '#' in program"));
 }
 
 TEST_F(LexerTest, StrayCharactersAreUnknownTokens) {
@@ -417,9 +463,22 @@ TEST_F(LexerTest, StrayCharactersAreUnknownTokens) {
                             "test.c:1:9: error: stray '\\' in program"));
 }
 
-TEST_F(LexerTest, NullCharacterIsAnUnknownToken) {
-    EXPECT_THAT(kinds(std::string("a\0b", 3)), ElementsAre(K::Identifier, K::Unknown, K::Identifier));
-    EXPECT_THAT(messages(), ElementsAre("test.c:1:2: error: stray '\\x00' in program"));
+TEST_F(LexerTest, NullCharactersAreIgnoredWithAWarning) {
+    const LexResult result = lex(std::string("a\0\0b", 4));
+    EXPECT_THAT(spellings(result), ElementsAre("a", "b"));
+    EXPECT_TRUE(result.tokens[1].hasLeadingSpace);
+    EXPECT_FALSE(diagnostics_.hasErrors());
+    EXPECT_THAT(messages(), ElementsAre("test.c:1:2: warning: null character(s) ignored"));
+}
+
+TEST_F(LexerTest, RawStringLiteralsAreNotSupported) {
+    const LexResult result = lex("a R\"x(b\")c\n)x\" d LR\"(e)\" u8R\"(\nf");
+    EXPECT_THAT(spellings(result), ElementsAre("a", "R\"x(b\")c\n)x\"", "d", "LR\"(e)\"", "u8R\"(", "f"));
+    EXPECT_THAT(kinds(result),
+                ElementsAre(K::Identifier, K::Unknown, K::Identifier, K::Unknown, K::Unknown, K::Identifier));
+    EXPECT_THAT(messages(), ElementsAre("test.c:1:3: error: raw string literals are not supported",
+                                        "test.c:2:7: error: raw string literals are not supported",
+                                        "test.c:2:15: error: raw string literals are not supported"));
 }
 
 TEST_F(LexerTest, BackslashNewlineBetweenTokensIsALineBreak) {
@@ -436,9 +495,37 @@ TEST_F(LexerTest, BackslashNewlinesBeforeWhitespaceDoNotJoinTokens) {
     EXPECT_FALSE(diagnostics_.hasErrors());
 }
 
-TEST_F(LexerTest, BackslashNewlineInsideATokenIsAnError) {
-    lex("ab\\\ncd");
-    EXPECT_THAT(messages(), ElementsAre("test.c:1:3: error: backslash-newline inside a token is not supported"));
+TEST_F(LexerTest, BackslashNewlineBetweenTokensThatDoNotJoinIsAccepted) {
+    const LexResult result = lex("return x\\\n; f(a,\\\nb) \"a\"\\\n\"b\" 1\\\n+2 a\\\n.b x-\\\n1");
+    EXPECT_THAT(spellings(result), ElementsAre("return", "x", ";", "f", "(", "a", ",", "b", ")", "\"a\"", "\"b\"", "1",
+                                               "+", "2", "a", ".", "b", "x", "-", "1"));
+    EXPECT_FALSE(diagnostics_.hasErrors());
+}
+
+class JoiningBackslashNewlineTest : public LexerTest, public ::testing::WithParamInterface<std::string_view> {};
+
+TEST_P(JoiningBackslashNewlineTest, IsAnError) {
+    lex(std::string(GetParam()));
+    std::vector<std::string> errors;
+    for (const Diagnostic& diagnostic : diagnostics_.diagnostics()) {
+        if (diagnostic.severity == Severity::Error) {
+            errors.push_back(diagnostic.message);
+        }
+    }
+    EXPECT_THAT(errors, ElementsAre("backslash-newline inside a token is not supported"));
+}
+
+INSTANTIATE_TEST_SUITE_P(LexerTest, JoiningBackslashNewlineTest,
+                         ::testing::Values("ab\\\ncd", "x 12\\\n3", "1\\\n.5", "1e\\\n+5", ".\\\n5", "a -\\\n> b",
+                                           "a +\\\n= b", "a <<\\\n= b", "a .\\\n..", "x <\\\n: y", "a /\\\n/ b",
+                                           "a /\\\n* b */", "L\\\n\"x\"", "u8\\\n'x'", "a\\ \nb"));
+
+TEST_F(LexerTest, BlanksBetweenBackslashAndNewlineGiveAWarning) {
+    const LexResult result = lex("a \\  \nb \"c\\ \t\r\nd\" #e");
+    EXPECT_THAT(spellings(result), ElementsAre("a", "b", "\"c\\ \t\r\nd\"", "#", "e"));
+    EXPECT_THAT(messages(), ElementsAre("test.c:1:3: warning: backslash and newline separated by space",
+                                        "test.c:2:5: warning: backslash and newline separated by space",
+                                        "test.c:3:4: error: stray '#' in program"));
 }
 
 TEST_F(LexerTest, BackslashNewlineInsideLiteralsIsPartOfTheToken) {

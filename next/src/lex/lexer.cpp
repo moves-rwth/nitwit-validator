@@ -1,10 +1,12 @@
 #include "lex/lexer.hpp"
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <iterator>
 #include <span>
 #include <string>
 #include <system_error>
@@ -150,8 +152,8 @@ constexpr Keyword keywords[] = {
     {"__builtin_choose_expr", TokenKind::KwBuiltinChooseExpr},
 };
 
-// Keywords are found through a hash table with linear probing, built at compile time; most identifiers are not
-// keywords, and this rejects them after one or two probes.
+// Keywords are found through a hash table with linear probing, built at compile time: a lookup hashes three
+// characters of the name and compares it with the few keywords in its probe sequence.
 constexpr std::size_t keywordSlots = 256; // a power of two, well above the number of keywords
 
 constexpr std::size_t keywordHash(std::string_view name) {
@@ -203,8 +205,15 @@ std::string printable(std::string_view text) {
     return result;
 }
 
-// C17 6.10.4p3: the line number of #line is at most 2147483647. GCC applies the same limit to line markers.
+// C17 6.10.4p3: the line number of #line is at most 2147483647. Line markers get the same limit here, although GCC
+// accepts larger ones.
 constexpr std::uint32_t maxLineNumber = 2147483647;
+
+// Pairs of characters that start a punctuator longer than their first character, or a comment.
+constexpr std::string_view joiningPairs[] = {
+    "->", "++", "--", "<<", ">>", "<=", ">=", "==", "!=", "&&", "||", "*=", "/=", "%=",
+    "+=", "-=", "&=", "^=", "|=", "..", "<:", ":>", "<%", "%>", "%:", "##", "//", "/*",
+};
 
 struct LiteralEnd {
     std::size_t end; // after the closing quote, or at the end of the line if there is none
@@ -221,9 +230,11 @@ public:
 
 private:
     bool skipTrivia();
+    void skipNullCharacters();
     void skipLineComment();
     void skipBlockComment();
     void skipSplicesBetweenTokens();
+    [[nodiscard]] bool joinsPreviousToken(char next) const;
 
     [[nodiscard]] bool startsDirective() const;
     bool handleDirective();
@@ -237,6 +248,7 @@ private:
     void lexIdentifier(std::size_t start);
     void lexNumber(std::size_t start);
     void lexQuoted(std::size_t start, std::size_t quote);
+    void lexRawString(std::size_t start, std::size_t quote);
     void lexPunctuator(TokenKind kind, std::size_t length);
     void lexUnknown(std::size_t length);
     Token& addToken(TokenKind kind, std::size_t start);
@@ -245,9 +257,9 @@ private:
         return pos_ + ahead < text_.size() ? text_[pos_ + ahead] : '\0';
     }
     [[nodiscard]] std::size_t spliceLength(std::size_t at) const;
-    [[nodiscard]] std::size_t skipSplices(std::size_t at) const;
+    std::size_t skipSplices(std::size_t at);
     [[nodiscard]] bool isContinuedLine(std::size_t newline) const;
-    [[nodiscard]] LiteralEnd findLiteralEnd(std::size_t quote) const;
+    LiteralEnd findLiteralEnd(std::size_t quote);
     [[nodiscard]] SourceLocation locationAt(std::size_t offset) const {
         return {file_, static_cast<std::uint32_t>(offset)};
     }
@@ -262,7 +274,9 @@ private:
     std::vector<Token> tokens_;
     std::size_t pos_ = 0;
     std::size_t lastTokenEnd_ = npos;
-    bool atStartOfLine_ = true;
+    std::size_t nextSpliceWarning_ = 0; // splices before this offset have been warned about
+    bool atStartOfLine_ = true;         // no token yet on the current physical line
+    bool atStartOfLogicalLine_ = true;  // no token since the last newline outside comments and splices
     bool hasLeadingSpace_ = false;
 };
 
@@ -290,6 +304,11 @@ LexResult Lexer::run() {
                             .length = 0,
                             .location = locationAt(pos_),
                             .identifier = {}});
+    // The tokens live as long as the program is validated, so a reserve of more than twice the need is given back.
+    // Shrinking copies all tokens (a third of the lexing time), so a smaller excess is kept.
+    if (tokens_.capacity() > 2 * tokens_.size()) {
+        tokens_.shrink_to_fit();
+    }
     return LexResult{.tokens = std::move(tokens_), .needsPreprocessing = needsPreprocessing};
 }
 
@@ -301,6 +320,7 @@ bool Lexer::skipTrivia() {
         case '\n':
             ++pos_;
             atStartOfLine_ = true;
+            atStartOfLogicalLine_ = true;
             hasLeadingSpace_ = false;
             break;
         case ' ':
@@ -310,6 +330,9 @@ bool Lexer::skipTrivia() {
         case '\r':
             ++pos_;
             hasLeadingSpace_ = true;
+            break;
+        case '\0':
+            skipNullCharacters();
             break;
         case '/':
             if (peek(1) == '/') {
@@ -342,6 +365,15 @@ bool Lexer::skipTrivia() {
     return true;
 }
 
+// GCC ignores null characters outside literals, with a warning.
+void Lexer::skipNullCharacters() {
+    diagnostics_.warning(locationAt(pos_), "null character(s) ignored");
+    while (pos_ < text_.size() && text_[pos_] == '\0') {
+        ++pos_;
+    }
+    hasLeadingSpace_ = true;
+}
+
 // A line comment ends at the end of the line, but a backslash-newline continues it (C17 5.1.1.2p1, phase 2).
 void Lexer::skipLineComment() {
     std::size_t newline = text_.find('\n', pos_ + 2);
@@ -352,26 +384,32 @@ void Lexer::skipLineComment() {
     hasLeadingSpace_ = true;
 }
 
+// A block comment ends at the first '*' followed by '/', with or without backslash-newlines between them.
 void Lexer::skipBlockComment() {
     const std::size_t start = pos_;
-    const std::size_t end = text_.find("*/", start + 2);
-    if (end == npos) {
-        diagnostics_.error(locationAt(start), "unterminated comment");
-        pos_ = text_.size();
-        return;
+    for (std::size_t star = text_.find('*', start + 2); star != npos; star = text_.find('*', star + 1)) {
+        std::size_t next = star + 1;
+        while (const std::size_t length = spliceLength(next)) {
+            next += length;
+        }
+        if (next < text_.size() && text_[next] == '/') {
+            pos_ = next + 1;
+            hasLeadingSpace_ = true;
+            if (text_.substr(start, pos_ - start).contains('\n')) {
+                atStartOfLine_ = true;
+            }
+            return;
+        }
     }
-    pos_ = end + 2;
-    hasLeadingSpace_ = true;
-    if (text_.substr(start, end - start).contains('\n')) {
-        atStartOfLine_ = true;
-    }
+    diagnostics_.error(locationAt(start), "unterminated comment");
+    pos_ = text_.size();
 }
 
-// A backslash-newline between tokens is a line break like any other. If it joins the characters of two tokens, C
-// makes them one token (C17 5.1.1.2p1, phase 2), which is not supported.
+// A backslash-newline between tokens is a line break of the physical line. If it joins the characters of two tokens,
+// C makes them one token (C17 5.1.1.2p1, phase 2), which is not supported.
 void Lexer::skipSplicesBetweenTokens() {
     const std::size_t next = skipSplices(pos_);
-    if (pos_ == lastTokenEnd_ && next < text_.size() && text_[next] != '\n' && !isBlank(text_[next])) {
+    if (pos_ == lastTokenEnd_ && next < text_.size() && joinsPreviousToken(text_[next])) {
         diagnostics_.error(locationAt(pos_), "backslash-newline inside a token is not supported");
     }
     pos_ = next;
@@ -379,9 +417,37 @@ void Lexer::skipSplicesBetweenTokens() {
     hasLeadingSpace_ = false;
 }
 
-// A directive starts with '#' or '%:' as the first token of a line; '##' and '%:%:' are other tokens (C17 6.10p2).
+// Whether the previous token and the character `next` would form one token if only backslash-newlines lie between
+// them.
+bool Lexer::joinsPreviousToken(char next) const {
+    const Token& previous = tokens_.back();
+    const std::string_view text = text_.substr(previous.location.offset, previous.length);
+    const char last = text.back();
+    if (isIdentifierContinue(last) && isIdentifierContinue(next)) {
+        return true;
+    }
+    if (previous.is(TokenKind::IntegerLiteral) || previous.is(TokenKind::FloatingLiteral)) {
+        // A pp-number continues with '.', and with a sign after an exponent letter (C17 6.4.8).
+        const bool afterExponent = last == 'e' || last == 'E' || last == 'p' || last == 'P';
+        if (next == '.' || (afterExponent && (next == '+' || next == '-'))) {
+            return true;
+        }
+    }
+    if (previous.is(TokenKind::Period) && isDigit(next)) {
+        return true;
+    }
+    if (previous.is(TokenKind::Identifier) && (text == "L" || text == "u" || text == "U" || text == "u8")
+        && (next == '"' || next == '\'')) {
+        return true;
+    }
+    const std::array<char, 2> pair{last, next};
+    return std::ranges::find(joiningPairs, std::string_view(pair.data(), pair.size())) != std::end(joiningPairs);
+}
+
+// A directive starts with '#' or '%:' as the first token of a logical line; '##' and '%:%:' are other tokens
+// (C17 6.10p2).
 bool Lexer::startsDirective() const {
-    if (!atStartOfLine_) {
+    if (!atStartOfLogicalLine_) {
         return false;
     }
     if (text_[pos_] == '#') {
@@ -393,6 +459,8 @@ bool Lexer::startsDirective() const {
 // Handles the directive at pos_. Returns false, with pos_ at the '#', if the directive needs the preprocessor.
 bool Lexer::handleDirective() {
     const std::size_t start = pos_;
+    const bool atStartOfLine = atStartOfLine_; // comments inside the directive must not change the flags of a Pragma
+    const bool hasLeadingSpace = hasLeadingSpace_;
     pos_ += text_[pos_] == '#' ? 1u : 2u;
     skipDirectiveBlanks();
     if (atEndOfDirective()) {
@@ -407,7 +475,17 @@ bool Lexer::handleDirective() {
         ++pos_;
     }
     const std::string_view name = text_.substr(nameStart, pos_ - nameStart);
-    if (name == "pragma" || name == "ident") {
+    if (name == "pragma") {
+        skipRestOfDirective();
+        if (text_[pos_ - 1] == '\r') {
+            --pos_; // leave the "\r\n" line break to skipTrivia
+        }
+        atStartOfLine_ = atStartOfLine;
+        hasLeadingSpace_ = hasLeadingSpace;
+        addToken(TokenKind::Pragma, start);
+        return true;
+    }
+    if (name == "ident") {
         skipRestOfDirective();
         return true;
     }
@@ -489,8 +567,8 @@ void Lexer::skipDirectiveBlanks() {
             skipBlockComment();
         } else if (c == '/' && peek(1) == '/') {
             skipLineComment();
-        } else if (const std::size_t length = spliceLength(pos_); length > 0) {
-            pos_ += length;
+        } else if (spliceLength(pos_) > 0) {
+            pos_ = skipSplices(pos_);
         } else {
             return;
         }
@@ -506,8 +584,8 @@ void Lexer::skipRestOfDirective() {
             pos_ = findLiteralEnd(pos_).end;
         } else if (c == '/' && (peek(1) == '*' || peek(1) == '/')) {
             skipDirectiveBlanks();
-        } else if (const std::size_t length = spliceLength(pos_); length > 0) {
-            pos_ += length;
+        } else if (spliceLength(pos_) > 0) {
+            pos_ = skipSplices(pos_);
         } else {
             ++pos_;
         }
@@ -539,18 +617,32 @@ void Lexer::lexToken() {
     case '"':
     case '\'':
         return lexQuoted(start, start);
+    case 'R':
+        if (peek(1) == '"') {
+            return lexRawString(start, start + 1);
+        }
+        return lexIdentifier(start);
     case 'L':
     case 'U':
         if (peek(1) == '"' || peek(1) == '\'') {
             return lexQuoted(start, start + 1);
+        }
+        if (peek(1) == 'R' && peek(2) == '"') {
+            return lexRawString(start, start + 2);
         }
         return lexIdentifier(start);
     case 'u':
         if (peek(1) == '"' || peek(1) == '\'') {
             return lexQuoted(start, start + 1);
         }
+        if (peek(1) == 'R' && peek(2) == '"') {
+            return lexRawString(start, start + 2);
+        }
         if (peek(1) == '8' && (peek(2) == '"' || peek(2) == '\'')) {
             return lexQuoted(start, start + 2);
+        }
+        if (peek(1) == '8' && peek(2) == 'R' && peek(3) == '"') {
+            return lexRawString(start, start + 3);
         }
         return lexIdentifier(start);
     case '[':
@@ -720,6 +812,24 @@ void Lexer::lexQuoted(std::size_t start, std::size_t quote) {
     addToken(TokenKind::Unknown, start);
 }
 
+// GCC accepts raw string literals, R"delimiter(...)delimiter", in C as an extension; NITWIT does not. The whole
+// literal becomes one Unknown token, so that its contents do not turn into tokens.
+void Lexer::lexRawString(std::size_t start, std::size_t quote) {
+    diagnostics_.error(locationAt(start), "raw string literals are not supported");
+    std::size_t end = text_.find('\n', quote);
+    if (const std::size_t open = text_.find('(', quote); open < end) {
+        const std::string closing = std::format("){}\"", text_.substr(quote + 1, open - quote - 1));
+        if (const std::size_t close = text_.find(closing, open + 1); close != npos) {
+            end = close + closing.size();
+        }
+    }
+    pos_ = std::min(end, text_.size());
+    if (pos_ < text_.size() && text_[pos_] == '\n' && text_[pos_ - 1] == '\r') {
+        --pos_; // leave the "\r\n" line break to skipTrivia
+    }
+    addToken(TokenKind::Unknown, start);
+}
+
 void Lexer::lexPunctuator(TokenKind kind, std::size_t length) {
     const std::size_t start = pos_;
     pos_ += length;
@@ -741,24 +851,32 @@ Token& Lexer::addToken(TokenKind kind, std::size_t start) {
     token.length = static_cast<std::uint32_t>(pos_ - start);
     token.location = locationAt(start);
     atStartOfLine_ = false;
+    atStartOfLogicalLine_ = false;
     hasLeadingSpace_ = false;
     lastTokenEnd_ = pos_;
     return token;
 }
 
-// The length of the backslash-newline at `at` ("\\\n" or "\\\r\n"), or 0 if there is none.
+// The length of the backslash-newline at `at`, or 0 if there is none. Like GCC, this accepts blanks between the
+// backslash and the newline, which covers "\\\r\n".
 std::size_t Lexer::spliceLength(std::size_t at) const {
-    if (at + 1 >= text_.size() || text_[at] != '\\') {
+    if (at >= text_.size() || text_[at] != '\\') {
         return 0;
     }
-    if (text_[at + 1] == '\n') {
-        return 2;
+    std::size_t end = at + 1;
+    while (end < text_.size() && isBlank(text_[end])) {
+        ++end;
     }
-    return text_[at + 1] == '\r' && at + 2 < text_.size() && text_[at + 2] == '\n' ? 3 : 0;
+    return end < text_.size() && text_[end] == '\n' ? end + 1 - at : 0;
 }
 
-std::size_t Lexer::skipSplices(std::size_t at) const {
+// Skips the backslash-newlines at `at`, with a warning about blanks before the newline as in GCC.
+std::size_t Lexer::skipSplices(std::size_t at) {
     while (const std::size_t length = spliceLength(at)) {
+        if (length > 2 && text_.substr(at, length) != "\\\r\n" && at >= nextSpliceWarning_) {
+            diagnostics_.warning(locationAt(at), "backslash and newline separated by space");
+            nextSpliceWarning_ = at + length;
+        }
         at += length;
     }
     return at;
@@ -766,15 +884,16 @@ std::size_t Lexer::skipSplices(std::size_t at) const {
 
 // Whether the newline at `newline` belongs to a backslash-newline.
 bool Lexer::isContinuedLine(std::size_t newline) const {
-    if (newline >= 1 && text_[newline - 1] == '\\') {
-        return true;
+    std::size_t i = newline;
+    while (i > 0 && isBlank(text_[i - 1])) {
+        --i;
     }
-    return newline >= 2 && text_[newline - 1] == '\r' && text_[newline - 2] == '\\';
+    return i > 0 && text_[i - 1] == '\\';
 }
 
 // Finds the end of the string literal or character constant whose opening quote is at `quote`. Backslash-newlines are
 // removed before escape sequences are recognized (C17 5.1.1.2p1, phases 2 and 3).
-LiteralEnd Lexer::findLiteralEnd(std::size_t quote) const {
+LiteralEnd Lexer::findLiteralEnd(std::size_t quote) {
     const char delimiter = text_[quote];
     std::size_t i = quote + 1;
     while (true) {

@@ -12,6 +12,8 @@ std::string_view spelling(TokenKind kind) {
         return "end of file";
     case TokenKind::Unknown:
         return "unknown token";
+    case TokenKind::Pragma:
+        return "#pragma";
     case TokenKind::Identifier:
         return "identifier";
     case TokenKind::IntegerLiteral:
@@ -248,6 +250,11 @@ std::string_view spelling(TokenKind kind) {
 bool isKeyword(TokenKind kind) {
     return std::to_underlying(kind) >= std::to_underlying(TokenKind::KwAuto)
            && std::to_underlying(kind) <= std::to_underlying(TokenKind::KwBuiltinChooseExpr);
+}
+
+bool isPunctuator(TokenKind kind) {
+    return std::to_underlying(kind) >= std::to_underlying(TokenKind::LeftSquare)
+           && std::to_underlying(kind) <= std::to_underlying(TokenKind::Comma);
 }
 
 } // namespace nitwit::lex
