@@ -20,6 +20,13 @@ include(NitwitModule)
 
 add_subdirectory(src)
 
+# Executables: the validator (driver) and developer tools.
+foreach(tool IN ITEMS nitwit-dump)
+    if(EXISTS ${PROJECT_SOURCE_DIR}/tools/${tool}/CMakeLists.txt)
+        add_subdirectory(tools/${tool})
+    endif()
+endforeach()
+
 if(NITWIT_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
