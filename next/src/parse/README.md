@@ -45,8 +45,16 @@ binding, because C's scoping is purely lexical and the parser has to track typed
 - **Labels** bind at the end of the function body: `GotoStmt::setTarget`. Every `switch` gets its case and default
   labels through `setLabels`.
 - **Predeclared typedef names:** `__builtin_va_list` (BuiltinKind::VaList), `__int128_t`, `__uint128_t`. The keywords
-  `_Float128`, `__float128` and `_Float64x` become `long double` with a warning; `_Float32` becomes `float`,
-  `_Float64` and `_Float32x` become `double`.
+  `_Float128` and `__float128` become `long double` with a warning, `_Float64x` becomes `long double` (which it is on
+  x86); `_Float32` becomes `float`, `_Float64` and `_Float32x` become `double`.
+- **Declaration lists** (`TranslationUnit::decls`, `DeclarationStmt::decls`): a struct, union or enum definition is
+  listed once, before the declarators of the declaration that contains it, and nested definitions come before the
+  enclosing one. `struct S;` lists nothing. Definitions inside type names (casts, `sizeof`, compound literals) and
+  parameter lists are only reachable through the types. Implicit function declarations precede the external
+  declaration that caused them.
+- **Pragmas:** `#pragma pack` (`N`, `()`, `push`, `pop`, with GCC's stack) sets `RecordDecl::maxFieldAlignment` of the
+  records whose definitions end while it is in effect; `#pragma weak f` marks every declaration of the function f as
+  weak, wherever f is declared. Other pragmas are ignored, wherever they occur.
 - **Constraint expressions:** stage 6 will need to parse a witness constraint as if it were written at a given program
   location. A block's declarations are its DeclarationStmts and the parameters are on the FunctionDecl, so the scope
   at a location can be rebuilt from the AST. Do not add separate scope tables to the AST.
