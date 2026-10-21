@@ -1,0 +1,19 @@
+# A non-termination witness in format 2.1 in the style of some producers: flow mappings, unquoted scalars, a line
+# written as a string, and the thread id of the main thread. The last segment is a cycle segment.
+- entry_type: violation_sequence
+  metadata:
+    format_version: 2.1
+    uuid: 5f1c2d3e-4b5a-6978-8a9b-0c1d2e3f4a5b
+    creation_time: 2026-10-21T12:00:00Z
+    producer: {name: UAutomizer, version: 0.3.0-dev}
+    task:
+      input_files: [loop.c]
+      input_file_hashes: {loop.c: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08}
+      specification: F end
+      data_model: ILP32
+      language: C
+  content:
+  - segment:
+    - waypoint: {type: assumption, action: follow, location: {file_name: loop.c, line: "4", column: 3}, constraint: {value: n >= 0, format: c_expression}, thread_id: 0}
+  - segment:
+    - waypoint: {type: branching, action: cycle, location: {file_name: loop.c, line: 5, column: 3, function: main}, constraint: {value: true}}

@@ -27,7 +27,7 @@ struct Constraint {
     /// the value of the case label (or "default"). Strings that YAML escape processing mangled are repaired, see
     /// parseYamlWitness.
     std::string value;
-    std::string format = "c_expression"; // or "acsl"
+    std::string format = "c_expression"; // as written, e.g. "ext_c_expression" or "acsl_expression"
 };
 
 struct Waypoint {
