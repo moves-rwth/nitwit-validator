@@ -92,7 +92,7 @@ ast::QualType writtenType(const ast::Expr* argument) {
 
 // ---- Builtins with special arguments ----
 
-std::optional<value::Value> Execution::builtin(const FunctionEntity& function, const ast::CallExpr* call) {
+std::optional<value::Value> Execution::builtinOnExpressions(const FunctionEntity& function, const ast::CallExpr* call) {
     const std::span<ast::Expr* const> arguments = call->arguments();
     switch (function.builtin) {
     case Builtin::VaStart: {
@@ -146,8 +146,8 @@ std::optional<value::Value> Execution::builtin(const FunctionEntity& function, c
     NITWIT_UNREACHABLE("not a builtin with special arguments");
 }
 
-std::optional<value::Value> Execution::callBuiltin(const FunctionEntity& function, const ast::CallExpr* call,
-                                                   Arguments& arguments) {
+std::optional<value::Value> Execution::builtinOnValues(const FunctionEntity& function, const ast::CallExpr* call,
+                                                       Arguments& arguments) {
     switch (function.builtin) {
     case Builtin::Assume:
         // An execution in which the argument is 0 is infeasible; the run ends without a verdict on it.
@@ -162,6 +162,12 @@ std::optional<value::Value> Execution::callBuiltin(const FunctionEntity& functio
         return allocateOnStack(call, arguments);
     case Builtin::Overflow:
         return overflow(function, call, arguments);
+    case Builtin::PassThrough:
+        // The value of the first argument; the conversion keeps its origin where it preserves the value.
+        if (arguments.values.empty()) {
+            undefined(std::format("'{}' needs an argument", function.name.text()), call);
+        }
+        return convert(arguments.values[0], arguments.types[0], call->type(), call);
     case Builtin::ObjectSize:
         // GCC knows the size of a declared object even at -O0; for other pointers, the library answers.
         if (const std::optional<std::uint64_t> size = sema::knownObjectSize(context_, call)) {
@@ -222,6 +228,9 @@ VaCursor& Execution::vaCursor(std::span<const std::byte> handle, const ast::Expr
 
 // C17 7.16.1.1: the next argument, which must have the requested type, up to signedness and void/char pointers.
 value::Value Execution::vaArg(const ast::VaArgExpr* expr) {
+    if (isEvaluatingConstraint_) {
+        stop(Termination::Unsupported, "a constraint must not use va_arg", expr->location());
+    }
     const Address list = vaListAddress(expr->list());
     const std::vector<std::byte> handle =
         readBytes(list, types_.describe(context_.builtin(ast::BuiltinKind::VaList)).size, expr);
@@ -234,21 +243,23 @@ value::Value Execution::vaArg(const ast::VaArgExpr* expr) {
     const TypeInfo from = types_.describe(variadic.types[cursor.next]);
     ++cursor.next;
     const TypeInfo to = types_.describe(expr->argumentType());
-    const bool isCompatible =
-        (from.isIntegral() && to.isIntegral())
-        || (from.representation == Representation::Floating && to.representation == Representation::Floating)
-        || (from.isBytes() && to.isBytes() && from.size == to.size);
+    // C17 7.16.1.1p2: the types must be compatible, except for signed and unsigned versions of a type (and, as here,
+    // integers and pointers of the same width); in particular, the sizes must agree.
+    const bool isCompatible = (from.isIntegral() && to.isIntegral() && from.integer.bits == to.integer.bits)
+                              || (from.representation == Representation::Floating
+                                  && to.representation == Representation::Floating && from.floating == to.floating)
+                              || (from.isBytes() && to.isBytes() && from.size == to.size);
     if (!isCompatible) {
         undefined("va_arg with a type that does not match the argument", expr);
     }
     if (to.isIntegral()) {
         value::Value result = value::Value::integer(argument.bits(), to.integer);
-        if (from.integer.bits == to.integer.bits) {
+        if (from.integer == to.integer) {
             result.setOrigin(argument.origin());
         }
         return result;
     }
-    return convert(argument, from, to, expr);
+    return argument;
 }
 
 void Execution::expandVaLists(Arguments& arguments, const ast::CallExpr* call) {

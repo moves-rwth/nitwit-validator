@@ -291,6 +291,38 @@ printf("%d %d %d %d\n", (int)sizeof(a), a[2][1], (int)sizeof(Row), last(3, a));)
               "36 5 12 8\n");
 }
 
+TEST_P(EvaluatorTest, FlexibleArrayMembersInitializedByStrings) {
+    EXPECT_EQ(print("struct G { int n; char s[]; } g = {3, \"abc\"};", R"(printf("%d %s %c\n", g.n, g.s, g.s[2]);)"),
+              "3 abc c\n");
+}
+
+TEST_P(EvaluatorTest, SizeofEvaluatesVariableLengthArrayOperands) {
+    // C17 6.5.3.4p2: m[i++] has a variable length array type, so it is evaluated.
+    EXPECT_EQ(print("", R"(int n = 3, i = 0, j = 0;
+int m[n][n];
+int a[4];
+unsigned s = sizeof(m[i++]);
+unsigned t = sizeof(a[j++]);
+printf("%u %d %u %d\n", s, i, t, j);)"),
+              "12 1 4 0\n");
+}
+
+TEST_P(EvaluatorTest, AssignmentsEvaluateLikeGcc) {
+    // The right operand first, unless it is a call; then the left operand's address first.
+    EXPECT_EQ(
+        print(R"(int arr[4];
+struct S { int x, y; } s;
+int b(void) { printf("b "); return 2; }
+int idx(void) { printf("idx "); return 1; }
+struct S *ps(void) { printf("ps "); return &s; })",
+              R"(arr[idx()] = b(); printf("| call\n");
+arr[idx()] = b() * 2; printf("| product\n");
+arr[idx()] = (b()); printf("| parenthesized call\n");
+ps()->y = b(); printf("| member call\n");
+ps()->y = -b(); printf("| member negation\n");)"),
+        "idx b | call\nb idx | product\nidx b | parenthesized call\nps b | member call\nb ps | member negation\n");
+}
+
 TEST_P(EvaluatorTest, CompoundLiteralsAreObjects) {
     EXPECT_EQ(print("struct P { int x, y; };\nint *g = (int[]){4, 5, 6};", R"(int *p = (int[]){1, 2, 3};
 p[1] = 20;

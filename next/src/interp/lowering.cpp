@@ -40,6 +40,9 @@ constexpr BuiltinName builtinNames[] = {
     {"__builtin_constant_p", Builtin::ConstantP},
     {"__builtin_object_size", Builtin::ObjectSize},
     {"__builtin_dynamic_object_size", Builtin::ObjectSize},
+    {"__builtin_expect", Builtin::PassThrough},
+    {"__builtin_expect_with_probability", Builtin::PassThrough},
+    {"__builtin_assume_aligned", Builtin::PassThrough},
     {"alloca", Builtin::Alloca},
     {"__builtin_alloca", Builtin::Alloca},
     {"__builtin_alloca_with_align", Builtin::Alloca},
@@ -541,7 +544,7 @@ private:
         for (const ast::VarDecl* parameter : definition->parameters()) {
             // The sizes in variably modified parameter types are evaluated on entry (C17 6.9.1p10).
             if (hasOwnVariableSizes(parameter->type())) {
-                walkType(parameter->type());
+                lowerStatementExpressions([&] { walkType(parameter->type()); });
                 emit({.op = OpCode::Declare, .decl = parameter});
             }
         }
@@ -674,18 +677,19 @@ private:
                     staticObject(var);
                     continue;
                 }
-                walkType(var->type());
-                expressions({var->initializer()}, true);
-                const bool isArray = isVariableLengthArray(var->type());
-                if (var->initializer() != nullptr || hasOwnVariableSizes(var->type()) || isArray) {
-                    emit({.op = OpCode::Declare, .decl = var});
-                }
-                if (isArray) {
+                lowerStatementExpressions([&] {
+                    walkType(var->type());
+                    walkInitializer(var->initializer());
+                });
+                // Also without an initializer: reaching the declaration again makes the object indeterminate
+                // (C17 6.2.4p6).
+                emit({.op = OpCode::Declare, .decl = var});
+                if (isVariableLengthArray(var->type())) {
                     ++vlaDepth_; // allocated by the Declare
                 }
             } else if (const auto* typedefDecl = dyn_cast<ast::TypedefDecl>(decl)) {
                 if (hasOwnVariableSizes(typedefDecl->underlying())) {
-                    walkType(typedefDecl->underlying());
+                    lowerStatementExpressions([&] { walkType(typedefDecl->underlying()); });
                     emit({.op = OpCode::Declare, .decl = typedefDecl});
                 }
             } else if (const auto* function = dyn_cast<ast::FunctionDecl>(decl)) {
@@ -825,16 +829,21 @@ private:
     /// Walks the expressions a statement evaluates. Their statement expressions are lowered right here, behind a jump
     /// that skips them: the evaluator runs them when it reaches them, and break, continue and goto in them see the
     /// loops and labels around the statement.
-    void expressions(std::initializer_list<const ast::Expr*> exprs, bool isInitializer = false) {
-        std::vector<const ast::StatementExpr*> found;
-        auto* outer = std::exchange(statementExpressions_, &found);
-        for (const ast::Expr* expr : exprs) {
-            if (isInitializer) {
-                walkInitializer(expr);
-            } else {
+    void expressions(std::initializer_list<const ast::Expr*> exprs) {
+        lowerStatementExpressions([&] {
+            for (const ast::Expr* expr : exprs) {
                 walk(expr);
             }
-        }
+        });
+    }
+
+    /// Runs `walkAll`, which walks what a statement evaluates (expressions, and the sizes in the types it declares),
+    /// and lowers the statement expressions found, as `expressions` does.
+    template <typename Walk>
+    void lowerStatementExpressions(const Walk& walkAll) {
+        std::vector<const ast::StatementExpr*> found;
+        auto* outer = std::exchange(statementExpressions_, &found);
+        walkAll();
         statementExpressions_ = outer;
         if (found.empty()) {
             return;

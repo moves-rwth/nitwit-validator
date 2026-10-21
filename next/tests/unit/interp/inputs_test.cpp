@@ -155,15 +155,40 @@ TEST_F(InputsTest, PartlyInitializedObjectsKeepTheWrittenBytes) {
     EXPECT_EQ(oracle_.requests.size(), 1);
 }
 
-TEST_F(InputsTest, UninitializedBitFieldsAreInputs) {
-    oracle_.answers = {5};
+TEST_F(InputsTest, UninitializedBitFieldsReadInputBytesOfTheirStorage) {
+    oracle_.answers = {5 << 3};
     EXPECT_EQ(status(R"(int main(void) {
     struct { unsigned a : 3, b : 4; } s;
     return s.b;
 })"),
               5);
     ASSERT_EQ(oracle_.requests.size(), 1);
-    EXPECT_EQ(ast::typeToString(oracle_.requests[0].type), "unsigned int");
+    EXPECT_EQ(ast::typeToString(oracle_.requests[0].type), "unsigned char");
+}
+
+TEST_F(InputsTest, UninitializedBitFieldsAreTruncatedAndShareTheirStorage) {
+    // 100 is 0b1100100: f gets the bits 100 (4), g the bits 1100 (-4); the storage is asked for once.
+    oracle_.answers = {100, 9};
+    EXPECT_EQ(status(R"(struct B { unsigned f : 3; int g : 4; };
+int main(void) {
+    struct B b;
+    unsigned x = b.f;
+    unsigned y = b.f;
+    int u = b.g;
+    return (int)(x * 10 + y) * 100 + u * 10 + 50;
+})"),
+              4400 - 40 + 50);
+    EXPECT_EQ(oracle_.requests.size(), 1);
+}
+
+TEST_F(InputsTest, AnswersAreNormalizedToTheRequestedType) {
+    oracle_.answers = {300, 2};
+    EXPECT_EQ(status(R"(int main(void) {
+    unsigned char c;
+    _Bool b;
+    return c * 10 + b;
+})"),
+              441);
 }
 
 TEST_F(InputsTest, CopiesOfRecordsKeepTheirInitializationState) {
@@ -245,6 +270,66 @@ int main(void) {
                                return member(ref("p", f), "a");
                            }}),
                 ElementsAre("0", "1", "-"));
+}
+
+constexpr const char* recordProgram = R"(int __VERIFIER_nondet_int(void);
+struct S { int a; int b; };
+struct S id(struct S s) { return s; }
+int g(struct S s) {
+    return s.a;
+}
+int main(void) {
+    struct S s;
+    s.a = __VERIFIER_nondet_int();
+    struct S r = id(s);
+    int v = g(s);
+    return 0;
+})";
+
+TEST_F(InputsTest, RecordArgumentsKeepOriginsAndInitializationState) {
+    // In g, s.a is still the input, and s.b is still uninitialized: reading it is another input.
+    EXPECT_THAT(originsAt(recordProgram, 5,
+                          {[&](const ast::FunctionDecl* f) { return member(ref("s", f), "a"); },
+                           [&](const ast::FunctionDecl* f) {
+                               return member(ref("s", f), "b");
+                           }}),
+                ElementsAre("0", "1"));
+    ASSERT_EQ(oracle_.requests.size(), 2);
+    EXPECT_EQ(oracle_.requests[1].kind, InputRequest::Kind::UninitializedRead);
+}
+
+TEST_F(InputsTest, RecordResultsKeepOrigins) {
+    EXPECT_THAT(originsAt(recordProgram, 12, {[&](const ast::FunctionDecl* f) {
+                              return member(ref("r", f), "a");
+                          }}),
+                ElementsAre("0"));
+}
+
+TEST_F(InputsTest, PassThroughBuiltinsKeepOrigins) {
+    EXPECT_THAT(originsAt(R"(int __VERIFIER_nondet_int(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    long e = __builtin_expect(x, 0);
+    return 0;
+})",
+                          5, {variable("e")}),
+                ElementsAre("0"));
+}
+
+TEST_F(InputsTest, DeclarationsReachedAgainMakeObjectsIndeterminate) {
+    // C17 6.2.4p6: each iteration's x is a new indeterminate value, so each read is a new input.
+    oracle_.answers = {1, 2, 3};
+    EXPECT_EQ(status(R"(int main(void) {
+    int s = 0;
+    for (int i = 0; i < 3; i++) {
+        int x;
+        s = s * 10 + x;
+        x = 100;
+    }
+    return s;
+})"),
+              123);
+    EXPECT_EQ(oracle_.requests.size(), 3);
 }
 
 TEST_F(InputsTest, UninitializedReadsHaveOrigins) {

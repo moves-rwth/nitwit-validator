@@ -113,6 +113,59 @@ TEST_F(EvaluationContextTest, SideEffectsAreErrors) {
               "error: a constraint must not call a function");
 }
 
+TEST_F(EvaluationContextTest, ConstraintsReportNoEvents) {
+    std::size_t eventsDuring = 1;
+    std::string value;
+    observer_.onStatement = [&](const StatementEvent& event, EvaluationContext& context) {
+        if (sources_.lineColumn(event.stmt->location()).line == 10 && value.empty()) {
+            const std::size_t before = observer_.events.size();
+            value = evaluate(context, [&](const ast::FunctionDecl* f) {
+                return context_->create<ast::ConditionalExpr>(SourceRange{},
+                                                              binary(BinaryOperator::Greater, ref("x", f), integer(0)),
+                                                              integer(1), integer(2), SourceLocation{});
+            });
+            eventsDuring = observer_.events.size() - before;
+        }
+        return Directive::Continue;
+    };
+    (void)run(program);
+    EXPECT_EQ(value, "1");
+    EXPECT_EQ(eventsDuring, 0);
+}
+
+TEST_F(EvaluationContextTest, MembersOfConditionalRecordsAreReadFromTheObjects) {
+    constexpr const char* records = R"(struct S { int a; } s, t;
+struct S get(void) { return s; }
+int main(void) {
+    int c = 1;
+    return 0;
+})";
+    std::string value;
+    observer_.onStatement = [&](const StatementEvent& event, EvaluationContext& context) {
+        if (sources_.lineColumn(event.stmt->location()).line == 5 && value.empty()) {
+            // (c ? s : t).a reads s.a: no temporary object, which a constraint must not create.
+            value = evaluate(context, [&](const ast::FunctionDecl* f) {
+                return member(context_->create<ast::ConditionalExpr>(SourceRange{}, ref("c", f), ref("s", f),
+                                                                     ref("t", f), SourceLocation{}),
+                              "a");
+            });
+        }
+        return Directive::Continue;
+    };
+    (void)run(records);
+    EXPECT_EQ(value, "0");
+}
+
+TEST_F(EvaluationContextTest, StaticInitializationReportsNoEvents) {
+    EXPECT_EQ(status(R"(int g = sizeof(int) > 2 ? 1 : 0;
+int *p = 1 ? &g : 0;
+int main(void) {
+    return *p;
+})"),
+              1);
+    EXPECT_THAT(observer_.events, ::testing::ElementsAre("S 4:5"));
+}
+
 TEST_F(EvaluationContextTest, UninitializedVariablesAskTheOracle) {
     oracle_.answers = {12};
     EXPECT_EQ(evaluateAt(program, 10, [&](const ast::FunctionDecl* f) { return ref("u", f); }), "12");

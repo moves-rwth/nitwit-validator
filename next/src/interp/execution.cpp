@@ -14,6 +14,10 @@ namespace nitwit::interp {
 
 namespace {
 
+/// The host stack left unused when the run stops for lack of stack: enough for a library call and the unwinding, also
+/// with the larger frames of sanitizer builds.
+constexpr std::size_t hostStackReserve = std::size_t{1} << 20;
+
 std::string_view memoryErrorText(MemoryErrorKind kind) {
     switch (kind) {
     case MemoryErrorKind::NullPointer:
@@ -47,9 +51,11 @@ Execution::~Execution() = default;
 
 RunResult Execution::run() {
     RunResult result;
+    hostStack_.emplace(hostStackReserve);
     try {
         allocateStaticStorage();
-        initializeStaticStorage();
+        initializeStaticStorage(); // not steps of the program: no events
+        isReporting_ = true;
         const value::Value status = callMain();
         result.termination = Termination::Returned;
         result.exitStatus = status.kind() == value::Value::Kind::Integer ? static_cast<int>(status.signedBits()) : 0;
@@ -162,7 +168,7 @@ value::Value Execution::callMain() {
         arguments.values.push_back(value::Value::integer(environment, pointer));
         arguments.types.push_back(parameters[2]->type());
     }
-    const std::optional<value::Value> status = invoke(main, arguments, nullptr);
+    const std::optional<value::Value> status = invoke(main, arguments, nullptr).value;
     const ast::FunctionType* type = TypeTable::function(main.decl->type());
     if (!status || types_.describe(type->returnType()).representation != Representation::Integer) {
         return value::Value::integer(0, types_.intFormat());
@@ -197,6 +203,13 @@ void Execution::countStep() {
     ++steps_;
     if (options_.maxSteps != 0 && steps_ > options_.maxSteps) {
         stop(Termination::LimitReached, std::format("the step limit of {} was reached", options_.maxSteps), location_);
+    }
+}
+
+void Execution::checkHostStack(const ast::Expr* where) const {
+    if (hostStack_ && hostStack_->isExhausted()) {
+        stop(Termination::LimitReached, "the host stack is exhausted: the program recurses too deeply",
+             locationOf(where));
     }
 }
 

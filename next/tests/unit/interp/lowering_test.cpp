@@ -220,6 +220,16 @@ TEST_F(LoweringTest, TheValueOfAStatementExpressionMayBeLabeled) {
               10);
 }
 
+TEST_F(LoweringTest, StatementExpressionsInArraySizes) {
+    EXPECT_EQ(status(R"(int main(void) {
+    int len = 20;
+    char buffer[({ int x = len; x < 16 ? x : 16; })];
+    typedef int Row[({ 3; })];
+    return (int)sizeof buffer + (int)sizeof(Row);
+})"),
+              16 + 12);
+}
+
 TEST_F(LoweringTest, BreakLeavesAStatementExpression) {
     EXPECT_EQ(status(R"(int main(void) {
     int n = 0;
