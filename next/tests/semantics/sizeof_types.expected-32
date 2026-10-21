@@ -1,0 +1,11 @@
+char 1 short 2 int 4 long 4 long long 8
+float 4 double 8 long double 12
+pointer 4 function pointer 4 struct pointer 4
+size_t 4 ptrdiff_t 4
+align: short 2 int 4 long 4 long long 4 double 4 long double 4 pointer 4
+4 9
+4 9
+56 8 4
+5 15 16
+1
+4

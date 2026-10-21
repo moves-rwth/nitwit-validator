@@ -1,0 +1,13 @@
+trace(0) -> 0
+trace(1) trace(2) -> 1
+trace(1) -> 1
+trace(0) trace(0) -> 0
+trace(0) trace(2) -> 1
+trace(1) -> 1
+calls 9
+0 1
+sequenced 1
+1 2
+divisible or zero
+trace(20) trace(-20) -> 1 1
+1

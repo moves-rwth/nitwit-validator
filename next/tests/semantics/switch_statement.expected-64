@@ -1,0 +1,9 @@
+-2:other -1:minus one 0:zero 1:small 2:small 3:other 
+10000 111 110 100 11000 10000 
+3 2 1
+big
+inner default
+after inner
+outer 2
+uc 200
+u matches -1
