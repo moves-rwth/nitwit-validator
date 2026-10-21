@@ -68,10 +68,18 @@ TEST(IntegerLiteralTest, DecodesSuffixes) {
 }
 
 TEST(IntegerLiteralTest, RejectsInvalidSuffixes) {
-    for (const std::string_view spelling : {"1lL", "1Ll", "1uu", "1lul", "1lll", "1x", "1f", "1i", "0x1g", "1.0"}) {
+    for (const std::string_view spelling : {"1lL", "1Ll", "1uu", "1lul", "1lll", "1x", "1f", "0x1g", "1.0"}) {
         const auto literal = decodeIntegerLiteral(spelling);
         ASSERT_FALSE(literal.has_value()) << spelling;
         EXPECT_THAT(literal.error().message, HasSubstr("invalid suffix")) << spelling;
+    }
+}
+
+TEST(IntegerLiteralTest, ImaginaryConstantsAreNotSupported) {
+    for (const std::string_view spelling : {"1i", "2j", "3uI", "4Jl"}) {
+        const auto literal = decodeIntegerLiteral(spelling);
+        ASSERT_FALSE(literal.has_value()) << spelling;
+        EXPECT_THAT(literal.error().message, HasSubstr("imaginary constants are not supported")) << spelling;
     }
 }
 
@@ -131,6 +139,44 @@ TEST(FloatingLiteralTest, SuffixSelectsTheType) {
         EXPECT_EQ(q->longDoubleValue, 0.1L) << spelling;
     }
     EXPECT_EQ(decodeFloatingLiteral("0x1p3f")->floatValue, 8.0f);
+}
+
+TEST(FloatingLiteralTest, DecodesTheSuffixesOfTheFloatNTypes) {
+    for (const std::string_view spelling : {"0.1f32", "0.1F32"}) {
+        const auto literal = decodeFloatingLiteral(spelling);
+        ASSERT_TRUE(literal.has_value()) << spelling;
+        EXPECT_EQ(literal->suffix, FloatingSuffix::F32) << spelling;
+        EXPECT_EQ(literal->floatValue, 0.1f) << spelling;
+    }
+    const std::pair<std::string_view, FloatingSuffix> doubles[] = {
+        {"0.1f64", FloatingSuffix::F64},
+        {"0.1F64", FloatingSuffix::F64},
+        {"0.1f32x", FloatingSuffix::F32x},
+        {"0.1F32x", FloatingSuffix::F32x},
+    };
+    for (const auto& [spelling, suffix] : doubles) {
+        const auto literal = decodeFloatingLiteral(spelling);
+        ASSERT_TRUE(literal.has_value()) << spelling;
+        EXPECT_EQ(literal->suffix, suffix) << spelling;
+        EXPECT_EQ(literal->doubleValue, 0.1) << spelling;
+    }
+    for (const std::string_view spelling : {"0.1f64x", "0.1F64x"}) {
+        const auto literal = decodeFloatingLiteral(spelling);
+        ASSERT_TRUE(literal.has_value()) << spelling;
+        EXPECT_EQ(literal->suffix, FloatingSuffix::F64x) << spelling;
+        EXPECT_EQ(literal->longDoubleValue, 0.1L) << spelling;
+    }
+    EXPECT_EQ(decodeFloatingLiteral("0x1p3f32")->floatValue, 8.0f);
+}
+
+TEST(FloatingLiteralTest, Float80AndImaginaryConstantsAreNotSupported) {
+    EXPECT_THAT(decodeFloatingLiteral("1.0w").error().message, HasSubstr("__float80 constants are not supported"));
+    EXPECT_THAT(decodeFloatingLiteral("1.0W").error().message, HasSubstr("__float80 constants are not supported"));
+    for (const std::string_view spelling : {"1.0i", "1.0j", "1.0fi", "1e3Il", "0x1p1J"}) {
+        const auto literal = decodeFloatingLiteral(spelling);
+        ASSERT_FALSE(literal.has_value()) << spelling;
+        EXPECT_THAT(literal.error().message, HasSubstr("imaginary constants are not supported")) << spelling;
+    }
 }
 
 TEST(FloatingLiteralTest, RoundsOnceToTheTargetType) {
@@ -384,6 +430,8 @@ TEST(StringLiteralTest, BackslashNewlinesAreRemoved) {
     EXPECT_EQ(decode("\"ab\\\ncd\"")->codeUnits, units("abcd"));
     EXPECT_EQ(decode("\"ab\\\r\ncd\\\n\"")->codeUnits, units("abcd"));
     EXPECT_EQ(decode("\"\\\\\n\"\"")->codeUnits, units("\""));
+    EXPECT_EQ(decode("\"c\\ \t\r\nd\"")->codeUnits, units("cd")); // blanks before the newline, as in GCC
+    EXPECT_EQ(decode("\"\\ x\"")->codeUnits, units(" x"));        // an unknown escape, not a splice
 }
 
 TEST(StringLiteralTest, JoinsAdjacentLiterals) {

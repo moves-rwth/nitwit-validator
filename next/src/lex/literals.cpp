@@ -129,19 +129,35 @@ std::expected<FloatingParts, Error> splitFloating(std::string_view spelling) {
 }
 
 std::optional<FloatingSuffix> parseFloatingSuffix(std::string_view suffix) {
-    if (suffix.empty()) {
-        return FloatingSuffix::None;
-    }
-    if (suffix == "f" || suffix == "F") {
-        return FloatingSuffix::F;
-    }
-    if (suffix == "l" || suffix == "L") {
-        return FloatingSuffix::L;
-    }
-    if (suffix == "f128" || suffix == "F128" || suffix == "q" || suffix == "Q") {
-        return FloatingSuffix::F128;
+    struct Entry {
+        std::string_view lower;
+        std::string_view upper;
+        FloatingSuffix suffix;
+    };
+    static constexpr Entry entries[] = {
+        {"", "", FloatingSuffix::None},         {"f", "F", FloatingSuffix::F},
+        {"l", "L", FloatingSuffix::L},          {"q", "Q", FloatingSuffix::F128},
+        {"f128", "F128", FloatingSuffix::F128}, {"f32", "F32", FloatingSuffix::F32},
+        {"f64", "F64", FloatingSuffix::F64},    {"f32x", "F32x", FloatingSuffix::F32x},
+        {"f64x", "F64x", FloatingSuffix::F64x},
+    };
+    for (const Entry& entry : entries) {
+        if (suffix == entry.lower || suffix == entry.upper) {
+            return entry.suffix;
+        }
     }
     return std::nullopt;
+}
+
+// The error for an invalid suffix. GCC's suffixes for imaginary and __float80 constants get their own message.
+std::unexpected<Error> invalidSuffix(std::string_view suffix, bool isFloating) {
+    if (suffix.find_first_of("ijIJ") != std::string_view::npos) {
+        return failure(std::format("imaginary constants are not supported (suffix '{}')", suffix));
+    }
+    if (isFloating && suffix.find_first_of("wW") != std::string_view::npos) {
+        return failure(std::format("__float80 constants are not supported (suffix '{}')", suffix));
+    }
+    return failure(std::format("invalid suffix '{}' on {} constant", suffix, isFloating ? "floating" : "integer"));
 }
 
 // Whether the magnitude of a nonzero constant is at least 1, judged from its first nonzero digit and its exponent. It
@@ -399,13 +415,15 @@ std::expected<LiteralText, Error> splitLiteral(std::string_view spelling, char q
     const std::string_view body = spelling.substr(prefixLength + 1, spelling.size() - prefixLength - 2);
     text.body.reserve(body.size());
     for (std::size_t i = 0; i < body.size(); ++i) {
-        if (body[i] == '\\' && body.substr(i + 1).starts_with('\n')) {
-            i += 1;
-        } else if (body[i] == '\\' && body.substr(i + 1).starts_with("\r\n")) {
-            i += 2;
-        } else {
-            text.body += body[i];
+        if (body[i] == '\\') {
+            // Like GCC, accept blanks between the backslash and the newline.
+            const std::size_t newline = body.find_first_not_of(" \t\v\f\r", i + 1);
+            if (newline != std::string_view::npos && body[newline] == '\n') {
+                i = newline;
+                continue;
+            }
         }
+        text.body += body[i];
     }
     return text;
 }
@@ -484,7 +502,7 @@ std::expected<IntegerLiteral, Error> decodeIntegerLiteral(std::string_view spell
         return failure(std::format("integer constant '{}' has no digits", spelling));
     }
     if (!parseIntegerSuffix(spelling.substr(i), literal)) {
-        return failure(std::format("invalid suffix '{}' on integer constant", spelling.substr(i)));
+        return invalidSuffix(spelling.substr(i), false);
     }
     if (tooLarge) {
         return failure(std::format("integer constant '{}' is too large", spelling));
@@ -499,13 +517,15 @@ std::expected<FloatingLiteral, Error> decodeFloatingLiteral(std::string_view spe
     }
     const auto suffix = parseFloatingSuffix(parts->suffix);
     if (!suffix) {
-        return failure(std::format("invalid suffix '{}' on floating constant", parts->suffix));
+        return invalidSuffix(parts->suffix, true);
     }
 
     FloatingLiteral literal;
     literal.suffix = *suffix;
     switch (*suffix) {
-    case FloatingSuffix::None: {
+    case FloatingSuffix::None:
+    case FloatingSuffix::F64:
+    case FloatingSuffix::F32x: {
         const auto value = convertFloating<double>(*parts);
         if (!value) {
             return std::unexpected(value.error());
@@ -513,7 +533,8 @@ std::expected<FloatingLiteral, Error> decodeFloatingLiteral(std::string_view spe
         literal.doubleValue = *value;
         break;
     }
-    case FloatingSuffix::F: {
+    case FloatingSuffix::F:
+    case FloatingSuffix::F32: {
         const auto value = convertFloating<float>(*parts);
         if (!value) {
             return std::unexpected(value.error());
@@ -522,6 +543,7 @@ std::expected<FloatingLiteral, Error> decodeFloatingLiteral(std::string_view spe
         break;
     }
     case FloatingSuffix::L:
+    case FloatingSuffix::F64x:
     case FloatingSuffix::F128: {
         const auto value = convertFloating<long double>(*parts);
         if (!value) {
