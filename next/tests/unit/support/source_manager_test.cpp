@@ -1,5 +1,8 @@
 #include "support/source_manager.hpp"
 
+#include <cstdint>
+#include <string_view>
+
 #include <gtest/gtest.h>
 
 namespace nitwit {
@@ -79,6 +82,22 @@ TEST(SourceManagerTest, DescribeNamesFileLineAndColumn) {
     SourceManager sources;
     const FileId file = sources.addFile("a.c", "int x;\nint y;\n");
     EXPECT_EQ(sources.describe({file, 11}), "a.c:2:5");
+}
+
+TEST(SourceManagerTest, ViewsStayValidWhenFilesAndMarkersAreAdded) {
+    SourceManager sources;
+    const FileId file = sources.addFile("a.c", "x == 5");
+    sources.addLineMarker(file, 1, 7, "b.c");
+    const std::string_view contents = sources.contents(file);
+    const std::string_view name = sources.name(file);
+    const std::string_view presumedName = sources.presumed({file, 0}).fileName;
+    for (int i = 0; i < 1000; ++i) {
+        sources.addFile("f.c", "y");
+        sources.addLineMarker(file, static_cast<std::uint32_t>(i + 2), 1, "c.c");
+    }
+    EXPECT_EQ(contents, "x == 5");
+    EXPECT_EQ(name, "a.c");
+    EXPECT_EQ(presumedName, "b.c");
 }
 
 TEST(SourceManagerTest, LoadFileReportsMissingFiles) {

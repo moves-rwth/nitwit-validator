@@ -4,6 +4,7 @@
 // column, and through line markers (`# 12 "a.c"`) to a presumed location.
 
 #include <cstdint>
+#include <deque>
 #include <expected>
 #include <filesystem>
 #include <optional>
@@ -89,12 +90,14 @@ private:
         std::string name;
         std::string contents;
         std::vector<std::uint32_t> lineStarts; // offset of the first byte of each line
-        std::vector<LineMarker> markers;
+        std::deque<LineMarker> markers;
     };
 
     [[nodiscard]] const File& file(FileId id) const;
 
-    std::vector<File> files_; // FileId n is files_[n - 1]
+    // Deques, so that adding files or markers never moves existing ones: the string_views handed out by name(),
+    // contents(), lineText() and presumed() stay valid, also for short strings stored inside the std::string.
+    std::deque<File> files_; // FileId n is files_[n - 1]
 };
 
 } // namespace nitwit
