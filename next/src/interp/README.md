@@ -156,6 +156,59 @@ after that, the access reaches the new object, as in a native run.
   - Signed overflow and invalid shifts are reported through `onUndefinedBehavior` and continue with the hardware
     result.
 
+## Evaluator: how it is built, and its behaviour choices
+
+The implementation is split by area: `lowering.cpp` (`buildProgram`, `program.hpp`), `execution.cpp` (start-up,
+ending, limits), `statements.cpp` (the instruction loop), `calls.cpp`, `expressions.cpp`, `lvalues.cpp`,
+`conversions.cpp`, `initialization.cpp`, `builtins.cpp` and `events.cpp`; `execution.hpp` declares the class
+`Execution` they share, and `type_info.hpp` the representation of types (computed without canonicalizing, because the
+evaluator asks for it at every operation).
+
+- **Entities:** functions and objects with linkage are identified by name, so all their declarations (also in blocks)
+  share one entity; block-scope statics are entities of their own. The last declaration gives the type. GNU
+  `alias("target")` makes a function or object the target's. A weak function without definition has the address 0.
+- **Functions without definition**, in this order: the evaluator's builtins (`__VERIFIER_assume`,
+  `__VERIFIER_nondet_memory`, `__builtin_va_*`, `__builtin_constant_p`, `__builtin_object_size` (the size
+  `sema::knownObjectSize` gives, else the library's answer), `alloca`, the type-generic overflow builtins and their
+  `_p` forms, `__atomic_*`, `__sync_*`); `__VERIFIER_nondet_<anything>` (the oracle, `NondetCall`); the library; weak
+  functions (calling one is undefined); else the oracle (`UndefinedFunction`) for a scalar result, zero for a struct.
+- **Calls through a declaration without prototype** of a function defined with one (C17 6.5.2.2p6) are undefined if
+  the numbers of arguments and parameters differ, or if a promoted argument does not fit its promoted parameter: the
+  same integer width (signed and unsigned only with a value both hold), pointer for pointer, the same floating type,
+  records of the same size. Otherwise each argument is converted to its parameter's type, as for K&R definitions.
+- **Order of evaluation** (unspecified in C, visible in the order of the inputs) as GCC on x86 and x86-64: the
+  arguments of a call from right to left; the operands of the other binary operators from left to right; for `=` the
+  left operand first, for compound assignments the right operand first.
+- **Steps** (`RunOptions::maxSteps`): statements, controlling expressions and calls, so that loops without statements
+  are limited too.
+- **Storage:**
+  - Each local is an allocation of its own (out-of-bounds accesses between locals are detected). Compound literals in
+    a function get storage at function entry, one object per literal and call, re-initialized at each evaluation.
+  - `alloca` blocks are stack allocations of the frame; like GCC, the end of a variable length array's scope also
+    ends the blocks allocated after it. Freeing one is undefined.
+  - A struct rvalue whose member is addressed (`f().a[1]`) is copied to a heap temporary that lives until the next
+    statement of the function (C17 6.2.4p8).
+- **Records** are copied object to object where the source is an lvalue (`s = t`, `struct S s = t;`), with the
+  initialization state and the origins of the bytes; other record values (call results, `?:`) are plain bytes.
+- **Uninitialized reads:** a scalar with uninitialized bytes is answered by the oracle; bytes that were written keep
+  their values (then the value has no origin). A bit-field asks if any byte of its storage is uninitialized. Writing a
+  bit-field initializes the bytes of its storage.
+- **Conversions:** a pointer converted to a wider integer is sign-extended (GCC, "Arrays and pointers"). Origins
+  survive integer conversions to types that hold every value of the source type, integer to floating conversions
+  that are exact for every value, and floating widening.
+- **va_list:** the object holds a handle (a number in its first four bytes) of a cursor over the variadic arguments of
+  the frame that called `va_start`. A copy of the object (passing a va_list) shares the cursor, as on x86-64;
+  `va_copy` makes an independent one. `va_arg` of an argument of another kind or size, after the last argument, or
+  after the function returned is undefined. Library functions with a va_list get the remaining arguments instead.
+- **Statement expressions** are lowered in place, behind a jump over them, and run as a range of the function's
+  instructions; `break`, `continue`, `goto` and `return` out of them abandon the enclosing expression (GNU). Their
+  value is that of `StatementExpr::valueStatement()`.
+- **Undefined behaviour without a defined result** stops the run with a message naming the operation and, for memory
+  errors, the kind and the object (`invalid read of 4 bytes at 0x...: out of bounds ('a')`). Floating to integer
+  conversions out of range are reported and continue, like signed overflow.
+- **Constraints** (`EvaluationContext::evaluate`): assignments, increments, calls, statement expressions and compound
+  literals are errors, and so is any undefined behaviour; uninitialized reads ask the oracle.
+
 ## Tests
 
 - `tests/unit/interp/memory_test.cpp`: the memory behaviour above:
@@ -166,7 +219,10 @@ after that, the access reaches the new object, as in a native run.
   - origins set, read, partly overwritten and copied (overlapping ranges too);
   - deterministic addresses; the limits of the 32-bit address space; a 1 GiB global written at two places only.
 - `tests/unit/interp/`: interpreter tests on small programs (source text → output and termination), with a test
-  oracle and a recording observer for the event sequences.
+  oracle and a recording observer for the event sequences (`interpreter_test_support.hpp`): `lowering_test.cpp`
+  (statements, conditions, jumps and calls as events), `evaluator_test.cpp` (operators, conversions, objects and
+  calls in both data models, outputs confirmed with GCC), `termination_test.cpp` (how runs end, undefined behaviour,
+  limits), `inputs_test.cpp` (oracle requests, uninitialized reads, origins) and `evaluation_context_test.cpp`.
 - `tests/semantics/`: the programs of the semantics suite (see `tools/difftest/README.md`) must print the expected
   output under `-32` and `-64` (CTest label `semantics`).
 - `tools/difftest/`: Csmith programs and corpus programs with random inputs; the interpreter must agree with the

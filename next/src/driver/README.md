@@ -17,6 +17,13 @@ nitwit --version
 - **`-v`:** prints the validation log (segments reached, restarts, why each run ended) to stderr.
 - **`--replay`:** the differential-testing mode (`tools/difftest/README.md`): runs `main` with the inputs file, without
   a witness. The program's output goes to stdout, and the exit status is the program's (or the harness codes).
+  - Calls of `__assert_fail`, `__VERIFIER_error` and `reach_error` without a definition end the run with the harness's
+    marker and code 97, a failed `__VERIFIER_assume` with 98, an input line that cannot be read with 99; `abort` ends
+    the process by `SIGABRT`.
+  - A run the interpreter cannot finish (undefined behaviour without a defined result, an unsupported construct, a
+    limit) ends with code 4 and a message on stderr, one that exceeds the memory limit with 251. A program the front end
+    rejects also gives 4, with its diagnostics; an unreadable file gives 3.
+  - The process is not dumpable, so that `abort` and crashes write no core dump.
 
 ## Steps
 

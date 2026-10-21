@@ -1,5 +1,13 @@
 nitwit_add_module(interp
     SOURCES
+        builtins.cpp
+        calls.cpp
+        conversions.cpp
+        events.cpp
+        execution.cpp
+        expressions.cpp
+        initialization.cpp
+        interpreter.cpp
         library.cpp
         library_builtins.cpp
         library_call.cpp
@@ -10,8 +18,12 @@ nitwit_add_module(interp
         library_stdio.cpp
         library_stdlib.cpp
         library_string.cpp
+        lowering.cpp
+        lvalues.cpp
         memory.cpp
-    DEPENDS nitwit_value m) # m: the host libm computes the math functions
+        statements.cpp
+        type_info.cpp
+    DEPENDS nitwit_sema nitwit_value m) # m: the host libm computes the math functions
 
 # The math functions must call glibc's libm, as natively compiled programs do (tools/difftest compiles them with
 # -fno-builtin). The compiler's inline expansions can differ, e.g. for fmin(-0.0, 0.0).
