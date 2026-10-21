@@ -1,0 +1,45 @@
+// Records of scalar members: the i386 and x86-64 alignments of 8-byte scalars, long double, complex types and pointers.
+
+struct c_s { char c; short s; };
+struct c_i { char c; int i; };
+struct c_l { char c; long l; };
+struct c_ll { char c; long long ll; };
+struct c_f { char c; float f; };
+struct c_d { char c; double d; };
+struct c_ld { char c; long double ld; };
+struct c_p { char c; void *p; };
+struct c_fp { char c; int (*fp)(int); };
+struct c_b { char c; _Bool b; };
+struct c_cf { char c; _Complex float cf; };
+struct c_cd { char c; _Complex double cd; };
+struct c_cld { char c; _Complex long double cld; };
+struct c_ci { char c; _Complex int ci; };
+struct d_c { double d; char c; };
+struct ll_c { long long ll; char c; };
+struct ld_c { long double ld; char c; };
+struct s_c_s { short a; char b; short c; };
+struct arrays { char c[3]; double d[2]; short s[5]; long double ld[2]; };
+struct nested { char c; struct d_c inner; char tail; };
+struct nested_array { char c; struct c_ll inner[3]; };
+struct va { char c; __builtin_va_list ap; char tail; };
+union u_basic { char c; int i; double d; };
+union u_array { char c[5]; short s; };
+union u_ld { char c; long double ld; };
+typedef struct { int x, y; } point;
+typedef struct { point from, to; char tag; } line;
+struct with_typedef { char c; point p; line l; };
+struct qualified { const char c; volatile int i; const volatile double d; };
+struct pointers { char *a; char **b; struct pointers *next; void (*f)(void); };
+struct enum_member { char c; enum { A, B } e; char d; };
+
+char object_char;
+short object_short;
+long object_long;
+long long object_long_long;
+double object_double;
+long double object_long_double;
+_Complex double object_complex;
+struct c_d object_c_d;
+struct c_ll object_c_ll[3];
+int object_matrix[3][4][5];
+__builtin_va_list object_va_list;

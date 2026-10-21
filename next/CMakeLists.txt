@@ -22,7 +22,7 @@ include(GoldenTest)
 add_subdirectory(src)
 
 # Executables: the validator (driver) and developer tools.
-foreach(tool IN ITEMS nitwit-dump)
+foreach(tool IN ITEMS nitwit-dump layout-probe)
     if(EXISTS ${PROJECT_SOURCE_DIR}/tools/${tool}/CMakeLists.txt)
         add_subdirectory(tools/${tool})
     endif()

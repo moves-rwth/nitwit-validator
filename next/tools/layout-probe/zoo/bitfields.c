@@ -1,0 +1,44 @@
+// Bit-fields: GCC's allocation without straddling more units of the type's alignment than the type has, zero-width
+// bit-fields, unnamed bit-fields, bit-fields of every integer type, and long long bit-fields on i386.
+
+struct b1 { unsigned a : 3; unsigned b : 5; unsigned c : 7; };
+struct b2 { char c; int i : 9; };
+struct b3 { char c; int i : 25; };
+struct b4 { char c; int i : 24; };
+struct b5 { short s : 9; short t : 9; };
+struct b6 { char a : 3; char b : 6; };
+struct b7 { char c; long long ll : 40; };
+struct b8 { char c; long long ll : 57; };
+struct b9 { int i : 31; long long ll : 40; };
+struct b10 { char c : 4; long long ll : 61; };
+struct b11 { unsigned a : 1; unsigned : 0; unsigned b : 1; };
+struct b12 { char a; int : 0; char b; };
+struct b13 { char a; long long : 0; char b; };
+struct b14 { char a; short : 0; char b; };
+struct b15 { char a; char : 0; char b; };
+struct b16 { char a; int : 3; char b; };
+struct b17 { int : 3; };
+struct b18 { char a; unsigned : 9; char b; };
+struct b19 { _Bool a : 1; _Bool b : 1; char c; };
+struct b20 { unsigned char a : 7; unsigned char b : 2; };
+struct b22 { unsigned long long a : 1; };
+struct b23 { char c; unsigned long long a : 64; };
+struct b24 { int a : 16; int b : 16; int c : 1; };
+struct b25 { signed char a : 1; signed char b : 7; signed char c : 1; };
+enum small { S0, S1, S2 };
+struct b26 { enum small e : 2; char c; enum small f : 2; };
+struct b27 { short a : 1; long long b : 63; };
+struct b28 { char a; long long b : 33; char c; };
+struct b29 { int a : 4; char b; int c : 4; };
+struct b30 { int a : 4; long long : 0; int c : 4; };
+struct b31 { char a[3]; int b : 12; };
+struct b32 { char a[3]; int b : 9; };
+struct b33 { long double d; int a : 3; };
+struct b34 { char a; long b : 7; };
+struct b35 { unsigned short a : 15; unsigned short b : 2; unsigned short c : 15; };
+union ub1 { int a : 3; char c; };
+union ub2 { char c; int : 3; };
+union ub3 { long long a : 40; char c[3]; };
+union ub4 { char a : 1; short b : 9; };
+struct nested_bits { char c; struct b1 inner; unsigned x : 4; };
+struct anonymous_bits { char c; struct { unsigned x : 4; unsigned y : 4; }; union { unsigned z : 7; char w; }; };
