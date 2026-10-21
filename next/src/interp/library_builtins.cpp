@@ -13,7 +13,7 @@ namespace nitwit::interp::library {
 
 namespace {
 
-/// __builtin_expect(value, expected) returns `value`; an unmodified copy, so it keeps the origin. Also
+/// __builtin_expect(value, expected) returns `value`, a converted copy, so it keeps the origin. Also
 /// __builtin_expect_with_probability and __builtin_assume_aligned (pointer, alignment, ...).
 template <ScalarType type>
 LibraryResult passThrough(const Call& call) {

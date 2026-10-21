@@ -131,6 +131,8 @@ public:
     value::Value number(std::string_view name, Int128 number);
     /// The value of an assigned integer variable.
     [[nodiscard]] Int128 integer(std::string_view name) const;
+    /// `value` converted to the type of variable `name`, as an initialization converts it; the origin stays.
+    value::Value convertedTo(std::string_view name, const value::Value& value) const;
     /// The function whose frame is current; `main` at first.
     void enter(std::string_view function);
 
@@ -545,6 +547,28 @@ inline Int128 FakeExecution::integer(std::string_view name) const {
     return found->second.signedBits();
 }
 
+inline value::Value FakeExecution::convertedTo(std::string_view name, const value::Value& value) const {
+    ast::AstContext& context = fixture_.context();
+    const ast::QualType to = variable(name)->type();
+    const bool isFloating = value.kind() != value::Value::Kind::Integer;
+    const value::FloatFormat from = value.kind() == value::Value::Kind::Float        ? value::FloatFormat::Float
+                                    : value.kind() == value::Value::Kind::LongDouble ? value::FloatFormat::LongDouble
+                                                                                     : value::FloatFormat::Double;
+    // Integers are canonical: extended to 128 bits as their own type's signedness asks.
+    const value::IntegerFormat wide{.bits = 128, .isSigned = true};
+    value::Value converted;
+    if (sema::isFloating(context, to)) {
+        const value::FloatFormat format = sema::floatFormat(context, to);
+        converted = isFloating ? value::convertFloat(value, from, format) : value::integerToFloat(value, wide, format);
+    } else {
+        const value::IntegerFormat format = sema::integerFormat(context, to);
+        converted = isFloating ? value::floatToInteger(value, from, format, context.target().dataModel()).value
+                               : value::convertInteger(value, format);
+    }
+    converted.setOrigin(value.origin());
+    return converted;
+}
+
 inline void FakeExecution::enter(std::string_view function) {
     function_ = fixture_.functionNamed(function);
 }
@@ -670,36 +694,32 @@ inline value::Value FakeExecution::cast(const ast::Expr* expr, ast::CastKind kin
         }
         return read(var, expr);
     }
-    value::Value value = eval(operand);
+    const value::Value value = eval(operand);
+    // As the interpreter: conversions between arithmetic types keep the origin (interp/README.md, "Origins").
+    value::Value converted;
     switch (kind) {
     case ast::CastKind::NoOp:
         return value;
-    case ast::CastKind::IntegralCast: {
-        // As the interpreter: the origin survives a conversion to a type that holds every value of the source type.
-        const value::IntegerFormat from = sema::integerFormat(context, operand->type());
-        const value::IntegerFormat to = sema::integerFormat(context, expr->type());
-        value::Value converted = value::convertInteger(value, to);
-        const bool isWidening = to.bits > from.bits && (to.isSigned || !from.isSigned);
-        if (isWidening || from == to) {
-            converted.setOrigin(value.origin());
-        }
-        return converted;
-    }
+    case ast::CastKind::IntegralCast:
+        converted = value::convertInteger(value, sema::integerFormat(context, expr->type()));
+        break;
     case ast::CastKind::IntegralToBoolean:
     case ast::CastKind::FloatingToBoolean:
-        return value::toBool(value);
+        converted = value::toBool(value);
+        break;
     case ast::CastKind::IntegralToFloating:
-        return value::integerToFloat(value, sema::integerFormat(context, operand->type()),
-                                     sema::floatFormat(context, expr->type()));
-    case ast::CastKind::FloatingCast: {
-        value::Value converted = value::convertFloat(value, sema::floatFormat(context, operand->type()),
-                                                     sema::floatFormat(context, expr->type()));
-        converted.setOrigin(value.origin());
-        return converted;
-    }
+        converted = value::integerToFloat(value, sema::integerFormat(context, operand->type()),
+                                          sema::floatFormat(context, expr->type()));
+        break;
+    case ast::CastKind::FloatingCast:
+        converted = value::convertFloat(value, sema::floatFormat(context, operand->type()),
+                                        sema::floatFormat(context, expr->type()));
+        break;
     default:
         throw EvaluationError{"the fake cannot evaluate this cast"};
     }
+    converted.setOrigin(value.origin());
+    return converted;
 }
 
 inline value::Value FakeExecution::binary(const ast::BinaryExpr* expr) {

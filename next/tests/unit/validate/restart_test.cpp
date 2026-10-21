@@ -203,9 +203,8 @@ TEST_F(RestartTest, AFailedFunctionReturnConstraintFixesTheReturnedInput) {
     EXPECT_EQ(result.runs, 2u);
 }
 
-TEST_F(RestartTest, InputsComparedAfterAChangeOfSignednessAreFixed) {
-    // testfiles/sv-comp-2019/06.nondet.c: `a3 == 1U` converts the unsigned short a3 to int and then to unsigned int,
-    // which loses its origin, although the value stays the same.
+TEST_F(RestartTest, InputsComparedAfterPromotionsAreFixed) {
+    // testfiles/sv-comp-2019/06.nondet.c: `a3 == 1U` converts the unsigned short a3 to int and then to unsigned int.
     program(R"(extern unsigned short __VERIFIER_nondet_ushort(void);
 void reach_error(void);
 int main(void) {
@@ -230,6 +229,49 @@ int main(void) {
                                              script);
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
     EXPECT_EQ(result.runs, 2u);
+}
+
+constexpr std::string_view narrowingProgram = R"(extern double __VERIFIER_nondet_double(void);
+extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    float f = __VERIFIER_nondet_double();
+    char c = __VERIFIER_nondet_int();
+    if (f == 27.0f && c == 5) reach_error();
+    return 0;
+}
+)";
+
+interp::RunResult runNarrowing(FakeExecution& x) {
+    x.statement(5, 5);
+    x.assign("f", x.convertedTo("f", x.nondet(5, 40)));
+    x.statement(6, 5);
+    x.assign("c", x.convertedTo("c", x.nondet(6, 36)));
+    x.statement(7, 5);
+    if (x.branch(7, 5)) {
+        x.statement(7, 31);
+        x.call(7, 43);
+    }
+    return returned(0);
+}
+
+TEST_F(RestartTest, InputsAreFixedThroughNarrowingConversions) {
+    // testfiles/sv-comp-2019/16.shadowing.c declares __VERIFIER_nondet_float to return double.
+    program(std::string(narrowingProgram));
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Assumption, 7, 5, "f == 27.0f && c == 5")},
+                                                       {follow(WaypointType::Branching, 7, 5, "true")},
+                                                       {target(7, 31)}}),
+                                             runNarrowing);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
+    EXPECT_EQ(result.runs, 2u);
+}
+
+TEST_F(RestartTest, ValuesTheConversionCannotProduceAreNotFixed) {
+    program(std::string(narrowingProgram));
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Assumption, 7, 5, "c == 300")}, {target(7, 31)}}), runNarrowing);
+    EXPECT_EQ(result.verdict, Verdict::LeftWitness) << result.message;
+    EXPECT_EQ(result.runs, 1u);
 }
 
 TEST_F(RestartTest, ACaseValueFixesTheSwitchedInput) {

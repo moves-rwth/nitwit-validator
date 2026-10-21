@@ -128,9 +128,11 @@ after that, the access reaches the new object, as in a native run.
     are allocated at their declaration and released at the end of their scope.
   - A declaration without an initializer leaves its object uninitialized. A read of an uninitialized scalar becomes an
     `UninitializedRead` input request. The value is then written to the object, so later reads agree.
-- **Origins:** a value read from memory carries the origin stored for exactly its range. Copies keep the origin
-  (assignment, argument passing, return, conversions that preserve the value, such as int to long). Arithmetic drops
-  it.
+- **Origins:** an origin means that a value is derived from that input only through copies and conversions. A value
+  read from memory carries the origin stored for exactly its range. Copies keep the origin (assignment, argument
+  passing, return), and so do conversions between arithmetic types, also those that change the value (`char c = x;`,
+  `float f = d;`, `(int)d`): the validation layer chooses inputs through them and confirms only by a complete run.
+  Every operation (arithmetic, comparison, logical) drops it.
 - **Calls:**
   - Through function designators and function pointers. Variadic functions, with `va_start`/`va_arg`/`va_end`/
     `va_copy` over the interpreter's own argument list.
@@ -209,8 +211,8 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
   integers truncated). A bit-field whose storage has uninitialized bytes asks for those bytes (as `unsigned char`
   inputs), stores them, and reads the field from them; neighbouring fields in the same bytes read the same input.
 - **Conversions:** a pointer converted to a wider integer is sign-extended (GCC, "Arrays and pointers"). Origins
-  survive integer conversions to types that hold every value of the source type, integer to floating conversions
-  that are exact for every value, and floating widening.
+  survive every conversion between arithmetic types (see "Origins"); conversions to or from pointers keep them only
+  where every value is preserved.
 - **va_list:** the object holds a handle (a number in its first four bytes) of a cursor over the variadic arguments of
   the frame that called `va_start`. A copy of the object (passing a va_list) shares the cursor, as on x86-64;
   `va_copy` makes an independent one. `va_arg` with a type of another kind or size than the argument's (C17
@@ -220,7 +222,7 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
 - **Calls through a pointer of another type** (C17 6.5.2.2p9) convert scalar arguments and results like the
   registers that pass them; a struct where a scalar is expected, or the other way round, is undefined.
 - **Pass-through builtins** (`__builtin_expect`, `__builtin_expect_with_probability`, `__builtin_assume_aligned`)
-  return their first argument converted to the result type, with its origin where the conversion keeps the value.
+  return their first argument converted to the result type, with its origin.
 - **Statement expressions** are lowered in place, behind a jump over them, and run as a range of the function's
   instructions; `break`, `continue`, `goto` and `return` out of them abandon the enclosing expression (GNU). Their
   value is that of `StatementExpr::valueStatement()`.

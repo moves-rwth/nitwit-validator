@@ -91,7 +91,7 @@ private:
     /// The fix of the input that `subject` (of type `subjectType`) is a copy of, so that the subject satisfies the
     /// bound; none if the subject is not an unfixed input or no value of the input's type gives such a subject.
     std::optional<Fix> fixFor(const value::Value& subject, ast::QualType subjectType, const Bound& bound);
-    /// Whether a value is an unmodified copy of an input that is neither fixed nor hinted.
+    /// Whether a value's origin is an input that is neither fixed nor hinted.
     [[nodiscard]] bool isUnfixedInput(const value::Value& value) const;
     /// Hands the oracle the value that the function_return waypoints of the current segment at this call ask for.
     void offerHint(const interp::CallEvent& event, interp::EvaluationContext& context);

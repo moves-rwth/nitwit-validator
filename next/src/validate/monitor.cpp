@@ -310,8 +310,8 @@ SegmentMonitor::Evaluation SegmentMonitor::evaluateBranching(WaypointId id, cons
     return evaluation;
 }
 
-// validate/README.md, "Values": a failed relation with a constant fixes the input that its subject is an unmodified
-// copy of, if that input is neither fixed nor hinted.
+// validate/README.md, "Values": a failed relation with a constant fixes the input that is its subject's origin, if
+// that input is neither fixed nor hinted.
 std::optional<Fix> SegmentMonitor::resolve(const Conjunct& conjunct, interp::EvaluationContext& context) {
     if (conjunct.subject == nullptr) {
         return std::nullopt;

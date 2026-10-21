@@ -108,7 +108,7 @@ public:
     /// The allocation that contains `address` or ends exactly at it (a one-past-the-end pointer), alive or dead.
     [[nodiscard]] std::optional<AllocationInfo> find(Address address) const;
 
-    /// Marks the range as an unmodified copy of `input`; read back with origin().
+    /// Marks the range as derived from `input` (interp/README.md, "Origins"); read back with origin().
     void setOrigin(Address address, std::uint64_t size, value::InputId input);
     /// The origin of exactly this range, if one was set for exactly this range and not overwritten since.
     [[nodiscard]] std::optional<value::InputId> origin(Address address, std::uint64_t size) const;
