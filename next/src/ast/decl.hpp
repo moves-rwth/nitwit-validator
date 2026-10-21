@@ -133,6 +133,9 @@ public:
     /// Declared implicitly by a call to an undeclared identifier (C89, still accepted by GCC).
     [[nodiscard]] bool isImplicit() const { return isImplicit_; }
     void setImplicit() { isImplicit_ = true; }
+    /// Named by `#pragma weak`; a weak function without a definition has the address 0.
+    [[nodiscard]] bool isWeak() const { return isWeak_; }
+    void setWeak() { isWeak_ = true; }
 
     /// The parameters of a definition (and of a prototype, where they are named or not).
     [[nodiscard]] std::span<VarDecl* const> parameters() const { return parameters_; }
@@ -154,6 +157,7 @@ private:
     bool isInline_ = false;
     bool isNoreturn_ = false;
     bool isImplicit_ = false;
+    bool isWeak_ = false;
     std::span<VarDecl* const> parameters_;
     CompoundStmt* body_ = nullptr;
     FunctionDecl* previous_ = nullptr;
@@ -257,6 +261,10 @@ public:
     void setPacked() { isPacked_ = true; }
     [[nodiscard]] std::uint64_t requestedAlignment() const { return requestedAlignment_; }
     void setRequestedAlignment(std::uint64_t alignment) { requestedAlignment_ = alignment; }
+    /// The parser: the `#pragma pack` value in effect where the definition ends; 0 if none. It caps the alignment of
+    /// each field, as in GCC (unlike `packed`, which sets it to 1).
+    [[nodiscard]] std::uint64_t maxFieldAlignment() const { return maxFieldAlignment_; }
+    void setMaxFieldAlignment(std::uint64_t alignment) { maxFieldAlignment_ = alignment; }
     /// Null until sema computed it.
     [[nodiscard]] const RecordLayout* layout() const { return layout_; }
     void setLayout(const RecordLayout* layout) { layout_ = layout; }
@@ -267,6 +275,7 @@ private:
     bool isPacked_ = false;
     std::span<FieldDecl* const> fields_;
     std::uint64_t requestedAlignment_ = 0;
+    std::uint64_t maxFieldAlignment_ = 0;
     const RecordLayout* layout_ = nullptr;
 };
 
@@ -308,7 +317,8 @@ private:
     Expr* message_;
 };
 
-/// The whole program: the external declarations in source order.
+/// The whole program: the external declarations in source order. A tag definition precedes the declarators of the
+/// declaration that contains it (see parse/README.md, "Declaration lists").
 struct TranslationUnit {
     std::span<Decl* const> decls;
 };

@@ -67,8 +67,9 @@ public:
 
     /// The canonical type: typedef and typeof replaced by what they stand for, array sizes resolved, the result
     /// uniqued. Qualifiers of typedef'd types are merged in; qualifiers of an array type move to its elements
-    /// (C17 6.7.3p10). Precondition: sema resolved every array size and typeof the type refers to. Variable length
-    /// array types are their own canonical types.
+    /// (C17 6.7.3p10); the return and parameter types of a function type lose their qualifiers (C17 6.7.6.3p5, p15).
+    /// Precondition: sema resolved every array size and typeof the type refers to. Variable length array types are
+    /// their own canonical types.
     [[nodiscard]] QualType canonical(QualType type);
 
 private:
