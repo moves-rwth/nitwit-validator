@@ -24,8 +24,7 @@ unsigned significandBits(value::FloatFormat format) {
     return 0;
 }
 
-/// Whether converting from one type to the other preserves every value, so that the result is still an unmodified
-/// copy of the same input (interp/README.md, "Origins").
+/// Whether converting from one type to the other preserves every value.
 bool preservesValues(const TypeInfo& from, const TypeInfo& to) {
     if (to.representation == Representation::Bool) {
         return from.representation == Representation::Bool;
@@ -46,6 +45,18 @@ bool preservesValues(const TypeInfo& from, const TypeInfo& to) {
         return significandBits(to.floating) >= significandBits(from.floating);
     }
     return false;
+}
+
+bool isArithmetic(const TypeInfo& type) {
+    return type.representation == Representation::Integer || type.representation == Representation::Bool
+           || type.representation == Representation::Floating;
+}
+
+/// Whether the result is still derived from the same input only through conversions (interp/README.md, "Origins"):
+/// every conversion between arithmetic types, also one that changes the value (narrowing, integer and floating), so
+/// that the validation layer can choose an input through it; conversions with pointers only if they keep the value.
+bool keepsOrigin(const TypeInfo& from, const TypeInfo& to) {
+    return (isArithmetic(from) && isArithmetic(to)) || preservesValues(from, to);
 }
 
 } // namespace
@@ -133,7 +144,7 @@ value::Value Execution::convert(const value::Value& value, const TypeInfo& from,
         }
         result = value::convertInteger(source, to.integer); // C17 6.3.1.3, modulo 2^N as GCC defines it
     }
-    if (preservesValues(from, to)) {
+    if (keepsOrigin(from, to)) {
         result.setOrigin(value.origin());
     }
     return result;

@@ -9,7 +9,7 @@
 // ((int)1e10 is INT_MAX, 1 << 32 is 0), so sema must treat any reported undefined behaviour as "not a constant
 // expression" (C17 6.6p4) instead of using the value.
 //
-// Results inherit no origin: an origin marks an *unmodified* copy of an input, and arithmetic modifies.
+// Results inherit no origin: operations derive new values. Which conversions keep an origin is up to the interpreter.
 
 #include <cstdint>
 

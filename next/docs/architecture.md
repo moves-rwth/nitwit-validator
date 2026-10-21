@@ -87,8 +87,8 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
   use-after-free and the like are detected and reported as memory errors.
 - **Values** are bit patterns plus a representation: integers and pointers up to 128 bits, `float`, `double`,
   `long double` (x87, as on the target), and byte blobs for structs and unions. The C type is not part of the value; it
-  comes from the AST node. A value can carry an *origin*: the id of the nondeterministic input it is an unmodified copy
-  of. Memory keeps origins for stored scalars in a shadow map.
+  comes from the AST node. A value can carry an *origin*: the id of the nondeterministic input it is derived from only
+  through copies and conversions. Memory keeps origins for stored scalars in a shadow map.
 - **Lowering:** each function body is lowered to a flat list of instructions:
   - `Evaluate`, `Declare` (initializer, VLA allocation), `Branch`, `Jump`, `Switch`, `Return`, `EndScope`;
   - each instruction carries its source construct.
@@ -123,7 +123,7 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
   1. inputs fixed by earlier runs;
   2. hints from the monitor, e.g. a `function_return` waypoint with `\result == 5` at this call site;
   3. a default.
-- **Restarts:** suppose a constraint like `x == 5` fails, and `x` is an unmodified copy of an input that took its
+- **Restarts:** suppose a constraint like `x == 5` fails, and `x` has as its origin an input that took its
   default. The validator then fixes that input to 5 and restarts the run from the beginning. Runs are deterministic,
   so every confirmation comes from one concrete execution. The number of restarts is bounded.
 - **The verdict** is computed from:

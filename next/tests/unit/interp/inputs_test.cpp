@@ -1,5 +1,5 @@
 // Nondeterministic inputs: __VERIFIER_nondet_* calls, functions without definition and uninitialized reads go to the
-// oracle; the origins of the values follow unmodified copies.
+// oracle; the origins of the values follow copies and conversions.
 
 #include <gtest/gtest.h>
 
@@ -229,7 +229,7 @@ int main(void) { double d = __VERIFIER_nondet_double(); return (int)(d * 2); })"
     EXPECT_EQ(ast::typeToString(oracle_.requests[0].type), "double");
 }
 
-TEST_F(InputsTest, OriginsFollowUnmodifiedCopies) {
+TEST_F(InputsTest, OriginsFollowCopiesAndConversions) {
     EXPECT_THAT(originsAt(R"(int __VERIFIER_nondet_int(void);
 int id(int v) { return v; }
 int main(void) {
@@ -249,7 +249,26 @@ int main(void) {
                            [&](const ast::FunctionDecl* f) {
                                return castTo(ast::BuiltinKind::Double, ref("x", f));
                            }}),
-                ElementsAre("0", "0", "0", "-", "-", "0", "-", "0", "0"));
+                ElementsAre("0", "0", "0", "0", "-", "0", "0", "0", "0"));
+}
+
+TEST_F(InputsTest, ConversionsThatChangeTheValueKeepTheOrigin) {
+    // The origin means "derived from this input only through conversions"; operations drop it.
+    EXPECT_THAT(originsAt(R"(double __VERIFIER_nondet_double(void);
+int main(void) {
+    double d = __VERIFIER_nondet_double();
+    float f = d;
+    int i = d;
+    _Bool b = d;
+    int n = !d;
+    return 0;
+})",
+                          8,
+                          {variable("f"), variable("i"), variable("b"), variable("n"),
+                           [&](const ast::FunctionDecl* f) {
+                               return castTo(ast::BuiltinKind::Char, ref("d", f));
+                           }}),
+                ElementsAre("0", "0", "0", "-", "0"));
 }
 
 TEST_F(InputsTest, OriginsMoveWithCopiedRecords) {

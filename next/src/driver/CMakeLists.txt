@@ -3,7 +3,8 @@ nitwit_add_module(driver
         frontend.cpp
         preprocess.cpp
         replay.cpp
-    DEPENDS nitwit_parse nitwit_sema nitwit_interp)
+        validation.cpp
+    DEPENDS nitwit_parse nitwit_sema nitwit_interp nitwit_validate nitwit_witness)
 
 add_executable(nitwit main.cpp)
 target_link_libraries(nitwit PRIVATE nitwit_driver)
