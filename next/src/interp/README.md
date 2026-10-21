@@ -44,6 +44,19 @@ to:
 - **Unsupported:** threads (`pthread_*`), `setjmp`/`longjmp`, files, `atexit`, signals. These end the run with
   `Unsupported`.
 
+Behaviour choices of the library:
+- **Allocation failure** (memory limit, `calloc` size overflow) ends the run with `OutOfMemory` instead of returning
+  NULL, as SV-COMP assumes that allocation succeeds.
+- **Uninitialized bytes** are read as stored by library functions (zero); they do not ask the oracle.
+- **`library_math.cpp` is compiled with `-fno-builtin`**, so that the host libm, not the compiler's inline version,
+  computes every function (`fmin` differed otherwise). Both data models use the 64-bit libm; i386's libm differs in
+  the last bit for a few functions (listed in the math tests).
+- **Left to the evaluator:**
+  - the type-generic builtins whose behaviour depends on argument types: `__builtin_add/sub/mul_overflow` and their
+    `_p` forms, `__atomic_*`;
+  - the `va_list` of `vprintf` and friends: the evaluator passes the arguments the list refers to;
+  - the lifetime of `alloca` blocks: the library allocates them on the heap until the end of the run.
+
 The library is tested without the evaluator: tests create a `Memory` and a small test context, call the functions,
 and compare with values that a natively compiled program prints (glibc on the same machine).
 
