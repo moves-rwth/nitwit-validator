@@ -53,9 +53,10 @@ def find_include_dir(csmith: Path) -> Path:
 def generate(seed: int, bits: int, out_dir: Path, include: Path, csmith_args: list[str]) -> Path:
     """Generates the program for the seed into out_dir and preprocesses it for the data model; returns the .c file."""
     source = out_dir / f"csmith-{seed}.c"
-    # csmith writes platform.info into its working directory.
+    # csmith reads and writes platform.info in its working directory, so parallel runs need directories of their own.
     command = [str(find_csmith()), "--seed", str(seed), *csmith_args]
-    result = subprocess.run(command, cwd=out_dir, capture_output=True, timeout=120)
+    with difftest.temporary_directory("difftest-csmith-") as directory:
+        result = subprocess.run(command, cwd=directory, capture_output=True, timeout=120)
     if result.returncode != 0:
         raise RuntimeError(f"csmith failed for seed {seed}: {result.stderr.decode(errors='replace').strip()}")
     source.write_bytes(result.stdout)
@@ -96,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, required=True, help="output directory (outside the repository)")
     parser.add_argument("--check", action="store_true", help="compile, run and compare every program")
     parser.add_argument("--timeout", type=float, default=10.0, help="wall-clock limit per run with --check")
-    parser.add_argument("--jobs", type=int, default=os.cpu_count() or 1, help="programs in parallel")
+    parser.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1), help="parallel programs (default 8)")
     parser.add_argument("csmith_args", nargs="*", help="further csmith options, after --")
     args = parser.parse_args(argv)
 

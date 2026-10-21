@@ -507,7 +507,7 @@ def main(argv: list[str] | None = None) -> int:
     semantics.add_argument("--update", action="store_true", help="write <name>.expected-<bits> if all builds agree")
     semantics.add_argument("--bits", type=int, nargs="+", choices=(32, 64), default=[32, 64], help="data models")
     semantics.add_argument("--directory", type=Path, default=SEMANTICS_DIR, help="test directory")
-    semantics.add_argument("--jobs", type=int, default=os.cpu_count() or 1, help="parallel tests")
+    semantics.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1), help="parallel tests (default 8)")
     add_common(semantics, 10.0)
     semantics.set_defaults(handler=command_semantics)
 

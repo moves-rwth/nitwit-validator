@@ -172,15 +172,19 @@ def command_run(args: argparse.Namespace) -> int:
     programs = load_programs(args.dataset, args.property)
     chosen = sample(programs, args.size, args.seed)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    print(f"{len(chosen)} of {len(programs)} programs, {args.vectors} input vectors, {args.jobs} jobs", file=sys.stderr)
+    # The TSV only ever holds all rows of a program, so an interrupted run can continue with the programs it lacks.
+    rows: list[Row] = read_tsv(args.output) if args.resume and args.output.exists() else []
+    finished = {row.program for row in rows}
+    todo = [item for item in chosen if item[0] not in finished]
+    print(f"{len(chosen)} of {len(programs)} programs ({len(finished)} done before), {args.vectors} input vectors, "
+          f"{args.jobs} jobs", file=sys.stderr)
 
-    rows: list[Row] = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        results = pool.map(lambda item: check_program(args.dataset, item[0], item[1], args), chosen)
+        results = pool.map(lambda item: check_program(args.dataset, item[0], item[1], args), todo)
         for done, program_rows in enumerate(results, start=1):
             rows.extend(program_rows)
-            if done % 25 == 0 or done == len(chosen):
-                print(f"  {done}/{len(chosen)}", file=sys.stderr)
+            if done % 10 == 0 or done == len(todo):
+                print(f"  {done}/{len(todo)}", file=sys.stderr)
                 write_tsv(args.output, rows)
     summary = summarize(rows)
     args.output.with_suffix(".summary.txt").write_text(summary)
@@ -210,10 +214,12 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--memory", type=int, default=2048, help="memory limit per run in MiB (default 2048)")
     run.add_argument("--sanitizer-compiler", choices=difftest.COMPILERS, default=difftest.CLANG,
                      help="compiler of the sanitizer build")
-    run.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2), help="programs in parallel")
+    run.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1), help="programs in parallel (default 8)")
     run.add_argument("--work-dir", type=Path, help="directory for temporary files (default: the system's)")
     run.add_argument("-o", "--output", type=Path, default=Path.home() / "difftest-out" / "corpus.tsv",
                      help="output TSV; the summary goes next to it (default ~/difftest-out/corpus.tsv)")
+    run.add_argument("--resume", action="store_true",
+                     help="keep the programs already in the output TSV and run only the others (same options)")
     run.set_defaults(handler=command_run)
 
     summary = sub.add_parser("summary", help="print the summary of a TSV written by 'run'")

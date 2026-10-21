@@ -32,7 +32,7 @@ Requirements: Python 3.10 or later (standard library only), `gcc-14` with `gcc-1
 ```bash
 python3 tools/difftest/difftest.py run prog.c --bits 32 --inputs in.txt -v  # GCC, Clang and Clang+sanitizers
 python3 tools/difftest/difftest.py semantics [--update] [name...]           # tests/semantics
-python3 tools/difftest/corpus.py run --size 500 -o ~/difftest-out/corpus.tsv
+python3 tools/difftest/corpus.py run --size 500 -o ~/difftest-out/corpus.tsv [--resume]
 python3 tools/difftest/csmith.py --seed 1 --count 20 --bits 32 --out ~/difftest-out/csmith --check
 ```
 
