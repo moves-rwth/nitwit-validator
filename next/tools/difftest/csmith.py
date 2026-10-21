@@ -76,7 +76,7 @@ def check(source: Path, include: Path, bits: int, limits: difftest.Limits) -> st
                 return f"compile-failure {build.name}: {compiled.message}"
             runs.append(difftest.run_binary(compiled, None, limits))
     if any(run.limit_exceeded for run in runs):
-        return "timeout " + " ".join(f"{run.name}:{run.outcome()}" for run in runs)
+        return "limit " + " ".join(f"{run.name}:{run.outcome()}" for run in runs)
     if runs[-1].outcome() == "sanitizer":
         return "sanitizer " + (difftest.sanitizer_report(runs[-1].stderr) or "")
     diffs = [
@@ -97,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, required=True, help="output directory (outside the repository)")
     parser.add_argument("--check", action="store_true", help="compile, run and compare every program")
     parser.add_argument("--timeout", type=float, default=10.0, help="wall-clock limit per run with --check")
-    parser.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1), help="parallel programs (default 8)")
+    parser.add_argument("--jobs", type=int, default=4, help="parallel programs (default 4)")
     parser.add_argument("csmith_args", nargs="*", help="further csmith options, after --")
     args = parser.parse_args(argv)
 
@@ -110,8 +110,12 @@ def main(argv: list[str] | None = None) -> int:
     limits = difftest.Limits(timeout=args.timeout)
 
     def one(seed: int) -> str:
-        source = generate(seed, args.bits, args.out, include, args.csmith_args)
-        return f"{source}\t{check(source, include, args.bits, limits)}" if args.check else str(source)
+        """Generates (and checks) one program; a failure is reported in the line of its seed."""
+        try:
+            source = generate(seed, args.bits, args.out, include, args.csmith_args)
+            return f"{source}\t{check(source, include, args.bits, limits)}" if args.check else str(source)
+        except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+            return f"seed {seed}\terror {error}"
 
     seeds = range(args.seed, args.seed + args.count)
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:

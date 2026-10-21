@@ -2,8 +2,9 @@
 """Runs a deterministic sample of the dataset programs with random inputs under GCC, Clang and a sanitizer build.
 
 Each program is compiled for the data model of its witnesses (the `architecture` field of index.jsonl) and run with
-several input vectors (inputs.py). Every run is classified as compile-failure, timeout, sanitizer, disagree or agree;
-the result is a TSV with one row per program and input vector, plus a summary.
+several input vectors (inputs.py). Programs that do not compile or that create threads are not run. Every run is
+classified as limit, sanitizer, disagree or agree; the result is a TSV with one row per program and input vector, plus
+a summary.
 """
 
 import argparse
@@ -22,12 +23,16 @@ import inputs as inputs_module
 DEFAULT_DATASET = Path(os.environ.get("NITWIT_DATASET_DIR", "/mnt/e/workspace/playground/svcomp-2026-witnesses"))
 
 # Categories, most significant first: the category of a program is the most significant one of its runs.
-CATEGORIES = ("compile-failure", "timeout", "sanitizer", "disagree", "agree")
+CATEGORIES = ("compile-failure", "threads", "limit", "sanitizer", "disagree", "agree")
+
+# The options that determine the results; --resume requires them to be unchanged.
+RESULT_OPTIONS = ("dataset", "property", "size", "seed", "vectors", "input_seed", "input_count", "timeout", "memory",
+                  "sanitizer_compiler")
 
 
 @dataclass
 class Row:
-    """One line of the TSV: a program run with one input vector ("-" if it did not compile)."""
+    """One line of the TSV: a program run with one input vector ("-" if it was not run)."""
 
     program: str
     bits: int
@@ -72,7 +77,7 @@ def classify(program: str, bits: int, vector: int, runs: list[difftest.RunResult
     row = Row(program, bits, str(vector), "agree", outcomes[0], "", *outcomes)
     limited = [f"{run.name}:{run.outcome()}" for run in runs if run.limit_exceeded]
     if limited:
-        row.category, row.detail = "timeout", " ".join(limited)
+        row.category, row.detail = "limit", " ".join(limited)
     elif sanitizer.outcome() == "sanitizer":
         row.category, row.detail = "sanitizer", difftest.sanitizer_report(sanitizer.stderr) or ""
     elif difftest.differences(gcc, clang):
@@ -93,6 +98,8 @@ def check_program(dataset: Path, program: str, bits: int, args: argparse.Namespa
         if failed:
             names = ",".join(result.build.name for result in failed)
             return [Row(program, bits, "-", "compile-failure", "-", f"{names}: {failed[0].message}")]
+        if difftest.creates_threads(compiled[0].binary):
+            return [Row(program, bits, "-", "threads", "-", "calls pthread_create or thrd_create")]
         rows = []
         for vector in range(args.vectors):
             inputs = build_dir / f"inputs-{vector}.txt"
@@ -103,12 +110,14 @@ def check_program(dataset: Path, program: str, bits: int, args: argparse.Namespa
 
 
 def write_tsv(path: Path, rows: list[Row]) -> None:
-    """Writes the rows as a TSV with a header line."""
+    """Writes the rows as a TSV with a header line; replaces the file at once, so that it is never half written."""
     names = [field.name for field in fields(Row)]
-    with open(path, "w") as file:
+    temporary = path.with_name(path.name + ".tmp")
+    with open(temporary, "w") as file:
         file.write("\t".join(names) + "\n")
         for row in rows:
             file.write("\t".join(str(getattr(row, name)).replace("\t", " ") for name in names) + "\n")
+    os.replace(temporary, path)
 
 
 def read_tsv(path: Path) -> list[Row]:
@@ -147,24 +156,36 @@ def summarize(rows: list[Row]) -> str:
 
     lines += ["", "Runs by category:"]
     run_counts = collections.Counter(row.category for row in runs)
-    for category in CATEGORIES[1:]:
+    for category in CATEGORIES[2:]:
         lines.append(f"  {category:16} {run_counts[category]:5}")
     lines += ["", "Agreeing runs by outcome:"]
     for outcome, count in collections.Counter(row.outcome for row in runs if row.category == "agree").most_common():
         lines.append(f"  {outcome:16} {count:5}")
 
     def top(title: str, values: list[str], limit: int = 15) -> None:
+        """Appends the most frequent values with their counts."""
         lines.extend(["", title])
         for value, count in collections.Counter(values).most_common(limit):
             lines.append(f"  {count:5}  {value}")
 
     top("Compile failures by reason (programs):", [r.detail for r in rows if r.category == "compile-failure"])
-    top("Timeouts by builds (runs):", [" ".join(sorted(b.split(":")[0] for b in r.detail.split())) for r in runs
-                                       if r.category == "timeout"])
+    top("Limits by builds and outcomes (runs):", [r.detail for r in runs if r.category == "limit"])
     top("Sanitizer findings (runs):", [r.detail for r in runs if r.category == "sanitizer"])
     top("Disagreements (runs):", [f"{r.detail}  [{r.gcc} / {r.clang} / {r.sanitizer}]" for r in runs
                                   if r.category == "disagree"])
     return "\n".join(lines) + "\n"
+
+
+def check_resume(args: argparse.Namespace, options_path: Path) -> list[Row] | None:
+    """Returns the rows of the earlier run to continue, [] for a fresh run, or None if the options differ."""
+    options = {name: str(getattr(args, name)) for name in RESULT_OPTIONS}
+    if args.resume and args.output.exists():
+        earlier = json.loads(options_path.read_text()) if options_path.exists() else None
+        if earlier != options:
+            return None
+        return read_tsv(args.output)
+    options_path.write_text(json.dumps(options, indent=1) + "\n")
+    return []
 
 
 def command_run(args: argparse.Namespace) -> int:
@@ -172,8 +193,12 @@ def command_run(args: argparse.Namespace) -> int:
     programs = load_programs(args.dataset, args.property)
     chosen = sample(programs, args.size, args.seed)
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    options_path = args.output.with_suffix(".options.json")
+    rows = check_resume(args, options_path)
+    if rows is None:
+        print(f"corpus.py: --resume needs the options of the earlier run, see {options_path}", file=sys.stderr)
+        return 2
     # The TSV only ever holds all rows of a program, so an interrupted run can continue with the programs it lacks.
-    rows: list[Row] = read_tsv(args.output) if args.resume and args.output.exists() else []
     finished = {row.program for row in rows}
     todo = [item for item in chosen if item[0] not in finished]
     print(f"{len(chosen)} of {len(programs)} programs ({len(finished)} done before), {args.vectors} input vectors, "
@@ -214,10 +239,10 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--memory", type=int, default=2048, help="memory limit per run in MiB (default 2048)")
     run.add_argument("--sanitizer-compiler", choices=difftest.COMPILERS, default=difftest.CLANG,
                      help="compiler of the sanitizer build")
-    run.add_argument("--jobs", type=int, default=min(8, os.cpu_count() or 1), help="programs in parallel (default 8)")
+    run.add_argument("--jobs", type=int, default=4, help="programs in parallel (default 4; jobs x memory <= 8 GiB)")
     run.add_argument("--work-dir", type=Path, help="directory for temporary files (default: the system's)")
     run.add_argument("-o", "--output", type=Path, default=Path.home() / "difftest-out" / "corpus.tsv",
-                     help="output TSV; the summary goes next to it (default ~/difftest-out/corpus.tsv)")
+                     help="output TSV; the summary and the options go next to it (default ~/difftest-out/corpus.tsv)")
     run.add_argument("--resume", action="store_true",
                      help="keep the programs already in the output TSV and run only the others (same options)")
     run.set_defaults(handler=command_run)

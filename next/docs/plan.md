@@ -100,8 +100,8 @@ it are untrusted data: they are read, never executed, except as compiled program
 ### Differential testing against GCC and Clang
 
 - **Harness:** `tools/difftest/harness.c` implements `__VERIFIER_nondet_*` from an input file and logs each value it
-  hands out. It also implements `reach_error`, `abort` and `__VERIFIER_assume`, each of which prints a marker and exits
-  with a fixed code.
+  hands out. It also implements `reach_error` and `__VERIFIER_assume`, each of which prints a marker and exits with a
+  fixed code; `abort` is the C library's (`SIGABRT`, no marker).
 - **Native side:** the harness is linked to the program, compiled with `gcc`/`clang`, `-m32`/`-m64`, `-O0`, and once
   more with `-fsanitize=undefined,address`, so that runs with undefined behaviour can be discarded.
 - **Interpreter side:** `nitwit --replay <inputs>` uses the same input file.

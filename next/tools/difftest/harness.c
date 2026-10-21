@@ -8,11 +8,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 
 #define HARNESS_WEAK __attribute__((weak))
 
 enum { exitError = 97, exitAssume = 98, exitBadInput = 99 };
+
+/* The longest input line, without the line break. */
+enum { maxLineLength = 255 };
 
 /* Integer input lines are read modulo 2^N with the widest N available, so that every return type, including
  * unsigned __int128 on 64-bit targets, gets its value by a plain conversion. */
@@ -28,9 +32,11 @@ static long inputsLine;
 static FILE *inputLog;
 static int inputLogOpened;
 
-/* Unbuffered stdout keeps the output of runs that end by a signal or by _exit. */
+/* Unbuffered stdout keeps the output of runs that end by a signal or by _exit. A process that is not dumpable writes
+ * no core dump when it aborts or crashes; WSL's core_pattern helper would collect one despite RLIMIT_CORE. */
 __attribute__((constructor)) static void harnessInit(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
+    prctl(PR_SET_DUMPABLE, 0);
 }
 
 /* Ends the run immediately, without atexit handlers, after flushing all streams. */
@@ -44,8 +50,9 @@ static void badInput(const char *function, const char *message) {
     endRun(exitBadInput);
 }
 
-/* Reads the next line of the inputs file into buffer, without the line break. Returns 0 if the file is exhausted. */
-static int nextLine(const char *function, char *buffer, size_t size) {
+/* Reads the next line of the inputs file into line (maxLineLength + 1 bytes), without the line break (\n or \r\n).
+ * Returns 0 if the file is exhausted, or if NITWIT_INPUTS is not set. */
+static int nextLine(const char *function, char *line) {
     if (!inputsOpened) {
         inputsOpened = 1;
         const char *path = getenv("NITWIT_INPUTS");
@@ -56,7 +63,8 @@ static int nextLine(const char *function, char *buffer, size_t size) {
             }
         }
     }
-    if (inputsFile == NULL || fgets(buffer, (int)size, inputsFile) == NULL) {
+    char buffer[maxLineLength + 3]; /* room for \r, \n and the terminator */
+    if (inputsFile == NULL || fgets(buffer, sizeof buffer, inputsFile) == NULL) {
         return 0;
     }
     ++inputsLine;
@@ -69,7 +77,62 @@ static int nextLine(const char *function, char *buffer, size_t size) {
     if (length > 0 && buffer[length - 1] == '\r') {
         buffer[--length] = '\0';
     }
+    if (length > maxLineLength) {
+        badInput(function, "line too long");
+    }
+    memcpy(line, buffer, length + 1);
     return 1;
+}
+
+static int isDecimalInteger(const char *text) {
+    if (*text == '+' || *text == '-') {
+        ++text;
+    }
+    if (*text == '\0') {
+        return 0;
+    }
+    for (; *text != '\0'; ++text) {
+        if (*text < '0' || *text > '9') {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int isHexDigit(char c) {
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+/* A C99 hexadecimal floating constant as %a prints it: [+-]0x<hex>[.<hex>]p[+-]<decimal>. */
+static int isHexFloat(const char *text) {
+    if (*text == '+' || *text == '-') {
+        ++text;
+    }
+    if (text[0] != '0' || (text[1] != 'x' && text[1] != 'X') || !isHexDigit(text[2])) {
+        return 0;
+    }
+    text += 2;
+    while (isHexDigit(*text)) {
+        ++text;
+    }
+    if (*text == '.') {
+        ++text;
+        while (isHexDigit(*text)) {
+            ++text;
+        }
+    }
+    if (*text != 'p' && *text != 'P') {
+        return 0;
+    }
+    return isDecimalInteger(text + 1);
+}
+
+/* The spellings of infinities and NaNs that %a prints. */
+static int isSpecialFloat(const char *text) {
+    if (*text == '-') {
+        ++text;
+    }
+    return strcmp(text, "inf") == 0 || strcmp(text, "nan") == 0;
 }
 
 /* Appends "<function> <value>[ default]" to the input log. */
@@ -89,45 +152,38 @@ static void logValue(const char *function, const char *value, int isDefault) {
 
 /* Reads a decimal integer line ([+-]digits) modulo 2^N. Returns 0 (and value 0) if the inputs are exhausted. */
 static int readInteger(const char *function, WideUnsigned *value) {
-    char line[256];
+    char line[maxLineLength + 1];
     *value = 0;
-    if (!nextLine(function, line, sizeof line)) {
+    if (!nextLine(function, line)) {
         return 0;
     }
-    const char *p = line;
-    int negative = *p == '-';
-    if (*p == '-' || *p == '+') {
-        ++p;
-    }
-    if (*p == '\0') {
+    if (!isDecimalInteger(line)) {
         badInput(function, "expected a decimal integer");
     }
+    const char *p = line[0] == '+' || line[0] == '-' ? line + 1 : line;
     for (; *p != '\0'; ++p) {
-        if (*p < '0' || *p > '9') {
-            badInput(function, "expected a decimal integer");
-        }
         unsigned digit = (unsigned)(*p - '0');
         *value = *value * 10u + digit;
     }
-    if (negative) {
+    if (line[0] == '-') {
         *value = -*value;
     }
     return 1;
 }
 
-/* Reads a floating-point line (anything strtod accepts in full, e.g. %a or a decimal integer). Returns 0 (and value
- * 0) if the inputs are exhausted. */
+/* Reads a floating-point line: a decimal integer, a hexadecimal floating constant, inf, -inf, nan or -nan. strtod
+ * converts each of them exactly or, for long decimal integers, correctly rounded. Returns 0 (and value 0) if the inputs
+ * are exhausted. */
 static int readFloating(const char *function, double *value) {
-    char line[256];
+    char line[maxLineLength + 1];
     *value = 0;
-    if (!nextLine(function, line, sizeof line)) {
+    if (!nextLine(function, line)) {
         return 0;
     }
-    char *end;
-    *value = strtod(line, &end);
-    if (line[0] == '\0' || *end != '\0') {
-        badInput(function, "expected a floating-point number");
+    if (!isDecimalInteger(line) && !isHexFloat(line) && !isSpecialFloat(line)) {
+        badInput(function, "expected a decimal integer, a hexadecimal float, inf or nan");
     }
+    *value = strtod(line, NULL);
     return 1;
 }
 
@@ -206,6 +262,7 @@ HARNESS_NONDET_UNSIGNED(sector_t, unsigned long)
 HARNESS_NONDET_UNSIGNED(u8, unsigned char)
 HARNESS_NONDET_UNSIGNED(u16, unsigned short)
 HARNESS_NONDET_UNSIGNED(u32, unsigned int)
+HARNESS_NONDET_UNSIGNED(pthread_t, unsigned long)
 HARNESS_NONDET_POINTER(pointer, void *)
 HARNESS_NONDET_POINTER(pchar, char *)
 HARNESS_NONDET_POINTER(charp, char *)
@@ -268,4 +325,11 @@ HARNESS_WEAK void __VERIFIER_assume(int condition) {
         fprintf(stderr, "NITWIT-DIFFTEST: assume\n");
         endRun(exitAssume);
     }
+}
+
+/* Atomic sections only matter with threads; programs that create threads are not compared (README.md). */
+HARNESS_WEAK void __VERIFIER_atomic_begin(void) {
+}
+
+HARNESS_WEAK void __VERIFIER_atomic_end(void) {
 }
