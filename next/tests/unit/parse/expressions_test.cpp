@@ -327,6 +327,20 @@ TEST_F(ExpressionTest, FunctionNameIdentifiersAreStringLiterals) {
     }
 }
 
+TEST_F(ExpressionTest, FunctionNameIsOneObjectPerFunction) {
+    const ast::TranslationUnit* unit = parse("void f(void) { __func__; __FUNCTION__; }\nvoid g(void) { __func__; }");
+    ASSERT_NE(unit, nullptr) << firstError();
+    const auto first = bodyOf(unit, "f");
+    const ast::Expr* name = ast::cast<ast::ExpressionStmt>(first[0])->expr();
+    EXPECT_EQ(ast::cast<ast::ExpressionStmt>(first[1])->expr(), name);
+    EXPECT_NE(ast::cast<ast::ExpressionStmt>(bodyOf(unit, "g")[0])->expr(), name);
+}
+
+TEST_F(ExpressionTest, TrailingCommaInACallIsAnError) {
+    EXPECT_EQ(errorOf("int f(int); int g(void) { return f(1,); }"),
+              "test.c:1:38: error: expected expression, found ')'");
+}
+
 TEST_F(ExpressionTest, CallOfAnUndeclaredFunctionDeclaresItImplicitly) {
     const ast::TranslationUnit* unit = parse("int main(void) { return foo(1) + foo(2); }");
     ASSERT_NE(unit, nullptr) << firstError();

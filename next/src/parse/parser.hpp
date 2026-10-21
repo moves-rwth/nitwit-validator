@@ -15,6 +15,10 @@ namespace nitwit::parse {
 
 /// Parses a translation unit from the tokens of lex::lexFile. Stops at the first error, reports it to `diagnostics`
 /// and returns null. Warnings (e.g. for implicit function declarations) do not stop parsing.
+///
+/// The parser recurses on the calling thread's stack, about 1 KiB per nesting level without optimization and more
+/// under ASan. Nesting deeper than 10,000 levels is an error, but that only protects a caller with a large stack: run
+/// it with runWithLargeStack (support/large_stack.hpp) and at least 256 MiB. It creates no threads.
 [[nodiscard]] ast::TranslationUnit* parseTranslationUnit(std::span<const lex::Token> tokens, ast::AstContext& context,
                                                          const SourceManager& sources, DiagnosticEngine& diagnostics);
 

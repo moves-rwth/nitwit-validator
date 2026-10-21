@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -65,6 +66,31 @@ struct DeclSpec {
     [[nodiscard]] ast::QualType baseType() const { return type.withQualifiers(qualifiers); }
 };
 
+/// The type specifiers of one declaration, keywords counted, for the combinations of C17 6.7.2p2.
+struct TypeSpecifiers {
+    unsigned voidCount = 0;
+    unsigned boolCount = 0;
+    unsigned charCount = 0;
+    unsigned intCount = 0;
+    unsigned floatCount = 0;
+    unsigned doubleCount = 0;
+    unsigned int128Count = 0;
+    unsigned shortCount = 0;
+    unsigned longCount = 0;
+    unsigned signedCount = 0;
+    unsigned unsignedCount = 0;
+    unsigned complexCount = 0;
+    unsigned namedCount = 0; // typedef names, tags, typeof, _Atomic(T)
+    ast::QualType named;
+    SourceLocation lastLocation;
+
+    [[nodiscard]] unsigned keywordCount() const {
+        return voidCount + boolCount + charCount + intCount + floatCount + doubleCount + int128Count + shortCount
+               + longCount + signedCount + unsignedCount + complexCount;
+    }
+    [[nodiscard]] bool any() const { return keywordCount() + namedCount > 0; }
+};
+
 struct DeclaratorChunk {
     enum class Kind : std::uint8_t { Pointer, Array, Function };
 
@@ -80,6 +106,9 @@ struct DeclaratorChunk {
     bool isVariadic = false;    // Function
     std::vector<ast::VarDecl*> parameters;
     std::vector<Identifier> identifiers; // Function: the identifier list of a K&R declarator
+    /// Function with a prototype: the scope of the parameter list, which becomes the outermost scope of the body if
+    /// this is a definition (C17 6.2.1p4); it also holds tags and enumeration constants declared in the list.
+    std::unique_ptr<Scope> scope;
 };
 
 struct Declarator {
@@ -96,6 +125,19 @@ struct Declarator {
 
 enum class DeclaratorMode : std::uint8_t { Named, Abstract, Either };
 
+enum class TagKind : std::uint8_t { Struct, Union, Enum };
+
+/// A label of a chain like `case 1: case 2: L:`, parsed before the statement it labels.
+struct PendingLabel {
+    TokenKind kind = TokenKind::Identifier; // KwCase, KwDefault or Identifier
+    SourceLocation begin;
+    ast::Expr* value = nullptr;
+    ast::Expr* rangeEnd = nullptr;
+    Symbol name;
+    std::size_t switchIndex = 0; // case and default: the switch in Parser::switches_
+    std::size_t caseSlot = 0;    // case: the slot in that switch's cases
+};
+
 class Parser {
 public:
     Parser(std::span<const lex::Token> tokens, ast::AstContext& context, const SourceManager& sources,
@@ -109,6 +151,11 @@ private:
         std::vector<ast::CaseStmt*> cases; // a slot per case label, filled once the label's statement is parsed
         ast::DefaultStmt* defaultStmt = nullptr;
         bool hasDefault = false;
+    };
+
+    struct PackEntry {
+        std::uint64_t alignment;
+        std::string id; // `#pragma pack(push, id)`
     };
 
     // Counts the nesting of the recursive constructs and stops the parser before it exhausts the stack.
@@ -126,6 +173,8 @@ private:
     // ---- parser.cpp: tokens, diagnostics, pragmas, external declarations ----
     [[nodiscard]] const lex::Token& token() const { return tokens_[pos_]; }
     [[nodiscard]] bool at(TokenKind kind) const { return tokens_[pos_].kind == kind; }
+    /// The index of the token after the one at `index`, skipping pragmas; EndOfFile is its own successor.
+    [[nodiscard]] std::size_t following(std::size_t index) const;
     /// The token `ahead` tokens after the current one, not counting pragmas.
     [[nodiscard]] const lex::Token& peek(std::size_t ahead) const;
     const lex::Token& consume();
@@ -141,8 +190,8 @@ private:
 
     void handlePragma(const lex::Token& pragma);
     void handlePackPragma(std::string_view arguments, SourceLocation location);
+    void popPackAlignment(std::string_view id, SourceLocation location);
     void handleWeakPragma(std::string_view arguments, SourceLocation location);
-    void setPackAlignment(std::string_view value, SourceLocation location);
     void applyWeakPragmas();
 
     void parseExternalDeclaration(std::vector<ast::Decl*>& out);
@@ -168,11 +217,16 @@ private:
     [[nodiscard]] bool startsTypeName(const lex::Token& token) const;
     [[nodiscard]] bool startsDeclaration(const lex::Token& token) const;
     DeclSpec parseDeclarationSpecifiers(SpecifierContext context);
-    ast::QualType parseRecordSpecifier(DeclSpec& spec, SpecifierContext context);
-    void parseRecordBody(ast::RecordDecl* record);
+    /// Parses one declaration specifier into `spec` and `types`; false if the current token is none.
+    bool parseDeclarationSpecifier(DeclSpec& spec, TypeSpecifiers& types, SpecifierContext context);
+    void setStorageClass(DeclSpec& spec, const lex::Token& keyword, SpecifierContext context);
+    void finishTypeSpecifiers(DeclSpec& spec, const TypeSpecifiers& types, bool anySpecifier, SpecifierContext context);
+    ast::QualType parseTagSpecifier(DeclSpec& spec, SpecifierContext context, TagKind kind);
+    ast::Decl* resolveTag(TagKind kind, Symbol name, SourceLocation location, bool declaresTag);
+    void parseTagBody(ast::Decl* tag);
+    std::vector<ast::FieldDecl*> parseRecordMembers();
     void parseMemberDeclaration(std::vector<ast::FieldDecl*>& fields);
-    ast::QualType parseEnumSpecifier(DeclSpec& spec, SpecifierContext context);
-    void parseEnumBody(ast::EnumDecl* enumDecl);
+    std::vector<ast::EnumConstantDecl*> parseEnumerators();
     ast::QualType parseTypeof();
     void parseAlignas(DeclSpec& spec);
     void parseAttributes(std::vector<ast::Attribute>& out);
@@ -214,6 +268,7 @@ private:
     ast::Expr* parsePostfixSuffixes(ast::Expr* expr);
     ast::Expr* parsePrimaryExpression();
     ast::Expr* parseIdentifierExpression();
+    ast::Expr* functionNameLiteral(const lex::Token& name);
     ast::StringLiteralExpr* parseStringLiteral();
     ast::Expr* parseCompoundLiteral(SourceLocation begin, ast::QualType type);
     ast::Expr* parseStatementExpression();
@@ -231,6 +286,8 @@ private:
     ast::Stmt* parseSubstatement();
     ast::CompoundStmt* parseCompoundStatement(bool opensScope);
     ast::Stmt* parseLabeledStatement();
+    PendingLabel parseLabel();
+    ast::Stmt* buildLabeledStatement(std::span<const PendingLabel> labels, ast::Stmt* stmt);
     ast::Stmt* parseDeclarationStatement(SourceLocation begin, std::vector<ast::Attribute> attributes);
     ast::Stmt* parseExpressionStatement();
     ast::Stmt* parseIfStatement();
@@ -264,12 +321,15 @@ private:
     std::vector<ast::Decl*> tagDefinitions_;        // not yet added to a declaration list
 
     ast::FunctionDecl* currentFunction_ = nullptr;
+    ast::StringLiteralExpr* functionName_ = nullptr; // `__func__` of the current function, created at its first use
     LabelScope functionLabels_;
     std::vector<SwitchContext> switches_;
+    /// The switches below this index enclose the current statement expression; its case labels cannot belong to them.
+    std::size_t switchBarrier_ = 0;
     std::size_t loopDepth_ = 0;
 
     std::uint64_t packAlignment_ = 0; // `#pragma pack`; 0 means none
-    std::vector<std::uint64_t> packStack_;
+    std::vector<PackEntry> packStack_;
     std::vector<Symbol> weakNames_; // `#pragma weak`
 };
 

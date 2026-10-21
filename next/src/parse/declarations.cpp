@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <format>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <ranges>
 #include <string_view>
@@ -21,31 +22,6 @@ namespace nitwit::parse::detail {
 namespace {
 
 using ast::BuiltinKind;
-
-// The type specifier keywords of one declaration, counted, for the combinations of C17 6.7.2p2.
-struct TypeSpecifiers {
-    unsigned voidCount = 0;
-    unsigned boolCount = 0;
-    unsigned charCount = 0;
-    unsigned intCount = 0;
-    unsigned floatCount = 0;
-    unsigned doubleCount = 0;
-    unsigned int128Count = 0;
-    unsigned shortCount = 0;
-    unsigned longCount = 0;
-    unsigned signedCount = 0;
-    unsigned unsignedCount = 0;
-    unsigned complexCount = 0;
-    unsigned namedCount = 0; // typedef names, tags, typeof, _Atomic(T)
-    ast::QualType named;
-    SourceLocation lastLocation;
-
-    [[nodiscard]] unsigned keywordCount() const {
-        return voidCount + boolCount + charCount + intCount + floatCount + doubleCount + int128Count + shortCount
-               + longCount + signedCount + unsignedCount + complexCount;
-    }
-    [[nodiscard]] bool any() const { return keywordCount() + namedCount > 0; }
-};
 
 // The counter of a type specifier keyword, or null if `kind` is not one. _Float32 and friends count as the standard
 // type they map to; _Float64x is long double on x86, and _Float128 is approximated by it.
@@ -135,6 +111,41 @@ std::optional<BuiltinKind> builtinKind(const TypeSpecifiers& s) {
         return isUnsigned ? BuiltinKind::UnsignedLongLong : BuiltinKind::LongLong;
     }
     return isUnsigned ? BuiltinKind::UnsignedInt : BuiltinKind::Int;
+}
+
+// The type the type specifiers name: null if there are none, nothing if they do not combine.
+std::optional<ast::QualType> specifiedType(ast::AstContext& context, const TypeSpecifiers& types) {
+    if (types.namedCount > 0) {
+        if (types.namedCount > 1 || types.keywordCount() > 0) {
+            return std::nullopt;
+        }
+        return types.named;
+    }
+    if (types.keywordCount() == 0) {
+        return ast::QualType();
+    }
+    const std::optional<BuiltinKind> kind = builtinKind(types);
+    if (!kind || types.complexCount > 1) {
+        return std::nullopt;
+    }
+    const ast::QualType type = context.builtin(*kind);
+    return types.complexCount > 0 ? context.complexOf(type) : type;
+}
+
+bool isTagComplete(const ast::Decl* tag) {
+    if (const auto* record = ast::dyn_cast<ast::RecordDecl>(tag)) {
+        return record->isComplete();
+    }
+    return ast::cast<ast::EnumDecl>(tag)->isComplete();
+}
+
+// "struct S", "union U" or "enum E", for messages.
+std::string tagName(const ast::Decl* tag) {
+    std::string_view keyword = "enum";
+    if (const auto* record = ast::dyn_cast<ast::RecordDecl>(tag)) {
+        keyword = record->isUnion() ? "union" : "struct";
+    }
+    return std::format("{} {}", keyword, tag->name().text());
 }
 
 // Follows typedefs to the type they stand for, keeping the qualifiers.
@@ -295,128 +306,151 @@ DeclSpec Parser::parseDeclarationSpecifiers(SpecifierContext context) {
     spec.begin = token().location;
     TypeSpecifiers types;
     bool anySpecifier = false;
-    const auto setStorage = [&](const lex::Token& keyword) {
-        if (spec.isTypedef || spec.storage != ast::StorageClass::None) {
-            fail(keyword.location, "multiple storage classes in declaration specifiers");
-        }
-        if (context == SpecifierContext::Member || context == SpecifierContext::TypeName) {
-            fail(keyword.location, std::format("'{}' is not allowed here", lex::spellingOf(sources_, keyword)));
-        }
-    };
-    const auto addNamed = [&](ast::QualType type, SourceLocation location) {
-        ++types.namedCount;
-        types.named = type;
-        types.lastLocation = location;
-    };
-
-    while (true) {
-        const lex::Token& current = token();
-        const TokenKind kind = current.kind;
-        if (const std::optional<ast::StorageClass> storage = storageClass(kind)) {
-            setStorage(current);
-            if ((context == SpecifierContext::Parameter || context == SpecifierContext::KnrParameter)
-                && *storage != ast::StorageClass::Register) {
-                fail(current.location, "invalid storage class for a parameter");
-            }
-            spec.storage = *storage;
-            consume();
-        } else if (kind == TokenKind::KwTypedef) {
-            setStorage(current);
-            spec.isTypedef = true;
-            consume();
-        } else if (kind == TokenKind::KwThreadLocal) {
-            spec.isThreadLocal = true;
-            consume();
-        } else if (kind == TokenKind::KwInline) {
-            spec.isInline = true;
-            consume();
-        } else if (kind == TokenKind::KwNoreturn) {
-            spec.isNoreturn = true;
-            consume();
-        } else if (kind == TokenKind::KwAtomic && peek(1).is(TokenKind::LeftParen)) {
-            // _Atomic(T), the type specifier (C17 6.7.2.4).
-            consume();
-            consume();
-            const ast::QualType type = parseTypeName();
-            expect(TokenKind::RightParen);
-            ast::Qualifiers atomic;
-            atomic.isAtomic = true;
-            addNamed(type.withQualifiers(atomic), current.location);
-        } else if (isQualifier(kind)) {
-            addQualifier(spec.qualifiers, kind);
-            consume();
-        } else if (kind == TokenKind::KwAttribute) {
-            parseAttributes(spec.attributes);
-        } else if (kind == TokenKind::KwAlignas) {
-            parseAlignas(spec);
-        } else if (kind == TokenKind::KwExtension) {
-            consume();
-        } else if (kind == TokenKind::KwStruct || kind == TokenKind::KwUnion) {
-            addNamed(parseRecordSpecifier(spec, context), current.location);
-        } else if (kind == TokenKind::KwEnum) {
-            addNamed(parseEnumSpecifier(spec, context), current.location);
-        } else if (kind == TokenKind::KwTypeof) {
-            addNamed(parseTypeof(), current.location);
-        } else if (kind == TokenKind::KwAutoType) {
-            spec.isAutoType = true;
-            consume();
-        } else if (kind == TokenKind::Identifier && !types.any() && !spec.isAutoType && isTypedefName(current)) {
-            // A typedef name is a type specifier only if there is no other one; `unsigned T;` declares T.
-            addNamed(context_.typedefType(ast::cast<ast::TypedefDecl>(lookupOrdinary(current.identifier))),
-                     current.location);
-            consume();
-        } else if (kind == TokenKind::KwImaginary) {
-            fail(current.location, "imaginary types are not supported");
-        } else if (unsigned* counter = keywordCounter(types, kind)) {
-            if (kind == TokenKind::KwFloat128) {
-                warning(current.location,
-                        std::format("'{}' is approximated by 'long double'", lex::spellingOf(sources_, current)));
-            }
-            ++*counter;
-            types.lastLocation = current.location;
-            consume();
-        } else {
-            break;
-        }
+    while (parseDeclarationSpecifier(spec, types, context)) {
         anySpecifier = true;
     }
-
-    if (types.namedCount > 0) {
-        if (types.namedCount > 1 || types.keywordCount() > 0 || spec.isAutoType) {
-            fail(types.lastLocation, "invalid combination of type specifiers");
-        }
-        spec.type = types.named;
-    } else if (types.any()) {
-        const std::optional<BuiltinKind> kind = builtinKind(types);
-        if (!kind || spec.isAutoType || types.complexCount > 1) {
-            fail(types.lastLocation, "invalid combination of type specifiers");
-        }
-        spec.type = context_.builtin(*kind);
-        if (types.complexCount > 0) {
-            spec.type = context_.complexOf(spec.type);
-        }
-    } else if (!spec.isAutoType) {
-        // Implicit int (C89), which GCC still accepts with a warning. Only an external declaration may omit all
-        // specifiers, as in `main() { ... }`.
-        const bool declaratorFollows = at(TokenKind::Identifier) || at(TokenKind::Star) || at(TokenKind::LeftParen);
-        if (!anySpecifier && (context != SpecifierContext::File || !declaratorFollows)) {
-            if (at(TokenKind::Identifier)) {
-                failUnknownTypeName(token());
-            }
-            failExpected(context == SpecifierContext::TypeName ? "type name"
-                         : context == SpecifierContext::File   ? "declaration"
-                                                               : "declaration specifiers");
-        }
-        warning(spec.begin, "type defaults to 'int'");
-        spec.type = context_.builtin(BuiltinKind::Int);
-    }
+    finishTypeSpecifiers(spec, types, anySpecifier, context);
     return spec;
 }
 
-ast::QualType Parser::parseRecordSpecifier(DeclSpec& spec, SpecifierContext context) {
+bool Parser::parseDeclarationSpecifier(DeclSpec& spec, TypeSpecifiers& types, SpecifierContext context) {
+    const lex::Token& current = token();
+    const TokenKind kind = current.kind;
+    const auto addNamed = [&](ast::QualType type) {
+        ++types.namedCount;
+        types.named = type;
+        types.lastLocation = current.location;
+    };
+    switch (kind) {
+    case TokenKind::KwTypedef:
+    case TokenKind::KwExtern:
+    case TokenKind::KwStatic:
+    case TokenKind::KwAuto:
+    case TokenKind::KwRegister:
+        setStorageClass(spec, current, context);
+        break;
+    case TokenKind::KwThreadLocal:
+        spec.isThreadLocal = true;
+        break;
+    case TokenKind::KwInline:
+        spec.isInline = true;
+        break;
+    case TokenKind::KwNoreturn:
+        spec.isNoreturn = true;
+        break;
+    case TokenKind::KwAutoType:
+        spec.isAutoType = true;
+        break;
+    case TokenKind::KwExtension:
+        break;
+    case TokenKind::KwAttribute:
+        parseAttributes(spec.attributes);
+        return true;
+    case TokenKind::KwAlignas:
+        parseAlignas(spec);
+        return true;
+    case TokenKind::KwStruct:
+        addNamed(parseTagSpecifier(spec, context, TagKind::Struct));
+        return true;
+    case TokenKind::KwUnion:
+        addNamed(parseTagSpecifier(spec, context, TagKind::Union));
+        return true;
+    case TokenKind::KwEnum:
+        addNamed(parseTagSpecifier(spec, context, TagKind::Enum));
+        return true;
+    case TokenKind::KwTypeof:
+        addNamed(parseTypeof());
+        return true;
+    case TokenKind::KwImaginary:
+        fail(current.location, "imaginary types are not supported");
+    case TokenKind::KwAtomic:
+        if (peek(1).is(TokenKind::LeftParen)) {
+            // _Atomic(T), the type specifier (C17 6.7.2.4).
+            consume();
+            consume();
+            ast::Qualifiers atomic;
+            atomic.isAtomic = true;
+            addNamed(parseTypeName().withQualifiers(atomic));
+            expect(TokenKind::RightParen);
+            return true;
+        }
+        addQualifier(spec.qualifiers, kind);
+        break;
+    case TokenKind::Identifier:
+        // A typedef name is a type specifier only if there is no other one; `unsigned T;` declares T.
+        if (types.any() || spec.isAutoType || !isTypedefName(current)) {
+            return false;
+        }
+        addNamed(context_.typedefType(ast::cast<ast::TypedefDecl>(lookupOrdinary(current.identifier))));
+        break;
+    default:
+        if (isQualifier(kind)) {
+            addQualifier(spec.qualifiers, kind);
+            break;
+        }
+        unsigned* counter = keywordCounter(types, kind);
+        if (counter == nullptr) {
+            return false;
+        }
+        if (kind == TokenKind::KwFloat128) {
+            warning(current.location,
+                    std::format("'{}' is approximated by 'long double'", lex::spellingOf(sources_, current)));
+        }
+        ++*counter;
+        types.lastLocation = current.location;
+        break;
+    }
+    consume();
+    return true;
+}
+
+void Parser::setStorageClass(DeclSpec& spec, const lex::Token& keyword, SpecifierContext context) {
+    if (spec.isTypedef || spec.storage != ast::StorageClass::None) {
+        fail(keyword.location, "multiple storage classes in declaration specifiers");
+    }
+    if (context == SpecifierContext::Member || context == SpecifierContext::TypeName) {
+        fail(keyword.location, std::format("'{}' is not allowed here", lex::spellingOf(sources_, keyword)));
+    }
+    if (keyword.is(TokenKind::KwTypedef)) {
+        spec.isTypedef = true;
+        return;
+    }
+    spec.storage = *storageClass(keyword.kind);
+    if ((context == SpecifierContext::Parameter || context == SpecifierContext::KnrParameter)
+        && spec.storage != ast::StorageClass::Register) {
+        fail(keyword.location, "invalid storage class for a parameter");
+    }
+}
+
+void Parser::finishTypeSpecifiers(DeclSpec& spec, const TypeSpecifiers& types, bool anySpecifier,
+                                  SpecifierContext context) {
+    const std::optional<ast::QualType> type = specifiedType(context_, types);
+    if (!type || (spec.isAutoType && !type->isNull())) {
+        fail(types.lastLocation, "invalid combination of type specifiers");
+    }
+    spec.type = *type;
+    if (!spec.type.isNull() || spec.isAutoType) {
+        return;
+    }
+    // Implicit int (C89), which GCC still accepts with a warning. Only an external declaration may omit all
+    // specifiers, as in `main() { ... }`.
+    const bool declaratorFollows = at(TokenKind::Identifier) || at(TokenKind::Star) || at(TokenKind::LeftParen);
+    if (!anySpecifier && (context != SpecifierContext::File || !declaratorFollows)) {
+        if (at(TokenKind::Identifier)) {
+            failUnknownTypeName(token());
+        }
+        failExpected(context == SpecifierContext::TypeName ? "type name"
+                     : context == SpecifierContext::File   ? "declaration"
+                                                           : "declaration specifiers");
+    }
+    warning(spec.begin, "type defaults to 'int'");
+    spec.type = context_.builtin(BuiltinKind::Int);
+}
+
+// `struct S`, `union U { ... }`, `enum E { ... }`, and anonymous definitions.
+ast::QualType Parser::parseTagSpecifier(DeclSpec& spec, SpecifierContext context, TagKind kind) {
     const DepthGuard guard(*this);
     const lex::Token& keyword = consume();
-    const bool isUnion = keyword.is(TokenKind::KwUnion);
     std::vector<ast::Attribute> attributes;
     parseAttributes(attributes);
     Symbol name;
@@ -431,44 +465,83 @@ ast::QualType Parser::parseRecordSpecifier(DeclSpec& spec, SpecifierContext cont
     if (name.empty() && !isDefinition) {
         failExpected("identifier or '{'");
     }
-
-    ast::RecordDecl* record = nullptr;
-    if (!name.empty()) {
-        // C17 6.7.2.3p6-7: a definition and `struct S;` declare the tag in the current scope; other uses refer to
-        // the visible tag, or declare it if there is none (p8).
-        const bool declaresTag =
-            isDefinition
-            || (at(TokenKind::Semicolon) && (context == SpecifierContext::File || context == SpecifierContext::Block));
-        if (ast::Decl* existing = lookupTag(name, declaresTag)) {
-            record = ast::dyn_cast<ast::RecordDecl>(existing);
-            if (record == nullptr || record->isUnion() != isUnion) {
-                fail(location,
-                     std::format("use of '{}' with tag type that does not match previous declaration", name.text()));
-            }
-        }
-    }
-    if (record == nullptr) {
-        record = context_.create<ast::RecordDecl>(name, location, isUnion);
-        if (!name.empty()) {
-            bindTag(record);
-        }
-    }
+    // C17 6.7.2.3p6-7: a definition and `struct S;` declare the tag in the current scope.
+    const bool declaresTag =
+        isDefinition
+        || (at(TokenKind::Semicolon) && (context == SpecifierContext::File || context == SpecifierContext::Block));
+    ast::Decl* tag = resolveTag(kind, name, location, declaresTag);
     if (isDefinition) {
-        if (record->isComplete()) {
-            fail(location, std::format("redefinition of '{} {}'", isUnion ? "union" : "struct", name.text()));
+        if (isTagComplete(tag)) {
+            fail(location, std::format("redefinition of '{}'", tagName(tag)));
         }
-        parseRecordBody(record);
+        parseTagBody(tag);
         parseAttributes(attributes);
-        tagDefinitions_.push_back(record);
+        tagDefinitions_.push_back(tag);
         spec.definesTag = true;
     }
-    addAttributes(record, attributes);
-    spec.tag = record;
-    return context_.recordType(record);
+    addAttributes(tag, attributes);
+    spec.tag = tag;
+    if (auto* record = ast::dyn_cast<ast::RecordDecl>(tag)) {
+        return context_.recordType(record);
+    }
+    return context_.enumType(ast::cast<ast::EnumDecl>(tag));
 }
 
-void Parser::parseRecordBody(ast::RecordDecl* record) {
+// The tag entity a specifier refers to (C17 6.7.2.3): with `declaresTag` the one of the current scope, otherwise the
+// visible one; a new one if there is none (p8). An enum used before its definition is a GNU extension.
+ast::Decl* Parser::resolveTag(TagKind kind, Symbol name, SourceLocation location, bool declaresTag) {
+    if (ast::Decl* existing = name.empty() ? nullptr : lookupTag(name, declaresTag)) {
+        const auto* record = ast::dyn_cast<ast::RecordDecl>(existing);
+        const bool matches = kind == TagKind::Enum ? ast::isa<ast::EnumDecl>(existing)
+                                                   : record != nullptr && record->isUnion() == (kind == TagKind::Union);
+        if (!matches) {
+            fail(location,
+                 std::format("use of '{}' with tag type that does not match previous declaration", name.text()));
+        }
+        return existing;
+    }
+    ast::Decl* tag = nullptr;
+    if (kind == TagKind::Enum) {
+        tag = context_.create<ast::EnumDecl>(name, location);
+    } else {
+        tag = context_.create<ast::RecordDecl>(name, location, kind == TagKind::Union);
+    }
+    if (!name.empty()) {
+        bindTag(tag);
+    }
+    return tag;
+}
+
+// The members or enumerators in braces. The tag is completed at the closing brace, where `#pragma pack` applies.
+void Parser::parseTagBody(ast::Decl* tag) {
+    auto* record = ast::dyn_cast<ast::RecordDecl>(tag);
+    std::vector<ast::FieldDecl*> fields;
+    std::vector<ast::EnumConstantDecl*> constants;
     consume(); // {
+    if (record != nullptr) {
+        fields = parseRecordMembers();
+    } else {
+        constants = parseEnumerators();
+    }
+    const SourceLocation end = expect(TokenKind::RightBrace).location;
+    if (isTagComplete(tag)) {
+        // `struct S { struct S { ... } inner; }`: the inner definition completed S first.
+        fail(end, std::format("nested redefinition of '{}'", tagName(tag)));
+    }
+    if (record == nullptr) {
+        ast::cast<ast::EnumDecl>(tag)->complete(context_.copy<ast::EnumConstantDecl*>(constants));
+        return;
+    }
+    for (std::size_t i = 0; i < fields.size(); ++i) {
+        fields[i]->setParent(record, static_cast<std::uint32_t>(i));
+    }
+    record->complete(context_.copy<ast::FieldDecl*>(fields));
+    record->setMaxFieldAlignment(packAlignment_);
+}
+
+// A `_Static_assert` among the members is parsed and dropped: a record has no place for it, and the programs NITWIT
+// validates compile, so it holds.
+std::vector<ast::FieldDecl*> Parser::parseRecordMembers() {
     std::vector<ast::FieldDecl*> fields;
     while (!at(TokenKind::RightBrace)) {
         if (tryConsume(TokenKind::Semicolon)) {
@@ -480,17 +553,7 @@ void Parser::parseRecordBody(ast::RecordDecl* record) {
         }
         parseMemberDeclaration(fields);
     }
-    const SourceLocation end = consume().location;
-    if (record->isComplete()) {
-        // `struct S { struct S { ... } inner; }`: the inner definition completed S first.
-        fail(end, std::format("nested redefinition of '{} {}'", record->isUnion() ? "union" : "struct",
-                              record->name().text()));
-    }
-    for (std::size_t i = 0; i < fields.size(); ++i) {
-        fields[i]->setParent(record, static_cast<std::uint32_t>(i));
-    }
-    record->complete(context_.copy<ast::FieldDecl*>(fields));
-    record->setMaxFieldAlignment(packAlignment_);
+    return fields;
 }
 
 void Parser::parseMemberDeclaration(std::vector<ast::FieldDecl*>& fields) {
@@ -532,60 +595,7 @@ void Parser::parseMemberDeclaration(std::vector<ast::FieldDecl*>& fields) {
     }
 }
 
-ast::QualType Parser::parseEnumSpecifier(DeclSpec& spec, SpecifierContext context) {
-    const DepthGuard guard(*this);
-    const lex::Token& keyword = consume();
-    std::vector<ast::Attribute> attributes;
-    parseAttributes(attributes);
-    Symbol name;
-    SourceLocation location = keyword.location;
-    if (at(TokenKind::Identifier)) {
-        name = token().identifier;
-        location = token().location;
-        consume();
-        parseAttributes(attributes);
-    }
-    const bool isDefinition = at(TokenKind::LeftBrace);
-    if (name.empty() && !isDefinition) {
-        failExpected("identifier or '{'");
-    }
-
-    ast::EnumDecl* enumDecl = nullptr;
-    if (!name.empty()) {
-        const bool declaresTag =
-            isDefinition
-            || (at(TokenKind::Semicolon) && (context == SpecifierContext::File || context == SpecifierContext::Block));
-        if (ast::Decl* existing = lookupTag(name, declaresTag)) {
-            enumDecl = ast::dyn_cast<ast::EnumDecl>(existing);
-            if (enumDecl == nullptr) {
-                fail(location,
-                     std::format("use of '{}' with tag type that does not match previous declaration", name.text()));
-            }
-        }
-    }
-    if (enumDecl == nullptr) {
-        // An enum used before its definition is a GNU extension.
-        enumDecl = context_.create<ast::EnumDecl>(name, location);
-        if (!name.empty()) {
-            bindTag(enumDecl);
-        }
-    }
-    if (isDefinition) {
-        if (enumDecl->isComplete()) {
-            fail(location, std::format("redefinition of 'enum {}'", name.text()));
-        }
-        parseEnumBody(enumDecl);
-        parseAttributes(attributes);
-        tagDefinitions_.push_back(enumDecl);
-        spec.definesTag = true;
-    }
-    addAttributes(enumDecl, attributes);
-    spec.tag = enumDecl;
-    return context_.enumType(enumDecl);
-}
-
-void Parser::parseEnumBody(ast::EnumDecl* enumDecl) {
-    consume(); // {
+std::vector<ast::EnumConstantDecl*> Parser::parseEnumerators() {
     if (at(TokenKind::RightBrace)) {
         fail(token().location, "empty enum is invalid");
     }
@@ -610,11 +620,7 @@ void Parser::parseEnumBody(ast::EnumDecl* enumDecl) {
             break;
         }
     }
-    const SourceLocation end = expect(TokenKind::RightBrace).location;
-    if (enumDecl->isComplete()) {
-        fail(end, std::format("nested redefinition of 'enum {}'", enumDecl->name().text()));
-    }
-    enumDecl->complete(context_.copy<ast::EnumConstantDecl*>(constants));
+    return constants;
 }
 
 // GNU `typeof(expression)` and `typeof(type-name)`.
@@ -842,7 +848,9 @@ void Parser::parseFunctionSuffix(Declarator& declarator) {
             break;
         }
     }
-    popScope();
+    // Kept for a definition, whose body sees the parameters, tags and enumeration constants of the list.
+    function.scope = std::make_unique<Scope>(std::move(scopes_.back()));
+    scopes_.pop_back();
     tagDefinitions_.resize(mark);
     expect(TokenKind::RightParen);
 
@@ -1044,10 +1052,20 @@ ast::FunctionDecl* Parser::parseFunctionDefinition(const DeclSpec& spec, Declara
     if (currentFunction_ != nullptr) {
         fail(declarator.nameLocation, "nested functions are not supported");
     }
+    // The outermost block of the body is the scope of the parameters (C17 6.2.1p4): the parameter list's scope, or
+    // for a K&R definition the scope of its declaration list.
     DeclaratorChunk& chunk = declarator.chunks.front();
+    Scope body;
     if (!chunk.identifiers.empty()) {
+        pushScope(ScopeKind::Block);
         chunk.parameters = parseKnrParameters(chunk);
+        body = std::move(scopes_.back());
+        scopes_.pop_back();
+    } else if (chunk.scope != nullptr) {
+        body = std::move(*chunk.scope);
     }
+    body.kind = ScopeKind::Block;
+
     auto* function = ast::cast<ast::FunctionDecl>(declare(spec, declarator));
     for (const ast::FunctionDecl* previous = function->previous(); previous != nullptr;
          previous = previous->previous()) {
@@ -1056,23 +1074,20 @@ ast::FunctionDecl* Parser::parseFunctionDefinition(const DeclSpec& spec, Declara
         }
     }
 
-    // The parameters are in the scope of the body's outermost block (C17 6.2.1p4).
-    pushScope(ScopeKind::Block);
-    for (ast::VarDecl* parameter : function->parameters()) {
-        bindOrdinary(parameter, false);
-    }
+    scopes_.push_back(std::move(body));
     currentFunction_ = function;
+    functionName_ = nullptr;
     functionLabels_ = LabelScope{};
-    ast::CompoundStmt* body = parseCompoundStatement(false);
+    function->setBody(parseCompoundStatement(false));
     resolveGotos(functionLabels_);
     popScope();
     currentFunction_ = nullptr;
-    function->setBody(body);
     return function;
 }
 
-// The parameter declarations of a K&R definition, `int f(a, b) int a; char *b; { ... }`. Parameters without a
-// declaration are int (C89 6.7.1).
+// The parameter declarations of a K&R definition, `int f(a, b) int a; char *b; { ... }`, in the scope of the body:
+// each parameter is in scope after its declarator, so `int f(n, a) int n; int a[n]; { ... }` works. Parameters
+// without a declaration are int (C89 6.7.1).
 std::vector<ast::VarDecl*> Parser::parseKnrParameters(const DeclaratorChunk& chunk) {
     std::vector<ast::VarDecl*> parameters(chunk.identifiers.size(), nullptr);
     while (!at(TokenKind::LeftBrace)) {
@@ -1095,6 +1110,7 @@ std::vector<ast::VarDecl*> Parser::parseKnrParameters(const DeclaratorChunk& chu
                                                       parameterType(spec, declarator), spec.storage, false, true);
             addAttributes(parameter, spec.attributes);
             addAttributes(parameter, declarator.attributes);
+            bindOrdinary(parameter, false);
             if (!tryConsume(TokenKind::Comma)) {
                 break;
             }
@@ -1109,6 +1125,7 @@ std::vector<ast::VarDecl*> Parser::parseKnrParameters(const DeclaratorChunk& chu
             parameters[i] =
                 context_.create<ast::VarDecl>(identifier.name, identifier.location, context_.builtin(BuiltinKind::Int),
                                               ast::StorageClass::None, false, true);
+            bindOrdinary(parameters[i], false);
         }
     }
     return parameters;

@@ -213,6 +213,71 @@ TEST_F(ScopeTest, TagKindMismatchIsAnError) {
               "test.c:1:28: error: use of 'S' with tag type that does not match previous declaration");
 }
 
+TEST_F(ScopeTest, EnumerationConstantsOfTheParameterListAreVisibleInTheBody) {
+    // C17 6.2.1p4: the scope of identifiers declared in the parameter list of a definition is the body.
+    const ast::TranslationUnit* unit = parse("int A; int f(enum E { A, B } e) { return A; }");
+    ASSERT_NE(unit, nullptr) << firstError();
+    const auto* returnStmt = ast::cast<ast::ReturnStmt>(bodyOf(unit, "f")[0]);
+    EXPECT_TRUE(ast::isa<ast::EnumConstantDecl>(ast::cast<ast::DeclRefExpr>(returnStmt->value())->decl()));
+}
+
+TEST_F(ScopeTest, TagOfTheParameterListIsTheSameInTheBody) {
+    const ast::TranslationUnit* unit = parse("int f(struct S { int a; } s) { struct S t = s; return t.a; }");
+    ASSERT_NE(unit, nullptr) << firstError();
+    const auto* function = find<ast::FunctionDecl>(unit, "f");
+    const auto* local = ast::cast<ast::VarDecl>(declOf(function->body()->body()[0]));
+    EXPECT_EQ(local->type().type(), function->parameters()[0]->type().type());
+}
+
+TEST_F(ScopeTest, TagOfAPrototypeIsNotVisibleAfterIt) {
+    const ast::TranslationUnit* unit = parse("void g(struct P { int x; } p); struct P *q;");
+    ASSERT_NE(unit, nullptr) << firstError();
+    const auto* pointer = ast::cast<ast::PointerType>(find<ast::VarDecl>(unit, "q")->type().type());
+    EXPECT_NE(pointer->pointee().type(), find<ast::FunctionDecl>(unit, "g")->parameters()[0]->type().type());
+    EXPECT_FALSE(ast::cast<ast::RecordType>(pointer->pointee().type())->decl()->isComplete());
+}
+
+TEST_F(ScopeTest, KnrParameterIsInScopeAfterItsDeclarator) {
+    const ast::TranslationUnit* unit = parse("int n; int f(n, a, p) int n; int a[n]; typeof(n) *p; { return n; }");
+    ASSERT_NE(unit, nullptr) << firstError();
+    const auto* function = find<ast::FunctionDecl>(unit, "f");
+    const auto* pointer = ast::cast<ast::PointerType>(function->parameters()[2]->type().type());
+    const auto* typeOf = ast::cast<ast::TypeofType>(pointer->pointee().type());
+    EXPECT_EQ(ast::cast<ast::DeclRefExpr>(typeOf->expression())->decl(), function->parameters()[0]);
+    const auto* returnStmt = ast::cast<ast::ReturnStmt>(function->body()->body()[0]);
+    EXPECT_EQ(ast::cast<ast::DeclRefExpr>(returnStmt->value())->decl(), function->parameters()[0]);
+}
+
+TEST_F(ScopeTest, KnrDeclarationListIsInTheScopeOfTheBody) {
+    const ast::TranslationUnit* unit = parse("f(p) struct P { int x; } *p; { struct P q; return p->x; }\nstruct P *r;");
+    ASSERT_NE(unit, nullptr) << firstError();
+    const auto* function = find<ast::FunctionDecl>(unit, "f");
+    const auto* parameter = ast::cast<ast::PointerType>(function->parameters()[0]->type().type());
+    const auto* local = ast::cast<ast::VarDecl>(declOf(function->body()->body()[0]));
+    EXPECT_EQ(local->type().type(), parameter->pointee().type());
+    const auto* fileScope = ast::cast<ast::PointerType>(find<ast::VarDecl>(unit, "r")->type().type());
+    EXPECT_NE(fileScope->pointee().type(), parameter->pointee().type());
+}
+
+TEST_F(ScopeTest, KnrParametersAreInTheScopeOfTheBody) {
+    EXPECT_EQ(errorOf("int f(a) int a; { int a; return 0; }"), "test.c:1:23: error: redefinition of 'a'");
+    EXPECT_EQ(errorOf("int f(a, a) { return 0; }"), "test.c:1:10: error: redefinition of 'a'");
+}
+
+TEST_F(ScopeTest, MembersMayBeNamedLikeTypedefs) {
+    const ast::TranslationUnit* unit = parse("typedef int T; struct S { T T; T x; } s; unsigned long n = sizeof(s.T);");
+    ASSERT_NE(unit, nullptr) << firstError();
+    const auto* record = find<ast::RecordDecl>(unit, "S");
+    ASSERT_EQ(record->fields().size(), 2u);
+    EXPECT_EQ(record->fields()[0]->name().text(), "T");
+    EXPECT_EQ(ast::typeToString(record->fields()[0]->type()), "T");
+    EXPECT_EQ(record->fields()[1]->name().text(), "x");
+    EXPECT_EQ(ast::typeToString(record->fields()[1]->type()), "T");
+    const auto* sizeOf = ast::cast<ast::SizeOfAlignOfExpr>(find<ast::VarDecl>(unit, "n")->initializer());
+    const auto* member = ast::cast<ast::MemberExpr>(ast::cast<ast::ParenExpr>(sizeOf->operand())->inner());
+    EXPECT_EQ(member->member().text(), "T");
+}
+
 TEST_F(ScopeTest, EnumUsedBeforeItsDefinition) {
     const ast::TranslationUnit* unit = parse("enum E; enum E *p; enum E { A };");
     ASSERT_NE(unit, nullptr) << firstError();
