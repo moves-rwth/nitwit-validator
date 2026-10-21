@@ -69,7 +69,8 @@ public:
     /// uniqued. Qualifiers of typedef'd types are merged in; qualifiers of an array type move to its elements
     /// (C17 6.7.3p10); the return and parameter types of a function type lose their qualifiers (C17 6.7.6.3p5, p15).
     /// Precondition: sema resolved every array size and typeof the type refers to. Variable length array types are
-    /// their own canonical types.
+    /// their own canonical types: they are returned unchanged, with their qualifiers, and their element() has to be
+    /// canonicalized separately.
     [[nodiscard]] QualType canonical(QualType type);
 
 private:

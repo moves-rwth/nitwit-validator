@@ -610,6 +610,8 @@ std::string typeText(QualType type, std::string declarator) {
     }
 }
 
+constexpr std::size_t maxIndentedDepth = 64;
+
 class Dumper {
 public:
     explicit Dumper(const SourceManager& sources) : sources_(sources) {}
@@ -633,6 +635,7 @@ private:
         Dumper& dumper_;
     };
 
+    void indent();
     void line(std::string_view text, SourceLocation location);
     void nullLine();
     [[nodiscard]] std::string position(SourceLocation location) const;
@@ -654,8 +657,19 @@ private:
     std::size_t depth_ = 0;
 };
 
+// Trees can be deeper than any nesting limit (long operator chains are left-deep), so the indentation stops growing
+// and the dump stays linear in the size of the tree.
+void Dumper::indent() {
+    if (depth_ <= maxIndentedDepth) {
+        out_.append(2 * depth_, ' ');
+        return;
+    }
+    out_.append(2 * maxIndentedDepth, ' ');
+    out_ += std::format("[{}] ", depth_);
+}
+
 void Dumper::line(std::string_view text, SourceLocation location) {
-    out_.append(2 * depth_, ' ');
+    indent();
     out_ += text;
     out_ += ' ';
     out_ += position(location);
@@ -663,7 +677,7 @@ void Dumper::line(std::string_view text, SourceLocation location) {
 }
 
 void Dumper::nullLine() {
-    out_.append(2 * depth_, ' ');
+    indent();
     out_ += "(null)\n";
 }
 
