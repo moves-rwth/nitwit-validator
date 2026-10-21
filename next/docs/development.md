@@ -22,7 +22,13 @@ From Windows, PowerShell with a single-quoted command:
 wsl -d Ubuntu -- bash -lc 'cd /mnt/e/Dev/nitwit-validator/next && cmake --preset gcc-debug && cmake --build --preset gcc-debug && ctest --preset gcc-debug'
 ```
 
-From Git Bash, set `MSYS_NO_PATHCONV=1` so that `/mnt/...` paths are not rewritten.
+From Git Bash, set `MSYS_NO_PATHCONV=1` so that `/mnt/...` paths are not rewritten. `wsl.exe` runs the command
+through another shell, which expands `$variables` first: put anything with variables into a script file and run
+`wsl -d Ubuntu -- bash /mnt/.../script.sh`.
+
+When several agents share the machine, build with at most `-j 8` and do not run corpus jobs at the same time as
+sanitizer builds. Heavy parallel load on `/mnt/e` has crashed WSL (`Wsl/Service/E_UNEXPECTED`); `wsl --shutdown`
+recovers it.
 
 `tools/check.sh` runs what every hand-over requires: it configures, builds and tests the `gcc-debug`, `clang-debug` and
 `asan` presets, then checks the formatting with `clang-format-20`.
