@@ -2,12 +2,12 @@
 
 ## Building
 
-NITWIT 4 builds on Linux (WSL Ubuntu 24.04 on the development machine) with GCC 13 or Clang 19, CMake ≥ 3.28 and Ninja.
-Clang 18 does not work, see "Toolchain" in `docs/plan.md`.
+NITWIT 4 builds on Linux (WSL Ubuntu 24.04 on the development machine) with GCC 14 or Clang 20, CMake ≥ 3.28 and Ninja.
+The Ubuntu default compilers (GCC 13, Clang 18) are not used, see "Toolchain" in `docs/plan.md`.
 
 ```bash
 cd next
-cmake --preset gcc-debug          # or: gcc-release, clang-debug, clang-release, asan (GCC with ASan and UBSan)
+cmake --preset gcc-debug          # or: gcc-release, clang-debug, clang-release, asan (Clang with ASan and UBSan)
 cmake --build --preset gcc-debug
 ctest --preset gcc-debug          # unit and golden tests
 ```
@@ -25,7 +25,7 @@ wsl -d Ubuntu -- bash -lc 'cd /mnt/e/Dev/nitwit-validator/next && cmake --preset
 From Git Bash, set `MSYS_NO_PATHCONV=1` so that `/mnt/...` paths are not rewritten.
 
 `tools/check.sh` runs what every hand-over requires: it configures, builds and tests the `gcc-debug`, `clang-debug` and
-`asan` presets, then checks the formatting. It skips the Clang presets while `clang++-19` is not installed.
+`asan` presets, then checks the formatting with `clang-format-20`.
 
 ## Tests
 

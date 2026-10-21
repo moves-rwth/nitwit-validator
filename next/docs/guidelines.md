@@ -5,13 +5,14 @@ year?
 
 ## Language
 
-C++23 as far as GCC 13 and Clang 19 with libstdc++ 13 support it.
+C++23 as far as GCC 14 and Clang 20 with libstdc++ 14 support it.
 
-- **Use:** `std::expected`, `std::format`, `std::span`, `std::string_view`, ranges and views (without `ranges::to`),
-  concepts, designated initializers, `enum class`, `std::to_underlying`, `std::unreachable`, `constexpr`/`consteval`,
-  `[[nodiscard]]`, structured bindings, `std::optional`, `std::variant` (sparingly).
-- **Not yet** (needs GCC 14): `std::print`, deducing `this`, `std::ranges::to`, `std::flat_map`, `std::generator`,
-  modules.
+- **Use:** `std::expected`, `std::format`, `std::print`, `std::span`, `std::string_view`, ranges and views including
+  `std::ranges::to`, concepts, designated initializers, `enum class`, `std::to_underlying`, `std::unreachable`,
+  `constexpr`/`consteval`, `[[nodiscard]]`, structured bindings, `std::optional`, `std::variant` (sparingly), deducing
+  `this` (where it removes real duplication).
+- **Not yet:** `std::flat_map` (GCC 15), modules, `import std`. `std::generator` only where a plain loop or a callback
+  would be harder to read.
 - `__int128` is used through `support/int128.hpp` only.
 - No compiler-specific code outside `support/`. The code must compile without warnings under
   `-Wall -Wextra -Wpedantic -Wconversion -Wshadow` and the other warnings in `cmake/Warnings.cmake`.
@@ -24,7 +25,7 @@ C++23 as far as GCC 13 and Clang 19 with libstdc++ 13 support it.
   members: `camelCase_`. Namespaces: `nitwit::<module>`.
 - Constants: `constexpr` variables in `camelCase`. Avoid macros; the only macros are those in `support/assert.hpp`.
 - `#pragma once`. Include what you use. In headers, prefer forward declarations to includes.
-- `clang-format` (`.clang-format` in `next/`) is the authority on formatting. Run it on every changed file.
+- `clang-format-20` (`.clang-format` in `next/`) is the authority on formatting. Run it on every changed file.
 
 ## Design
 

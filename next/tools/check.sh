@@ -11,11 +11,6 @@ fi
 
 for preset in "${presets[@]}"; do
     echo "=== $preset"
-    # Clang 18 cannot use std::expected from libstdc++ 13; the clang presets need clang-19.
-    if [[ "$preset" == clang-* ]] && ! command -v clang++-19 > /dev/null; then
-        echo "skipped: clang++-19 is not installed (sudo apt install clang-19)"
-        continue
-    fi
     cmake --preset "$preset" > /dev/null
     cmake --build --preset "$preset" | grep -v '^\[' || true
     test "${PIPESTATUS[0]}" -eq 0
@@ -24,5 +19,5 @@ for preset in "${presets[@]}"; do
 done
 
 echo "=== clang-format"
-git ls-files -co --exclude-standard -- '*.hpp' '*.cpp' | xargs -r clang-format --dry-run --Werror
+git ls-files -co --exclude-standard -- '*.hpp' '*.cpp' | xargs -r clang-format-20 --dry-run --Werror
 echo "=== all checks passed"

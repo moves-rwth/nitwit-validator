@@ -18,3 +18,15 @@ function(nitwit_add_unit_test name)
     nitwit_set_warnings(unit_${name})
     gtest_discover_tests(unit_${name} DISCOVERY_MODE PRE_TEST PROPERTIES LABELS unit)
 endfunction()
+
+# nitwit_add_corpus_test(<name> SOURCES ... DEPENDS ...)
+# Creates the executable corpus_<name>, run as `corpus_<name> <dataset-dir> <repository-root>` with the CTest label
+# "corpus". Only built when NITWIT_DATASET_DIR is set.
+function(nitwit_add_corpus_test name)
+    cmake_parse_arguments(ARG "" "" "SOURCES;DEPENDS" ${ARGN})
+    add_executable(corpus_${name} ${ARG_SOURCES})
+    target_link_libraries(corpus_${name} PRIVATE ${ARG_DEPENDS})
+    nitwit_set_warnings(corpus_${name})
+    add_test(NAME corpus_${name} COMMAND corpus_${name} ${NITWIT_DATASET_DIR} ${PROJECT_SOURCE_DIR}/..)
+    set_tests_properties(corpus_${name} PROPERTIES LABELS corpus)
+endfunction()

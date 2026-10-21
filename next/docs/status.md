@@ -2,7 +2,7 @@
 
 | Stage | Status | Numbers |
 |---|---|---|
-| 0 Foundation | done | `support`: 18 unit tests; GCC and ASan/UBSan clean; Clang presets wait for `clang-19` |
+| 0 Foundation | done | `support`: 18 unit tests; GCC 14, Clang 20 and ASan/UBSan clean |
 | 1 Lexer | in progress | |
 | 2 Parser | API in progress | |
 | 3 Sema | – | |

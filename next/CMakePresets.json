@@ -10,18 +10,18 @@
     },
     {
       "name": "gcc", "hidden": true, "inherits": "base",
-      "cacheVariables": { "CMAKE_C_COMPILER": "gcc", "CMAKE_CXX_COMPILER": "g++" }
+      "cacheVariables": { "CMAKE_C_COMPILER": "gcc-14", "CMAKE_CXX_COMPILER": "g++-14" }
     },
     {
       "name": "clang", "hidden": true, "inherits": "base",
-      "cacheVariables": { "CMAKE_C_COMPILER": "clang-19", "CMAKE_CXX_COMPILER": "clang++-19" }
+      "cacheVariables": { "CMAKE_C_COMPILER": "clang-20", "CMAKE_CXX_COMPILER": "clang++-20" }
     },
     { "name": "gcc-debug", "inherits": "gcc", "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" } },
     { "name": "gcc-release", "inherits": "gcc", "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" } },
     { "name": "clang-debug", "inherits": "clang", "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" } },
     { "name": "clang-release", "inherits": "clang", "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" } },
     {
-      "name": "asan", "inherits": "gcc",
+      "name": "asan", "inherits": "clang",
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "NITWIT_SANITIZE": "address,undefined" }
     }
   ],

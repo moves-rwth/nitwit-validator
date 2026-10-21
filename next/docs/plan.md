@@ -39,7 +39,7 @@ its exit criteria hold with GCC and Clang and in the sanitizer build.
 
 | Stage | Content | Depends on | Exit criteria |
 |---|---|---|---|
-| 0 | **Foundation:** repository layout, CMake presets, warnings, sanitizers, GoogleTest, clang-format, CI, docs; module `support` (source manager, diagnostics, target data models, string interning) | – | builds warning-free with GCC 13 and Clang 19; unit tests pass under ASan and UBSan |
+| 0 | **Foundation:** repository layout, CMake presets, warnings, sanitizers, GoogleTest, clang-format, CI, docs; module `support` (source manager, diagnostics, target data models, string interning) | – | builds warning-free with GCC 14 and Clang 20; unit tests pass under ASan and UBSan |
 | 1 | **Lexer:** tokens with exact ranges, literals, line markers, `#pragma`, detection of files that need the preprocessor | 0 | lexes all 19,693 corpus programs; re-spelling the tokens reproduces the source except for whitespace and comments |
 | 2 | **AST and parser:** C17 plus the GNU extensions used in sv-benchmarks; AST dump | 1 | parses ≥ 99.5 % of the corpus programs that `gcc -fsyntax-only` accepts; golden AST dumps; no crash on fuzzed input |
 | 3 | **Semantic analysis:** declarations and scopes, types, ILP32/LP64 layouts, constant evaluation, implicit conversions as explicit AST nodes | 2 | `sizeof`/`_Alignof`/`offsetof` of every record and constant expressions agree with GCC (`-m32`, `-m64`) on generated probes; ≥ 99 % of the corpus passes |
@@ -120,9 +120,9 @@ it are untrusted data: they are read, never executed, except as compiled program
 
 ## Toolchain
 
-GCC 13.3 and Clang 19 with libstdc++ 13 (Ubuntu 24.04), CMake ≥ 3.28, Ninja. libstdc++ 13 determines the usable
-subset of C++23, see `docs/guidelines.md`. Clang 18, the Ubuntu default, cannot be used: libstdc++ 13 only offers
-`std::expected` when `__cpp_concepts >= 202002L`, which Clang sets from version 19 on.
+GCC 14 (`gcc-14`, `g++-14`) and Clang 20 (`clang-20`, `clang-tidy-20`, `clang-format-20`), both with libstdc++ 14, on
+Ubuntu 24.04; CMake ≥ 3.28, Ninja. libstdc++ 14 determines the usable subset of C++23, see `docs/guidelines.md`. The
+Ubuntu defaults GCC 13 and Clang 18 are not used: Clang 18 cannot use libstdc++'s `std::expected` (it requires
+`__cpp_concepts >= 202002L`, which Clang sets from version 19 on).
 
-Packages to install once: `sudo apt install clang-19 csmith clang-tidy-19`. g++-14 (`sudo apt install g++-14`) would
-add `std::print`, deducing `this` and `std::ranges::to`; the code base can move to it in one step later.
+Still to install for stage 4: `sudo apt install csmith`.

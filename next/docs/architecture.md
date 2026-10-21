@@ -20,11 +20,12 @@ and CMake enforces this through the link dependencies.
 | Module | Responsibility | Uses |
 |---|---|---|
 | `support` | source files and locations, diagnostics, target data models, string interning, assertions | – |
+| `value` | run-time values, their byte representation, and C arithmetic with undefined-behaviour reporting | support |
 | `lex` | tokens, lexer, literal decoding, line markers | support |
 | `ast` | AST nodes, types, `AstContext` (arena, type uniquing), AST dump | support |
 | `parse` | recursive-descent parser for C17 plus GNU extensions → untyped AST | lex, ast |
-| `sema` | name resolution, types, layouts, constant evaluation, implicit conversions → typed AST | ast |
-| `interp` | memory, values, arithmetic, lowering to per-function instruction lists, evaluation, builtins | ast, sema |
+| `sema` | name resolution, types, layouts, constant evaluation, implicit conversions → typed AST | ast, value |
+| `interp` | memory, lowering to per-function instruction lists, evaluation, builtins | ast, sema, value |
 | `witness` | witness models and parsers (2.x YAML, 1.0 GraphML), no C knowledge | support |
 | `validate` | monitors per witness format, constraint compilation, input oracle, restart loop, verdict | interp, witness, parse, sema |
 | `driver` | command line, reading files, exit codes, output | all |
