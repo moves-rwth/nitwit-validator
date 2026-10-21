@@ -32,6 +32,10 @@ When several agents share the machine:
   `ASAN_OPTIONS=hard_rss_limit_mb=6000`, since ASan cannot start under an address-space limit (libFuzzer: `-rss_limit_mb`);
 - do not run corpus jobs at the same time as sanitizer builds.
 
+WSL's disk image lives on C:, and every worktree gets its own build directories (about 1 GB per preset). Delete the
+build directories of merged worktrees (`~/nitwit-next-build/mnt/e/.../worktrees/<agent>`) after merging: a full C: has
+stopped WSL with I/O errors once. Inside WSL, freed space is reused without the image growing.
+
 Running out of memory has crashed WSL several times (`Wsl/Service/E_UNEXPECTED`), killing every job in it.
 `wsl --shutdown` recovers it. Jobs started detached (`setsid nohup ...`) survive the end of the `wsl.exe` session that
 started them.
