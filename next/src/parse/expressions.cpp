@@ -145,6 +145,7 @@ ast::Expr* Parser::parseAssignmentExpression() {
     if (!op) {
         return lhs;
     }
+    rejectInConstraint(token().location, "an assignment");
     const SourceLocation location = consume().location;
     ast::Expr* rhs = parseAssignmentExpression();
     return context_.create<ast::BinaryExpr>(spanOf(lhs, rhs), *op, lhs, rhs, location);
@@ -200,6 +201,7 @@ ast::Expr* Parser::parseUnaryExpression() {
     switch (op.kind) {
     case TokenKind::PlusPlus:
     case TokenKind::MinusMinus: {
+        rejectInConstraint(op.location, "an increment or decrement");
         consume();
         const DepthGuard guard(*this);
         ast::Expr* operand = parseUnaryExpression();
@@ -260,6 +262,7 @@ ast::Expr* Parser::parsePostfixSuffixes(ast::Expr* expr) {
             break;
         }
         case TokenKind::LeftParen: {
+            rejectInConstraint(begin, "a function call");
             consume();
             std::vector<ast::Expr*> arguments;
             if (!at(TokenKind::RightParen)) {
@@ -285,6 +288,7 @@ ast::Expr* Parser::parsePostfixSuffixes(ast::Expr* expr) {
         }
         case TokenKind::PlusPlus:
         case TokenKind::MinusMinus: {
+            rejectInConstraint(token().location, "an increment or decrement");
             const bool isIncrement = consume().is(TokenKind::PlusPlus);
             expr = context_.create<ast::UnaryExpr>(
                 rangeFrom(begin), isIncrement ? ast::UnaryOperator::PostIncrement : ast::UnaryOperator::PostDecrement,
@@ -355,12 +359,16 @@ ast::Expr* Parser::parsePrimaryExpression() {
 ast::Expr* Parser::parseIdentifierExpression() {
     const lex::Token& name = consume();
     const std::string_view text = name.identifier.text();
+    if (inConstraint_ && text == resultName) {
+        return context_.create<ast::ResultExpr>(name.range());
+    }
     if (text == "__func__" || text == "__FUNCTION__" || text == "__PRETTY_FUNCTION__") {
         return functionNameLiteral(name);
     }
     ast::Decl* decl = lookupOrdinary(name.identifier);
     if (decl == nullptr) {
-        if (!at(TokenKind::LeftParen)) {
+        // A constraint cannot declare a function implicitly; it cannot call one anyway.
+        if (!at(TokenKind::LeftParen) || inConstraint_) {
             fail(name.location, std::format("use of undeclared identifier '{}'", text));
         }
         decl = declareImplicitFunction(name);
@@ -414,6 +422,7 @@ ast::Expr* Parser::parseCompoundLiteral(SourceLocation begin, ast::QualType type
 // GNU `({ ... })`. A switch outside it cannot have case labels inside it, as in GCC; gotos into it are not detected.
 ast::Expr* Parser::parseStatementExpression() {
     const SourceLocation begin = consume().location;
+    rejectInConstraint(begin, "a statement expression");
     if (currentFunction_ == nullptr) {
         fail(begin, "a statement expression is only allowed inside a function");
     }
@@ -444,6 +453,7 @@ ast::Expr* Parser::parseGenericSelection() {
 
 ast::Expr* Parser::parseBuiltinVaArg() {
     const SourceLocation begin = consume().location;
+    rejectInConstraint(begin, "'__builtin_va_arg'"); // it advances the va_list
     expect(TokenKind::LeftParen);
     ast::Expr* list = parseAssignmentExpression();
     expect(TokenKind::Comma);

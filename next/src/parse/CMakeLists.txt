@@ -1,5 +1,6 @@
 nitwit_add_module(parse
     SOURCES
+        constraint.cpp
         declarations.cpp
         expressions.cpp
         parser.cpp

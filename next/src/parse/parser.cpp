@@ -100,14 +100,15 @@ std::optional<std::uint64_t> parseNumber(std::string_view text) {
 } // namespace
 
 Parser::DepthGuard::DepthGuard(Parser& parser) : parser_(parser) {
-    if (++parser_.depth_ > maxNestingDepth) {
-        parser_.fail(parser_.token().location, std::format("nesting is deeper than {} levels", maxNestingDepth));
+    if (++parser_.depth_ > parser_.maxDepth_) {
+        parser_.fail(parser_.token().location, std::format("nesting is deeper than {} levels", parser_.maxDepth_));
     }
 }
 
 Parser::Parser(std::span<const lex::Token> tokens, ast::AstContext& context, const SourceManager& sources,
                DiagnosticEngine& diagnostics)
-    : tokens_(tokens), context_(context), sources_(sources), diagnostics_(diagnostics), interner_(context.interner()) {
+    : tokens_(tokens), context_(context), sources_(sources), diagnostics_(diagnostics), interner_(context.interner()),
+      maxDepth_(maxNestingDepth) {
     NITWIT_ASSERT(!tokens_.empty() && tokens_.back().is(TokenKind::EndOfFile), "tokens must end with EndOfFile");
     scopes_.emplace_back().kind = ScopeKind::File;
     declarePredefinedTypedef("__builtin_va_list", ast::BuiltinKind::VaList);

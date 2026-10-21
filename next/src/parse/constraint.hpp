@@ -25,7 +25,8 @@ struct ConstraintScope {
 /// Parses `text` as one expression. Identifiers bind as at the scope's location, falling back to file-scope
 /// declarations of the whole unit; `\result` becomes an ast::ResultExpr. The text is registered with `sources` as a
 /// file named `<constraint>`, so diagnostics point into it. Returns null after reporting an error (syntax error,
-/// unknown identifier, trailing tokens). Runs on the caller's stack; constraints are short.
+/// unknown identifier, a side effect such as an assignment or a call, trailing tokens). Runs on the caller's stack;
+/// nesting deeper than 256 levels is an error.
 [[nodiscard]] ast::Expr* parseConstraint(std::string_view text, const ConstraintScope& scope, ast::AstContext& context,
                                          SourceManager& sources, DiagnosticEngine& diagnostics);
 

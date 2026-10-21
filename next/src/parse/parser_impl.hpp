@@ -2,7 +2,7 @@
 
 // The parser's state, shared by its source files; private to the module. parser.cpp has the token handling, pragmas
 // and the translation unit, scope.cpp the name binding, declarations.cpp, expressions.cpp and statements.cpp the
-// grammar.
+// grammar, constraint.cpp the witness constraints.
 
 #include <cstddef>
 #include <cstdint>
@@ -23,12 +23,19 @@
 #include "support/interner.hpp"
 #include "support/source_manager.hpp"
 
+namespace nitwit::parse {
+struct ConstraintScope;
+} // namespace nitwit::parse
+
 namespace nitwit::parse::detail {
 
 using lex::TokenKind;
 
-/// Thrown after an error has been reported; parseTranslationUnit catches it.
+/// Thrown after an error has been reported; parseTranslationUnit and parseConstraint catch it.
 struct ParseError {};
+
+/// The name of the identifier token that constraint.cpp makes of `\result`.
+inline constexpr std::string_view resultName = "\\result";
 
 /// The labels of a function, or of a block that declares local labels with GNU `__label__`.
 struct LabelScope {
@@ -145,6 +152,10 @@ public:
 
     /// Throws ParseError after reporting the first error.
     ast::TranslationUnit* parseTranslationUnit();
+
+    /// Parses the tokens as a witness constraint at `scope` (constraint.cpp). Throws ParseError after reporting the
+    /// first error.
+    ast::Expr* parseConstraint(const ConstraintScope& scope);
 
 private:
     struct SwitchContext {
@@ -305,6 +316,10 @@ private:
     [[nodiscard]] bool startsDeclarationStatement() const;
     [[noreturn]] void failUnknownTypeName(const lex::Token& name);
 
+    // ---- constraint.cpp ----
+    /// Reports an error if a constraint is being parsed; `construct` names what it must not contain.
+    void rejectInConstraint(SourceLocation location, std::string_view construct);
+
     std::span<const lex::Token> tokens_;
     std::size_t pos_ = 0;
     SourceLocation previousEnd_; // the end of the last consumed token
@@ -313,6 +328,9 @@ private:
     DiagnosticEngine& diagnostics_;
     StringInterner& interner_;
     std::size_t depth_ = 0;
+    std::size_t maxDepth_; // lower for constraints, which are parsed on the caller's stack
+    /// While parsing a constraint, `\result` is allowed; side effects and undeclared identifiers are not.
+    bool inConstraint_ = false;
 
     std::vector<Scope> scopes_;
     /// The latest declaration with linkage of each name, wherever it was declared (C17 6.2.2).

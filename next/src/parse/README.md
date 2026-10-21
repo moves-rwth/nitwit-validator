@@ -67,9 +67,36 @@ binding, because C's scoping is purely lexical and the parser has to track typed
   definitions end while it is in effect. Malformed forms such as `pack(pop, 2)` are ignored with a warning.
   `#pragma weak f` marks every declaration of the function f as weak, wherever f is declared. Other pragmas are
   ignored, wherever they occur.
-- **Constraint expressions:** stage 6 will need to parse a witness constraint as if it were written at a given program
-  location. A block's declarations are its DeclarationStmts and the parameters are on the FunctionDecl, so the scope
-  at a location can be rebuilt from the AST. Do not add separate scope tables to the AST.
+- **Constraint expressions** (`constraint.hpp`): `parseConstraint` parses a witness constraint as if it were written
+  at a program location.
+  - **Text:** it is registered as the file `<constraint>`, so diagnostics point into it. `\result` (a backslash
+    immediately followed by `result`) becomes a ResultExpr: constraint.cpp turns the two tokens into one identifier
+    token named `\result`, which no lookup finds. Any other backslash (`\old`, a stray `\`) and preprocessing
+    directives are errors.
+  - **Scope:** rebuilt from the AST, which has no scope tables. A block's declarations are its DeclarationStmts and
+    the parameters are on the FunctionDecl. The ordinary identifiers, typedef names, tags and enumeration constants
+    of these declarations are visible, innermost last:
+    - the file-scope declarations of the whole unit, also those after the location: a witness may name a global
+      declared later, which is harmless;
+    - with a function, its parameters, also at locations outside its body (such as the function's own line);
+    - each block of the body that contains the location, with its declarations before the location (C17 6.2.1p4).
+      A declarator is in scope after its completion (C17 6.2.1p7): in `int b = 4, c = b, d;` with the location at
+      the second `b`, b and c are visible, d is not. A `for` declaration belongs to its loop, a labeled declaration
+      to the enclosing block.
+    - Not rebuilt: blocks inside statement expressions, and tags and enumeration constants declared in parameter
+      lists or type names.
+  - **The program stays unchanged:** the rebuilt scopes bind the program's declarations without linking
+    redeclarations, and the constraint gets a scope of its own, so that `struct S { ... }` in a cast declares a new
+    tag instead of completing one of the program. New nodes go to the AstContext arena; each call uses a new parser,
+    so no scope outlives it.
+  - **Grammar:** one assignment-expression (C17 6.5.16). A comma or `;` at the top level is an error ("expected end
+    of constraint"); a comma in parentheses is the comma operator.
+  - **Rejected:** a constraint is evaluated while the program is paused at a waypoint, so it must not change the
+    program's state. Assignments, `++` and `--`, function calls (also of builtins), statement expressions and
+    `__builtin_va_arg` are errors, also in operands that are not evaluated, such as `sizeof`. None of the 58,119
+    witnesses of the SV-COMP 2026 corpus contains any of them. An undeclared identifier is an error also before `(`:
+    a constraint declares no function implicitly.
+  - **Nesting** is limited to 256 levels instead of 10,000, since constraints are parsed on the caller's stack.
 
 ## Robustness and performance
 
@@ -89,7 +116,9 @@ binding, because C's scoping is purely lexical and the parser has to track typed
 - `tests/unit/ast/` and `tests/unit/parse/`: type creation and uniquing; the declarator forms; every statement and
   expression form; each GNU extension; typedef/identifier ambiguities (`T * x;` with T a typedef or a variable,
   `(T)(x)`, `sizeof(T)`, shadowing in inner blocks, parameters shadowing typedefs); tag rules; label resolution;
-  implicit declarations and implicit int; K&R definitions; error messages and locations for malformed input.
+  implicit declarations and implicit int; K&R definitions; error messages and locations for malformed input; witness
+  constraints (`constraint_test.cpp`: scopes at locations, `\result`, the rejected forms, and that sema accepts the
+  results).
 - `tests/golden/parse/`: `<name>.c` with the expected `<name>.ast` (dump without sema). CTest compares the dumps; with
   `NITWIT_UPDATE_GOLDEN=1` it rewrites them.
 - `tests/corpus/parse/` (label `corpus`): parses every corpus program that needs no preprocessing. For each failure it
