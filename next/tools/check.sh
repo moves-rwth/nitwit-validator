@@ -19,5 +19,6 @@ for preset in "${presets[@]}"; do
 done
 
 echo "=== clang-format"
-git ls-files -co --exclude-standard -- '*.hpp' '*.cpp' | xargs -r clang-format-20 --dry-run --Werror
+# find instead of git ls-files: in WSL, git cannot follow the Windows path in a worktree's .git file.
+find src tests tools -name '*.hpp' -o -name '*.cpp' | xargs -r clang-format-20 --dry-run --Werror
 echo "=== all checks passed"
