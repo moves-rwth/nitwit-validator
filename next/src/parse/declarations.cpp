@@ -455,11 +455,12 @@ ast::QualType Parser::parseTagSpecifier(DeclSpec& spec, SpecifierContext context
     parseAttributes(attributes);
     Symbol name;
     SourceLocation location = keyword.location;
+    std::vector<ast::Attribute> nameAttributes;
     if (at(TokenKind::Identifier)) {
         name = token().identifier;
         location = token().location;
         consume();
-        parseAttributes(attributes);
+        parseAttributes(nameAttributes);
     }
     const bool isDefinition = at(TokenKind::LeftBrace);
     if (name.empty() && !isDefinition) {
@@ -475,11 +476,17 @@ ast::QualType Parser::parseTagSpecifier(DeclSpec& spec, SpecifierContext context
             fail(location, std::format("redefinition of '{}'", tagName(tag)));
         }
         parseTagBody(tag);
+        attributes.insert(attributes.end(), nameAttributes.begin(), nameAttributes.end());
         parseAttributes(attributes);
         tagDefinitions_.push_back(tag);
         spec.definesTag = true;
+        addAttributes(tag, attributes);
+    } else {
+        // As in GCC (c_parser_struct_or_union_specifier), a specifier that does not define the type ignores the
+        // attributes after its keyword, and the attributes after its tag belong to the declaration: in
+        // `struct S __attribute__((aligned(64))) member;` they align the member, not struct S.
+        spec.attributes.insert(spec.attributes.end(), nameAttributes.begin(), nameAttributes.end());
     }
-    addAttributes(tag, attributes);
     spec.tag = tag;
     if (auto* record = ast::dyn_cast<ast::RecordDecl>(tag)) {
         return context_.recordType(record);
