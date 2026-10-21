@@ -1,0 +1,42 @@
+RecordDecl struct list <2:8>
+  FieldDecl value 'int' <4:9>
+  FieldDecl next 'struct list *' <5:18>
+RecordDecl struct inner <9:12>
+  FieldDecl c 'char' <9:25>
+RecordDecl union <anonymous> <10:5>
+  FieldDecl i 'int' <11:13>
+  FieldDecl f 'float' <12:15>
+RecordDecl struct outer <8:8>
+  FieldDecl in 'struct inner' <9:30>
+  FieldDecl 'union <anonymous>' <10:5>
+  FieldDecl flag 'unsigned int' <14:14>
+    IntegerLiteral 1 <14:21>
+  FieldDecl 'unsigned int' <14:5>
+    IntegerLiteral 0 <14:26>
+  FieldDecl more 'unsigned int' <14:29>
+    IntegerLiteral 3 <14:36>
+  FieldDecl data 'int []' <15:9>
+RecordDecl union u <18:7>
+  FieldDecl i 'int' <18:15>
+  FieldDecl l 'struct list *' <18:31>
+VarDecl global 'union u' <18:36>
+RecordDecl struct empty <19:8>
+RecordDecl struct zero <20:8>
+  FieldDecl n 'int' <20:19>
+  FieldDecl bytes 'char [0]' <20:27>
+RecordDecl struct <anonymous> <21:9>
+  FieldDecl x 'int' <21:22>
+  FieldDecl y 'int' <21:25>
+TypedefDecl point 'struct <anonymous>' <21:30>
+FunctionDecl use 'void (void)' <23:6>
+  CompoundStmt <23:16>
+    DeclarationStmt <24:5>
+      RecordDecl struct list <24:12>
+        FieldDecl shadow 'int' <24:23>
+      VarDecl local 'struct list' <24:33>
+    DeclarationStmt <25:5>
+      VarDecl p 'struct list *' <25:18>
+        UnaryExpr & <25:22>
+          DeclRefExpr local (VarDecl at 24:33) <25:23>
+    DeclarationStmt <26:5>
+      VarDecl q 'point' <26:11>

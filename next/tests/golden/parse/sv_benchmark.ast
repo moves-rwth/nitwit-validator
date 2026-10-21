@@ -1,0 +1,83 @@
+FunctionDecl abort 'void (void)' extern <2:13>
+FunctionDecl __assert_fail 'void (const char *, const char *, unsigned int, const char *)' extern <3:13>
+  Attribute nothrow <4:20>
+  Attribute leaf <4:33>
+  Attribute noreturn <4:59>
+  VarDecl 'const char *' parameter <3:27>
+  VarDecl 'const char *' parameter <3:41>
+  VarDecl 'unsigned int' parameter <3:55>
+  VarDecl 'const char *' parameter <3:69>
+FunctionDecl reach_error 'void ()' <5:6>
+  CompoundStmt <5:20>
+    ExpressionStmt <5:22>
+      CallExpr <5:22>
+        DeclRefExpr __assert_fail (FunctionDecl at 3:13) <5:22>
+        StringLiteral "0" <5:36>
+        StringLiteral "example.c" <5:41>
+        IntegerLiteral 3 <5:54>
+        StringLiteral "reach_error" <5:57>
+FunctionDecl __VERIFIER_nondet_int 'int (void)' extern <6:12>
+FunctionDecl __VERIFIER_assert 'void (int)' <7:6>
+  VarDecl cond 'int' parameter <7:28>
+  CompoundStmt <7:34>
+    IfStmt <8:5>
+      UnaryExpr ! <8:9>
+        ParenExpr <8:10>
+          DeclRefExpr cond (VarDecl at 7:28) <8:11>
+      CompoundStmt <8:18>
+        LabelStmt ERROR <9:5>
+          CompoundStmt <9:12>
+            ExpressionStmt <10:9>
+              CallExpr <10:9>
+                DeclRefExpr reach_error (FunctionDecl at 5:6) <10:9>
+            ExpressionStmt <11:9>
+              CallExpr <11:9>
+                DeclRefExpr abort (FunctionDecl at 2:13) <11:9>
+    ReturnStmt <14:5>
+FunctionDecl main 'int ()' <17:5>
+  CompoundStmt <17:12>
+    DeclarationStmt <18:5>
+      VarDecl n 'int' <18:9>
+        CallExpr <18:13>
+          DeclRefExpr __VERIFIER_nondet_int (FunctionDecl at 6:12) <18:13>
+    IfStmt <19:5>
+      BinaryExpr || <19:9>
+        BinaryExpr < <19:9>
+          DeclRefExpr n (VarDecl at 18:9) <19:9>
+          IntegerLiteral 0 <19:13>
+        BinaryExpr > <19:18>
+          DeclRefExpr n (VarDecl at 18:9) <19:18>
+          IntegerLiteral 1000 <19:22>
+      ReturnStmt <20:9>
+        IntegerLiteral 0 <20:16>
+    DeclarationStmt <21:5>
+      VarDecl sum 'int' <21:9>
+        IntegerLiteral 0 <21:15>
+    ForStmt <22:5>
+      DeclarationStmt <22:10>
+        VarDecl i 'int' <22:14>
+          IntegerLiteral 1 <22:18>
+      BinaryExpr <= <22:21>
+        DeclRefExpr i (VarDecl at 22:14) <22:21>
+        DeclRefExpr n (VarDecl at 18:9) <22:26>
+      UnaryExpr postfix ++ <22:29>
+        DeclRefExpr i (VarDecl at 22:14) <22:29>
+      ExpressionStmt <23:9>
+        BinaryExpr += <23:9>
+          DeclRefExpr sum (VarDecl at 21:9) <23:9>
+          DeclRefExpr i (VarDecl at 22:14) <23:16>
+    ExpressionStmt <24:5>
+      CallExpr <24:5>
+        DeclRefExpr __VERIFIER_assert (FunctionDecl at 7:6) <24:5>
+        BinaryExpr == <24:23>
+          BinaryExpr * <24:23>
+            IntegerLiteral 2 <24:23>
+            DeclRefExpr sum (VarDecl at 21:9) <24:27>
+          BinaryExpr * <24:34>
+            DeclRefExpr n (VarDecl at 18:9) <24:34>
+            ParenExpr <24:38>
+              BinaryExpr + <24:39>
+                DeclRefExpr n (VarDecl at 18:9) <24:39>
+                IntegerLiteral 1 <24:43>
+    ReturnStmt <25:5>
+      IntegerLiteral 0 <25:12>

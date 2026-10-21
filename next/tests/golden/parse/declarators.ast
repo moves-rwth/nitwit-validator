@@ -1,0 +1,20 @@
+VarDecl p 'int *' <2:6>
+VarDecl cp 'char *const' <3:13>
+VarDecl pp 'int *const *volatile' <4:22>
+VarDecl a2 'int [2][3]' <5:5>
+VarDecl ap 'int *[4]' <6:6>
+VarDecl pa 'int (*)[4]' <7:7>
+VarDecl fp 'int (*)(int, ...)' <8:7>
+VarDecl handlers 'void (*[8])(int)' <9:8>
+VarDecl getter 'int (*(*)(void))(char)' <10:9>
+FunctionDecl select 'int (*(int))(double)' <11:7>
+  VarDecl which 'int' parameter <11:18>
+VarDecl sizes 'unsigned long' <12:15>
+  BinaryExpr + <12:23>
+    SizeOfAlignOfExpr sizeof (int (*)[3]) <12:23>
+    SizeOfAlignOfExpr sizeof (char *(*)(void)) <12:44>
+FunctionDecl adjusted 'void (int *, const int *, char *, int (*)(void))' <13:6>
+  VarDecl v 'int *' parameter <13:19>
+  VarDecl w 'const int *' parameter <13:36>
+  VarDecl m 'char *' parameter <13:54>
+  VarDecl f 'int (*)(void)' parameter <13:64>

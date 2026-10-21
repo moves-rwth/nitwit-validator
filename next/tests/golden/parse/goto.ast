@@ -1,0 +1,42 @@
+FunctionDecl search 'int (int *, int, int)' <2:5>
+  VarDecl a 'int *' parameter <2:17>
+  VarDecl n 'int' parameter <2:24>
+  VarDecl key 'int' parameter <2:31>
+  CompoundStmt <2:36>
+    DeclarationStmt <3:5>
+      VarDecl i 'int' <3:9>
+        IntegerLiteral 0 <3:13>
+    LabelStmt loop <4:1>
+      IfStmt <5:5>
+        BinaryExpr >= <5:9>
+          DeclRefExpr i (VarDecl at 3:9) <5:9>
+          DeclRefExpr n (VarDecl at 2:24) <5:14>
+        GotoStmt not_found (LabelStmt at 16:1) <6:9>
+    CompoundStmt <7:5>
+      LabelStmt check <8:5>
+        IfStmt <9:9>
+          BinaryExpr == <9:13>
+            ArraySubscriptExpr <9:13>
+              DeclRefExpr a (VarDecl at 2:17) <9:13>
+              DeclRefExpr i (VarDecl at 3:9) <9:15>
+            DeclRefExpr key (VarDecl at 2:31) <9:21>
+          GotoStmt found (LabelStmt at 14:1) <10:13>
+    ExpressionStmt <12:5>
+      UnaryExpr postfix ++ <12:5>
+        DeclRefExpr i (VarDecl at 3:9) <12:5>
+    GotoStmt loop (LabelStmt at 4:1) <13:5>
+    LabelStmt found <14:1>
+      ReturnStmt <15:5>
+        DeclRefExpr i (VarDecl at 3:9) <15:12>
+    LabelStmt not_found <16:1>
+      ReturnStmt <17:5>
+        StatementExpr <17:12>
+          CompoundStmt <17:13>
+            DeclarationStmt <19:9>
+              VarDecl r 'int' <19:13>
+                UnaryExpr - <19:17>
+                  IntegerLiteral 1 <19:18>
+            GotoStmt out (LabelStmt at 21:5) <20:9>
+            LabelStmt out <21:5>
+              ExpressionStmt <22:9>
+                DeclRefExpr r (VarDecl at 19:13) <22:9>

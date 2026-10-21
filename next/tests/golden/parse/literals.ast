@@ -1,0 +1,42 @@
+VarDecl i 'int []' <2:5>
+  InitListExpr <2:11>
+    IntegerLiteral 0 <2:13>
+    IntegerLiteral 42 <2:16>
+    IntegerLiteral 42 <2:20>
+    IntegerLiteral 42 <2:26>
+    IntegerLiteral 42 <2:31>
+    IntegerLiteral 42u <2:41>
+    IntegerLiteral 42l <2:46>
+    IntegerLiteral 42ul <2:51>
+    IntegerLiteral 42ll <2:57>
+    IntegerLiteral 42ull <2:63>
+    IntegerLiteral 18446744073709551615u <2:70>
+VarDecl d 'double []' <3:8>
+  InitListExpr <3:14>
+    FloatingLiteral 1 <3:16>
+    FloatingLiteral 1000 <3:21>
+    FloatingLiteral 1.5f <3:26>
+    FloatingLiteral 2.5L <3:32>
+    FloatingLiteral 16 <3:38>
+    FloatingLiteral 0.5 <3:45>
+    FloatingLiteral 3 <3:49>
+VarDecl ch 'int []' <4:5>
+  InitListExpr <4:12>
+    CharacterLiteral 97 <4:14>
+    CharacterLiteral 10 <4:19>
+    CharacterLiteral 0 <4:25>
+    CharacterLiteral -1 <4:31>
+    CharacterLiteral L 119 <4:39>
+    CharacterLiteral u 120 <4:45>
+    CharacterLiteral U 121 <4:51>
+    CharacterLiteral 24930 <4:57>
+VarDecl s1 'char *' <5:7>
+  StringLiteral "plain" <5:12>
+VarDecl s2 'char *' <6:7>
+  StringLiteral "concatenated" <6:12>
+VarDecl s3 'char *' <7:7>
+  StringLiteral "esc\t\"q\"\\" <7:12>
+VarDecl w 'int *' <8:6>
+  StringLiteral L"wide" <8:10>
+VarDecl u8 'char *' <9:7>
+  StringLiteral u8"utf8" <9:12>

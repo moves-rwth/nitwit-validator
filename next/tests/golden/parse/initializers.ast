@@ -1,0 +1,62 @@
+RecordDecl struct point <2:8>
+  FieldDecl x 'int' <2:20>
+  FieldDecl y 'int' <2:23>
+RecordDecl struct line <3:8>
+  FieldDecl from 'struct point' <3:28>
+  FieldDecl to 'struct point' <3:34>
+VarDecl origin 'struct point' <5:14>
+  InitListExpr <5:23>
+    IntegerLiteral 0 <5:25>
+    IntegerLiteral 0 <5:28>
+VarDecl p1 'struct point' <6:14>
+  InitListExpr <6:19>
+    DesignatedInitExpr .y <6:21>
+      IntegerLiteral 2 <6:26>
+    DesignatedInitExpr .x <6:29>
+      IntegerLiteral 1 <6:34>
+VarDecl l1 'struct line' <7:13>
+  InitListExpr <7:18>
+    DesignatedInitExpr .from.x <7:20>
+      IntegerLiteral 1 <7:30>
+    DesignatedInitExpr .to <7:33>
+      InitListExpr <7:39>
+        IntegerLiteral 3 <7:41>
+        IntegerLiteral 4 <7:44>
+VarDecl l2 'struct line' <8:13>
+  InitListExpr <8:18>
+    InitListExpr <8:20>
+      IntegerLiteral 1 <8:22>
+      IntegerLiteral 2 <8:25>
+    IntegerLiteral 3 <8:30>
+    IntegerLiteral 4 <8:33>
+VarDecl squares 'int [5]' <9:5>
+  InitListExpr <9:18>
+    DesignatedInitExpr [1] <9:20>
+      IntegerLiteral 1 <9:26>
+    DesignatedInitExpr [2] <9:29>
+      IntegerLiteral 4 <9:35>
+    DesignatedInitExpr [3 ... 4] <9:38>
+      IntegerLiteral 9 <9:50>
+VarDecl matrix 'int [2][2]' <10:5>
+  InitListExpr <10:20>
+    DesignatedInitExpr [0][1] <10:22>
+      IntegerLiteral 1 <10:31>
+    InitListExpr <10:34>
+      IntegerLiteral 2 <10:36>
+      IntegerLiteral 3 <10:39>
+VarDecl old 'struct point' <11:14>
+  InitListExpr <11:20>
+    DesignatedInitExpr .y <11:22>
+      IntegerLiteral 5 <11:25>
+    DesignatedInitExpr .x <11:28>
+      IntegerLiteral 6 <11:31>
+VarDecl text 'char []' <12:6>
+  StringLiteral "hello" <12:15>
+VarDecl wide_text 'char []' <13:6>
+  InitListExpr <13:20>
+    StringLiteral "hi" <13:22>
+VarDecl empty 'int [3]' <14:5>
+  InitListExpr <14:16>
+VarDecl scalar 'int' <15:5>
+  InitListExpr <15:14>
+    IntegerLiteral 7 <15:16>

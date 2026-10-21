@@ -1,0 +1,153 @@
+VarDecl a 'int' <2:5>
+VarDecl b 'int' <2:8>
+VarDecl c 'int' <2:11>
+VarDecl p 'int *' <2:15>
+RecordDecl struct s <3:8>
+  FieldDecl m 'int' <3:16>
+  FieldDecl next 'struct s *' <3:29>
+VarDecl v 'struct s' <3:37>
+FunctionDecl operators 'void (void)' <5:6>
+  CompoundStmt <5:22>
+    ExpressionStmt <6:5>
+      BinaryExpr = <6:5>
+        DeclRefExpr a (VarDecl at 2:5) <6:5>
+        BinaryExpr - <6:9>
+          BinaryExpr + <6:9>
+            DeclRefExpr b (VarDecl at 2:8) <6:9>
+            BinaryExpr * <6:13>
+              DeclRefExpr c (VarDecl at 2:11) <6:13>
+              IntegerLiteral 2 <6:17>
+          BinaryExpr % <6:21>
+            BinaryExpr / <6:21>
+              DeclRefExpr a (VarDecl at 2:5) <6:21>
+              IntegerLiteral 3 <6:25>
+            IntegerLiteral 4 <6:29>
+    ExpressionStmt <7:5>
+      BinaryExpr = <7:5>
+        DeclRefExpr a (VarDecl at 2:5) <7:5>
+        BinaryExpr >> <7:9>
+          BinaryExpr << <7:9>
+            DeclRefExpr b (VarDecl at 2:8) <7:9>
+            IntegerLiteral 2 <7:14>
+          IntegerLiteral 1 <7:19>
+    ExpressionStmt <8:5>
+      BinaryExpr = <8:5>
+        DeclRefExpr a (VarDecl at 2:5) <8:5>
+        BinaryExpr != <8:9>
+          BinaryExpr == <8:9>
+            BinaryExpr < <8:9>
+              DeclRefExpr b (VarDecl at 2:8) <8:9>
+              DeclRefExpr c (VarDecl at 2:11) <8:13>
+            BinaryExpr >= <8:18>
+              DeclRefExpr c (VarDecl at 2:11) <8:18>
+              DeclRefExpr a (VarDecl at 2:5) <8:23>
+          IntegerLiteral 0 <8:28>
+    ExpressionStmt <9:5>
+      BinaryExpr = <9:5>
+        DeclRefExpr a (VarDecl at 2:5) <9:5>
+        BinaryExpr | <9:9>
+          BinaryExpr ^ <9:9>
+            BinaryExpr & <9:9>
+              DeclRefExpr b (VarDecl at 2:8) <9:9>
+              DeclRefExpr c (VarDecl at 2:11) <9:13>
+            DeclRefExpr a (VarDecl at 2:5) <9:17>
+          IntegerLiteral 1 <9:21>
+    ExpressionStmt <10:5>
+      BinaryExpr = <10:5>
+        DeclRefExpr a (VarDecl at 2:5) <10:5>
+        BinaryExpr || <10:9>
+          BinaryExpr && <10:9>
+            DeclRefExpr b (VarDecl at 2:8) <10:9>
+            DeclRefExpr c (VarDecl at 2:11) <10:14>
+          UnaryExpr ! <10:19>
+            DeclRefExpr a (VarDecl at 2:5) <10:20>
+    ExpressionStmt <11:5>
+      BinaryExpr += <11:5>
+        DeclRefExpr a (VarDecl at 2:5) <11:5>
+        BinaryExpr -= <11:10>
+          DeclRefExpr b (VarDecl at 2:8) <11:10>
+          BinaryExpr *= <11:15>
+            DeclRefExpr c (VarDecl at 2:11) <11:15>
+            IntegerLiteral 2 <11:20>
+    ExpressionStmt <12:5>
+      BinaryExpr = <12:5>
+        DeclRefExpr a (VarDecl at 2:5) <12:5>
+        ConditionalExpr <12:9>
+          DeclRefExpr b (VarDecl at 2:8) <12:9>
+          DeclRefExpr c (VarDecl at 2:11) <12:13>
+          ConditionalExpr <12:17>
+            DeclRefExpr a (VarDecl at 2:5) <12:17>
+            IntegerLiteral 1 <12:21>
+            IntegerLiteral 2 <12:25>
+    ExpressionStmt <13:5>
+      BinaryExpr = <13:5>
+        DeclRefExpr a (VarDecl at 2:5) <13:5>
+        ParenExpr <13:9>
+          BinaryExpr , <13:10>
+            DeclRefExpr b (VarDecl at 2:8) <13:10>
+            DeclRefExpr c (VarDecl at 2:11) <13:13>
+    ExpressionStmt <14:5>
+      BinaryExpr = <14:5>
+        DeclRefExpr a (VarDecl at 2:5) <14:5>
+        BinaryExpr + <14:9>
+          BinaryExpr + <14:9>
+            BinaryExpr + <14:9>
+              BinaryExpr + <14:9>
+                UnaryExpr - <14:9>
+                  DeclRefExpr b (VarDecl at 2:8) <14:10>
+                UnaryExpr ~ <14:14>
+                  DeclRefExpr c (VarDecl at 2:11) <14:15>
+              UnaryExpr ! <14:19>
+                DeclRefExpr p (VarDecl at 2:15) <14:20>
+            UnaryExpr * <14:24>
+              DeclRefExpr p (VarDecl at 2:15) <14:25>
+          UnaryExpr + <14:29>
+            DeclRefExpr a (VarDecl at 2:5) <14:30>
+    ExpressionStmt <15:5>
+      BinaryExpr = <15:5>
+        DeclRefExpr p (VarDecl at 2:15) <15:5>
+        UnaryExpr & <15:9>
+          DeclRefExpr a (VarDecl at 2:5) <15:10>
+    ExpressionStmt <16:5>
+      BinaryExpr = <16:5>
+        DeclRefExpr a (VarDecl at 2:5) <16:5>
+        BinaryExpr - <16:9>
+          BinaryExpr - <16:9>
+            BinaryExpr + <16:9>
+              UnaryExpr ++ <16:9>
+                DeclRefExpr b (VarDecl at 2:8) <16:11>
+              UnaryExpr postfix ++ <16:15>
+                DeclRefExpr c (VarDecl at 2:11) <16:15>
+            UnaryExpr -- <16:21>
+              DeclRefExpr b (VarDecl at 2:8) <16:23>
+          UnaryExpr postfix -- <16:27>
+            DeclRefExpr c (VarDecl at 2:11) <16:27>
+    ExpressionStmt <17:5>
+      BinaryExpr = <17:5>
+        DeclRefExpr a (VarDecl at 2:5) <17:5>
+        BinaryExpr + <17:9>
+          BinaryExpr + <17:9>
+            BinaryExpr + <17:9>
+              MemberExpr .m <17:9>
+                DeclRefExpr v (VarDecl at 3:37) <17:9>
+              MemberExpr ->m <17:15>
+                MemberExpr ->next <17:15>
+                  MemberExpr .next <17:15>
+                    DeclRefExpr v (VarDecl at 3:37) <17:15>
+            ArraySubscriptExpr <17:33>
+              DeclRefExpr p (VarDecl at 2:15) <17:33>
+              IntegerLiteral 1 <17:35>
+          ArraySubscriptExpr <17:40>
+            IntegerLiteral 2 <17:40>
+            DeclRefExpr p (VarDecl at 2:15) <17:42>
+    ExpressionStmt <18:5>
+      BinaryExpr = <18:5>
+        DeclRefExpr a (VarDecl at 2:5) <18:5>
+        BinaryExpr + <18:9>
+          BinaryExpr + <18:9>
+            SizeOfAlignOfExpr sizeof <18:9>
+              DeclRefExpr a (VarDecl at 2:5) <18:16>
+            SizeOfAlignOfExpr sizeof <18:20>
+              ParenExpr <18:26>
+                DeclRefExpr a (VarDecl at 2:5) <18:27>
+          SizeOfAlignOfExpr sizeof (int) <18:32>

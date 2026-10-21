@@ -1,0 +1,5 @@
+VarDecl before 'int' <5:5>
+VarDecl after 'int' <7:5>
+TypedefDecl from_header 'int' <9:13>
+VarDecl value 'from_header' <11:13>
+  IntegerLiteral 1 <11:21>

@@ -1,0 +1,92 @@
+RecordDecl struct <anonymous> <2:19>
+  FieldDecl b 'int [4]' <2:32>
+RecordDecl struct s <2:8>
+  FieldDecl a 'int' <2:16>
+  FieldDecl inner 'struct <anonymous>' <2:40>
+VarDecl x 'int' <3:5>
+VarDecl z '_Complex double' <4:17>
+VarDecl list '__builtin_va_list' <5:19>
+FunctionDecl __builtin_expect 'int ()' extern implicit <19:9>
+FunctionDecl gnu 'void (void)' <7:6>
+  CompoundStmt <7:16>
+    DeclarationStmt <8:5>
+      VarDecl y 'int' <8:9>
+        StatementExpr <8:13>
+          CompoundStmt <8:14>
+            DeclarationStmt <8:16>
+              VarDecl t 'int' <8:20>
+                DeclRefExpr x (VarDecl at 3:5) <8:24>
+            ExpressionStmt <8:27>
+              BinaryExpr * <8:27>
+                DeclRefExpr t (VarDecl at 8:20) <8:27>
+                IntegerLiteral 2 <8:31>
+    DeclarationStmt <9:5>
+      VarDecl sum 'typeof(x + 1)' <9:19>
+        DeclRefExpr y (VarDecl at 8:9) <9:25>
+    DeclarationStmt <10:5>
+      VarDecl pointer 'int *' <10:23>
+        UnaryExpr & <10:33>
+          DeclRefExpr x (VarDecl at 3:5) <10:34>
+    DeclarationStmt <11:5>
+      VarDecl copy '__auto_type' <11:17>
+        DeclRefExpr y (VarDecl at 8:9) <11:24>
+    ExpressionStmt <12:5>
+      BinaryExpr = <12:5>
+        DeclRefExpr y (VarDecl at 8:9) <12:5>
+        ConditionalExpr ?: <12:9>
+          DeclRefExpr x (VarDecl at 3:5) <12:9>
+          IntegerLiteral 7 <12:14>
+    DeclarationStmt <13:5>
+      VarDecl re 'double' <13:12>
+        BinaryExpr + <13:17>
+          UnaryExpr __real__ <13:17>
+            DeclRefExpr z (VarDecl at 4:17) <13:26>
+          UnaryExpr __imag__ <13:30>
+            DeclRefExpr z (VarDecl at 4:17) <13:39>
+    DeclarationStmt <14:5>
+      VarDecl ll 'long long' <14:15>
+        UnaryExpr __extension__ <14:20>
+          IntegerLiteral 1ll <14:34>
+    ExpressionStmt <15:5>
+      BinaryExpr = <15:5>
+        DeclRefExpr y (VarDecl at 8:9) <15:5>
+        OffsetOfExpr (struct s) inner.b[2] <15:9>
+    ExpressionStmt <16:5>
+      BinaryExpr = <16:5>
+        DeclRefExpr y (VarDecl at 8:9) <16:5>
+        TypesCompatibleExpr (int, long) <16:9>
+    ExpressionStmt <17:5>
+      BinaryExpr = <17:5>
+        DeclRefExpr y (VarDecl at 8:9) <17:5>
+        ChooseExpr <17:9>
+          IntegerLiteral 1 <17:31>
+          DeclRefExpr x (VarDecl at 3:5) <17:34>
+          IntegerLiteral 2 <17:37>
+    ExpressionStmt <18:5>
+      BinaryExpr = <18:5>
+        DeclRefExpr y (VarDecl at 8:9) <18:5>
+        VaArgExpr (int) <18:9>
+          DeclRefExpr list (VarDecl at 5:19) <18:26>
+    ExpressionStmt <19:5>
+      BinaryExpr = <19:5>
+        DeclRefExpr y (VarDecl at 8:9) <19:5>
+        CallExpr <19:9>
+          DeclRefExpr __builtin_expect (FunctionDecl at 19:9) <19:9>
+          DeclRefExpr y (VarDecl at 8:9) <19:26>
+          IntegerLiteral 0 <19:29>
+    ExpressionStmt <20:5>
+      BinaryExpr = <20:5>
+        DeclRefExpr y (VarDecl at 8:9) <20:5>
+        GenericSelectionExpr <20:9>
+          DeclRefExpr x (VarDecl at 3:5) <20:18>
+          GenericAssociation (int) <20:26>
+            IntegerLiteral 1 <20:26>
+          GenericAssociation default <20:38>
+            IntegerLiteral 0 <20:38>
+    DeclarationStmt <21:5>
+      VarDecl function 'const char *' <21:17>
+        StringLiteral "gnu" <21:28>
+    ExpressionStmt <22:5>
+      BinaryExpr = <22:5>
+        DeclRefExpr function (VarDecl at 21:17) <22:5>
+        StringLiteral "gnu" <22:16>

@@ -1,0 +1,69 @@
+FunctionDecl sum 'int (int)' <2:5>
+  VarDecl n 'int' parameter <2:13>
+  CompoundStmt <2:16>
+    DeclarationStmt <3:5>
+      VarDecl total 'int' <3:9>
+        IntegerLiteral 0 <3:17>
+    IfStmt <4:5>
+      BinaryExpr < <4:9>
+        DeclRefExpr n (VarDecl at 2:13) <4:9>
+        IntegerLiteral 0 <4:13>
+      ReturnStmt <5:9>
+        UnaryExpr - <5:16>
+          IntegerLiteral 1 <5:17>
+      IfStmt <6:10>
+        BinaryExpr == <6:14>
+          DeclRefExpr n (VarDecl at 2:13) <6:14>
+          IntegerLiteral 0 <6:19>
+        ReturnStmt <7:9>
+          IntegerLiteral 0 <7:16>
+        NullStmt <9:9>
+    ForStmt <10:5>
+      DeclarationStmt <10:10>
+        VarDecl i 'int' <10:14>
+          IntegerLiteral 0 <10:18>
+      BinaryExpr < <10:21>
+        DeclRefExpr i (VarDecl at 10:14) <10:21>
+        DeclRefExpr n (VarDecl at 2:13) <10:25>
+      UnaryExpr postfix ++ <10:28>
+        DeclRefExpr i (VarDecl at 10:14) <10:28>
+      CompoundStmt <10:33>
+        IfStmt <11:9>
+          BinaryExpr % <11:13>
+            DeclRefExpr i (VarDecl at 10:14) <11:13>
+            IntegerLiteral 2 <11:17>
+          ContinueStmt <12:13>
+        ExpressionStmt <13:9>
+          BinaryExpr += <13:9>
+            DeclRefExpr total (VarDecl at 3:9) <13:9>
+            DeclRefExpr i (VarDecl at 10:14) <13:18>
+    ForStmt <15:5>
+      (null)
+      (null)
+      (null)
+      BreakStmt <16:9>
+    WhileStmt <17:5>
+      BinaryExpr > <17:12>
+        DeclRefExpr n (VarDecl at 2:13) <17:12>
+        IntegerLiteral 10 <17:16>
+      ExpressionStmt <18:9>
+        UnaryExpr postfix -- <18:9>
+          DeclRefExpr n (VarDecl at 2:13) <18:9>
+    DoWhileStmt <19:5>
+      CompoundStmt <19:8>
+        ExpressionStmt <20:9>
+          UnaryExpr postfix ++ <20:9>
+            DeclRefExpr n (VarDecl at 2:13) <20:9>
+      BinaryExpr < <21:14>
+        DeclRefExpr n (VarDecl at 2:13) <21:14>
+        IntegerLiteral 5 <21:18>
+    CompoundStmt <22:5>
+      DeclarationStmt <23:9>
+        VarDecl nested 'int' <23:13>
+          DeclRefExpr total (VarDecl at 3:9) <23:22>
+      ExpressionStmt <24:9>
+        BinaryExpr = <24:9>
+          DeclRefExpr total (VarDecl at 3:9) <24:9>
+          DeclRefExpr nested (VarDecl at 23:13) <24:17>
+    ReturnStmt <26:5>
+      DeclRefExpr total (VarDecl at 3:9) <26:12>

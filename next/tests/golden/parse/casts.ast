@@ -1,0 +1,70 @@
+RecordDecl struct pair <2:8>
+  FieldDecl a 'int' <2:19>
+  FieldDecl b 'int' <2:22>
+VarDecl l 'long' <3:6>
+VarDecl ip 'int *' <4:6>
+FunctionDecl casts 'void (void)' <6:6>
+  CompoundStmt <6:18>
+    DeclarationStmt <7:5>
+      VarDecl i 'int' <7:9>
+        CastExpr (int) <7:13>
+          DeclRefExpr l (VarDecl at 3:6) <7:18>
+    DeclarationStmt <8:5>
+      VarDecl cp 'char *' <8:11>
+        CastExpr (char *) <8:16>
+          CastExpr (void *) <8:24>
+            DeclRefExpr ip (VarDecl at 4:6) <8:32>
+    ExpressionStmt <9:5>
+      BinaryExpr = <9:5>
+        DeclRefExpr i (VarDecl at 7:9) <9:5>
+        CastExpr (int) <9:9>
+          CastExpr (unsigned char) <9:14>
+            CharacterLiteral 120 <9:29>
+    DeclarationStmt <10:5>
+      VarDecl p 'struct pair' <10:17>
+        CompoundLiteralExpr (struct pair) <10:21>
+          InitListExpr <10:34>
+            IntegerLiteral 1 <10:36>
+            IntegerLiteral 2 <10:39>
+    DeclarationStmt <11:5>
+      VarDecl arr 'int *' <11:10>
+        CompoundLiteralExpr (int []) <11:16>
+          InitListExpr <11:23>
+            IntegerLiteral 1 <11:25>
+            IntegerLiteral 2 <11:28>
+            IntegerLiteral 3 <11:31>
+    ExpressionStmt <12:5>
+      BinaryExpr = <12:5>
+        DeclRefExpr i (VarDecl at 7:9) <12:5>
+        MemberExpr .b <12:9>
+          ParenExpr <12:9>
+            CompoundLiteralExpr (struct pair) <12:10>
+              InitListExpr <12:23>
+                DesignatedInitExpr .b <12:25>
+                  IntegerLiteral 5 <12:30>
+    ExpressionStmt <13:5>
+      BinaryExpr = <13:5>
+        DeclRefExpr l (VarDecl at 3:6) <13:5>
+        BinaryExpr + <13:9>
+          BinaryExpr + <13:9>
+            SizeOfAlignOfExpr sizeof (struct pair) <13:9>
+            SizeOfAlignOfExpr sizeof <13:31>
+              CompoundLiteralExpr (int [4]) <13:38>
+                InitListExpr <13:46>
+                  IntegerLiteral 0 <13:48>
+          SizeOfAlignOfExpr sizeof <13:54>
+            DeclRefExpr l (VarDecl at 3:6) <13:61>
+    ExpressionStmt <14:5>
+      BinaryExpr = <14:5>
+        DeclRefExpr l (VarDecl at 3:6) <14:5>
+        BinaryExpr + <14:9>
+          BinaryExpr + <14:9>
+            SizeOfAlignOfExpr _Alignof (double) <14:9>
+            SizeOfAlignOfExpr __alignof__ (double) <14:28>
+          SizeOfAlignOfExpr __alignof__ <14:50>
+            DeclRefExpr l (VarDecl at 3:6) <14:62>
+VarDecl file_scope_literal 'int *' <17:6>
+  CompoundLiteralExpr (int []) file_scope <17:27>
+    InitListExpr <17:34>
+      IntegerLiteral 4 <17:36>
+      IntegerLiteral 5 <17:39>

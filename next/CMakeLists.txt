@@ -17,6 +17,7 @@ include(Warnings)
 include(Sanitizers)
 include(Dependencies)
 include(NitwitModule)
+include(GoldenTest)
 
 add_subdirectory(src)
 

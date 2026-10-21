@@ -1,0 +1,42 @@
+FunctionDecl printf 'int (const char *, ...)' <2:5>
+  VarDecl format 'const char *' parameter <2:24>
+FunctionDecl max 'int (int, int)' <3:5>
+  VarDecl 'int' parameter <3:9>
+  VarDecl 'int' parameter <3:14>
+FunctionDecl max 'int (int, int)' prev 3:5 <4:5>
+  VarDecl a 'int' parameter <4:13>
+  VarDecl b 'int' parameter <4:20>
+  CompoundStmt <4:23>
+    ReturnStmt <4:25>
+      ConditionalExpr <4:32>
+        BinaryExpr > <4:32>
+          DeclRefExpr a (VarDecl at 4:13) <4:32>
+          DeclRefExpr b (VarDecl at 4:20) <4:36>
+        DeclRefExpr a (VarDecl at 4:13) <4:40>
+        DeclRefExpr b (VarDecl at 4:20) <4:44>
+FunctionDecl unprototyped 'int ()' static <5:12>
+FunctionDecl unprototyped 'int ()' static prev 5:12 <6:12>
+  CompoundStmt <6:27>
+    ReturnStmt <6:29>
+      CallExpr <6:36>
+        DeclRefExpr max (FunctionDecl at 4:5) <6:36>
+        IntegerLiteral 1 <6:40>
+        IntegerLiteral 2 <6:43>
+FunctionDecl old_style 'int ()' <8:5>
+  VarDecl a 'double' parameter <10:12>
+  VarDecl b 'char *' parameter <9:11>
+  VarDecl c 'int' parameter <8:21>
+  CompoundStmt <11:1>
+    ReturnStmt <12:5>
+      DeclRefExpr c (VarDecl at 8:21) <12:12>
+VarDecl callback 'void (*)(void)' <15:8>
+FunctionDecl call 'void (void)' <16:6>
+  CompoundStmt <16:17>
+    ExpressionStmt <17:5>
+      CallExpr <17:5>
+        DeclRefExpr callback (VarDecl at 15:8) <17:5>
+    ExpressionStmt <18:5>
+      CallExpr <18:5>
+        ParenExpr <18:5>
+          UnaryExpr * <18:6>
+            DeclRefExpr callback (VarDecl at 15:8) <18:7>

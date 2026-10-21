@@ -1,0 +1,49 @@
+FunctionDecl __assert_fail 'void (const char *, const char *, unsigned int, const char *)' extern <2:13>
+  Attribute nothrow <3:20>
+  Attribute leaf <3:33>
+  Attribute noreturn <3:59>
+  VarDecl 'const char *' parameter <2:27>
+  VarDecl 'const char *' parameter <2:41>
+  VarDecl 'unsigned int' parameter <2:55>
+  VarDecl 'const char *' parameter <2:69>
+TypedefDecl int8 'int' <4:13>
+  Attribute mode <4:33>
+    DeclRefExpr __QI__ (unbound) <4:42>
+RecordDecl struct packed <5:32>
+  Attribute packed <5:23>
+  FieldDecl c 'char' <5:46>
+  FieldDecl i 'int' <5:53>
+RecordDecl struct aligned <6:8>
+  Attribute aligned <6:43>
+    IntegerLiteral 16 <6:51>
+  FieldDecl c 'char' <6:23>
+VarDecl used 'int' static <7:12>
+  Attribute used <7:32>
+  Attribute section <7:38>
+    StringLiteral ".data" <7:46>
+VarDecl unused_variable 'int' static <8:36>
+  Attribute unused <8:16>
+VarDecl function_pointer 'int (*)(int)' <9:30>
+  Attribute cdecl <9:21>
+EnumDecl enum flags <10:6>
+  EnumConstantDecl F1 <10:14>
+    Attribute deprecated <10:32>
+    IntegerLiteral 1 <10:47>
+VarDecl buffer 'char [3]' <11:18>
+  Attribute aligned <11:1>
+    IntegerLiteral 8 <11:10>
+FunctionDecl labels 'int (int)' <13:5>
+  VarDecl a 'int' parameter <13:16>
+  CompoundStmt <13:19>
+    DeclarationStmt <14:5>
+      VarDecl local 'int' <14:33>
+        Attribute unused <14:20>
+        IntegerLiteral 0 <14:41>
+    LabelStmt again <15:1>
+      NullStmt <16:28>
+    IfStmt <17:5>
+      UnaryExpr postfix -- <17:9>
+        DeclRefExpr a (VarDecl at 13:16) <17:9>
+      GotoStmt again (LabelStmt at 15:1) <18:9>
+    ReturnStmt <19:5>
+      DeclRefExpr a (VarDecl at 13:16) <19:12>

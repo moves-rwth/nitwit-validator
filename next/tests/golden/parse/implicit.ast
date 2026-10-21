@@ -1,0 +1,36 @@
+VarDecl counter 'int' static <2:8>
+VarDecl limit 'const int' <3:7>
+  IntegerLiteral 10 <3:15>
+FunctionDecl helper 'int ()' extern implicit <8:9>
+FunctionDecl compute 'int ()' extern implicit <9:12>
+FunctionDecl main 'int ()' <5:1>
+  CompoundStmt <5:8>
+    DeclarationStmt <6:5>
+      VarDecl i 'int' register <6:14>
+    ForStmt <7:5>
+      ExpressionStmt <7:10>
+        BinaryExpr = <7:10>
+          DeclRefExpr i (VarDecl at 6:14) <7:10>
+          IntegerLiteral 0 <7:14>
+      BinaryExpr < <7:17>
+        DeclRefExpr i (VarDecl at 6:14) <7:17>
+        DeclRefExpr limit (VarDecl at 3:7) <7:21>
+      UnaryExpr postfix ++ <7:28>
+        DeclRefExpr i (VarDecl at 6:14) <7:28>
+      ExpressionStmt <8:9>
+        CallExpr <8:9>
+          DeclRefExpr helper (FunctionDecl at 8:9) <8:9>
+          DeclRefExpr i (VarDecl at 6:14) <8:16>
+    ReturnStmt <9:5>
+      BinaryExpr + <9:12>
+        CallExpr <9:12>
+          DeclRefExpr compute (FunctionDecl at 9:12) <9:12>
+          DeclRefExpr counter (VarDecl at 2:8) <9:20>
+        CallExpr <9:31>
+          DeclRefExpr helper (FunctionDecl at 8:9) <9:31>
+          IntegerLiteral 0 <9:38>
+FunctionDecl helper 'int (int)' prev 8:9 <12:5>
+  VarDecl value 'int' parameter <12:16>
+  CompoundStmt <12:23>
+    ReturnStmt <12:25>
+      DeclRefExpr value (VarDecl at 12:16) <12:32>

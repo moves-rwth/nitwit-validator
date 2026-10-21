@@ -1,0 +1,20 @@
+VarDecl counter 'int' static <2:12>
+VarDecl name 'const char *' extern <3:20>
+VarDecl a 'int' <4:5>
+  IntegerLiteral 1 <4:9>
+VarDecl b 'int *' <4:13>
+  UnaryExpr & <4:17>
+    DeclRefExpr a (VarDecl at 4:5) <4:18>
+VarDecl c 'int [3]' <4:21>
+VarDecl big 'volatile unsigned long long' <5:29>
+FunctionDecl r 'int (int)' <6:5>
+  VarDecl x 'int' register parameter <6:20>
+VarDecl perThread 'int' thread_local <7:19>
+FunctionDecl stop 'void (void)' static noreturn <8:23>
+FunctionDecl twice 'int (int)' inline <9:12>
+  VarDecl x 'int' parameter <9:22>
+  CompoundStmt <9:25>
+    ReturnStmt <9:27>
+      BinaryExpr * <9:34>
+        IntegerLiteral 2 <9:34>
+        DeclRefExpr x (VarDecl at 9:22) <9:38>

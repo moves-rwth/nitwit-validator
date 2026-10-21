@@ -1,0 +1,45 @@
+FunctionDecl classify 'int (int)' <2:5>
+  VarDecl c 'int' parameter <2:18>
+  CompoundStmt <2:21>
+    DeclarationStmt <3:5>
+      VarDecl result 'int' <3:9>
+        IntegerLiteral 0 <3:18>
+    SwitchStmt (cases: 5, default) <4:5>
+      DeclRefExpr c (VarDecl at 2:18) <4:13>
+      CompoundStmt <4:16>
+        CaseStmt <5:5>
+          IntegerLiteral 0 <5:10>
+          CaseStmt <6:5>
+            IntegerLiteral 1 <6:10>
+            ExpressionStmt <7:9>
+              BinaryExpr = <7:9>
+                DeclRefExpr result (VarDecl at 3:9) <7:9>
+                IntegerLiteral 1 <7:18>
+        BreakStmt <8:9>
+        CaseStmt <9:5>
+          CharacterLiteral 97 <9:10>
+          CharacterLiteral 122 <9:18>
+          CompoundStmt <9:23>
+            CaseStmt <10:9>
+              IntegerLiteral 150 <10:14>
+              ExpressionStmt <11:13>
+                BinaryExpr = <11:13>
+                  DeclRefExpr result (VarDecl at 3:9) <11:13>
+                  IntegerLiteral 2 <11:22>
+        NullStmt <13:9>
+        DefaultStmt <14:5>
+          SwitchStmt (cases: 1) <15:9>
+            DeclRefExpr result (VarDecl at 3:9) <15:17>
+            CompoundStmt <15:25>
+              CaseStmt <16:9>
+                IntegerLiteral 2 <16:14>
+                ExpressionStmt <17:13>
+                  BinaryExpr = <17:13>
+                    DeclRefExpr result (VarDecl at 3:9) <17:13>
+                    IntegerLiteral 3 <17:22>
+        BreakStmt <19:9>
+        CaseStmt <20:5>
+          IntegerLiteral 200 <20:10>
+          NullStmt <20:14>
+    ReturnStmt <22:5>
+      DeclRefExpr result (VarDecl at 3:9) <22:12>

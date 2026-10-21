@@ -1,0 +1,12 @@
+FunctionDecl renamed 'int (void)' <3:5>
+FunctionDecl barrier 'void (int *)' <5:6>
+  VarDecl p 'int *' parameter <5:19>
+  CompoundStmt <5:22>
+    AsmStmt <6:5>
+      StringLiteral "" <6:26>
+    AsmStmt <7:5>
+      StringLiteral "mov %1, %0" <7:18>
+    AsmStmt <8:5>
+      StringLiteral "" <8:14>
+    LabelStmt done <9:1>
+      NullStmt <10:5>

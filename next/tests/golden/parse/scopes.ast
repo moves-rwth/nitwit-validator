@@ -1,0 +1,42 @@
+VarDecl shared 'int' extern <2:12>
+VarDecl shared 'int' prev 2:12 <3:5>
+  IntegerLiteral 1 <3:14>
+VarDecl shadowed 'int' <4:5>
+  IntegerLiteral 2 <4:16>
+FunctionDecl scopes 'int (int)' <6:5>
+  VarDecl param 'int' parameter <6:16>
+  CompoundStmt <6:23>
+    DeclarationStmt <7:5>
+      VarDecl shadowed 'int' <7:9>
+        DeclRefExpr param (VarDecl at 6:16) <7:20>
+    CompoundStmt <8:5>
+      DeclarationStmt <9:9>
+        VarDecl shadowed 'int' extern prev 4:5 <9:20>
+      DeclarationStmt <10:9>
+        VarDecl inner 'int' <10:13>
+          DeclRefExpr shadowed (VarDecl at 9:20) <10:21>
+      CompoundStmt <11:9>
+        DeclarationStmt <12:13>
+          VarDecl shadowed 'int' <12:17>
+            DeclRefExpr inner (VarDecl at 10:13) <12:28>
+        ExpressionStmt <13:13>
+          BinaryExpr = <13:13>
+            DeclRefExpr param (VarDecl at 6:16) <13:13>
+            DeclRefExpr shadowed (VarDecl at 12:17) <13:21>
+    DeclarationStmt <16:5>
+      VarDecl later 'int' extern <16:16>
+    DeclarationStmt <17:5>
+      FunctionDecl helper 'int (void)' <17:9>
+    ReturnStmt <18:5>
+      BinaryExpr + <18:12>
+        BinaryExpr + <18:12>
+          DeclRefExpr shadowed (VarDecl at 7:9) <18:12>
+          DeclRefExpr later (VarDecl at 16:16) <18:23>
+        CallExpr <18:31>
+          DeclRefExpr helper (FunctionDecl at 17:9) <18:31>
+VarDecl later 'int' prev 16:16 <21:5>
+  IntegerLiteral 3 <21:13>
+FunctionDecl helper 'int (void)' prev 17:9 <22:5>
+  CompoundStmt <22:18>
+    ReturnStmt <22:20>
+      DeclRefExpr shared (VarDecl at 3:5) <22:27>

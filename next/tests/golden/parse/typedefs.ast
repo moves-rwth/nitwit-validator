@@ -1,0 +1,35 @@
+TypedefDecl size_t 'unsigned long' <2:23>
+TypedefDecl T 'int' <3:13>
+TypedefDecl PT 'int *' <3:17>
+TypedefDecl AT 'int [2]' <3:21>
+TypedefDecl F 'int (int)' <4:13>
+FunctionDecl apply 'F' <5:3>
+VarDecl n 'size_t' <6:8>
+VarDecl x 'int' <7:5>
+FunctionDecl ambiguities 'void (void)' <9:6>
+  CompoundStmt <9:24>
+    DeclarationStmt <10:5>
+      VarDecl y 'T *' <10:9>
+    ExpressionStmt <11:5>
+      CastExpr (T) <11:5>
+        ParenExpr <11:8>
+          DeclRefExpr x (VarDecl at 7:5) <11:9>
+    ExpressionStmt <12:5>
+      SizeOfAlignOfExpr sizeof (T) <12:5>
+    CompoundStmt <13:5>
+      DeclarationStmt <14:9>
+        VarDecl T 'int' <14:13>
+          IntegerLiteral 3 <14:17>
+      ExpressionStmt <15:9>
+        BinaryExpr * <15:9>
+          DeclRefExpr T (VarDecl at 14:13) <15:9>
+          DeclRefExpr x (VarDecl at 7:5) <15:13>
+    DeclarationStmt <17:5>
+      VarDecl T 'unsigned int' <17:14>
+FunctionDecl parameters 'void (int)' <20:6>
+  VarDecl T 'int' parameter <20:21>
+  CompoundStmt <20:24>
+    ExpressionStmt <20:26>
+      BinaryExpr * <20:26>
+        DeclRefExpr T (VarDecl at 20:21) <20:26>
+        DeclRefExpr x (VarDecl at 7:5) <20:30>

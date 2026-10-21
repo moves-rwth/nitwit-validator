@@ -1,0 +1,35 @@
+StaticAssertDecl <2:1>
+  BinaryExpr == <2:16>
+    SizeOfAlignOfExpr sizeof (int) <2:16>
+    IntegerLiteral 4 <2:31>
+  StringLiteral "int has 32 bits" <2:34>
+VarDecl aligned 'int' <3:18>
+  Attribute aligned <3:1>
+    IntegerLiteral 16 <3:10>
+VarDecl storage 'char [8]' <4:23>
+  Attribute aligned <4:1>
+    SizeOfAlignOfExpr _Alignof (double) <4:1>
+VarDecl counter '_Atomic int' <5:13>
+VarDecl atomic_long '_Atomic unsigned long' <6:24>
+VarDecl tls 'int' static thread_local <7:26>
+VarDecl flag '_Bool' <8:7>
+VarDecl fc '_Complex float' <9:16>
+FunctionDecl quit 'void (int)' noreturn <10:16>
+  VarDecl status 'int' parameter <10:25>
+FunctionDecl kind 'int (void)' <12:5>
+  CompoundStmt <12:16>
+    DeclarationStmt <13:5>
+      StaticAssertDecl <13:5>
+        BinaryExpr == <13:20>
+          SizeOfAlignOfExpr _Alignof (char) <13:20>
+          IntegerLiteral 1 <13:38>
+        StringLiteral "" <13:41>
+    ReturnStmt <14:5>
+      GenericSelectionExpr <14:12>
+        DeclRefExpr flag (VarDecl at 8:7) <14:21>
+        GenericAssociation (_Bool) <14:34>
+          IntegerLiteral 1 <14:34>
+        GenericAssociation (int) <14:42>
+          IntegerLiteral 2 <14:42>
+        GenericAssociation default <14:54>
+          IntegerLiteral 3 <14:54>

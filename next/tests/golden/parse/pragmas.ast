@@ -1,0 +1,20 @@
+RecordDecl struct packed1 max_field_align 1 <4:8>
+  FieldDecl c 'char' <4:23>
+  FieldDecl i 'int' <4:30>
+RecordDecl struct packed2 max_field_align 2 <7:8>
+  FieldDecl c 'char' <7:23>
+  FieldDecl i 'int' <7:30>
+RecordDecl struct still1 max_field_align 1 <9:8>
+  FieldDecl c 'char' <9:22>
+  FieldDecl i 'int' <9:29>
+RecordDecl struct natural <11:8>
+  FieldDecl c 'char' <11:23>
+  FieldDecl i 'int' <11:30>
+FunctionDecl optional 'void (void)' weak <14:6>
+FunctionDecl caller 'void (void)' <15:6>
+  CompoundStmt <15:19>
+    IfStmt <17:5>
+      DeclRefExpr optional (FunctionDecl at 14:6) <17:9>
+      ExpressionStmt <18:9>
+        CallExpr <18:9>
+          DeclRefExpr optional (FunctionDecl at 14:6) <18:9>

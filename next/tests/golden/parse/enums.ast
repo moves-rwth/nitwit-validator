@@ -1,0 +1,17 @@
+EnumDecl enum color <2:6>
+  EnumConstantDecl RED <2:14>
+  EnumConstantDecl GREEN <2:19>
+    IntegerLiteral 4 <2:27>
+  EnumConstantDecl BLUE <2:30>
+    BinaryExpr + <2:37>
+      DeclRefExpr GREEN (EnumConstantDecl at 2:19) <2:37>
+      IntegerLiteral 1 <2:45>
+EnumDecl enum <anonymous> <3:1>
+  EnumConstantDecl ANONYMOUS <3:8>
+    UnaryExpr - <3:20>
+      IntegerLiteral 1 <3:21>
+VarDecl value 'enum <anonymous>' <3:25>
+VarDecl forward 'enum later *' <5:13>
+EnumDecl enum later <4:6>
+  EnumConstantDecl L1 <6:14>
+VarDecl table 'int [BLUE]' <7:5>
