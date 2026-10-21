@@ -10,7 +10,6 @@
 #include <memory>
 #include <optional>
 #include <span>
-#include <string>
 #include <string_view>
 
 #include "value/value.hpp"
@@ -28,9 +27,9 @@ enum class Region : std::uint8_t {
 };
 
 enum class MemoryErrorKind : std::uint8_t {
-    NullPointer,      // access within the first page
-    InvalidAddress,   // no allocation at the address
-    OutOfBounds,      // the access starts inside an allocation but ends beyond it
+    NullPointer,      // access below the lowest address any region uses (64 KiB), e.g. through a null pointer
+    InvalidAddress,   // no allocation contains the address or ends exactly at it
+    OutOfBounds,      // the access starts inside an allocation or exactly at its end, and ends beyond it
     DeadObject,       // a freed heap block, or a stack object whose lifetime ended
     ReadOnlyWrite,    // write to a ReadOnly allocation
     CodeAccess,       // read or write of a function
@@ -49,13 +48,13 @@ struct AllocationInfo {
     std::uint64_t size = 0;
     Region region = Region::Global;
     bool isAlive = true;
-    std::string_view name; // the variable's name, "malloc", "string literal", ...
+    std::string_view name; // the name given to allocate: the variable's name, "malloc", "string literal", ...
 };
 
 class Memory {
 public:
     /// `pointerBits` is 32 or 64. Addresses are deterministic: the same sequence of operations gives the same
-    /// addresses. The first page is never allocated, and allocations are separated by unallocated gaps so that small
+    /// addresses. The first 64 KiB are never allocated, and allocations are separated by unallocated gaps so that small
     /// overruns hit no other object.
     explicit Memory(unsigned pointerBits);
     ~Memory();
@@ -63,9 +62,13 @@ public:
     Memory& operator=(const Memory&) = delete;
 
     /// Allocates `size` bytes aligned to `align` (a power of two). Size 0 gives a unique address without accessible
-    /// bytes. Host memory is committed lazily: untouched parts of a large allocation cost nothing.
+    /// bytes. Host memory is committed lazily: untouched parts of a large allocation cost nothing. `name` must outlive
+    /// the Memory (an interned symbol or a string literal); find() returns it.
     [[nodiscard]] std::expected<Address, MemoryError> allocate(Region region, std::uint64_t size, std::uint64_t align,
-                                                               std::string name);
+                                                               std::string_view name);
+    /// Like allocate, but the bytes are zero and count as initialized (calloc), without touching host pages.
+    [[nodiscard]] std::expected<Address, MemoryError> allocateZeroed(Region region, std::uint64_t size,
+                                                                     std::uint64_t align, std::string_view name);
 
     /// free(): `address` must be 0 (no effect) or the base of a live heap allocation. The block stays in the table as
     /// dead, and its addresses are not reused, so later accesses are reported as DeadObject.
@@ -83,10 +86,11 @@ public:
 
     /// memmove semantics; copies the bytes, their initialization state and the origins inside the range.
     [[nodiscard]] std::expected<void, MemoryError> copy(Address destination, Address source, std::uint64_t size);
+    /// memset semantics; marks the bytes initialized and removes the origins of the overwritten bytes.
     [[nodiscard]] std::expected<void, MemoryError> fill(Address address, std::byte value, std::uint64_t size);
 
-    /// Whether every byte of the range has been written (Global and ReadOnly bytes always are). Precondition: the
-    /// range is readable.
+    /// Whether every byte of the range has been written. Global and ReadOnly bytes and those of allocateZeroed count as
+    /// written, unless copy brought uninitialized bytes in. Precondition: the range is readable.
     [[nodiscard]] bool isInitialized(Address address, std::uint64_t size) const;
 
     /// The allocation that contains `address` or ends exactly at it (a one-past-the-end pointer), alive or dead.

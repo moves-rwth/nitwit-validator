@@ -42,6 +42,14 @@ std::optional<MemoryErrorKind> errorOf(const std::expected<T, MemoryError>& resu
     return result.has_value() ? std::nullopt : std::optional(result.error().kind);
 }
 
+/// Resident memory of this process in bytes (Linux).
+std::uint64_t residentBytes() {
+    std::ifstream statm("/proc/self/statm");
+    std::uint64_t totalPages = 0;
+    std::uint64_t residentPages = 0;
+    statm >> totalPages >> residentPages;
+    return residentPages * static_cast<std::uint64_t>(sysconf(_SC_PAGESIZE));
+}
 class MemoryTest : public testing::TestWithParam<unsigned> {
 protected:
     Memory memory{GetParam()};
@@ -73,7 +81,7 @@ TEST_P(MemoryTest, ZeroSizedAllocationsHaveUniqueAddressesWithoutBytes) {
     const Address second = allocate(memory, Region::Heap, 0);
     EXPECT_NE(first, second);
     std::array<std::byte, 1> out{};
-    EXPECT_EQ(errorOf(memory.read(first, out)), MemoryErrorKind::InvalidAddress);
+    EXPECT_EQ(errorOf(memory.read(first, out)), MemoryErrorKind::OutOfBounds);
 }
 
 TEST_P(MemoryTest, BasesAreAligned) {
@@ -92,17 +100,19 @@ TEST_P(MemoryTest, NamesAreKept) {
     EXPECT_EQ(memory.find(literal)->name, "string literal");
 }
 
-TEST_P(MemoryTest, NullPageIsNeverMapped) {
+TEST_P(MemoryTest, LowestSixtyFourKibibytesAreNeverMapped) {
     for (const Region region : allRegions) {
-        EXPECT_GE(allocate(memory, region, 16), 4096u);
+        EXPECT_GE(allocate(memory, region, 16), 0x1'0000u);
     }
     std::array<std::byte, 4> out{};
     EXPECT_EQ(errorOf(memory.read(0, out)), MemoryErrorKind::NullPointer);
     EXPECT_EQ(errorOf(memory.read(4092, out)), MemoryErrorKind::NullPointer);
     EXPECT_EQ(errorOf(memory.write(8, out)), MemoryErrorKind::NullPointer);
     EXPECT_EQ(errorOf(memory.fill(0, std::byte{0}, 1)), MemoryErrorKind::NullPointer);
-    EXPECT_EQ(errorOf(memory.read(4096, out)), MemoryErrorKind::InvalidAddress);
+    // A null pointer to a large struct plus a member offset.
+    EXPECT_EQ(errorOf(memory.read(0xFFFF, out)), MemoryErrorKind::NullPointer);
     EXPECT_FALSE(memory.find(0).has_value());
+    EXPECT_FALSE(memory.find(0xFFFF).has_value());
 }
 
 TEST_P(MemoryTest, AllocationsAreSeparatedByGaps) {
@@ -198,14 +208,16 @@ TEST_P(MemoryTest, AccessAcrossTheEndIsOutOfBounds) {
     EXPECT_EQ(readBytes(memory, base + 4, 4), bytes({0, 0, 0, 0})); // nothing was written
 }
 
-TEST_P(MemoryTest, AccessOnePastTheEndHitsNoAllocation) {
+TEST_P(MemoryTest, AccessOnePastTheEndIsOutOfBounds) {
     const Address base = allocate(memory, Region::Global, 8);
     std::array<std::byte, 1> out{};
-    EXPECT_EQ(errorOf(memory.read(base + 8, out)), MemoryErrorKind::InvalidAddress);
-    // The one-past-the-end address still belongs to the allocation for pointer purposes.
+    EXPECT_EQ(errorOf(memory.read(base + 8, out)), MemoryErrorKind::OutOfBounds);
+    EXPECT_EQ(errorOf(memory.write(base + 8, out)), MemoryErrorKind::OutOfBounds);
+    // The one-past-the-end address belongs to the allocation; the next one lies in the gap.
     ASSERT_TRUE(memory.find(base + 8).has_value());
     EXPECT_EQ(memory.find(base + 8)->base, base);
     EXPECT_FALSE(memory.find(base + 9).has_value());
+    EXPECT_EQ(errorOf(memory.read(base + 9, out)), MemoryErrorKind::InvalidAddress);
 }
 
 TEST_P(MemoryTest, ZeroByteAccessesAlwaysSucceed) {
@@ -317,6 +329,16 @@ TEST_P(MemoryTest, PoppedStackObjectIsDeadUntilReused) {
     EXPECT_TRUE(memory.find(frame)->isAlive);
 }
 
+TEST_P(MemoryTest, WritesToAPoppedStackObjectAreDead) {
+    allocate(memory, Region::Stack, 8);
+    const Address local = allocate(memory, Region::Stack, 4);
+    const Address global = allocate(memory, Region::Global, 4);
+    memory.popStack(local);
+    EXPECT_EQ(errorOf(memory.write(local, bytes({1}))), MemoryErrorKind::DeadObject);
+    EXPECT_EQ(errorOf(memory.fill(local, std::byte{0}, 4)), MemoryErrorKind::DeadObject);
+    EXPECT_EQ(errorOf(memory.copy(local, global, 4)), MemoryErrorKind::DeadObject);
+}
+
 TEST_P(MemoryTest, DeepDeadFramesStayDeadBelowAShallowerFrame) {
     const Address deep1 = allocate(memory, Region::Stack, 8);
     const Address deep2 = allocate(memory, Region::Stack, 8);
@@ -399,6 +421,85 @@ TEST_P(MemoryTest, CopyFromGlobalsInitializes) {
     const Address destination = allocate(memory, Region::Heap, 4);
     ASSERT_TRUE(memory.copy(destination, source, 4).has_value());
     EXPECT_TRUE(memory.isInitialized(destination, 4));
+}
+
+TEST_P(MemoryTest, CopyOfUninitializedBytesIntoAGlobal) {
+    // g = *p with p from malloc: the global's bytes stay nondeterministic instead of becoming zeros.
+    const Address source = allocate(memory, Region::Heap, 8);
+    const Address global = allocate(memory, Region::Global, 16);
+    ASSERT_TRUE(memory.write(source + 2, bytes({5})).has_value());
+    ASSERT_TRUE(memory.copy(global + 4, source, 8).has_value());
+    EXPECT_TRUE(memory.isInitialized(global, 4));
+    EXPECT_FALSE(memory.isInitialized(global + 4, 1));
+    EXPECT_TRUE(memory.isInitialized(global + 6, 1));
+    EXPECT_FALSE(memory.isInitialized(global + 7, 5));
+    EXPECT_TRUE(memory.isInitialized(global + 12, 4));
+    ASSERT_TRUE(memory.write(global + 4, bytes({1, 2})).has_value());
+    EXPECT_TRUE(memory.isInitialized(global, 7));
+}
+
+TEST_P(MemoryTest, CopyOfInitializedBytesKeepsAGlobalInitialized) {
+    const Address source = allocate(memory, Region::Stack, 4);
+    const Address global = allocate(memory, Region::Global, 4);
+    ASSERT_TRUE(memory.fill(source, std::byte{3}, 4).has_value());
+    ASSERT_TRUE(memory.copy(global, source, 4).has_value());
+    EXPECT_TRUE(memory.isInitialized(global, 4));
+    EXPECT_EQ(readBytes(memory, global, 4), bytes({3, 3, 3, 3}));
+}
+
+TEST_P(MemoryTest, ZeroedAllocationIsInitialized) {
+    for (const Region region : {Region::Heap, Region::Stack}) {
+        const Address block = memory.allocateZeroed(region, 64, 16, "calloc").value();
+        EXPECT_TRUE(memory.isInitialized(block, 64));
+        EXPECT_EQ(readBytes(memory, block + 60, 4), bytes({0, 0, 0, 0}));
+        EXPECT_EQ(memory.find(block)->name, "calloc");
+    }
+    EXPECT_EQ(memory.liveBytes(), 128u);
+}
+
+TEST_P(MemoryTest, ZeroedAllocationTakesUninitializedBytesFromACopy) {
+    const Address source = allocate(memory, Region::Heap, 4);
+    const Address block = memory.allocateZeroed(Region::Heap, 8, 16, "calloc").value();
+    ASSERT_TRUE(memory.copy(block + 2, source, 4).has_value());
+    EXPECT_TRUE(memory.isInitialized(block, 2));
+    EXPECT_FALSE(memory.isInitialized(block + 2, 1));
+    EXPECT_FALSE(memory.isInitialized(block + 5, 1));
+    EXPECT_TRUE(memory.isInitialized(block + 6, 2));
+    EXPECT_TRUE(memory.free(block).has_value());
+}
+
+TEST_P(MemoryTest, ZeroedHeapBlockOfOneGibibyteCostsNothing) {
+    constexpr std::uint64_t size = std::uint64_t{1} << 30;
+    const std::uint64_t before = residentBytes();
+    const Address block = memory.allocateZeroed(Region::Heap, size, 16, "calloc").value();
+    EXPECT_TRUE(memory.isInitialized(block + size - 8, 8));
+    EXPECT_EQ(readBytes(memory, block + size / 2, 4), bytes({0, 0, 0, 0}));
+    EXPECT_LT(residentBytes(), before + (std::uint64_t{64} << 20));
+}
+
+TEST_P(MemoryTest, FailedCopyWritesNothing) {
+    const Address source = allocate(memory, Region::Heap, 8);
+    const Address destination = allocate(memory, Region::Heap, 8);
+    ASSERT_TRUE(memory.fill(source, std::byte{1}, 8).has_value());
+    ASSERT_TRUE(memory.fill(destination, std::byte{2}, 8).has_value());
+    memory.setOrigin(source, 4, InputId{1});
+    memory.setOrigin(destination, 4, InputId{2});
+    const auto expectFailure = [&](Address to, Address from, std::uint64_t size, MemoryErrorKind kind,
+                                   Address reported) {
+        const auto result = memory.copy(to, from, size);
+        ASSERT_FALSE(result.has_value());
+        EXPECT_EQ(result.error().kind, kind);
+        EXPECT_EQ(result.error().address, reported);
+        EXPECT_EQ(readBytes(memory, destination, 8), bytes({2, 2, 2, 2, 2, 2, 2, 2}));
+        EXPECT_EQ(memory.origin(destination, 4), InputId{2});
+    };
+    expectFailure(destination, source + 4, 8, MemoryErrorKind::OutOfBounds, source + 4);      // source too short
+    expectFailure(destination + 4, source, 8, MemoryErrorKind::OutOfBounds, destination + 4); // destination too short
+    const Address freed = allocate(memory, Region::Heap, 8);
+    ASSERT_TRUE(memory.free(freed).has_value());
+    expectFailure(destination, freed, 8, MemoryErrorKind::DeadObject, freed);
+    expectFailure(freed, source, 8, MemoryErrorKind::DeadObject, freed);
+    EXPECT_EQ(memory.origin(source, 4), InputId{1});
 }
 
 TEST_P(MemoryTest, OverlappingCopyIsAMemmove) {
@@ -513,15 +614,6 @@ TEST_P(MemoryTest, EndOfLifetimeDropsOrigins) {
 }
 
 // ---- Lazy commit ----
-
-/// Resident memory of this process in bytes (Linux).
-std::uint64_t residentBytes() {
-    std::ifstream statm("/proc/self/statm");
-    std::uint64_t totalPages = 0;
-    std::uint64_t residentPages = 0;
-    statm >> totalPages >> residentPages;
-    return residentPages * static_cast<std::uint64_t>(sysconf(_SC_PAGESIZE));
-}
 
 TEST_P(MemoryTest, OneGibibyteGlobalCostsOnlyTheWrittenPages) {
     constexpr std::uint64_t size = std::uint64_t{1} << 30;

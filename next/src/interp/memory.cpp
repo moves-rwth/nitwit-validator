@@ -13,13 +13,11 @@
 
 #include "support/assert.hpp"
 #include "support/int128.hpp"
-#include "support/interner.hpp"
 
 namespace nitwit::interp {
 
 namespace {
 
-constexpr Address pageSize = 4096;
 /// Unallocated bytes between any two allocations, live or dead, so that small overruns hit no other object and a
 /// one-past-the-end address never lies inside another allocation.
 constexpr std::uint64_t gap = 16;
@@ -34,8 +32,8 @@ struct Range {
     Address end = 0;
 };
 
-/// The part of the address space of each region, indexed by Region. Nothing lies below the code region, so the null
-/// page and the pages above it stay unmapped.
+/// The part of the address space of each region, indexed by Region. Nothing lies below the code region, so accesses
+/// through a null pointer plus an offset of up to 64 KiB are recognized as such.
 std::array<Range, regionCount> layout(unsigned pointerBits) {
     std::array<Range, regionCount> ranges{};
     if (pointerBits == 32) {
@@ -64,7 +62,7 @@ using HostArray = std::unique_ptr<T[], FreeDeleter>;
 
 /// Zeroed host memory. glibc serves large blocks with fresh mmap pages, which are committed only when written.
 template <typename T>
-HostArray<T> allocateZeroed(std::uint64_t count) {
+HostArray<T> zeroedHostArray(std::uint64_t count) {
     return HostArray<T>(static_cast<T*>(std::calloc(count, sizeof(T))));
 }
 
@@ -124,9 +122,9 @@ struct Allocation {
     std::uint64_t size = 0;
     Region region = Region::Global;
     bool isAlive = true;
-    Symbol name;
+    std::string_view name;
     HostArray<std::byte> bytes;          // null for code, size 0 and dead allocations
-    HostArray<std::uint8_t> initialized; // only for Stack and Heap; elsewhere every byte counts as initialized
+    HostArray<std::uint8_t> initialized; // null if every byte counts as initialized
 
     [[nodiscard]] Address end() const { return base + size; }
     [[nodiscard]] std::byte* at(Address address) const { return bytes.get() + (address - base); }
@@ -176,7 +174,6 @@ struct Memory::State {
     };
     std::map<Address, Origin> origins; // non-overlapping ranges, by start address
 
-    StringInterner names;
     std::uint64_t liveBytes = 0;
     // The allocation found last; most accesses hit the same object as the previous one. It points into the vectors
     // above, so changes to them reset it. The const functions of Memory update it.
@@ -219,11 +216,11 @@ struct Memory::State {
         const auto error = [&](MemoryErrorKind errorKind) {
             return std::unexpected(MemoryError{.kind = errorKind, .address = address, .size = size});
         };
-        if (address < pageSize) {
+        if (address < ranges[indexOf(Region::Code)].begin) {
             return error(MemoryErrorKind::NullPointer);
         }
         Allocation* allocation = lookup(address);
-        if (allocation == nullptr || address == allocation->end()) {
+        if (allocation == nullptr) {
             return error(MemoryErrorKind::InvalidAddress);
         }
         if (!allocation->isAlive) {
@@ -232,7 +229,7 @@ struct Memory::State {
         if (allocation->region == Region::Code) {
             return error(MemoryErrorKind::CodeAccess);
         }
-        if (size > allocation->end() - address) {
+        if (size > allocation->end() - address) { // also for an access that starts one past the end
             return error(MemoryErrorKind::OutOfBounds);
         }
         if (kind == Access::Write && allocation->region == Region::ReadOnly) {
@@ -256,6 +253,37 @@ struct Memory::State {
         }
         const UInt128 base = (UInt128{next[indexOf(region)]} + align - 1) & alignMask;
         return base + size + gap <= range.end ? std::optional(static_cast<Address>(base)) : std::nullopt;
+    }
+
+    std::expected<Address, MemoryError> allocate(Region region, std::uint64_t size, std::uint64_t align,
+                                                 std::string_view name, bool zeroed) {
+        NITWIT_ASSERT(std::has_single_bit(align), "alignment must be a power of two");
+        const MemoryError exhausted{.kind = MemoryErrorKind::OutOfAddressSpace, .address = 0, .size = size};
+        const std::optional<Address> base = placement(region, size, align);
+        if (!base) {
+            return std::unexpected(exhausted);
+        }
+        HostArray<std::byte> bytes;
+        HostArray<std::uint8_t> initialized;
+        if (region != Region::Code && size > 0) {
+            const bool startsUninitialized = !zeroed && (region == Region::Stack || region == Region::Heap);
+            bytes = zeroedHostArray<std::byte>(size);
+            if (startsUninitialized) {
+                initialized = zeroedHostArray<std::uint8_t>((size + 7) / 8);
+            }
+            // The host cannot back the allocation; for the program, that is the same as an exhausted address space.
+            if (!bytes || (startsUninitialized && !initialized)) {
+                return std::unexpected(exhausted);
+            }
+        }
+        add(Allocation{.base = *base,
+                       .size = size,
+                       .region = region,
+                       .isAlive = true,
+                       .name = name,
+                       .bytes = std::move(bytes),
+                       .initialized = std::move(initialized)});
+        return *base;
     }
 
     void add(Allocation allocation) {
@@ -290,17 +318,22 @@ struct Memory::State {
     }
 
     /// Copies the initialization state of `size` bytes; the ranges may overlap within one allocation (memmove).
-    static void copyInitialization(const Allocation& to, Address destination, const Allocation& from, Address source,
+    static void copyInitialization(Allocation& to, Address destination, const Allocation& from, Address source,
                                    std::uint64_t size) {
-        if (!to.initialized) {
-            return;
-        }
         const std::uint64_t toOffset = destination - to.base;
-        if (!from.initialized) {
-            setBits(to.initialized.get(), toOffset, size);
+        const std::uint64_t fromOffset = source - from.base;
+        if (!from.initialized || allBitsSet(from.initialized.get(), fromOffset, size)) {
+            if (to.initialized) {
+                setBits(to.initialized.get(), toOffset, size);
+            }
             return;
         }
-        const std::uint64_t fromOffset = source - from.base;
+        if (!to.initialized) {
+            // Uninitialized bytes come into an allocation whose bytes all counted as initialized.
+            to.initialized = zeroedHostArray<std::uint8_t>((to.size + 7) / 8);
+            NITWIT_ASSERT(to.initialized != nullptr, "out of host memory");
+            setBits(to.initialized.get(), 0, to.size);
+        }
         const auto copyBit = [&](std::uint64_t i) {
             assignBit(to.initialized.get(), toOffset + i, testBit(from.initialized.get(), fromOffset + i));
         };
@@ -349,34 +382,13 @@ Memory::Memory(unsigned pointerBits) : state_(std::make_unique<State>(pointerBit
 Memory::~Memory() = default;
 
 std::expected<Address, MemoryError> Memory::allocate(Region region, std::uint64_t size, std::uint64_t align,
-                                                     std::string name) {
-    NITWIT_ASSERT(std::has_single_bit(align), "alignment must be a power of two");
-    const MemoryError exhausted{.kind = MemoryErrorKind::OutOfAddressSpace, .address = 0, .size = size};
-    const std::optional<Address> base = state_->placement(region, size, align);
-    if (!base) {
-        return std::unexpected(exhausted);
-    }
-    HostArray<std::byte> bytes;
-    HostArray<std::uint8_t> initialized;
-    if (region != Region::Code && size > 0) {
-        const bool tracksInitialization = region == Region::Stack || region == Region::Heap;
-        bytes = allocateZeroed<std::byte>(size);
-        if (tracksInitialization) {
-            initialized = allocateZeroed<std::uint8_t>((size + 7) / 8);
-        }
-        // The host cannot back the allocation; for the program, that is the same as an exhausted address space.
-        if (!bytes || (tracksInitialization && !initialized)) {
-            return std::unexpected(exhausted);
-        }
-    }
-    state_->add(Allocation{.base = *base,
-                           .size = size,
-                           .region = region,
-                           .isAlive = true,
-                           .name = state_->names.intern(name),
-                           .bytes = std::move(bytes),
-                           .initialized = std::move(initialized)});
-    return *base;
+                                                     std::string_view name) {
+    return state_->allocate(region, size, align, name, false);
+}
+
+std::expected<Address, MemoryError> Memory::allocateZeroed(Region region, std::uint64_t size, std::uint64_t align,
+                                                           std::string_view name) {
+    return state_->allocate(region, size, align, name, true);
 }
 
 std::expected<void, MemoryError> Memory::free(Address address) {
@@ -483,7 +495,7 @@ std::optional<AllocationInfo> Memory::find(Address address) const {
                           .size = allocation->size,
                           .region = allocation->region,
                           .isAlive = allocation->isAlive,
-                          .name = allocation->name.text()};
+                          .name = allocation->name};
 }
 
 void Memory::setOrigin(Address address, std::uint64_t size, value::InputId input) {
