@@ -35,6 +35,7 @@ void encode(const value::Value& value, const TypeInfo& type, std::span<std::byte
 } // namespace
 
 LValue Execution::lvalue(const ast::Expr* expr) {
+    checkHostStack(expr); // deep postfix chains recurse here
     switch (expr->kind()) {
     case ast::ExprKind::DeclRef: {
         const ast::ValueDecl* decl = ast::cast<ast::DeclRefExpr>(expr)->decl();
@@ -124,7 +125,7 @@ LValue Execution::member(const ast::MemberExpr* expr) {
     } else if (expr->base()->isLValue()) {
         base = lvalue(expr->base()).address;
     } else {
-        base = temporary(expr->base());
+        base = recordObject(expr->base()); // `f().x`, `(c ? s : t).a[1]`
     }
     const auto address = static_cast<Address>(
         value::Value::integer(UInt128{base} + layout.fieldOffsets[field->index()], types_.pointerFormat()).bits());
@@ -134,15 +135,78 @@ LValue Execution::member(const ast::MemberExpr* expr) {
     return {.address = address};
 }
 
-Address Execution::temporary(const ast::Expr* record) {
-    const value::Value value = rvalue(record);
-    const std::span<const std::byte> bytes = value.asBytes();
-    const Address address = allocate(Region::Heap, bytes.size(), types_.target().maxAlign(), "temporary", record);
-    writeBytes(address, bytes, record);
-    if (frame_ != nullptr) {
-        frame_->temporaries.push_back(address);
+Address Execution::recordObject(const ast::Expr* expr) {
+    expr = ast::ignoreParens(expr);
+    switch (expr->kind()) {
+    case ast::ExprKind::ImplicitCast: {
+        const auto* castExpr = ast::cast<ast::ImplicitCastExpr>(expr);
+        if (castExpr->castKind() == ast::CastKind::LValueToRValue) {
+            return lvalue(castExpr->operand()).address;
+        }
+        if (castExpr->castKind() == ast::CastKind::NoOp) {
+            return recordObject(castExpr->operand());
+        }
+        break;
+    }
+    case ast::ExprKind::Cast: {
+        const auto* castExpr = ast::cast<ast::CastExpr>(expr);
+        if (castExpr->castKind() == ast::CastKind::NoOp) {
+            return recordObject(castExpr->operand());
+        }
+        break;
+    }
+    case ast::ExprKind::Call: {
+        Address object = 0;
+        const value::Value result = call(ast::cast<ast::CallExpr>(expr), true, &object);
+        if (object != 0) {
+            return object;
+        }
+        const Address copy = temporary(result.asBytes().size(), nullptr, expr);
+        writeBytes(copy, result.asBytes(), expr);
+        return copy;
+    }
+    case ast::ExprKind::Conditional: {
+        value::Value condition;
+        const ast::Expr* selected = selectOperand(ast::cast<ast::ConditionalExpr>(expr), condition);
+        NITWIT_ASSERT(selected != nullptr, "GNU ?: with a struct condition");
+        return recordObject(selected);
+    }
+    case ast::ExprKind::Binary: {
+        const auto* binaryExpr = ast::cast<ast::BinaryExpr>(expr);
+        if (binaryExpr->op() == ast::BinaryOperator::Comma) {
+            effect(binaryExpr->lhs());
+            return recordObject(binaryExpr->rhs());
+        }
+        if (binaryExpr->op() == ast::BinaryOperator::Assign) {
+            return assignRecord(binaryExpr);
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    const value::Value result = rvalue(expr);
+    const Address copy = temporary(result.asBytes().size(), nullptr, expr);
+    writeBytes(copy, result.asBytes(), expr);
+    return copy;
+}
+
+Address Execution::temporary(std::uint64_t size, Frame* owner, const ast::Expr* where) {
+    if (isEvaluatingConstraint_) {
+        stop(Termination::Unsupported, "a constraint must not create a temporary object", locationOf(where));
+    }
+    const Address address = allocate(Region::Heap, size, types_.target().maxAlign(), "temporary", where);
+    if (Frame* frame = owner != nullptr ? owner : frame_; frame != nullptr) {
+        frame->temporaries.push_back(address);
     }
     return address;
+}
+
+void Execution::copyObject(Address destination, Address source, std::uint64_t size, const ast::Expr* where) {
+    if (const auto copied = memory_.copy(destination, source, size); !copied) {
+        // Memory::copy checks the source first.
+        memoryError(copied.error(), copied.error().address != source, where);
+    }
 }
 
 void Execution::releaseTemporaries(Frame& frame) {
@@ -155,26 +219,16 @@ void Execution::releaseTemporaries(Frame& frame) {
 value::Value Execution::load(const LValue& object, ast::QualType type, const ast::Expr* site) {
     const TypeInfo info = types_.describe(type);
     if (object.isBitField()) {
-        std::array<std::byte, 16> storage{};
-        const std::span<std::byte> bytes(storage.data(), storageBytes(object));
-        if (const auto read = memory_.read(object.address, bytes); !read) {
-            memoryError(read.error(), false, site);
-        }
-        if (!memory_.isInitialized(object.address, bytes.size())) {
-            value::Value input = requestInput(InputRequest::Kind::UninitializedRead, site, type, nullptr);
-            value::writeBitField(bytes, object.bitOffset, object.bitWidth, input);
-            writeBytes(object.address, bytes, site);
-            return input;
-        }
-        return value::readBitField(bytes, object.bitOffset, object.bitWidth, info.integer);
+        return loadBitField(object, info, site);
     }
     if (info.isScalar()) {
         std::array<std::byte, 16> buffer{};
         const std::span<std::byte> bytes(buffer.data(), info.size);
-        if (const auto read = memory_.read(object.address, bytes); !read) {
+        const auto read = memory_.readScalar(object.address, bytes);
+        if (!read) {
             memoryError(read.error(), false, site);
         }
-        if (!memory_.isInitialized(object.address, info.size)) {
+        if (!read->isInitialized) {
             // An uninitialized automatic or heap object holds a nondeterministic value, as the verifiers assume. The
             // answer is stored, so that later reads agree; bytes that were written keep their values.
             value::Value input = requestInput(InputRequest::Kind::UninitializedRead, site, type, nullptr);
@@ -195,13 +249,35 @@ value::Value Execution::load(const LValue& object, ast::QualType type, const ast
             return input;
         }
         value::Value result = decode(bytes, info);
-        result.setOrigin(memory_.origin(object.address, info.size));
+        result.setOrigin(read->origin);
         return result;
     }
     if (info.isBytes()) {
         return value::Value::ofBytes(readBytes(object.address, info.size, site));
     }
     stop(Termination::Unsupported, "a read of an object that is not a scalar or a record", locationOf(site));
+}
+
+// A bit-field with uninitialized storage: the uninitialized bytes of its storage are inputs, as the bytes of any
+// uninitialized object, and the field is read from them.
+value::Value Execution::loadBitField(const LValue& object, const TypeInfo& type, const ast::Expr* site) {
+    std::array<std::byte, 16> storage{};
+    const std::span<std::byte> bytes(storage.data(), storageBytes(object));
+    const auto read = memory_.readScalar(object.address, bytes);
+    if (!read) {
+        memoryError(read.error(), false, site);
+    }
+    if (!read->isInitialized) {
+        const ast::QualType byte = context_.builtin(ast::BuiltinKind::UnsignedChar);
+        for (std::size_t i = 0; i < bytes.size(); ++i) {
+            if (!memory_.isInitialized(object.address + i, 1)) {
+                const value::Value input = requestInput(InputRequest::Kind::UninitializedRead, site, byte, nullptr);
+                bytes[i] = static_cast<std::byte>(input.bits() & 0xFF);
+            }
+        }
+        writeBytes(object.address, bytes, site);
+    }
+    return value::readBitField(bytes, object.bitOffset, object.bitWidth, type.integer);
 }
 
 value::Value Execution::store(const LValue& object, ast::QualType type, const value::Value& stored,
@@ -237,18 +313,7 @@ value::Value Execution::store(const LValue& object, ast::QualType type, const va
 }
 
 void Execution::storeRecord(Address destination, std::uint64_t size, const ast::Expr* source) {
-    const ast::Expr* inner = ast::ignoreParens(source);
-    if (const auto* castExpr = ast::dyn_cast<ast::ImplicitCastExpr>(inner);
-        castExpr != nullptr && castExpr->castKind() == ast::CastKind::LValueToRValue) {
-        const LValue object = lvalue(castExpr->operand());
-        if (const auto copied = memory_.copy(destination, object.address, size); !copied) {
-            memoryError(copied.error(), false, source);
-        }
-        return;
-    }
-    const value::Value value = rvalue(source);
-    const std::span<const std::byte> bytes = value.asBytes();
-    writeBytes(destination, bytes.first(std::min<std::size_t>(bytes.size(), size)), source);
+    copyObject(destination, recordObject(source), size, source);
 }
 
 std::vector<std::byte> Execution::readBytes(Address address, std::uint64_t size, const ast::Expr* where) {

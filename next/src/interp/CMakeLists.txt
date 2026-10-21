@@ -6,6 +6,7 @@ nitwit_add_module(interp
         events.cpp
         execution.cpp
         expressions.cpp
+        host_stack.cpp
         initialization.cpp
         interpreter.cpp
         library.cpp

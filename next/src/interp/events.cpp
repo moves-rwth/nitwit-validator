@@ -2,6 +2,7 @@
 // through which the observer evaluates constraints in the current frame.
 
 #include <format>
+#include <utility>
 
 #include "interp/execution.hpp"
 
@@ -38,33 +39,43 @@ void Execution::obey(Directive directive, SourceLocation location) const {
 }
 
 void Execution::beforeStatement(const ast::Stmt* stmt) {
-    obey(observer_.beforeStatement({.stmt = stmt}, *this), stmt->location());
+    if (isReporting_) {
+        obey(observer_.beforeStatement({.stmt = stmt}, *this), stmt->location());
+    }
 }
 
 void Execution::afterCondition(const ConditionEvent& event) {
-    obey(observer_.afterCondition(event, *this), event.location);
+    if (isReporting_) {
+        obey(observer_.afterCondition(event, *this), event.location);
+    }
 }
 
 void Execution::reportUndefined(value::UndefinedBehavior kind, const ast::Expr* where) {
     if (isEvaluatingConstraint_) {
         stop(Termination::UndefinedBehavior, std::string(describe(kind)), locationOf(where));
     }
-    obey(observer_.onUndefinedBehavior(kind, where, *this), locationOf(where));
+    if (isReporting_) {
+        obey(observer_.onUndefinedBehavior(kind, where, *this), locationOf(where));
+    }
 }
 
+// The evaluation is no step of the program: it reports no events, and anything with an effect on the program's state
+// (assignments, calls, temporaries, va_arg, ...) is an error; only uninitialized reads ask the oracle.
 std::expected<value::Value, std::string> Execution::evaluate(const ast::Expr* expr) {
     if (isEvaluatingConstraint_) {
         return std::unexpected("a constraint is already being evaluated");
     }
     isEvaluatingConstraint_ = true;
+    const bool wasReporting = std::exchange(isReporting_, false);
+    std::expected<value::Value, std::string> result;
     try {
-        value::Value result = rvalue(expr);
-        isEvaluatingConstraint_ = false;
-        return result;
+        result = rvalue(expr);
     } catch (const RunEnd& end) {
-        isEvaluatingConstraint_ = false;
-        return std::unexpected(end.message);
+        result = std::unexpected(end.message);
     }
+    isEvaluatingConstraint_ = false;
+    isReporting_ = wasReporting;
+    return result;
 }
 
 const ast::FunctionDecl* Execution::function() const {

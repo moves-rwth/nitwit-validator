@@ -34,7 +34,9 @@ void Execution::initialize(Address address, ast::QualType type, const ast::Expr*
     }
     if (const auto* string = ast::dyn_cast<ast::StringLiteralExpr>(initializer);
         string != nullptr && info.representation == Representation::Array) {
-        return initializeFromString(address, sizeOf(type, initializer), string);
+        // A flexible array member (GNU: initialized statically) has an incomplete type; the literal gives the size.
+        const bool isIncomplete = TypeTable::array(type)->sizeKind() == ast::ArrayType::SizeKind::Incomplete;
+        return initializeFromString(address, sizeOf(isIncomplete ? string->type() : type, initializer), string);
     }
     if (info.isBytes()) {
         return storeRecord(address, info.size, initializer);

@@ -425,6 +425,22 @@ std::expected<void, MemoryError> Memory::read(Address address, std::span<std::by
     });
 }
 
+std::expected<Memory::ScalarRead, MemoryError> Memory::readScalar(Address address, std::span<std::byte> out) const {
+    if (out.empty()) {
+        return ScalarRead{};
+    }
+    const auto allocation = state_->access(address, out.size(), Access::Read);
+    if (!allocation) {
+        return std::unexpected(allocation.error());
+    }
+    std::memcpy(out.data(), (*allocation)->at(address), out.size());
+    const HostArray<std::uint8_t>& bitmap = (*allocation)->initialized;
+    ScalarRead result;
+    result.isInitialized = !bitmap || allBitsSet(bitmap.get(), address - (*allocation)->base, out.size());
+    result.origin = origin(address, out.size());
+    return result;
+}
+
 std::expected<void, MemoryError> Memory::write(Address address, std::span<const std::byte> bytes) {
     if (bytes.empty()) {
         return {};
@@ -484,6 +500,28 @@ bool Memory::isInitialized(Address address, std::uint64_t size) const {
     NITWIT_ASSERT(allocation.has_value(), "isInitialized needs a readable range");
     const HostArray<std::uint8_t>& bitmap = (*allocation)->initialized;
     return !bitmap || allBitsSet(bitmap.get(), address - (*allocation)->base, size);
+}
+
+std::expected<void, MemoryError> Memory::markUninitialized(Address address, std::uint64_t size) {
+    if (size == 0) {
+        return {};
+    }
+    const auto allocation = state_->access(address, size, Access::Write);
+    if (!allocation) {
+        return std::unexpected(allocation.error());
+    }
+    Allocation& target = **allocation;
+    if (!target.initialized) {
+        // Every byte counted as initialized so far.
+        target.initialized = zeroedHostArray<std::uint8_t>((target.size + 7) / 8);
+        NITWIT_ASSERT(target.initialized != nullptr, "out of host memory");
+        setBits(target.initialized.get(), 0, target.size);
+    }
+    for (std::uint64_t i = 0; i < size; ++i) {
+        assignBit(target.initialized.get(), address - target.base + i, false);
+    }
+    state_->dropOrigins(address, size);
+    return {};
 }
 
 std::optional<AllocationInfo> Memory::find(Address address) const {

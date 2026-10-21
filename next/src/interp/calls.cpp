@@ -72,7 +72,7 @@ value::FloatFormat formatOf(value::Value::Kind kind) {
 
 } // namespace
 
-value::Value Execution::call(const ast::CallExpr* expr, bool isValueUsed) {
+value::Value Execution::call(const ast::CallExpr* expr, bool isValueUsed, Address* object) {
     if (isEvaluatingConstraint_) {
         stop(Termination::Unsupported, "a constraint must not call a function", expr->location());
     }
@@ -83,22 +83,30 @@ value::Value Execution::call(const ast::CallExpr* expr, bool isValueUsed) {
     }
     countStep();
     const ast::FunctionDecl* calleeDecl = callee != nullptr ? callee->decl : nullptr;
-    obey(observer_.afterArguments({.call = expr, .callee = calleeDecl, .arguments = arguments.values}, *this),
-         expr->rightParenLocation());
+    if (isReporting_) {
+        obey(observer_.afterArguments({.call = expr, .callee = calleeDecl, .arguments = arguments.values}, *this),
+             expr->rightParenLocation());
+    }
     if (callee == nullptr) {
         undefined("a call through a pointer that points to no function", expr);
     }
 
     std::optional<value::Value> result;
     switch (callee->kind) {
-    case FunctionKind::Defined:
-        result = invoke(*callee, arguments, expr);
+    case FunctionKind::Defined: {
+        Returned returned = invoke(*callee, arguments, expr);
+        result = std::move(returned.value);
+        if (object != nullptr) {
+            *object = returned.object;
+        }
         break;
+    }
     case FunctionKind::Library:
         result = callLibrary(*callee, arguments, expr);
         break;
     case FunctionKind::Builtin:
-        result = hasSpecialArguments(*callee) ? builtin(*callee, expr) : callBuiltin(*callee, expr, arguments);
+        result = hasSpecialArguments(*callee) ? builtinOnExpressions(*callee, expr)
+                                              : builtinOnValues(*callee, expr, arguments);
         break;
     case FunctionKind::Nondet:
         result = unknownResult(InputRequest::Kind::NondetCall, expr, *callee);
@@ -113,14 +121,20 @@ value::Value Execution::call(const ast::CallExpr* expr, bool isValueUsed) {
         NITWIT_UNREACHABLE("aliases are resolved before the call");
     }
 
-    returnValue_ = result.has_value() ? &*result : nullptr;
-    const Directive directive =
-        observer_.afterReturn({.call = expr, .callee = calleeDecl, .result = returnValue_}, *this);
-    returnValue_ = nullptr;
-    obey(directive, expr->rightParenLocation());
+    const TypeInfo type = types_.describe(expr->type());
+    if (result.has_value()) {
+        result = inCallType(std::move(*result), callee->name.text(), type, expr);
+    }
+    if (isReporting_) {
+        returnValue_ = result.has_value() ? &*result : nullptr;
+        const Directive directive =
+            observer_.afterReturn({.call = expr, .callee = calleeDecl, .result = returnValue_}, *this);
+        returnValue_ = nullptr;
+        obey(directive, expr->rightParenLocation());
+    }
     if (!result.has_value()) {
         // C17 6.9.1p12: using the value of a function that reached its closing brace is undefined.
-        if (isValueUsed && types_.describe(expr->type()).representation != Representation::Void) {
+        if (isValueUsed && type.representation != Representation::Void) {
             undefined(
                 std::format("the value of '{}' is used, but it ended without returning a value", callee->name.text()),
                 expr);
@@ -128,6 +142,46 @@ value::Value Execution::call(const ast::CallExpr* expr, bool isValueUsed) {
         return {};
     }
     return std::move(*result);
+}
+
+// A function called through a pointer of another type (C17 6.5.2.2p9), or a library function the program declares
+// with another type, returns another representation. Integers and floating values are taken as the registers that
+// hold them would be; a struct where a scalar is expected, or the other way round, is undefined.
+std::optional<value::Value> Execution::inCallType(value::Value result, std::string_view callee, const TypeInfo& type,
+                                                  const ast::Expr* where) {
+    if (type.representation == Representation::Void) {
+        return std::nullopt;
+    }
+    switch (result.kind()) {
+    case value::Value::Kind::Integer:
+        if (type.representation == Representation::Bool) {
+            return result.bits() <= 1 ? result : value::toBool(result);
+        }
+        if (type.isIntegral()) {
+            value::Value converted = value::Value::integer(result.bits(), type.integer);
+            if (converted.bits() == result.bits()) {
+                converted.setOrigin(result.origin());
+            }
+            return converted;
+        }
+        break;
+    case value::Value::Kind::Float:
+    case value::Value::Kind::Double:
+    case value::Value::Kind::LongDouble:
+        if (type.representation == Representation::Floating) {
+            const value::FloatFormat format = formatOf(result.kind());
+            return format == type.floating ? result : value::convertFloat(result, format, type.floating);
+        }
+        break;
+    case value::Value::Kind::Bytes:
+        if (type.isBytes() && result.asBytes().size() == type.size) {
+            return result;
+        }
+        break;
+    case value::Value::Kind::None:
+        break;
+    }
+    undefined(std::format("'{}' returns a value that does not fit the type of the call", callee), where);
 }
 
 const FunctionEntity* Execution::resolveCallee(const ast::CallExpr* call) {
@@ -144,22 +198,35 @@ void Execution::evaluateArguments(const ast::CallExpr* call, Arguments& argument
     const std::span<ast::Expr* const> expressions = call->arguments();
     arguments.values.resize(expressions.size());
     arguments.types.resize(expressions.size());
+    arguments.objects.assign(expressions.size(), 0);
     for (std::size_t i = expressions.size(); i-- > 0;) {
-        arguments.values[i] = rvalue(expressions[i]);
-        arguments.types[i] = expressions[i]->type();
+        const ast::Expr* argument = expressions[i];
+        arguments.types[i] = argument->type();
+        const TypeInfo type = types_.describe(argument->type());
+        if (type.representation != Representation::Record) {
+            arguments.values[i] = rvalue(argument);
+            continue;
+        }
+        // A struct or union is copied when the argument is evaluated (later arguments may change the original),
+        // with the initialization state and origins of its bytes.
+        const Address source = recordObject(argument);
+        const Address object = temporary(type.size, nullptr, argument);
+        copyObject(object, source, type.size, argument);
+        arguments.objects[i] = object;
+        arguments.values[i] = value::Value::ofBytes(readBytes(object, type.size, argument));
     }
 }
 
-std::optional<value::Value> Execution::invoke(const FunctionEntity& function, Arguments& arguments,
-                                              const ast::CallExpr* site) {
+Returned Execution::invoke(const FunctionEntity& function, Arguments& arguments, const ast::CallExpr* site) {
     if (frames_.size() >= options_.maxCallDepth) {
         stop(Termination::LimitReached, std::format("the call depth limit of {} was reached", options_.maxCallDepth),
-             site != nullptr ? site->location() : location_);
+             locationOf(site));
     }
+    checkHostStack(site);
     Frame frame;
     enterFrame(frame, function, arguments, site);
     execute(frame, 0, nullptr);
-    std::optional<value::Value> result = std::move(frame.result);
+    Returned result = std::move(frame.result);
     leaveFrame(frame);
     return result;
 }
@@ -197,13 +264,23 @@ void Execution::enterFrame(Frame& frame, const FunctionEntity& function, Argumen
     for (std::size_t i = 0; i < parameters.size() && i < arguments.values.size(); ++i) {
         const ast::VarDecl* parameter = parameters[i];
         const Address slot = frame.locals[parameter->localIndex()];
-        if (types_.describe(parameter->type()).isBytes()) {
-            const std::span<const std::byte> bytes = arguments.values[i].asBytes();
-            writeBytes(slot, bytes.first(std::min<std::size_t>(bytes.size(), types_.describe(parameter->type()).size)),
-                       site);
+        const TypeInfo to = types_.describe(parameter->type());
+        const TypeInfo from = types_.describe(arguments.types[i]);
+        if (to.isBytes() != from.isBytes() || (to.isBytes() && to.size != from.size)) {
+            // Only through a pointer to a function of another type (C17 6.5.2.2p9).
+            undefined(std::format("a call of '{}' through a pointer of another type passes argument {} in a type that "
+                                  "does not fit the parameter",
+                                  function.name.text(), i + 1),
+                      site);
+        }
+        if (to.isBytes()) {
+            if (i < arguments.objects.size() && arguments.objects[i] != 0) {
+                copyObject(slot, arguments.objects[i], to.size, site);
+            } else {
+                writeBytes(slot, arguments.values[i].asBytes(), site);
+            }
         } else {
-            (void)store({.address = slot}, parameter->type(),
-                        convert(arguments.values[i], arguments.types[i], parameter->type(), site), site);
+            (void)store({.address = slot}, parameter->type(), convert(arguments.values[i], from, to, site), site);
         }
     }
     if (type != nullptr && type->isVariadic() && arguments.values.size() > parameters.size()) {
@@ -268,36 +345,12 @@ std::optional<value::Value> Execution::callLibrary(const FunctionEntity& functio
     const LibraryCall call{.name = function.name.text(), .arguments = arguments.values, .argumentTypes = argumentTypes};
     LibraryResult result = function.library(*this, call);
     switch (result.kind) {
-    case LibraryResult::Kind::Return: {
-        const TypeInfo type = types_.describe(site->type());
-        if (type.representation == Representation::Void) {
+    case LibraryResult::Kind::Return:
+        // In the C library's type; call() converts it to the type the program declared.
+        if (result.value.kind() == value::Value::Kind::None) {
             return std::nullopt;
         }
-        // The library returns the C library's type; a program may declare the function with another one.
-        const value::Value& returned = result.value;
-        switch (returned.kind()) {
-        case value::Value::Kind::Integer:
-            if (type.representation == Representation::Bool) {
-                return value::toBool(returned);
-            }
-            if (type.isIntegral()) {
-                return value::convertInteger(returned, type.integer);
-            }
-            break;
-        case value::Value::Kind::Float:
-        case value::Value::Kind::Double:
-        case value::Value::Kind::LongDouble:
-            if (type.representation == Representation::Floating) {
-                return value::convertFloat(returned, formatOf(returned.kind()), type.floating);
-            }
-            break;
-        case value::Value::Kind::Bytes:
-            return returned;
-        case value::Value::Kind::None:
-            break;
-        }
-        return zeroOf(type);
-    }
+        return std::move(result.value);
     case LibraryResult::Kind::Exit:
         throw RunEnd{
             .termination = Termination::Exit, .exitStatus = result.status, .message = {}, .location = site->location()};
@@ -324,9 +377,21 @@ value::Value Execution::requestInput(InputRequest::Kind kind, const ast::Expr* s
                                .type = type.unqualified(),
                                .function = function};
     ++inputs_;
-    value::Value provided = oracle_.provide(request);
-    provided.setOrigin(request.id);
-    return provided;
+    // The answer in the representation of the type, whatever the oracle gave: a _Bool is 0 or 1 (C17 6.3.1.2), an
+    // integer has the width of its type.
+    const value::Value provided = oracle_.provide(request);
+    const TypeInfo info = types_.describe(type);
+    value::Value input = zeroOf(info);
+    if (info.representation == Representation::Bool) {
+        input = value::toBool(provided);
+    } else if (info.isIntegral() && provided.kind() == value::Value::Kind::Integer) {
+        input = value::Value::integer(provided.bits(), info.integer);
+    } else if (info.representation == Representation::Floating && provided.kind() != value::Value::Kind::Integer
+               && provided.kind() != value::Value::Kind::Bytes && provided.kind() != value::Value::Kind::None) {
+        input = value::convertFloat(provided, formatOf(provided.kind()), info.floating);
+    }
+    input.setOrigin(request.id);
+    return input;
 }
 
 std::optional<value::Value> Execution::unknownResult(InputRequest::Kind kind, const ast::CallExpr* site,

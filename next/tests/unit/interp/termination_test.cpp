@@ -1,9 +1,14 @@
 // How runs end: return, exit, abort, assumptions, undefined behaviour (memory errors, division by zero, ...),
 // unsupported constructs, the observer, and the limits.
 
+#include <cstddef>
+#include <format>
+#include <string>
+
 #include <gtest/gtest.h>
 
 #include "interpreter_test_support.hpp"
+#include "support/large_stack.hpp"
 
 namespace nitwit::interp::test {
 namespace {
@@ -236,6 +241,69 @@ TEST_F(TerminationTest, TheCallDepthLimitEndsEndlessRecursion) {
                                  {.maxSteps = 0, .maxCallDepth = 50});
     EXPECT_EQ(result.termination, Termination::LimitReached);
     EXPECT_THAT(result.message, HasSubstr("call depth"));
+}
+
+TEST_F(TerminationTest, DeepRecursionStopsBeforeTheHostStackOverflows) {
+    // Deep recursion with deep expressions around each call needs more host stack than the 1 GiB the driver gives,
+    // before the default call depth limit is reached.
+    std::string sum = "f(n - 1)";
+    for (int i = 0; i < 30; ++i) {
+        sum = "(" + sum + " + 1)";
+    }
+    const std::string program = std::format(
+        "int f(int n) {{ if (n == 0) return 0; return {} - 30; }}\nint main(void) {{ return f(99990); }}", sum);
+    observer_.recordStatements = false;
+    RunResult result;
+    runWithLargeStack(std::size_t{1} << 30, [&] { result = run(program); });
+    if (result.termination == Termination::LimitReached) {
+        EXPECT_THAT(result.message, HasSubstr("host stack"));
+    } else {
+        EXPECT_EQ(result.termination, Termination::Returned) << result.message;
+    }
+}
+
+TEST_F(TerminationTest, TheHostStackLimitsRecursionOnSmallStacks) {
+    observer_.recordStatements = false;
+    RunResult result;
+    // 8 MiB, of which 1 MiB stays in reserve, cannot hold 100,000 interpreted calls.
+    runWithLargeStack(std::size_t{8} << 20, [&] {
+        result = run("int f(int n) { return n == 0 ? 0 : f(n - 1) + 1; }\nint main(void) { return f(100000); }");
+    });
+    EXPECT_EQ(result.termination, Termination::LimitReached);
+    EXPECT_THAT(result.message, HasSubstr("host stack"));
+}
+
+TEST_F(TerminationTest, CallsThroughPointersOfIncompatibleTypesAreUndefined) {
+    const RunResult result = run(R"(struct S { int a, b; };
+int g(int x) { return x; }
+int main(void) {
+    int (*pg)(struct S) = (int (*)(struct S))g;
+    struct S s = {1, 2};
+    return pg(s);
+})");
+    EXPECT_EQ(result.termination, Termination::UndefinedBehavior);
+    EXPECT_THAT(result.message, HasSubstr("argument 1"));
+    const RunResult returned = run(R"(struct S { int a, b; };
+struct S make(void) { struct S s = {1, 2}; return s; }
+int main(void) {
+    int (*pm)(void) = (int (*)(void))make;
+    return pm();
+})");
+    EXPECT_EQ(returned.termination, Termination::UndefinedBehavior);
+    EXPECT_THAT(returned.message, HasSubstr("does not fit"));
+}
+
+TEST_F(TerminationTest, AssignmentsBetweenOverlappingObjectsAreUndefined) {
+    const RunResult result = run(R"(struct S { int a, b, c; };
+union U { struct S s; struct { int x; struct S t; } w; };
+int main(void) {
+    union U u = {{1, 2, 3}};
+    u.w.t = u.s;
+    return u.w.t.c;
+})");
+    EXPECT_EQ(result.termination, Termination::UndefinedBehavior);
+    EXPECT_THAT(result.message, HasSubstr("overlapping"));
+    EXPECT_EQ(status("struct S { int a, b; } s = {1, 2};\nint main(void) { s = s; return s.b; }"), 2);
 }
 
 TEST_F(TerminationTest, TheMemoryLimitCountsHeapBlocks) {

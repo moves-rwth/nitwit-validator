@@ -399,6 +399,48 @@ TEST_P(MemoryTest, InitializationIsTrackedPerByte) {
     }
 }
 
+TEST_P(MemoryTest, MarkUninitializedMakesBytesUninitializedAgain) {
+    const Address stack = allocate(memory, Region::Stack, 8);
+    ASSERT_TRUE(memory.write(stack, bytes({1, 2, 3, 4, 5, 6, 7, 8})).has_value());
+    memory.setOrigin(stack + 4, 4, InputId{3});
+    ASSERT_TRUE(memory.markUninitialized(stack + 2, 4).has_value());
+    EXPECT_TRUE(memory.isInitialized(stack, 2));
+    EXPECT_FALSE(memory.isInitialized(stack + 2, 1));
+    EXPECT_FALSE(memory.isInitialized(stack + 5, 1));
+    EXPECT_TRUE(memory.isInitialized(stack + 6, 2));
+    EXPECT_FALSE(memory.origin(stack + 4, 4).has_value());
+    // Allocations whose bytes all counted as initialized get a bitmap.
+    const Address global = allocate(memory, Region::Global, 4);
+    ASSERT_TRUE(memory.markUninitialized(global + 1, 1).has_value());
+    EXPECT_TRUE(memory.isInitialized(global, 1));
+    EXPECT_FALSE(memory.isInitialized(global + 1, 1));
+    EXPECT_TRUE(memory.isInitialized(global + 2, 2));
+}
+
+TEST_P(MemoryTest, MarkUninitializedNeedsAWritableRange) {
+    const Address readOnly = allocate(memory, Region::ReadOnly, 4);
+    EXPECT_EQ(errorOf(memory.markUninitialized(readOnly, 4)), MemoryErrorKind::ReadOnlyWrite);
+    const Address stack = allocate(memory, Region::Stack, 4);
+    EXPECT_EQ(errorOf(memory.markUninitialized(stack, 5)), MemoryErrorKind::OutOfBounds);
+}
+
+TEST_P(MemoryTest, ReadScalarReportsInitializationAndOrigin) {
+    const Address base = allocate(memory, Region::Heap, 8);
+    ASSERT_TRUE(memory.write(base, bytes({1, 2, 3, 4})).has_value());
+    memory.setOrigin(base, 4, InputId{9});
+    std::array<std::byte, 4> out{};
+    const auto whole = memory.readScalar(base, out);
+    ASSERT_TRUE(whole.has_value());
+    EXPECT_TRUE(whole->isInitialized);
+    EXPECT_EQ(whole->origin, InputId{9});
+    EXPECT_EQ(out[3], std::byte{4});
+    const auto part = memory.readScalar(base + 2, out);
+    ASSERT_TRUE(part.has_value());
+    EXPECT_FALSE(part->isInitialized);
+    EXPECT_FALSE(part->origin.has_value());
+    EXPECT_EQ(errorOf(memory.readScalar(base + 6, out)), MemoryErrorKind::OutOfBounds);
+}
+
 TEST_P(MemoryTest, GlobalsCountAsInitialized) {
     const Address base = allocate(memory, Region::Global, 64);
     EXPECT_TRUE(memory.isInitialized(base, 64));

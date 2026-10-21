@@ -20,7 +20,7 @@ struct LeaveRange {
 
 /// `return` inside a statement expression: ends the function, abandoning the expression.
 struct ReturnFromRange {
-    std::optional<value::Value> result;
+    Returned result;
 };
 
 bool contains(const InstructionRange* range, std::uint32_t pc) {
@@ -45,11 +45,11 @@ void Execution::execute(Frame& frame, std::uint32_t begin, const InstructionRang
         try {
             while (true) {
                 const Instruction& instruction = code[pc];
+                if (range == nullptr && !frame.temporaries.empty()) {
+                    releaseTemporaries(frame); // the full expression of the previous instruction has ended
+                }
                 switch (instruction.op) {
                 case OpCode::Statement:
-                    if (range == nullptr && !frame.temporaries.empty()) {
-                        releaseTemporaries(frame); // the previous full expression has ended
-                    }
                     location_ = instruction.stmt->location();
                     countStep();
                     beforeStatement(instruction.stmt);
@@ -89,10 +89,7 @@ void Execution::execute(Frame& frame, std::uint32_t begin, const InstructionRang
                     break;
                 case OpCode::Return:
                     if (instruction.expr != nullptr) {
-                        value::Value result = rvalue(instruction.expr);
-                        if (result.kind() != value::Value::Kind::None) {
-                            frame.result = std::move(result);
-                        }
+                        frame.result = returnedValue(instruction.expr);
                     }
                     if (range != nullptr) {
                         throw ReturnFromRange{std::move(frame.result)};
@@ -128,6 +125,23 @@ void Execution::execute(Frame& frame, std::uint32_t begin, const InstructionRang
             return;
         }
     }
+}
+
+// C17 6.8.6.4p3: the value of the expression is returned. A struct or union is copied, with the initialization state
+// and the origins of its bytes, into a temporary of the caller, since this frame's objects end now.
+Returned Execution::returnedValue(const ast::Expr* expr) {
+    const TypeInfo type = types_.describe(expr->type());
+    if (type.representation == Representation::Record && frames_.size() >= 2) {
+        const Address source = recordObject(expr);
+        const Address object = temporary(type.size, frames_[frames_.size() - 2], expr);
+        copyObject(object, source, type.size, expr);
+        return {.value = value::Value::ofBytes(readBytes(object, type.size, expr)), .object = object};
+    }
+    value::Value result = rvalue(expr);
+    if (result.kind() == value::Value::Kind::None) {
+        return {};
+    }
+    return {.value = std::move(result), .object = 0};
 }
 
 // C17 6.8.4.2p5: the promoted condition is compared with the converted case values; without a match, control goes to
@@ -177,6 +191,11 @@ void Execution::declare(Frame& frame, const ast::Decl* decl) {
     }
     if (var->initializer() != nullptr) {
         initialize(frame.locals[var->localIndex()], var->type(), var->initializer(), false);
+    } else if (!layout.isVariableLength) {
+        // C17 6.2.4p6: reaching the declaration again (in a loop, after a goto) makes the value indeterminate.
+        if (const auto cleared = memory_.markUninitialized(frame.locals[var->localIndex()], layout.size); !cleared) {
+            memoryError(cleared.error(), true, nullptr);
+        }
     }
 }
 

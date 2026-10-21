@@ -161,8 +161,8 @@ after that, the access reaches the new object, as in a native run.
 The implementation is split by area: `lowering.cpp` (`buildProgram`, `program.hpp`), `execution.cpp` (start-up,
 ending, limits), `statements.cpp` (the instruction loop), `calls.cpp`, `expressions.cpp`, `lvalues.cpp`,
 `conversions.cpp`, `initialization.cpp`, `builtins.cpp` and `events.cpp`; `execution.hpp` declares the class
-`Execution` they share, and `type_info.hpp` the representation of types (computed without canonicalizing, because the
-evaluator asks for it at every operation).
+`Execution` they share, `type_info.hpp` the representation of types (computed without canonicalizing, because the
+evaluator asks for it at every operation), and `host_stack.hpp` the check of the host stack.
 
 - **Entities:** functions and objects with linkage are identified by name, so all their declarations (also in blocks)
   share one entity; block-scope statics are entities of their own. The last declaration gives the type. GNU
@@ -176,38 +176,61 @@ evaluator asks for it at every operation).
   the numbers of arguments and parameters differ, or if a promoted argument does not fit its promoted parameter: the
   same integer width (signed and unsigned only with a value both hold), pointer for pointer, the same floating type,
   records of the same size. Otherwise each argument is converted to its parameter's type, as for K&R definitions.
-- **Order of evaluation** (unspecified in C, visible in the order of the inputs) as GCC on x86 and x86-64: the
-  arguments of a call from right to left; the operands of the other binary operators from left to right; for `=` the
-  left operand first, for compound assignments the right operand first.
+- **Order of evaluation** (unspecified in C, visible in the order of the inputs) as GCC on x86 and x86-64 (GCC ≥ 7,
+  `gimplify_modify_expr`): the arguments of a call from right to left; the operands of the other binary operators
+  from left to right; for `=` the right operand first, unless it is a call (also under parentheses and conversions
+  that keep the representation), then the left operand's address first; for compound assignments the right operand
+  first. GCC folds trivial arithmetic first (`arr[i()] = f() + 0` calls i first); the interpreter does not.
 - **Steps** (`RunOptions::maxSteps`): statements, controlling expressions and calls, so that loops without statements
   are limited too.
+- **Host stack:** calls and expressions recurse on the host stack. `invoke`, `rvalue` and `lvalue` check the frame
+  address against the thread's stack bounds (`host_stack.hpp`) and end the run with `LimitReached` ("host stack
+  exhausted") when less than 1 MiB is left, before `maxCallDepth` if need be.
+- **Events** are reported for steps of the program only: not while static storage is initialized before `main`, and
+  not while the observer evaluates a constraint.
 - **Storage:**
-  - Each local is an allocation of its own (out-of-bounds accesses between locals are detected). Compound literals in
-    a function get storage at function entry, one object per literal and call, re-initialized at each evaluation.
+  - Each local is an allocation of its own (out-of-bounds accesses between locals are detected). Reaching the
+    declaration of a local without initializer again (in a loop, after a `goto`) makes it indeterminate again
+    (C17 6.2.4p6, `Memory::markUninitialized`), so that the next read is a new input. Compound literals in a function
+    get storage at function entry, one object per literal and call, re-initialized at each evaluation.
   - `alloca` blocks are stack allocations of the frame; like GCC, the end of a variable length array's scope also
     ends the blocks allocated after it. Freeing one is undefined.
-  - A struct rvalue whose member is addressed (`f().a[1]`) is copied to a heap temporary that lives until the next
-    statement of the function (C17 6.2.4p8).
-- **Records** are copied object to object where the source is an lvalue (`s = t`, `struct S s = t;`), with the
-  initialization state and the origins of the bytes; other record values (call results, `?:`) are plain bytes.
+  - Struct and union rvalues that are not objects (arguments, results, values whose member is addressed as in
+    `f().a[1]`) live in heap temporaries of the frame, which end with the full expression, i.e. after the instruction
+    that made them (C17 6.2.4p8).
+- **Records** keep the initialization state and the origins of their bytes when they are copied: assignment and
+  initialization from another record, arguments (copied into a temporary when the argument is evaluated, then into the
+  parameter), results (copied into a temporary of the caller before the callee's frame ends), `?:` and the comma
+  operator (which select an object). An assignment between partly overlapping objects is undefined
+  (C17 6.5.16.1p3). Known limitation: copying an uninitialized record copies its uninitialized state, so reading the
+  same member of both copies asks for two independent inputs, while a native run reads equal values.
 - **Uninitialized reads:** a scalar with uninitialized bytes is answered by the oracle; bytes that were written keep
-  their values (then the value has no origin). A bit-field asks if any byte of its storage is uninitialized. Writing a
-  bit-field initializes the bytes of its storage.
+  their values (then the value has no origin). Every answer is normalized to the requested type (`_Bool` 0 or 1,
+  integers truncated). A bit-field whose storage has uninitialized bytes asks for those bytes (as `unsigned char`
+  inputs), stores them, and reads the field from them; neighbouring fields in the same bytes read the same input.
 - **Conversions:** a pointer converted to a wider integer is sign-extended (GCC, "Arrays and pointers"). Origins
   survive integer conversions to types that hold every value of the source type, integer to floating conversions
   that are exact for every value, and floating widening.
 - **va_list:** the object holds a handle (a number in its first four bytes) of a cursor over the variadic arguments of
   the frame that called `va_start`. A copy of the object (passing a va_list) shares the cursor, as on x86-64;
-  `va_copy` makes an independent one. `va_arg` of an argument of another kind or size, after the last argument, or
-  after the function returned is undefined. Library functions with a va_list get the remaining arguments instead.
+  `va_copy` makes an independent one. `va_arg` with a type of another kind or size than the argument's (C17
+  7.16.1.1p2; signed and unsigned versions of a type, and integers and pointers of the same width, are accepted),
+  after the last argument, or after the function returned is undefined. Library functions with a va_list get the
+  remaining arguments instead.
+- **Calls through a pointer of another type** (C17 6.5.2.2p9) convert scalar arguments and results like the
+  registers that pass them; a struct where a scalar is expected, or the other way round, is undefined.
+- **Pass-through builtins** (`__builtin_expect`, `__builtin_expect_with_probability`, `__builtin_assume_aligned`)
+  return their first argument converted to the result type, with its origin where the conversion keeps the value.
 - **Statement expressions** are lowered in place, behind a jump over them, and run as a range of the function's
   instructions; `break`, `continue`, `goto` and `return` out of them abandon the enclosing expression (GNU). Their
   value is that of `StatementExpr::valueStatement()`.
 - **Undefined behaviour without a defined result** stops the run with a message naming the operation and, for memory
   errors, the kind and the object (`invalid read of 4 bytes at 0x...: out of bounds ('a')`). Floating to integer
   conversions out of range are reported and continue, like signed overflow.
-- **Constraints** (`EvaluationContext::evaluate`): assignments, increments, calls, statement expressions and compound
-  literals are errors, and so is any undefined behaviour; uninitialized reads ask the oracle.
+- **Constraints** (`EvaluationContext::evaluate`): anything with an effect on the program's state is an error
+  (assignments, increments, calls, statement expressions, compound literals, temporaries, `va_arg`), and so is any
+  undefined behaviour; uninitialized reads ask the oracle. The evaluation reports no events.
+- **`sizeof`** of an expression of variable length array type evaluates the expression (C17 6.5.3.4p2).
 
 ## Tests
 

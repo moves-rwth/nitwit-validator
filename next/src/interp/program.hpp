@@ -30,6 +30,7 @@ enum class OpCode : std::uint8_t {
     Statement,         // reports a StatementEvent for `stmt` and counts a step
     Evaluate,          // evaluates `expr` for its side effects
     Declare,           // `decl`: evaluates the sizes of variable length arrays, allocates them, runs the initializer
+                       // or makes the object indeterminate again
     Branch,            // evaluates the condition `expr` (null: true), reports it, and continues at `target` if false
     Jump,              // continues at `target`
     Switch,            // evaluates `expr`, reports it, and continues at the label `switches[index]` selects
@@ -118,6 +119,7 @@ enum class Builtin : std::uint8_t {
     VaCopy,                       // __builtin_va_copy
     ConstantP,                    // __builtin_constant_p
     ObjectSize,                   // __builtin_object_size, __builtin_dynamic_object_size
+    PassThrough,                  // __builtin_expect and friends: the first argument, converted to the result type
     Alloca,                       // alloca, __builtin_alloca, __builtin_alloca_with_align
     Overflow,                     // __builtin_{add,sub,mul}_overflow(a, b, &result)
     OverflowP,                    // __builtin_{add,sub,mul}_overflow_p(a, b, c): only the type of c matters

@@ -193,6 +193,14 @@ TEST(ReplayObserverTest, StopsAtErrorFunctionsWithoutDefinition) {
               interp::Directive::Stop);
     EXPECT_EQ(observer.errorFunction(), "reach_error");
 
+    // __builtin_trap ends a native run by SIGILL; the observer remembers the call.
+    auto* trap = context.create<ast::FunctionDecl>(interner.intern("__builtin_trap"), SourceLocation{}, type,
+                                                   ast::StorageClass::Extern);
+    EXPECT_FALSE(observer.hasTrapped());
+    EXPECT_EQ(observer.afterArguments({.call = nullptr, .callee = trap, .arguments = {}}, evaluation),
+              interp::Directive::Continue);
+    EXPECT_TRUE(observer.hasTrapped());
+
     // An inline definition is no external definition (C17 6.7.4p7); natively, the harness's function is called.
     ReplayObserver inlineObserver;
     defined->setInline();

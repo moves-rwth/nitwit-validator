@@ -121,6 +121,7 @@ value::Value one(const TypeInfo& type) {
 } // namespace
 
 value::Value Execution::rvalue(const ast::Expr* expr) {
+    checkHostStack(expr); // deep expressions recurse here
     switch (expr->kind()) {
     case ast::ExprKind::IntegerLiteral:
     case ast::ExprKind::FloatingLiteral:
@@ -145,10 +146,8 @@ value::Value Execution::rvalue(const ast::Expr* expr) {
     case ast::ExprKind::Call:
         return call(ast::cast<ast::CallExpr>(expr), true);
     case ast::ExprKind::Member:
-        if (!expr->isLValue()) {
-            return memberOfRValue(ast::cast<ast::MemberExpr>(expr));
-        }
-        break;
+        // Also a member of a struct rvalue, such as `f().x` (C17 6.5.2.3p3): member() finds its object.
+        return load(member(ast::cast<ast::MemberExpr>(expr)), expr->type(), expr);
     case ast::ExprKind::Cast: {
         const auto* castExpr = ast::cast<ast::CastExpr>(expr);
         return castValue(castExpr->castKind(), castExpr->operand(), expr->type(), expr);
@@ -160,9 +159,14 @@ value::Value Execution::rvalue(const ast::Expr* expr) {
     case ast::ExprKind::ImplicitZero:
         return zeroOf(types_.describe(expr->type()));
     case ast::ExprKind::SizeOfAlignOf:
+        return sizeOrAlignment(ast::cast<ast::SizeOfAlignOfExpr>(expr));
     case ast::ExprKind::OffsetOf:
-    case ast::ExprKind::TypesCompatible:
-        return sizeOrAlignment(expr);
+        return offsetOf(ast::cast<ast::OffsetOfExpr>(expr));
+    case ast::ExprKind::TypesCompatible: {
+        const std::optional<value::Value> result = constant(expr);
+        NITWIT_ASSERT(result.has_value(), "__builtin_types_compatible_p is a constant");
+        return *result;
+    }
     case ast::ExprKind::VaArg:
         return vaArg(ast::cast<ast::VaArgExpr>(expr));
     case ast::ExprKind::StatementExpr:
@@ -436,18 +440,75 @@ value::Value Execution::logical(const ast::BinaryExpr* expr) {
 
 // C17 6.5.16.1: the right operand, converted by sema, replaces the value of the object; the result is the value the
 // object then holds. GCC computes the address of the left operand first.
+// The order of the operands of `=` (unspecified, C17 6.5.16p3) as GCC on x86 at -O0: the right operand first, unless
+// it is a call, also under parentheses and conversions that keep the representation; then the address of the left
+// operand comes first. (`arr[i()] = f()` calls i first, `arr[i()] = f() * 2` calls f first.)
+bool Execution::isLeftOperandFirst(const ast::BinaryExpr* expr) const {
+    const ast::Expr* rhs = ast::ignoreParens(expr->rhs());
+    while (true) {
+        const ast::Expr* operand = nullptr;
+        ast::CastKind kind = ast::CastKind::NoOp;
+        if (const auto* implicit = ast::dyn_cast<ast::ImplicitCastExpr>(rhs)) {
+            operand = implicit->operand();
+            kind = implicit->castKind();
+        } else if (const auto* written = ast::dyn_cast<ast::CastExpr>(rhs)) {
+            operand = written->operand();
+            kind = written->castKind();
+        } else {
+            break;
+        }
+        const TypeInfo from = types_.describe(operand->type());
+        const TypeInfo to = types_.describe(rhs->type());
+        const bool keepsRepresentation =
+            kind == ast::CastKind::NoOp || kind == ast::CastKind::BitCast
+            || ((kind == ast::CastKind::IntegralCast || kind == ast::CastKind::IntegralToPointer
+                 || kind == ast::CastKind::PointerToIntegral)
+                && from.integer.bits == to.integer.bits);
+        if (!keepsRepresentation) {
+            break;
+        }
+        rhs = ast::ignoreParens(operand);
+    }
+    return ast::isa<ast::CallExpr>(rhs);
+}
+
 value::Value Execution::assignment(const ast::BinaryExpr* expr, bool isValueUsed) {
     if (isEvaluatingConstraint_) {
         stop(Termination::Unsupported, "a constraint must not assign", expr->location());
     }
     const ast::Expr* target = expr->lhs();
-    const LValue object = lvalue(target);
-    const TypeInfo type = types_.describe(target->type());
-    if (type.isBytes()) {
-        storeRecord(object.address, type.size, expr->rhs());
-        return isValueUsed ? load(object, target->type(), target) : value::Value();
+    if (types_.describe(target->type()).isBytes()) {
+        const Address object = assignRecord(expr);
+        return isValueUsed ? load({.address = object}, target->type(), target) : value::Value();
     }
-    return store(object, target->type(), rvalue(expr->rhs()), expr);
+    if (isLeftOperandFirst(expr)) {
+        const LValue object = lvalue(target);
+        return store(object, target->type(), rvalue(expr->rhs()), expr);
+    }
+    const value::Value stored = rvalue(expr->rhs());
+    return store(lvalue(target), target->type(), stored, expr);
+}
+
+Address Execution::assignRecord(const ast::BinaryExpr* expr) {
+    if (isEvaluatingConstraint_) {
+        stop(Termination::Unsupported, "a constraint must not assign", expr->location());
+    }
+    const std::uint64_t size = types_.describe(expr->lhs()->type()).size;
+    Address object = 0;
+    Address source = 0;
+    if (isLeftOperandFirst(expr)) {
+        object = lvalue(expr->lhs()).address;
+        source = recordObject(expr->rhs());
+    } else {
+        source = recordObject(expr->rhs());
+        object = lvalue(expr->lhs()).address;
+    }
+    // C17 6.5.16.1p3: the objects must not overlap, unless they are the same.
+    if (source != object && source < object + size && object < source + size) {
+        undefined("an assignment between overlapping objects", expr);
+    }
+    copyObject(object, source, size, expr);
+    return object;
 }
 
 // C17 6.5.16.2p3: E1 op= E2 is E1 = E1 op E2 with E1 evaluated once, computed in the computation type. GCC evaluates
@@ -526,7 +587,20 @@ value::Value Execution::increment(const ast::UnaryExpr* expr) {
 // C17 6.5.15: only the selected operand is evaluated. GNU `c ?: b` yields the condition, converted to the result type
 // by sema, if it is not 0.
 value::Value Execution::conditional(const ast::ConditionalExpr* expr, bool isValueUsed) {
-    const value::Value condition = rvalue(expr->condition());
+    value::Value condition;
+    const ast::Expr* selected = selectOperand(expr, condition);
+    if (selected == nullptr) {
+        return condition;
+    }
+    if (!isValueUsed || types_.describe(expr->type()).representation == Representation::Void) {
+        effect(selected);
+        return {};
+    }
+    return rvalue(selected);
+}
+
+const ast::Expr* Execution::selectOperand(const ast::ConditionalExpr* expr, value::Value& condition) {
+    condition = rvalue(expr->condition());
     const bool outcome =
         condition.kind() == value::Value::Kind::Integer ? condition.bits() != 0 : value::toBool(condition).bits() != 0;
     afterCondition({.construct = ConditionEvent::Construct::Conditional,
@@ -537,45 +611,9 @@ value::Value Execution::conditional(const ast::ConditionalExpr* expr, bool isVal
                     .switchValue = {},
                     .switchLabel = nullptr});
     if (expr->trueExpr() == nullptr && outcome) {
-        return condition;
+        return nullptr;
     }
-    const ast::Expr* selected = outcome ? expr->trueExpr() : expr->falseExpr();
-    if (!isValueUsed || types_.describe(expr->type()).representation == Representation::Void) {
-        effect(selected);
-        return {};
-    }
-    return rvalue(selected);
-}
-
-// A member of a struct or union rvalue, such as `f().x` (C17 6.5.2.3p3).
-value::Value Execution::memberOfRValue(const ast::MemberExpr* expr) {
-    const value::Value base = rvalue(expr->base());
-    const ast::FieldDecl* field = expr->field();
-    const ast::RecordLayout& layout = sema::layoutOf(field->parent());
-    const std::span<const std::byte> bytes = base.asBytes();
-    const std::uint64_t offset = layout.fieldOffsets[field->index()];
-    const TypeInfo type = types_.describe(field->type());
-    if (field->isBitField()) {
-        const unsigned bitOffset = layout.bitOffsets[field->index()];
-        const std::uint64_t storage = (bitOffset + field->bitWidth() + 7) / 8;
-        return value::readBitField(bytes.subspan(offset, storage), bitOffset, field->bitWidth(), type.integer);
-    }
-    const std::span<const std::byte> member = bytes.subspan(offset, type.size);
-    switch (type.representation) {
-    case Representation::Integer:
-    case Representation::Bool:
-    case Representation::Pointer:
-        return value::decodeInteger(member, type.integer);
-    case Representation::Floating:
-        return value::decodeFloat(member, type.floating);
-    case Representation::Record:
-    case Representation::VaList:
-    case Representation::Complex:
-        return value::Value::ofBytes({member.begin(), member.end()});
-    default:
-        break;
-    }
-    stop(Termination::Unsupported, "an array member of a struct that is not an object", expr->location());
+    return outcome ? expr->trueExpr() : expr->falseExpr();
 }
 
 value::Value Execution::statementExpression(const ast::StatementExpr* expr) {
@@ -589,9 +627,7 @@ value::Value Execution::statementExpression(const ast::StatementExpr* expr) {
     return std::exchange(frame.statementValue, value::Value());
 }
 
-// sizeof, _Alignof, offsetof and __builtin_types_compatible_p are integer constants except for variable length
-// arrays (C17 6.5.3.4p2).
-value::Value Execution::sizeOrAlignment(const ast::Expr* expr) {
+std::optional<value::Value> Execution::constant(const ast::Expr* expr) {
     const value::IntegerFormat format = types_.describe(expr->type()).integer;
     if (const auto known = constants_.find(expr); known != constants_.end()) {
         return value::Value::integer(static_cast<UInt128>(known->second), format);
@@ -600,17 +636,33 @@ value::Value Execution::sizeOrAlignment(const ast::Expr* expr) {
         constants_.emplace(expr, *constant);
         return value::Value::integer(static_cast<UInt128>(*constant), format);
     }
-    const auto* size = ast::dyn_cast<ast::SizeOfAlignOfExpr>(expr);
-    if (size != nullptr) {
-        const ast::QualType type = size->operand() != nullptr ? size->operand()->type() : size->typeOperand();
-        if (size->op() == ast::SizeOfAlignOfExpr::Operator::SizeOf) {
-            return value::Value::integer(sizeOf(type, expr), format);
-        }
-        ast::QualType element = type;
-        while (const auto* array = ast::dyn_cast<ast::ArrayType>(desugared(element))) {
-            element = array->element();
-        }
-        return value::Value::integer(sema::alignOf(context_, element), format);
+    return std::nullopt;
+}
+
+// sizeof and _Alignof are integer constants except for variable length arrays, whose operand is evaluated (C17
+// 6.5.3.4p2): `sizeof(m[i++])` increments i if m[i] is a variable length array.
+value::Value Execution::sizeOrAlignment(const ast::SizeOfAlignOfExpr* expr) {
+    if (std::optional<value::Value> known = constant(expr)) {
+        return std::move(*known);
+    }
+    const value::IntegerFormat format = types_.describe(expr->type()).integer;
+    const ast::QualType type = expr->operand() != nullptr ? expr->operand()->type() : expr->typeOperand();
+    if (expr->operand() != nullptr) {
+        effect(expr->operand());
+    }
+    if (expr->op() == ast::SizeOfAlignOfExpr::Operator::SizeOf) {
+        return value::Value::integer(sizeOf(type, expr), format);
+    }
+    ast::QualType element = type;
+    while (const auto* array = ast::dyn_cast<ast::ArrayType>(desugared(element))) {
+        element = array->element();
+    }
+    return value::Value::integer(sema::alignOf(context_, element), format);
+}
+
+value::Value Execution::offsetOf(const ast::OffsetOfExpr* expr) {
+    if (std::optional<value::Value> known = constant(expr)) {
+        return std::move(*known);
     }
     stop(Termination::Unsupported, "offsetof with an index that is not constant", expr->location());
 }

@@ -1,6 +1,8 @@
 #include "driver/replay.hpp"
 
 #include <algorithm>
+#include <csignal>
+#include <cstdio>
 #include <cstdlib>
 #include <format>
 #include <fstream>
@@ -326,6 +328,7 @@ interp::Directive ReplayObserver::afterArguments(const interp::CallEvent& event,
         return interp::Directive::Continue; // the program's own definition wins over the harness's weak one
     }
     const std::string_view name = event.callee->name().text();
+    hasTrapped_ = name == "__builtin_trap";
     if (name == "__assert_fail" || name == "__VERIFIER_error" || name == "reach_error") {
         errorFunction_ = std::string(name);
         return interp::Directive::Stop;
@@ -362,6 +365,12 @@ ReplayOutcome replay(const ReplayOptions& options) {
         std::println(stderr, "{}assume", marker);
         return {.exitCode = exitAssume, .abort = false};
     case interp::Termination::Abort:
+        if (observer.hasTrapped()) {
+            // GCC compiles __builtin_trap to an invalid instruction (ud2): the native run ends by SIGILL.
+            std::fflush(nullptr);
+            std::signal(SIGILL, SIG_DFL);
+            std::raise(SIGILL);
+        }
         return {.exitCode = 0, .abort = true};
     default:
         break;

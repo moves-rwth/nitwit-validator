@@ -20,6 +20,7 @@
 #include "ast/decl.hpp"
 #include "ast/expr.hpp"
 #include "ast/stmt.hpp"
+#include "interp/host_stack.hpp"
 #include "interp/interpreter.hpp"
 #include "interp/library.hpp"
 #include "interp/memory.hpp"
@@ -55,6 +56,16 @@ struct LValue {
 struct Arguments {
     std::vector<value::Value> values;
     std::vector<ast::QualType> types;
+    /// For struct and union arguments, a temporary copy of the argument object made when the argument was evaluated,
+    /// with the initialization state and origins of its bytes; 0 for the others.
+    std::vector<Address> objects;
+};
+
+/// The result of a function of the program: the value, and for a struct or union a temporary object that holds it
+/// with the initialization state and origins of its bytes (0 for other types).
+struct Returned {
+    std::optional<value::Value> value;
+    Address object = 0;
 };
 
 /// A variable length array or an alloca block: stack objects allocated while a function runs.
@@ -73,13 +84,13 @@ struct Frame {
     /// The sizes of the variable length array types evaluated in this frame (C17 6.7.6.2p5), newest last.
     std::vector<std::pair<const ast::ArrayType*, std::uint64_t>> arraySizes;
     Arguments variadic; // the arguments after the named parameters
-    /// Heap objects holding struct rvalues whose members are addressed, as in `f().a[1]` (C17 6.2.4p8); they end
-    /// with the full expression, i.e. at the next statement of the function.
+    /// Heap objects holding struct and union rvalues: arguments, results, and values whose members are addressed, as
+    /// in `f().a[1]` (C17 6.2.4p8). They end with the full expression, i.e. after the instruction that made them.
     std::vector<Address> temporaries;
     std::uint64_t serial = 0; // identifies the frame in va_list handles
     /// The number of va_list cursors when the frame was entered; those the frame made end with it.
     std::size_t vaCursorBase = 0;
-    std::optional<value::Value> result;
+    Returned result;
     value::Value statementValue; // the value of the statement expression that ended last
 };
 
@@ -121,6 +132,8 @@ private:
     [[noreturn]] void undefined(std::string message, const ast::Expr* where) const;
     [[noreturn]] void memoryError(const MemoryError& error, bool isWrite, const ast::Expr* where) const;
     void countStep();
+    /// Ends the run with a limit if the host stack is nearly exhausted (see host_stack.hpp).
+    void checkHostStack(const ast::Expr* where) const;
     /// Allocates and accounts for the memory limit; running out of memory or address space ends the run.
     Address allocate(Region region, std::uint64_t size, std::uint64_t alignment, std::string_view name,
                      const ast::Expr* where);
@@ -134,14 +147,20 @@ private:
     /// Ends the dynamic stack objects above `arrayDepth` variable length arrays.
     void releaseDynamic(Frame& frame, std::uint32_t arrayDepth);
     std::uint32_t switchTarget(const Frame& frame, const Instruction& instruction);
+    Returned returnedValue(const ast::Expr* expr);
 
     // ---- calls.cpp ----
-    value::Value call(const ast::CallExpr* call, bool isValueUsed);
+    /// Calls a function. For a struct or union result, `object` (if not null) receives the temporary object that holds
+    /// it, or 0 if there is none (library functions).
+    value::Value call(const ast::CallExpr* call, bool isValueUsed, Address* object = nullptr);
     /// The called function; null for a pointer to no function.
     const FunctionEntity* resolveCallee(const ast::CallExpr* call);
+    /// The result of a call in the representation of the call's type; empty for void.
+    std::optional<value::Value> inCallType(value::Value result, std::string_view callee, const TypeInfo& type,
+                                           const ast::Expr* where);
     void evaluateArguments(const ast::CallExpr* call, Arguments& arguments);
-    /// Runs a function of the program; the result is empty if it ended without returning a value.
-    std::optional<value::Value> invoke(const FunctionEntity& function, Arguments& arguments, const ast::CallExpr* site);
+    /// Runs a function of the program; the result has no value if the function ended without returning one.
+    Returned invoke(const FunctionEntity& function, Arguments& arguments, const ast::CallExpr* site);
     void enterFrame(Frame& frame, const FunctionEntity& function, Arguments& arguments, const ast::CallExpr* site);
     void checkCallWithoutPrototype(const ast::FunctionType& definition, const Arguments& arguments,
                                    const ast::CallExpr* site);
@@ -176,12 +195,20 @@ private:
     value::Value comparison(ast::BinaryOperator op, const ast::BinaryExpr* expr);
     value::Value logical(const ast::BinaryExpr* expr);
     value::Value assignment(const ast::BinaryExpr* expr, bool isValueUsed);
+    [[nodiscard]] bool isLeftOperandFirst(const ast::BinaryExpr* expr) const;
+    /// A struct or union assignment; returns the assigned object.
+    Address assignRecord(const ast::BinaryExpr* expr);
     value::Value compoundAssignment(const ast::BinaryExpr* expr);
     value::Value increment(const ast::UnaryExpr* expr);
     value::Value conditional(const ast::ConditionalExpr* expr, bool isValueUsed);
-    value::Value memberOfRValue(const ast::MemberExpr* expr);
+    /// Evaluates the condition of `?:` and reports it; returns the selected operand, or null if GNU `c ?: b` yields
+    /// the condition's value, which is then in `condition`.
+    const ast::Expr* selectOperand(const ast::ConditionalExpr* expr, value::Value& condition);
     value::Value statementExpression(const ast::StatementExpr* expr);
-    value::Value sizeOrAlignment(const ast::Expr* expr);
+    value::Value sizeOrAlignment(const ast::SizeOfAlignOfExpr* expr);
+    value::Value offsetOf(const ast::OffsetOfExpr* expr);
+    /// An integer constant expression of sema, evaluated once per run.
+    std::optional<value::Value> constant(const ast::Expr* expr);
     value::Value literal(const ast::Expr* expr);
     /// Reports an operation's undefined behaviour if it continues with the hardware result (signed overflow, shifts,
     /// out-of-range floating conversions) and ends the run for division by zero.
@@ -192,17 +219,23 @@ private:
     Address variableAddress(const ast::VarDecl* decl, const ast::Expr* where);
     Address functionAddress(const ast::FunctionDecl* decl);
     LValue member(const ast::MemberExpr* expr);
-    /// An object holding the value of a struct or union rvalue, so that its members have addresses.
-    Address temporary(const ast::Expr* record);
+    /// An object that holds the value of a struct or union rvalue expression, with the initialization state and
+    /// origins of its bytes: the object read for an lvalue, the result object of a call, or a new temporary.
+    Address recordObject(const ast::Expr* expr);
+    /// A heap object that lives until the instruction of `owner` (the current frame if null) has finished.
+    Address temporary(std::uint64_t size, Frame* owner, const ast::Expr* where);
     void releaseTemporaries(Frame& frame);
     /// Reads a scalar or the bytes of a record. A read of uninitialized bytes asks the oracle (UninitializedRead) and
     /// stores the answer, so that later reads agree. `site` is the expression that designates the object.
     value::Value load(const LValue& object, ast::QualType type, const ast::Expr* site);
+    value::Value loadBitField(const LValue& object, const TypeInfo& type, const ast::Expr* site);
     /// Writes a value of `type`; returns the value the object then holds (truncated for bit-fields).
     value::Value store(const LValue& object, ast::QualType type, const value::Value& stored, const ast::Expr* where);
-    /// Writes the value of a record-typed rvalue expression to `destination`. A record read from an object is copied
-    /// with its initialization state and origins.
+    /// Writes the value of a struct or union rvalue expression to `destination`, with the initialization state and
+    /// origins of its bytes.
     void storeRecord(Address destination, std::uint64_t size, const ast::Expr* source);
+    /// Memory::copy with the failing side reported.
+    void copyObject(Address destination, Address source, std::uint64_t size, const ast::Expr* where);
     std::vector<std::byte> readBytes(Address address, std::uint64_t size, const ast::Expr* where);
     void writeBytes(Address address, std::span<const std::byte> bytes, const ast::Expr* where);
     /// The size of a type, also of a variable length array type in the current frame.
@@ -232,12 +265,12 @@ private:
     LValue compoundLiteral(const ast::CompoundLiteralExpr* literal);
 
     // ---- builtins.cpp ----
-    /// The builtins whose arguments are lvalues, unevaluated, or only types (va_start, __builtin_constant_p, ...);
-    /// they evaluate their arguments themselves.
-    std::optional<value::Value> builtin(const FunctionEntity& function, const ast::CallExpr* call);
-    /// The other builtins of the evaluator, with evaluated arguments.
-    std::optional<value::Value> callBuiltin(const FunctionEntity& function, const ast::CallExpr* call,
-                                            Arguments& arguments);
+    /// The builtins whose arguments are lvalues, unevaluated, or only types (va_start, __builtin_constant_p, ...):
+    /// they get the argument expressions and evaluate them themselves.
+    std::optional<value::Value> builtinOnExpressions(const FunctionEntity& function, const ast::CallExpr* call);
+    /// The other builtins of the evaluator, with the evaluated arguments.
+    std::optional<value::Value> builtinOnValues(const FunctionEntity& function, const ast::CallExpr* call,
+                                                Arguments& arguments);
     /// The address of the va_list object an argument designates (or points to, as CIL writes it).
     Address vaListAddress(const ast::Expr* list);
     /// The cursor a va_list object's bytes refer to; undefined if there is none or its frame has returned.
@@ -287,6 +320,10 @@ private:
 
     /// While the observer evaluates a constraint: undefined behaviour and side effects are errors.
     bool isEvaluatingConstraint_ = false;
+    /// Whether evaluations are steps of the program that the observer sees: not while static storage is initialized
+    /// or a constraint is evaluated.
+    bool isReporting_ = false;
+    std::optional<HostStack> hostStack_;        // of the thread that runs
     const value::Value* returnValue_ = nullptr; // \result during a ReturnEvent
     SourceLocation location_;                   // of the statement being executed, for messages
 };
