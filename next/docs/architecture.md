@@ -45,7 +45,8 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
 
 ### Tokens and preprocessing
 
-- The lexer turns a whole file into a `std::vector<Token>`. It handles line markers and `#pragma` itself.
+- The lexer turns a whole file into a `std::vector<Token>`. It handles line markers itself. It passes each `#pragma`
+  on as one `Pragma` token, and the parser applies `pack` (to record layouts) and `weak`.
 - For any other directive it reports that the file needs preprocessing. The driver then runs the system `cpp`
   (`-m32`/`-m64`, line markers kept) and lexes the result.
 - Columns in lines that contain macro invocations are approximate in that case. An own preprocessor that tracks

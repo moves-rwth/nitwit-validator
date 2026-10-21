@@ -20,7 +20,8 @@ Declarations are processed in source order, function bodies once their declarati
   - attributes: `aligned`, `packed`, `mode` (QI, HI, SI, DI, TI, word, pointer), `noreturn`, `transparent_union`
     (ignored), `vector_size` (rejected); other attributes are ignored silently.
 - **Record layouts:** the System V ABI as GCC implements it, for i386 and x86-64. That covers the GCC bit-field
-  allocation rules, `packed`, `aligned`, zero-length arrays, flexible array members, and unions.
+  allocation rules, `packed`, `aligned`, `#pragma pack` (`RecordDecl::maxFieldAlignment`), zero-length arrays, flexible
+  array members, and unions. 830 corpus programs use `#pragma pack`.
 - **Expressions:** C17 6.5 in full.
   - Integer promotions and the usual arithmetic conversions.
   - The type of each integer literal (C17 6.4.4.1p5 with GCC's handling of values above `long long`).
