@@ -126,7 +126,8 @@ public:
 
     [[nodiscard]] QualType element() const { return element_; }
     [[nodiscard]] SizeKind sizeKind() const { return sizeKind_; }
-    /// The size expression as written; null for `[]` and for arrays created with a constant size.
+    /// The size expression as written; null for `[]` and for arrays created with a constant size. For a variable
+    /// length array, sema replaces it by its converted form, which the interpreter evaluates.
     [[nodiscard]] Expr* sizeExpression() const { return sizeExpression_; }
     /// Number of elements; requires SizeKind::Constant.
     [[nodiscard]] std::uint64_t size() const;
@@ -134,10 +135,11 @@ public:
     // Resolution by sema.
     void resolveConstantSize(std::uint64_t size) const;
     void resolveVariableSize() const;
+    void setSizeExpression(Expr* sizeExpression) const { sizeExpression_ = sizeExpression; }
 
 private:
     QualType element_;
-    Expr* sizeExpression_ = nullptr;
+    mutable Expr* sizeExpression_ = nullptr;
     mutable SizeKind sizeKind_;
     mutable std::uint64_t size_ = 0;
 };

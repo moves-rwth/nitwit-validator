@@ -230,8 +230,14 @@ public:
     /// Sema replaces the type for the `mode` attribute (e.g. `typedef int int8_t __attribute__((mode(QI)))`).
     void setUnderlying(QualType type) { underlying_ = type; }
 
+    /// Sema: the GNU `aligned` attribute of the typedef, which sets the alignment of the type it names (GCC lets it
+    /// decrease the alignment too); 0 if none.
+    [[nodiscard]] std::uint64_t requestedAlignment() const { return requestedAlignment_; }
+    void setRequestedAlignment(std::uint64_t alignment) { requestedAlignment_ = alignment; }
+
 private:
     QualType underlying_;
+    std::uint64_t requestedAlignment_ = 0;
 };
 
 /// The byte offsets and bit-field positions of a record's fields, computed by sema.

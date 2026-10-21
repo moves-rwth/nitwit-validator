@@ -318,6 +318,8 @@ public:
     void setBase(Expr* base) { base_ = base; }
     [[nodiscard]] Symbol member() const { return member_; }
     [[nodiscard]] bool isArrow() const { return isArrow_; }
+    /// Sema: a rewritten `p->x` becomes `.x` of the implicit member expression for the anonymous member.
+    void setArrow(bool isArrow) { isArrow_ = isArrow; }
     [[nodiscard]] SourceLocation memberLocation() const { return memberLocation_; }
     [[nodiscard]] FieldDecl* field() const { return field_; }
     void setField(FieldDecl* field) { field_ = field; }
