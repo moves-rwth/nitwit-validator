@@ -28,7 +28,7 @@ class Program;
                                                                                 ast::AstContext& context);
 
 struct RunOptions {
-    std::uint64_t maxSteps = 0;             // statements and calls executed; 0 = unlimited
+    std::uint64_t maxSteps = 0;             // statements, conditions and calls executed; 0 = unlimited
     std::uint32_t maxCallDepth = 100000;    // nested calls
     std::uint64_t memoryLimit = 4ull << 30; // bytes of live heap and stack objects
     std::ostream* output = nullptr;         // where printf and puts write; null discards the output
