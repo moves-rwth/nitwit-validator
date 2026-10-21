@@ -1,0 +1,35 @@
+VarDecl numbers 'int []' extern <2:12>
+VarDecl numbers 'int [4]' prev 2:12 <3:5>
+VarDecl counts 'int [1]' <4:5>
+FunctionDecl sum 'int ()' <5:5>
+FunctionDecl sum 'int (int, int)' prev 5:5 <6:5>
+  VarDecl a 'int' parameter <6:13>
+  VarDecl b 'int' parameter <6:20>
+  CompoundStmt <6:23>
+    ReturnStmt <7:5>
+      BinaryExpr + 'int' <7:12>
+        ImplicitCastExpr LValueToRValue 'int' <7:12>
+          DeclRefExpr a (VarDecl at 6:13) 'int' lvalue <7:12>
+        ImplicitCastExpr LValueToRValue 'int' <7:16>
+          DeclRefExpr b (VarDecl at 6:20) 'int' lvalue <7:16>
+FunctionDecl sum 'int (int, int)' prev 6:5 <9:5>
+  VarDecl 'int' parameter <9:9>
+  VarDecl 'int' parameter <9:14>
+FunctionDecl use 'int (void)' <11:5>
+  CompoundStmt <11:15>
+    DeclarationStmt <12:5>
+      VarDecl numbers 'int [4]' extern prev 3:5 <12:16>
+    ReturnStmt <13:5>
+      CallExpr 'int' <13:12>
+        ImplicitCastExpr FunctionToPointerDecay 'int (*)(int, int)' <13:12>
+          DeclRefExpr sum (FunctionDecl at 9:5) 'int (int, int)' lvalue <13:12>
+        ImplicitCastExpr LValueToRValue 'int' <13:16>
+          ArraySubscriptExpr 'int' lvalue <13:16>
+            ImplicitCastExpr ArrayToPointerDecay 'int *' <13:16>
+              DeclRefExpr numbers (VarDecl at 12:16) 'int [4]' lvalue <13:16>
+            IntegerLiteral 0 'int' <13:24>
+        ImplicitCastExpr IntegralCast 'int' <13:28>
+          SizeOfAlignOfExpr sizeof 'unsigned long' <13:28>
+            DeclRefExpr numbers (VarDecl at 12:16) 'int [4]' lvalue <13:35>
+Locals of sum: 0=a<6:13> 1=b<6:20>
+Locals of use:

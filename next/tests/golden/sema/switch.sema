@@ -1,0 +1,45 @@
+FunctionDecl classify 'int (unsigned char, unsigned int, long)' <2:5>
+  VarDecl c 'unsigned char' parameter <2:28>
+  VarDecl u 'unsigned int' parameter <2:40>
+  VarDecl l 'long' parameter <2:48>
+  CompoundStmt <2:51>
+    SwitchStmt (cases: 3, default) <3:5>
+      ImplicitCastExpr IntegralCast 'int' <3:13>
+        ImplicitCastExpr LValueToRValue 'unsigned char' <3:13>
+          DeclRefExpr c (VarDecl at 2:28) 'unsigned char' lvalue <3:13>
+      CompoundStmt <3:16>
+        CaseStmt 97 <4:5>
+          CharacterLiteral 97 'int' <4:10>
+          CaseStmt 98 ... 122 <5:5>
+            CharacterLiteral 98 'int' <5:10>
+            CharacterLiteral 122 'int' <5:18>
+            ReturnStmt <6:9>
+              IntegerLiteral 1 'int' <6:16>
+        CaseStmt 300 <7:5>
+          IntegerLiteral 300 'int' <7:10>
+          ReturnStmt <8:9>
+            IntegerLiteral 2 'int' <8:16>
+        DefaultStmt <9:5>
+          BreakStmt <10:9>
+    SwitchStmt (cases: 1) <12:5>
+      ImplicitCastExpr LValueToRValue 'unsigned int' <12:13>
+        DeclRefExpr u (VarDecl at 2:40) 'unsigned int' lvalue <12:13>
+      CompoundStmt <12:16>
+        CaseStmt 4294967295 <13:5>
+          UnaryExpr - 'int' <13:10>
+            IntegerLiteral 1 'int' <13:11>
+          ReturnStmt <14:9>
+            IntegerLiteral 3 'int' <14:16>
+    SwitchStmt (cases: 1) <16:5>
+      ImplicitCastExpr LValueToRValue 'long' <16:13>
+        DeclRefExpr l (VarDecl at 2:48) 'long' lvalue <16:13>
+      CompoundStmt <16:16>
+        CaseStmt 1099511627776 <17:5>
+          BinaryExpr << 'long' <17:10>
+            IntegerLiteral 1l 'long' <17:10>
+            IntegerLiteral 40 'int' <17:16>
+          ReturnStmt <18:9>
+            IntegerLiteral 4 'int' <18:16>
+    ReturnStmt <20:5>
+      IntegerLiteral 0 'int' <20:12>
+Locals of classify: 0=c<2:28> 1=u<2:40> 2=l<2:48>

@@ -1,0 +1,83 @@
+FunctionDecl malloc 'void *(unsigned long)' extern implicit <3:20>
+FunctionDecl memset 'void *(void *, int, unsigned long)' extern implicit <4:5>
+FunctionDecl __builtin_expect 'long (long, long)' extern implicit <5:9>
+FunctionDecl abort 'void (void)' extern noreturn implicit <6:9>
+FunctionDecl __builtin_add_overflow 'int ()' extern implicit <8:5>
+FunctionDecl __builtin_va_start 'int ()' extern implicit <10:5>
+FunctionDecl __builtin_va_end 'int ()' extern implicit <12:5>
+FunctionDecl free 'void (void *)' extern implicit <13:5>
+FunctionDecl builtins 'void (int, ...)' <2:6>
+  VarDecl n 'int' parameter <2:19>
+  CompoundStmt <2:27>
+    DeclarationStmt <3:5>
+      VarDecl buffer 'char *' <3:11>
+        ImplicitCastExpr BitCast 'char *' <3:20>
+          CallExpr 'void *' <3:20>
+            ImplicitCastExpr FunctionToPointerDecay 'void *(*)(unsigned long)' <3:20>
+              DeclRefExpr malloc (FunctionDecl at 3:20) 'void *(unsigned long)' lvalue <3:20>
+            ImplicitCastExpr IntegralCast 'unsigned long' <3:27>
+              ImplicitCastExpr LValueToRValue 'int' <3:27>
+                DeclRefExpr n (VarDecl at 2:19) 'int' lvalue <3:27>
+    ExpressionStmt <4:5>
+      CallExpr 'void *' <4:5>
+        ImplicitCastExpr FunctionToPointerDecay 'void *(*)(void *, int, unsigned long)' <4:5>
+          DeclRefExpr memset (FunctionDecl at 4:5) 'void *(void *, int, unsigned long)' lvalue <4:5>
+        ImplicitCastExpr BitCast 'void *' <4:12>
+          ImplicitCastExpr LValueToRValue 'char *' <4:12>
+            DeclRefExpr buffer (VarDecl at 3:11) 'char *' lvalue <4:12>
+        IntegerLiteral 0 'int' <4:20>
+        ImplicitCastExpr IntegralCast 'unsigned long' <4:23>
+          ImplicitCastExpr LValueToRValue 'int' <4:23>
+            DeclRefExpr n (VarDecl at 2:19) 'int' lvalue <4:23>
+    IfStmt <5:5>
+      CallExpr 'long' <5:9>
+        ImplicitCastExpr FunctionToPointerDecay 'long (*)(long, long)' <5:9>
+          DeclRefExpr __builtin_expect (FunctionDecl at 5:9) 'long (long, long)' lvalue <5:9>
+        ImplicitCastExpr IntegralCast 'long' <5:26>
+          BinaryExpr == 'int' <5:26>
+            ImplicitCastExpr LValueToRValue 'char *' <5:26>
+              DeclRefExpr buffer (VarDecl at 3:11) 'char *' lvalue <5:26>
+            ImplicitCastExpr NullToPointer 'char *' <5:36>
+              IntegerLiteral 0 'int' <5:36>
+        ImplicitCastExpr IntegralCast 'long' <5:39>
+          IntegerLiteral 0 'int' <5:39>
+      ExpressionStmt <6:9>
+        CallExpr 'void' <6:9>
+          ImplicitCastExpr FunctionToPointerDecay 'void (*)(void)' <6:9>
+            DeclRefExpr abort (FunctionDecl at 6:9) 'void (void)' lvalue <6:9>
+    DeclarationStmt <7:5>
+      VarDecl overflow 'int' <7:9>
+    ExpressionStmt <8:5>
+      CallExpr '_Bool' <8:5>
+        ImplicitCastExpr FunctionToPointerDecay 'int (*)()' <8:5>
+          DeclRefExpr __builtin_add_overflow (FunctionDecl at 8:5) 'int ()' lvalue <8:5>
+        ImplicitCastExpr LValueToRValue 'int' <8:28>
+          DeclRefExpr n (VarDecl at 2:19) 'int' lvalue <8:28>
+        IntegerLiteral 1 'int' <8:31>
+        UnaryExpr & 'int *' <8:34>
+          DeclRefExpr overflow (VarDecl at 7:9) 'int' lvalue <8:35>
+    DeclarationStmt <9:5>
+      VarDecl ap '__builtin_va_list' <9:23>
+    ExpressionStmt <10:5>
+      CallExpr 'void' <10:5>
+        ImplicitCastExpr FunctionToPointerDecay 'int (*)()' <10:5>
+          DeclRefExpr __builtin_va_start (FunctionDecl at 10:5) 'int ()' lvalue <10:5>
+        DeclRefExpr ap (VarDecl at 9:23) '__builtin_va_list' lvalue <10:24>
+        DeclRefExpr n (VarDecl at 2:19) 'int' lvalue <10:28>
+    DeclarationStmt <11:5>
+      VarDecl next 'long' <11:10>
+        VaArgExpr (long) 'long' <11:17>
+          DeclRefExpr ap (VarDecl at 9:23) '__builtin_va_list' lvalue <11:34>
+    ExpressionStmt <12:5>
+      CallExpr 'void' <12:5>
+        ImplicitCastExpr FunctionToPointerDecay 'int (*)()' <12:5>
+          DeclRefExpr __builtin_va_end (FunctionDecl at 12:5) 'int ()' lvalue <12:5>
+        DeclRefExpr ap (VarDecl at 9:23) '__builtin_va_list' lvalue <12:22>
+    ExpressionStmt <13:5>
+      CallExpr 'void' <13:5>
+        ImplicitCastExpr FunctionToPointerDecay 'void (*)(void *)' <13:5>
+          DeclRefExpr free (FunctionDecl at 13:5) 'void (void *)' lvalue <13:5>
+        ImplicitCastExpr BitCast 'void *' <13:10>
+          ImplicitCastExpr LValueToRValue 'char *' <13:10>
+            DeclRefExpr buffer (VarDecl at 3:11) 'char *' lvalue <13:10>
+Locals of builtins: 0=n<2:19> 1=buffer<3:11> 2=overflow<7:9> 3=ap<9:23> 4=next<11:10>

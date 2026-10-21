@@ -1,0 +1,17 @@
+RecordDecl struct one max_field_align 1 size 13 align 1 <3:8>
+  FieldDecl c 'char' offset 0 <3:19>
+  FieldDecl i 'int' offset 1 <3:26>
+  FieldDecl d 'double' offset 5 <3:36>
+RecordDecl struct one_bits max_field_align 1 size 5 align 1 <4:8>
+  FieldDecl a 'char' width 4 offset 0 bit 0 <4:24>
+    IntegerLiteral 4 'int' <4:28>
+  FieldDecl b 'int' width 30 offset 0 bit 4 <4:35>
+    IntegerLiteral 30 'int' <4:39>
+RecordDecl struct two max_field_align 2 size 14 align 2 <6:8>
+  FieldDecl c 'char' offset 0 <6:19>
+  FieldDecl i 'int' offset 2 <6:26>
+  FieldDecl l 'long long' offset 6 <6:39>
+RecordDecl struct natural size 16 align 8 <8:8>
+  FieldDecl c 'char' offset 0 <8:23>
+  FieldDecl i 'int' offset 4 <8:30>
+  FieldDecl d 'double' offset 8 <8:40>

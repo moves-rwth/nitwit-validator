@@ -1,0 +1,44 @@
+EnumDecl enum unsigned_values 'unsigned int' <3:6>
+  EnumConstantDecl A 'int' value 0 <3:24>
+  EnumConstantDecl B 'int' value 1 <3:27>
+  EnumConstantDecl C 'int' value 10 <3:30>
+    IntegerLiteral 10 'int' <3:34>
+  EnumConstantDecl D 'int' value 11 <3:38>
+EnumDecl enum signed_values 'int' <4:6>
+  EnumConstantDecl NEGATIVE 'int' value -1 <4:22>
+    UnaryExpr - 'int' <4:33>
+      IntegerLiteral 1 'int' <4:34>
+  EnumConstantDecl POSITIVE 'int' value 1 <4:37>
+    IntegerLiteral 1 'int' <4:48>
+EnumDecl enum large 'unsigned long' <5:6>
+  EnumConstantDecl SMALL 'enum large' value 1 <5:14>
+    IntegerLiteral 1 'int' <5:22>
+  EnumConstantDecl BIG 'enum large' value 4294967296 <5:25>
+    IntegerLiteral 4294967296 'long' <5:31>
+EnumDecl enum tiny 'unsigned char' <6:30>
+  Attribute packed <6:21>
+  EnumConstantDecl T0 'int' value 0 <6:37>
+  EnumConstantDecl T1 'int' value 200 <6:41>
+    IntegerLiteral 200 'int' <6:46>
+EnumDecl enum derived 'unsigned int' <7:6>
+  EnumConstantDecl E0 'int' value 1 <7:16>
+    SizeOfAlignOfExpr sizeof (enum tiny) 'unsigned long' <7:21>
+  EnumConstantDecl E1 'int' value 20 <7:40>
+    BinaryExpr * 'int' <7:45>
+      DeclRefExpr C (EnumConstantDecl at 3:30) 'int' <7:45>
+      IntegerLiteral 2 'int' <7:49>
+  EnumConstantDecl E2 'int' value 120 <7:52>
+    CharacterLiteral 120 'int' <7:57>
+  EnumConstantDecl E3 'int' value 121 <7:62>
+FunctionDecl use 'int (enum unsigned_values)' <9:5>
+  VarDecl v 'enum unsigned_values' parameter <9:30>
+  CompoundStmt <9:33>
+    ReturnStmt <10:5>
+      ImplicitCastExpr IntegralCast 'int' <10:12>
+        BinaryExpr + 'unsigned int' <10:12>
+          ImplicitCastExpr IntegralCast 'unsigned int' <10:12>
+            ImplicitCastExpr LValueToRValue 'enum unsigned_values' <10:12>
+              DeclRefExpr v (VarDecl at 9:30) 'enum unsigned_values' lvalue <10:12>
+          ImplicitCastExpr IntegralCast 'unsigned int' <10:16>
+            DeclRefExpr D (EnumConstantDecl at 3:38) 'int' <10:16>
+Locals of use: 0=v<9:30>

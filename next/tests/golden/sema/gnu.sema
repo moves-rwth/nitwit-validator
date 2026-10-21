@@ -1,0 +1,75 @@
+VarDecl x 'int' <3:5>
+VarDecl widened 'typeof(x + 1l)' <4:16>
+VarDecl three 'int [3]' <5:16>
+FunctionDecl gnu 'int (int)' <7:5>
+  VarDecl y 'int' parameter <7:13>
+  CompoundStmt <7:16>
+    DeclarationStmt <8:5>
+      VarDecl copy '__auto_type' <8:17>
+        BinaryExpr * 'double' <8:24>
+          ImplicitCastExpr IntegralToFloating 'double' <8:24>
+            ImplicitCastExpr LValueToRValue 'int' <8:24>
+              DeclRefExpr y (VarDecl at 7:13) 'int' lvalue <8:24>
+          FloatingLiteral 2 'double' <8:28>
+    DeclarationStmt <9:5>
+      VarDecl max 'int' <9:9>
+        StatementExpr 'int' <9:15>
+          CompoundStmt <9:16>
+            DeclarationStmt <10:9>
+              VarDecl a 'int' <10:13>
+                ImplicitCastExpr LValueToRValue 'int' <10:17>
+                  DeclRefExpr x (VarDecl at 3:5) 'int' lvalue <10:17>
+              VarDecl b 'int' <10:20>
+                ImplicitCastExpr LValueToRValue 'int' <10:24>
+                  DeclRefExpr y (VarDecl at 7:13) 'int' lvalue <10:24>
+            ExpressionStmt <11:9>
+              ConditionalExpr 'int' <11:9>
+                BinaryExpr > 'int' <11:9>
+                  ImplicitCastExpr LValueToRValue 'int' <11:9>
+                    DeclRefExpr a (VarDecl at 10:13) 'int' lvalue <11:9>
+                  ImplicitCastExpr LValueToRValue 'int' <11:13>
+                    DeclRefExpr b (VarDecl at 10:20) 'int' lvalue <11:13>
+                ImplicitCastExpr LValueToRValue 'int' <11:17>
+                  DeclRefExpr a (VarDecl at 10:13) 'int' lvalue <11:17>
+                ImplicitCastExpr LValueToRValue 'int' <11:21>
+                  DeclRefExpr b (VarDecl at 10:20) 'int' lvalue <11:21>
+    DeclarationStmt <13:5>
+      VarDecl chosen 'long' <13:10>
+        ChooseExpr 'long' <13:19>
+          BinaryExpr == 'int' <13:41>
+            SizeOfAlignOfExpr sizeof (long) 'unsigned long' <13:41>
+            ImplicitCastExpr IntegralCast 'unsigned long' <13:57>
+              IntegerLiteral 8 'int' <13:57>
+          IntegerLiteral 1l 'long' <13:60>
+          FloatingLiteral 1 'double' <13:64>
+    DeclarationStmt <14:5>
+      VarDecl selected 'int' <14:9>
+        GenericSelectionExpr 'int' <14:20>
+          DeclRefExpr y (VarDecl at 7:13) 'int' lvalue <14:29>
+          GenericAssociation (long) <14:38>
+            IntegerLiteral 1 'int' <14:38>
+          GenericAssociation (int) <14:46>
+            IntegerLiteral 2 'int' <14:46>
+          GenericAssociation default <14:58>
+            IntegerLiteral 3 'int' <14:58>
+    ReturnStmt <15:5>
+      ImplicitCastExpr IntegralCast 'int' <15:12>
+        BinaryExpr + 'long' <15:12>
+          BinaryExpr + 'long' <15:12>
+            BinaryExpr + 'long' <15:12>
+              BinaryExpr + 'long' <15:12>
+                ImplicitCastExpr IntegralCast 'long' <15:12>
+                  ImplicitCastExpr LValueToRValue 'int' <15:12>
+                    DeclRefExpr max (VarDecl at 9:9) 'int' lvalue <15:12>
+                ImplicitCastExpr LValueToRValue 'long' <15:18>
+                  DeclRefExpr chosen (VarDecl at 13:10) 'long' lvalue <15:18>
+              ImplicitCastExpr IntegralCast 'long' <15:27>
+                ImplicitCastExpr LValueToRValue 'int' <15:27>
+                  DeclRefExpr selected (VarDecl at 14:9) 'int' lvalue <15:27>
+            ImplicitCastExpr IntegralCast 'long' <15:38>
+              TypesCompatibleExpr (typeof(x), int) 'int' <15:38>
+          ImplicitCastExpr IntegralCast 'long' <15:85>
+            CastExpr (int) FloatingToIntegral 'int' <15:85>
+              ImplicitCastExpr LValueToRValue '__auto_type' <15:90>
+                DeclRefExpr copy (VarDecl at 8:17) '__auto_type' lvalue <15:90>
+Locals of gnu: 0=y<7:13> 1=copy<8:17> 2=max<9:9> 3=a<10:13> 4=b<10:20> 5=chosen<13:10> 6=selected<14:9>

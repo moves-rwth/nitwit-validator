@@ -1,0 +1,121 @@
+FunctionDecl abort 'void (void)' extern <2:13>
+FunctionDecl __assert_fail 'void (const char *, const char *, unsigned int, const char *)' extern noreturn <3:13>
+  Attribute nothrow <4:20>
+  Attribute leaf <4:33>
+  Attribute noreturn <4:59>
+  VarDecl 'const char *' parameter <3:27>
+  VarDecl 'const char *' parameter <3:41>
+  VarDecl 'unsigned int' parameter <3:55>
+  VarDecl 'const char *' parameter <3:69>
+FunctionDecl reach_error 'void ()' <5:6>
+  CompoundStmt <5:20>
+    ExpressionStmt <5:22>
+      CallExpr 'void' <5:22>
+        ImplicitCastExpr FunctionToPointerDecay 'void (*)(const char *, const char *, unsigned int, const char *)' <5:22>
+          DeclRefExpr __assert_fail (FunctionDecl at 3:13) 'void (const char *, const char *, unsigned int, const char *)' lvalue <5:22>
+        ImplicitCastExpr NoOp 'const char *' <5:36>
+          ImplicitCastExpr ArrayToPointerDecay 'char *' <5:36>
+            StringLiteral "0" 'char [2]' lvalue <5:36>
+        ImplicitCastExpr NoOp 'const char *' <5:41>
+          ImplicitCastExpr ArrayToPointerDecay 'char *' <5:41>
+            StringLiteral "example.c" 'char [10]' lvalue <5:41>
+        ImplicitCastExpr IntegralCast 'unsigned int' <5:54>
+          IntegerLiteral 3 'int' <5:54>
+        ImplicitCastExpr NoOp 'const char *' <5:57>
+          ImplicitCastExpr ArrayToPointerDecay 'char *' <5:57>
+            StringLiteral "reach_error" 'char [12]' lvalue <5:57>
+FunctionDecl __VERIFIER_nondet_int 'int (void)' extern <6:12>
+FunctionDecl __VERIFIER_nondet_uchar 'unsigned char (void)' extern <7:22>
+FunctionDecl __VERIFIER_assert 'void (int)' <8:6>
+  VarDecl cond 'int' parameter <8:28>
+  CompoundStmt <8:34>
+    IfStmt <9:5>
+      UnaryExpr ! 'int' <9:9>
+        ImplicitCastExpr LValueToRValue 'int' <9:10>
+          ParenExpr 'int' lvalue <9:10>
+            DeclRefExpr cond (VarDecl at 8:28) 'int' lvalue <9:11>
+      CompoundStmt <9:18>
+        LabelStmt ERROR <10:5>
+          CompoundStmt <10:12>
+            ExpressionStmt <11:9>
+              CallExpr 'void' <11:9>
+                ImplicitCastExpr FunctionToPointerDecay 'void (*)()' <11:9>
+                  DeclRefExpr reach_error (FunctionDecl at 5:6) 'void ()' lvalue <11:9>
+            ExpressionStmt <12:9>
+              CallExpr 'void' <12:9>
+                ImplicitCastExpr FunctionToPointerDecay 'void (*)(void)' <12:9>
+                  DeclRefExpr abort (FunctionDecl at 2:13) 'void (void)' lvalue <12:9>
+    ReturnStmt <15:5>
+FunctionDecl main 'int ()' <18:5>
+  CompoundStmt <18:12>
+    DeclarationStmt <19:5>
+      VarDecl n 'int' <19:9>
+        CallExpr 'int' <19:13>
+          ImplicitCastExpr FunctionToPointerDecay 'int (*)(void)' <19:13>
+            DeclRefExpr __VERIFIER_nondet_int (FunctionDecl at 6:12) 'int (void)' lvalue <19:13>
+    DeclarationStmt <20:5>
+      VarDecl k 'unsigned char' <20:19>
+        CallExpr 'unsigned char' <20:23>
+          ImplicitCastExpr FunctionToPointerDecay 'unsigned char (*)(void)' <20:23>
+            DeclRefExpr __VERIFIER_nondet_uchar (FunctionDecl at 7:22) 'unsigned char (void)' lvalue <20:23>
+    IfStmt <21:5>
+      BinaryExpr || 'int' <21:9>
+        BinaryExpr < 'int' <21:9>
+          ImplicitCastExpr LValueToRValue 'int' <21:9>
+            DeclRefExpr n (VarDecl at 19:9) 'int' lvalue <21:9>
+          IntegerLiteral 0 'int' <21:13>
+        BinaryExpr > 'int' <21:18>
+          ImplicitCastExpr LValueToRValue 'int' <21:18>
+            DeclRefExpr n (VarDecl at 19:9) 'int' lvalue <21:18>
+          IntegerLiteral 1000 'int' <21:22>
+      ReturnStmt <22:9>
+        IntegerLiteral 0 'int' <22:16>
+    DeclarationStmt <23:5>
+      VarDecl sum 'int' <23:9>
+        IntegerLiteral 0 'int' <23:15>
+    ForStmt <24:5>
+      DeclarationStmt <24:10>
+        VarDecl i 'int' <24:14>
+          IntegerLiteral 1 'int' <24:18>
+      BinaryExpr <= 'int' <24:21>
+        ImplicitCastExpr LValueToRValue 'int' <24:21>
+          DeclRefExpr i (VarDecl at 24:14) 'int' lvalue <24:21>
+        ImplicitCastExpr LValueToRValue 'int' <24:26>
+          DeclRefExpr n (VarDecl at 19:9) 'int' lvalue <24:26>
+      UnaryExpr postfix ++ 'int' <24:29>
+        DeclRefExpr i (VarDecl at 24:14) 'int' lvalue <24:29>
+      ExpressionStmt <25:9>
+        BinaryExpr += 'int' <25:9>
+          DeclRefExpr sum (VarDecl at 23:9) 'int' lvalue <25:9>
+          BinaryExpr * 'int' <25:16>
+            ImplicitCastExpr LValueToRValue 'int' <25:16>
+              DeclRefExpr i (VarDecl at 24:14) 'int' lvalue <25:16>
+            ImplicitCastExpr IntegralCast 'int' <25:20>
+              ImplicitCastExpr LValueToRValue 'unsigned char' <25:20>
+                DeclRefExpr k (VarDecl at 20:19) 'unsigned char' lvalue <25:20>
+    ExpressionStmt <26:5>
+      CallExpr 'void' <26:5>
+        ImplicitCastExpr FunctionToPointerDecay 'void (*)(int)' <26:5>
+          DeclRefExpr __VERIFIER_assert (FunctionDecl at 8:6) 'void (int)' lvalue <26:5>
+        BinaryExpr == 'int' <26:23>
+          BinaryExpr * 'int' <26:23>
+            IntegerLiteral 2 'int' <26:23>
+            ImplicitCastExpr LValueToRValue 'int' <26:27>
+              DeclRefExpr sum (VarDecl at 23:9) 'int' lvalue <26:27>
+          BinaryExpr * 'int' <26:34>
+            BinaryExpr * 'int' <26:34>
+              ImplicitCastExpr LValueToRValue 'int' <26:34>
+                DeclRefExpr n (VarDecl at 19:9) 'int' lvalue <26:34>
+              ParenExpr 'int' <26:38>
+                BinaryExpr + 'int' <26:39>
+                  ImplicitCastExpr LValueToRValue 'int' <26:39>
+                    DeclRefExpr n (VarDecl at 19:9) 'int' lvalue <26:39>
+                  IntegerLiteral 1 'int' <26:43>
+            ImplicitCastExpr IntegralCast 'int' <26:48>
+              ImplicitCastExpr LValueToRValue 'unsigned char' <26:48>
+                DeclRefExpr k (VarDecl at 20:19) 'unsigned char' lvalue <26:48>
+    ReturnStmt <27:5>
+      IntegerLiteral 0 'int' <27:12>
+Locals of reach_error:
+Locals of __VERIFIER_assert: 0=cond<8:28>
+Locals of main: 0=n<19:9> 1=k<20:19> 2=sum<23:9> 3=i<24:14>

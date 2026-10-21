@@ -1,0 +1,59 @@
+RecordDecl struct <anonymous> size 4 align 2 <7:9>
+  FieldDecl lo 'short' offset 0 <8:19>
+  FieldDecl hi 'short' offset 2 <8:23>
+RecordDecl union <anonymous> size 4 align 4 <5:5>
+  FieldDecl i 'int' offset 0 <6:13>
+  FieldDecl 'struct <anonymous>' offset 0 <7:9>
+RecordDecl struct node size 24 align 8 <2:8>
+  FieldDecl value 'int' offset 0 <3:9>
+  FieldDecl next 'struct node *' offset 8 <4:18>
+  FieldDecl 'union <anonymous>' offset 16 <5:5>
+  FieldDecl flags 'unsigned int' width 3 offset 20 bit 0 <11:14>
+    IntegerLiteral 3 'int' <11:22>
+VarDecl n 'struct node' <14:13>
+VarDecl cn 'const struct node' <15:19>
+VarDecl ptr 'struct node *' <16:14>
+FunctionDecl make 'struct node (void)' <17:13>
+FunctionDecl members 'void (void)' <19:6>
+  CompoundStmt <19:20>
+    ExpressionStmt <20:5>
+      MemberExpr .value 'int' lvalue <20:5>
+        DeclRefExpr n (VarDecl at 14:13) 'struct node' lvalue <20:5>
+    ExpressionStmt <21:5>
+      MemberExpr ->value 'int' lvalue <21:5>
+        ImplicitCastExpr LValueToRValue 'struct node *' <21:5>
+          MemberExpr ->next 'struct node *' lvalue <21:5>
+            ImplicitCastExpr LValueToRValue 'struct node *' <21:5>
+              DeclRefExpr ptr (VarDecl at 16:14) 'struct node *' lvalue <21:5>
+    ExpressionStmt <22:5>
+      MemberExpr .value 'const int' lvalue <22:5>
+        DeclRefExpr cn (VarDecl at 15:19) 'const struct node' lvalue <22:5>
+    ExpressionStmt <23:5>
+      MemberExpr .i 'int' lvalue <23:5>
+        MemberExpr . 'union <anonymous>' lvalue <23:5>
+          DeclRefExpr n (VarDecl at 14:13) 'struct node' lvalue <23:5>
+    ExpressionStmt <24:5>
+      MemberExpr .hi 'short' lvalue <24:5>
+        MemberExpr . 'struct <anonymous>' lvalue <24:5>
+          MemberExpr -> 'union <anonymous>' lvalue <24:5>
+            ImplicitCastExpr LValueToRValue 'struct node *' <24:5>
+              DeclRefExpr ptr (VarDecl at 16:14) 'struct node *' lvalue <24:5>
+    ExpressionStmt <25:5>
+      MemberExpr .value 'int' <25:5>
+        CallExpr 'struct node' <25:5>
+          ImplicitCastExpr FunctionToPointerDecay 'struct node (*)(void)' <25:5>
+            DeclRefExpr make (FunctionDecl at 17:13) 'struct node (void)' lvalue <25:5>
+    ExpressionStmt <26:5>
+      BinaryExpr + 'int' <26:5>
+        ImplicitCastExpr IntegralCast 'int' <26:5>
+          ImplicitCastExpr LValueToRValue 'unsigned int' <26:5>
+            MemberExpr .flags 'unsigned int' lvalue <26:5>
+              DeclRefExpr n (VarDecl at 14:13) 'struct node' lvalue <26:5>
+        IntegerLiteral 1 'int' <26:15>
+    ExpressionStmt <27:5>
+      BinaryExpr = 'unsigned int' <27:5>
+        MemberExpr .flags 'unsigned int' lvalue <27:5>
+          DeclRefExpr n (VarDecl at 14:13) 'struct node' lvalue <27:5>
+        ImplicitCastExpr IntegralCast 'unsigned int' <27:15>
+          IntegerLiteral 5 'int' <27:15>
+Locals of members:

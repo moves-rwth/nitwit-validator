@@ -1,0 +1,47 @@
+FunctionDecl literals 'void (void)' <2:6>
+  CompoundStmt <2:21>
+    ExpressionStmt <3:5>
+      IntegerLiteral 2147483647 'int' <3:5>
+    ExpressionStmt <4:5>
+      IntegerLiteral 2147483648 'long' <4:5>
+    ExpressionStmt <5:5>
+      IntegerLiteral 2147483647 'int' <5:5>
+    ExpressionStmt <6:5>
+      IntegerLiteral 2147483648 'unsigned int' <6:5>
+    ExpressionStmt <7:5>
+      IntegerLiteral 18446744073709551615 'unsigned long' <7:5>
+    ExpressionStmt <8:5>
+      IntegerLiteral 10u 'unsigned int' <8:5>
+    ExpressionStmt <9:5>
+      IntegerLiteral 10l 'long' <9:5>
+    ExpressionStmt <10:5>
+      IntegerLiteral 10ul 'unsigned long' <10:5>
+    ExpressionStmt <11:5>
+      IntegerLiteral 10ll 'long long' <11:5>
+    ExpressionStmt <12:5>
+      IntegerLiteral 10ull 'unsigned long long' <12:5>
+    ExpressionStmt <13:5>
+      CharacterLiteral 97 'int' <13:5>
+    ExpressionStmt <14:5>
+      CharacterLiteral L 97 'int' <14:5>
+    ExpressionStmt <15:5>
+      CharacterLiteral u 97 'unsigned short' <15:5>
+    ExpressionStmt <16:5>
+      CharacterLiteral U 97 'unsigned int' <16:5>
+    ExpressionStmt <17:5>
+      FloatingLiteral 1.5f 'float' <17:5>
+    ExpressionStmt <18:5>
+      FloatingLiteral 1.5 'double' <18:5>
+    ExpressionStmt <19:5>
+      FloatingLiteral 1.5L 'long double' <19:5>
+    ExpressionStmt <20:5>
+      StringLiteral "text" 'char [5]' lvalue <20:5>
+    ExpressionStmt <21:5>
+      StringLiteral L"wide" 'int [5]' lvalue <21:5>
+    ExpressionStmt <22:5>
+      StringLiteral u"utf16" 'unsigned short [6]' lvalue <22:5>
+    ExpressionStmt <23:5>
+      StringLiteral U"utf32" 'unsigned int [6]' lvalue <23:5>
+    ExpressionStmt <24:5>
+      StringLiteral u8"utf8" 'char [5]' lvalue <24:5>
+Locals of literals:

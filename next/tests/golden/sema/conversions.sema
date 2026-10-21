@@ -1,0 +1,110 @@
+VarDecl ip 'int *' <2:6>
+VarDecl cip 'const int *' <3:12>
+VarDecl vp 'void *' <4:7>
+VarDecl cp 'char *' <5:7>
+VarDecl l 'long' <6:6>
+VarDecl d 'double' <7:8>
+VarDecl b '_Bool' <8:7>
+RecordDecl struct pair size 8 align 4 <9:8>
+  FieldDecl a 'int' offset 0 <9:19>
+  FieldDecl b 'int' offset 4 <9:22>
+VarDecl p 'struct pair' <9:27>
+VarDecl q 'struct pair' <9:30>
+VarDecl fp 'int (*)(int)' <10:7>
+FunctionDecl f 'int (int)' <11:5>
+  VarDecl 'int' parameter <11:7>
+FunctionDecl conversions 'void (void)' <13:6>
+  CompoundStmt <13:24>
+    ExpressionStmt <14:5>
+      BinaryExpr = 'long' <14:5>
+        DeclRefExpr l (VarDecl at 6:6) 'long' lvalue <14:5>
+        ImplicitCastExpr FloatingToIntegral 'long' <14:9>
+          ImplicitCastExpr LValueToRValue 'double' <14:9>
+            DeclRefExpr d (VarDecl at 7:8) 'double' lvalue <14:9>
+    ExpressionStmt <15:5>
+      BinaryExpr = 'double' <15:5>
+        DeclRefExpr d (VarDecl at 7:8) 'double' lvalue <15:5>
+        ImplicitCastExpr IntegralToFloating 'double' <15:9>
+          ImplicitCastExpr LValueToRValue 'long' <15:9>
+            DeclRefExpr l (VarDecl at 6:6) 'long' lvalue <15:9>
+    ExpressionStmt <16:5>
+      BinaryExpr = '_Bool' <16:5>
+        DeclRefExpr b (VarDecl at 8:7) '_Bool' lvalue <16:5>
+        ImplicitCastExpr FloatingToBoolean '_Bool' <16:9>
+          ImplicitCastExpr LValueToRValue 'double' <16:9>
+            DeclRefExpr d (VarDecl at 7:8) 'double' lvalue <16:9>
+    ExpressionStmt <17:5>
+      BinaryExpr = '_Bool' <17:5>
+        DeclRefExpr b (VarDecl at 8:7) '_Bool' lvalue <17:5>
+        ImplicitCastExpr PointerToBoolean '_Bool' <17:9>
+          ImplicitCastExpr LValueToRValue 'int *' <17:9>
+            DeclRefExpr ip (VarDecl at 2:6) 'int *' lvalue <17:9>
+    ExpressionStmt <18:5>
+      BinaryExpr = 'int *' <18:5>
+        DeclRefExpr ip (VarDecl at 2:6) 'int *' lvalue <18:5>
+        ImplicitCastExpr NullToPointer 'int *' <18:10>
+          IntegerLiteral 0 'int' <18:10>
+    ExpressionStmt <19:5>
+      BinaryExpr = 'int *' <19:5>
+        DeclRefExpr ip (VarDecl at 2:6) 'int *' lvalue <19:5>
+        ImplicitCastExpr NullToPointer 'int *' <19:10>
+          CastExpr (void *) NullToPointer 'void *' <19:10>
+            IntegerLiteral 0 'int' <19:18>
+    ExpressionStmt <20:5>
+      BinaryExpr = 'void *' <20:5>
+        DeclRefExpr vp (VarDecl at 4:7) 'void *' lvalue <20:5>
+        ImplicitCastExpr BitCast 'void *' <20:10>
+          ImplicitCastExpr LValueToRValue 'int *' <20:10>
+            DeclRefExpr ip (VarDecl at 2:6) 'int *' lvalue <20:10>
+    ExpressionStmt <21:5>
+      BinaryExpr = 'int *' <21:5>
+        DeclRefExpr ip (VarDecl at 2:6) 'int *' lvalue <21:5>
+        ImplicitCastExpr BitCast 'int *' <21:10>
+          ImplicitCastExpr LValueToRValue 'void *' <21:10>
+            DeclRefExpr vp (VarDecl at 4:7) 'void *' lvalue <21:10>
+    ExpressionStmt <22:5>
+      BinaryExpr = 'const int *' <22:5>
+        DeclRefExpr cip (VarDecl at 3:12) 'const int *' lvalue <22:5>
+        ImplicitCastExpr NoOp 'const int *' <22:11>
+          ImplicitCastExpr LValueToRValue 'int *' <22:11>
+            DeclRefExpr ip (VarDecl at 2:6) 'int *' lvalue <22:11>
+    ExpressionStmt <23:5>
+      BinaryExpr = 'int *' <23:5>
+        DeclRefExpr ip (VarDecl at 2:6) 'int *' lvalue <23:5>
+        ImplicitCastExpr NoOp 'int *' <23:10>
+          ImplicitCastExpr LValueToRValue 'const int *' <23:10>
+            DeclRefExpr cip (VarDecl at 3:12) 'const int *' lvalue <23:10>
+    ExpressionStmt <24:5>
+      BinaryExpr = 'char *' <24:5>
+        DeclRefExpr cp (VarDecl at 5:7) 'char *' lvalue <24:5>
+        ImplicitCastExpr BitCast 'char *' <24:10>
+          ImplicitCastExpr LValueToRValue 'int *' <24:10>
+            DeclRefExpr ip (VarDecl at 2:6) 'int *' lvalue <24:10>
+    ExpressionStmt <25:5>
+      BinaryExpr = 'int *' <25:5>
+        DeclRefExpr ip (VarDecl at 2:6) 'int *' lvalue <25:5>
+        ImplicitCastExpr IntegralToPointer 'int *' <25:10>
+          ImplicitCastExpr LValueToRValue 'long' <25:10>
+            DeclRefExpr l (VarDecl at 6:6) 'long' lvalue <25:10>
+    ExpressionStmt <26:5>
+      BinaryExpr = 'long' <26:5>
+        DeclRefExpr l (VarDecl at 6:6) 'long' lvalue <26:5>
+        ImplicitCastExpr PointerToIntegral 'long' <26:9>
+          ImplicitCastExpr LValueToRValue 'int *' <26:9>
+            DeclRefExpr ip (VarDecl at 2:6) 'int *' lvalue <26:9>
+    ExpressionStmt <27:5>
+      BinaryExpr = 'struct pair' <27:5>
+        DeclRefExpr p (VarDecl at 9:27) 'struct pair' lvalue <27:5>
+        ImplicitCastExpr LValueToRValue 'struct pair' <27:9>
+          DeclRefExpr q (VarDecl at 9:30) 'struct pair' lvalue <27:9>
+    ExpressionStmt <28:5>
+      BinaryExpr = 'int (*)(int)' <28:5>
+        DeclRefExpr fp (VarDecl at 10:7) 'int (*)(int)' lvalue <28:5>
+        ImplicitCastExpr FunctionToPointerDecay 'int (*)(int)' <28:10>
+          DeclRefExpr f (FunctionDecl at 11:5) 'int (int)' lvalue <28:10>
+    ExpressionStmt <29:5>
+      BinaryExpr = 'int (*)(int)' <29:5>
+        DeclRefExpr fp (VarDecl at 10:7) 'int (*)(int)' lvalue <29:5>
+        UnaryExpr & 'int (*)(int)' <29:10>
+          DeclRefExpr f (FunctionDecl at 11:5) 'int (int)' lvalue <29:11>
+Locals of conversions:

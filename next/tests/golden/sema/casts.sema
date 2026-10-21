@@ -1,0 +1,60 @@
+RecordDecl union number size 8 align 8 <2:7>
+  FieldDecl i 'int' offset 0 <2:20>
+  FieldDecl d 'double' offset 0 <2:30>
+VarDecl i 'int' <3:5>
+VarDecl d 'double' <4:8>
+VarDecl p 'int *' <5:6>
+VarDecl l 'long' <6:6>
+FunctionDecl casts 'void (void)' <8:6>
+  CompoundStmt <8:18>
+    ExpressionStmt <9:5>
+      CastExpr (double) IntegralToFloating 'double' <9:5>
+        ImplicitCastExpr LValueToRValue 'int' <9:13>
+          DeclRefExpr i (VarDecl at 3:5) 'int' lvalue <9:13>
+    ExpressionStmt <10:5>
+      CastExpr (int) FloatingToIntegral 'int' <10:5>
+        ImplicitCastExpr LValueToRValue 'double' <10:10>
+          DeclRefExpr d (VarDecl at 4:8) 'double' lvalue <10:10>
+    ExpressionStmt <11:5>
+      CastExpr (char) IntegralCast 'char' <11:5>
+        ImplicitCastExpr LValueToRValue 'int' <11:11>
+          DeclRefExpr i (VarDecl at 3:5) 'int' lvalue <11:11>
+    ExpressionStmt <12:5>
+      CastExpr (_Bool) FloatingToBoolean '_Bool' <12:5>
+        ImplicitCastExpr LValueToRValue 'double' <12:12>
+          DeclRefExpr d (VarDecl at 4:8) 'double' lvalue <12:12>
+    ExpressionStmt <13:5>
+      CastExpr (_Bool) PointerToBoolean '_Bool' <13:5>
+        ImplicitCastExpr LValueToRValue 'int *' <13:12>
+          DeclRefExpr p (VarDecl at 5:6) 'int *' lvalue <13:12>
+    ExpressionStmt <14:5>
+      CastExpr (long) PointerToIntegral 'long' <14:5>
+        ImplicitCastExpr LValueToRValue 'int *' <14:11>
+          DeclRefExpr p (VarDecl at 5:6) 'int *' lvalue <14:11>
+    ExpressionStmt <15:5>
+      CastExpr (int *) IntegralToPointer 'int *' <15:5>
+        ImplicitCastExpr LValueToRValue 'long' <15:12>
+          DeclRefExpr l (VarDecl at 6:6) 'long' lvalue <15:12>
+    ExpressionStmt <16:5>
+      CastExpr (char *) BitCast 'char *' <16:5>
+        ImplicitCastExpr LValueToRValue 'int *' <16:13>
+          DeclRefExpr p (VarDecl at 5:6) 'int *' lvalue <16:13>
+    ExpressionStmt <17:5>
+      CastExpr (const int *) NoOp 'const int *' <17:5>
+        ImplicitCastExpr LValueToRValue 'int *' <17:18>
+          DeclRefExpr p (VarDecl at 5:6) 'int *' lvalue <17:18>
+    ExpressionStmt <18:5>
+      CastExpr (int *) NullToPointer 'int *' <18:5>
+        IntegerLiteral 0 'int' <18:12>
+    ExpressionStmt <19:5>
+      CastExpr (void) ToVoid 'void' <19:5>
+        DeclRefExpr i (VarDecl at 3:5) 'int' lvalue <19:11>
+    ExpressionStmt <20:5>
+      CastExpr (union number) NoOp 'union number' <20:5>
+        ImplicitCastExpr LValueToRValue 'double' <20:19>
+          DeclRefExpr d (VarDecl at 4:8) 'double' lvalue <20:19>
+    ExpressionStmt <21:5>
+      CastExpr (int) IntegralCast 'int' <21:5>
+        CastExpr (char) IntegralCast 'char' <21:10>
+          IntegerLiteral 300 'int' <21:16>
+Locals of casts:

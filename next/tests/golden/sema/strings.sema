@@ -1,0 +1,32 @@
+VarDecl text 'char [6]' <2:6>
+  StringLiteral "hello" 'char [6]' lvalue <2:15>
+VarDecl braced 'char [3]' <3:6>
+  StringLiteral "hi" 'char [3]' lvalue <3:19>
+VarDecl exact 'char [3]' <4:6>
+  StringLiteral "abc" 'char [4]' lvalue <4:17>
+VarDecl padded 'char [8]' <5:6>
+  StringLiteral "ab" 'char [3]' lvalue <5:18>
+VarDecl pointer 'const char *' <6:13>
+  ImplicitCastExpr NoOp 'const char *' <6:23>
+    ImplicitCastExpr ArrayToPointerDecay 'char *' <6:23>
+      StringLiteral "constant" 'char [9]' lvalue <6:23>
+VarDecl names 'char [2][4]' <7:6>
+  InitListExpr semantic 'char [2][4]' <7:19>
+    StringLiteral "ab" 'char [3]' lvalue <7:21>
+    StringLiteral "cde" 'char [4]' lvalue <7:27>
+RecordDecl struct record size 12 align 4 <8:8>
+  FieldDecl name 'char [8]' offset 0 <8:22>
+  FieldDecl id 'int' offset 8 <8:35>
+VarDecl r 'struct record' <8:41>
+  InitListExpr semantic 'struct record' <8:45>
+    StringLiteral "nitwit" 'char [7]' lvalue <8:47>
+    IntegerLiteral 4 'int' <8:57>
+VarDecl wide 'int [5]' <9:5>
+  StringLiteral L"wide" 'int [5]' lvalue <9:14>
+FunctionDecl name 'const char *(void)' <11:13>
+  CompoundStmt <11:24>
+    ReturnStmt <12:5>
+      ImplicitCastExpr NoOp 'const char *' <12:12>
+        ImplicitCastExpr ArrayToPointerDecay 'char *' <12:12>
+          StringLiteral "name" 'char [5]' lvalue <12:12>
+Locals of name:

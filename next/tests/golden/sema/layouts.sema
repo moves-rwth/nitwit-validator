@@ -1,0 +1,53 @@
+RecordDecl struct padded size 24 align 8 <2:8>
+  FieldDecl c 'char' offset 0 <2:22>
+  FieldDecl i 'int' offset 4 <2:29>
+  FieldDecl s 'short' offset 8 <2:38>
+  FieldDecl l 'long' offset 16 <2:46>
+RecordDecl struct bits size 24 align 8 <3:8>
+  FieldDecl a 'unsigned int' width 3 offset 0 bit 0 <3:24>
+    IntegerLiteral 3 'int' <3:28>
+  FieldDecl b 'unsigned int' width 5 offset 0 bit 3 <3:40>
+    IntegerLiteral 5 'int' <3:44>
+  FieldDecl 'unsigned int' width 0 offset 4 bit 0 <3:47>
+    IntegerLiteral 0 'int' <3:58>
+  FieldDecl c 'char' offset 4 <3:66>
+  FieldDecl d 'long long' width 40 offset 8 bit 0 <3:79>
+    IntegerLiteral 40 'int' <3:83>
+  FieldDecl e 'int' width 25 offset 16 bit 0 <3:91>
+    IntegerLiteral 25 'int' <3:95>
+RecordDecl struct packed packed size 7 align 1 <4:32>
+  Attribute packed <4:23>
+  FieldDecl c 'char' offset 0 <4:46>
+  FieldDecl i 'int' offset 1 <4:53>
+  FieldDecl s 'short' offset 5 <4:62>
+RecordDecl struct member_packed size 16 align 8 <5:8>
+  FieldDecl c 'char' offset 0 <5:29>
+  FieldDecl i 'int' packed offset 1 <5:36>
+    Attribute packed <5:53>
+  FieldDecl l 'long' offset 8 <5:68>
+RecordDecl struct aligned aligned 16 size 16 align 16 <6:37>
+  Attribute aligned <6:23>
+    IntegerLiteral 16 'int' <6:31>
+  FieldDecl c 'char' offset 0 <6:52>
+RecordDecl struct member_aligned size 16 align 8 <7:8>
+  FieldDecl c 'char' offset 0 <7:30>
+  FieldDecl i 'int' aligned 8 offset 8 <7:37>
+    Attribute aligned <7:54>
+      IntegerLiteral 8 'int' <7:62>
+RecordDecl struct flexible size 4 align 4 <8:8>
+  FieldDecl n 'int' offset 0 <8:23>
+  FieldDecl data 'char []' offset 4 <8:31>
+RecordDecl struct zero size 8 align 8 <9:8>
+  FieldDecl l 'long' offset 0 <9:20>
+  FieldDecl none 'char [0]' offset 8 <9:28>
+RecordDecl union mixed size 8 align 8 <10:7>
+  FieldDecl c 'char [5]' offset 0 <10:20>
+  FieldDecl i 'int' offset 0 <10:30>
+  FieldDecl d 'double' offset 0 <10:40>
+RecordDecl struct <anonymous> size 4 align 4 <11:63>
+  FieldDecl x 'int' offset 0 <11:76>
+RecordDecl struct nested size 48 align 8 <11:8>
+  FieldDecl tag 'char' offset 0 <11:22>
+  FieldDecl inner 'struct padded' offset 8 <11:41>
+  FieldDecl u 'union mixed' offset 32 <11:60>
+  FieldDecl 'struct <anonymous>' offset 40 <11:63>

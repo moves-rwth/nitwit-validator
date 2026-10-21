@@ -1,0 +1,116 @@
+VarDecl a 'int [10]' <2:5>
+VarDecl m 'int [3][4]' <3:5>
+VarDecl p 'int *' <4:6>
+VarDecl q 'int *' <4:10>
+VarDecl v 'void *' <5:7>
+VarDecl c 'char' <6:6>
+FunctionDecl pointers 'void (void)' <8:6>
+  CompoundStmt <8:21>
+    ExpressionStmt <9:5>
+      BinaryExpr + 'int *' <9:5>
+        ImplicitCastExpr LValueToRValue 'int *' <9:5>
+          DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <9:5>
+        IntegerLiteral 1 'int' <9:9>
+    ExpressionStmt <10:5>
+      BinaryExpr + 'int *' <10:5>
+        IntegerLiteral 2 'int' <10:5>
+        ImplicitCastExpr LValueToRValue 'int *' <10:9>
+          DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <10:9>
+    ExpressionStmt <11:5>
+      BinaryExpr - 'int *' <11:5>
+        ImplicitCastExpr LValueToRValue 'int *' <11:5>
+          DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <11:5>
+        ImplicitCastExpr IntegralCast 'int' <11:9>
+          ImplicitCastExpr LValueToRValue 'char' <11:9>
+            DeclRefExpr c (VarDecl at 6:6) 'char' lvalue <11:9>
+    ExpressionStmt <12:5>
+      BinaryExpr - 'long' <12:5>
+        ImplicitCastExpr LValueToRValue 'int *' <12:5>
+          DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <12:5>
+        ImplicitCastExpr LValueToRValue 'int *' <12:9>
+          DeclRefExpr q (VarDecl at 4:10) 'int *' lvalue <12:9>
+    ExpressionStmt <13:5>
+      BinaryExpr + 'void *' <13:5>
+        ImplicitCastExpr LValueToRValue 'void *' <13:5>
+          DeclRefExpr v (VarDecl at 5:7) 'void *' lvalue <13:5>
+        IntegerLiteral 1 'int' <13:9>
+    ExpressionStmt <14:5>
+      ArraySubscriptExpr 'int' lvalue <14:5>
+        ImplicitCastExpr ArrayToPointerDecay 'int *' <14:5>
+          DeclRefExpr a (VarDecl at 2:5) 'int [10]' lvalue <14:5>
+        IntegerLiteral 3 'int' <14:7>
+    ExpressionStmt <15:5>
+      ArraySubscriptExpr 'int' lvalue <15:5>
+        ImplicitCastExpr ArrayToPointerDecay 'int *' <15:7>
+          DeclRefExpr a (VarDecl at 2:5) 'int [10]' lvalue <15:7>
+        IntegerLiteral 3 'int' <15:5>
+    ExpressionStmt <16:5>
+      ArraySubscriptExpr 'int' lvalue <16:5>
+        ImplicitCastExpr ArrayToPointerDecay 'int *' <16:5>
+          ArraySubscriptExpr 'int [4]' lvalue <16:5>
+            ImplicitCastExpr ArrayToPointerDecay 'int (*)[4]' <16:5>
+              DeclRefExpr m (VarDecl at 3:5) 'int [3][4]' lvalue <16:5>
+            IntegerLiteral 1 'int' <16:7>
+        IntegerLiteral 2 'int' <16:10>
+    ExpressionStmt <17:5>
+      UnaryExpr * 'int' lvalue <17:5>
+        ParenExpr 'int *' <17:6>
+          BinaryExpr + 'int *' <17:7>
+            ImplicitCastExpr ArrayToPointerDecay 'int *' <17:7>
+              DeclRefExpr a (VarDecl at 2:5) 'int [10]' lvalue <17:7>
+            IntegerLiteral 1 'int' <17:11>
+    ExpressionStmt <18:5>
+      UnaryExpr & 'int (*)[10]' <18:5>
+        DeclRefExpr a (VarDecl at 2:5) 'int [10]' lvalue <18:6>
+    ExpressionStmt <19:5>
+      UnaryExpr & 'int *' <19:5>
+        ArraySubscriptExpr 'int' lvalue <19:6>
+          ImplicitCastExpr ArrayToPointerDecay 'int *' <19:6>
+            DeclRefExpr a (VarDecl at 2:5) 'int [10]' lvalue <19:6>
+          IntegerLiteral 2 'int' <19:8>
+    ExpressionStmt <20:5>
+      UnaryExpr & 'int *' <20:5>
+        UnaryExpr * 'int' lvalue <20:6>
+          ImplicitCastExpr LValueToRValue 'int *' <20:7>
+            DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <20:7>
+    ExpressionStmt <21:5>
+      BinaryExpr == 'int' <21:5>
+        ImplicitCastExpr LValueToRValue 'int *' <21:5>
+          DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <21:5>
+        ImplicitCastExpr LValueToRValue 'int *' <21:10>
+          DeclRefExpr q (VarDecl at 4:10) 'int *' lvalue <21:10>
+    ExpressionStmt <22:5>
+      BinaryExpr < 'int' <22:5>
+        ImplicitCastExpr LValueToRValue 'int *' <22:5>
+          DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <22:5>
+        ImplicitCastExpr LValueToRValue 'int *' <22:9>
+          DeclRefExpr q (VarDecl at 4:10) 'int *' lvalue <22:9>
+    ExpressionStmt <23:5>
+      BinaryExpr != 'int' <23:5>
+        ImplicitCastExpr LValueToRValue 'int *' <23:5>
+          DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <23:5>
+        ImplicitCastExpr NullToPointer 'int *' <23:10>
+          IntegerLiteral 0 'int' <23:10>
+    ExpressionStmt <24:5>
+      BinaryExpr == 'int' <24:5>
+        ImplicitCastExpr NullToPointer 'int *' <24:5>
+          IntegerLiteral 0 'int' <24:5>
+        ImplicitCastExpr LValueToRValue 'int *' <24:10>
+          DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <24:10>
+    ExpressionStmt <25:5>
+      BinaryExpr == 'int' <25:5>
+        ImplicitCastExpr LValueToRValue 'int *' <25:5>
+          DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <25:5>
+        ImplicitCastExpr LValueToRValue 'void *' <25:10>
+          DeclRefExpr v (VarDecl at 5:7) 'void *' lvalue <25:10>
+    ExpressionStmt <26:5>
+      UnaryExpr ! 'int' <26:5>
+        ImplicitCastExpr LValueToRValue 'int *' <26:6>
+          DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <26:6>
+    ExpressionStmt <27:5>
+      UnaryExpr postfix ++ 'int *' <27:5>
+        DeclRefExpr p (VarDecl at 4:6) 'int *' lvalue <27:5>
+    ExpressionStmt <28:5>
+      UnaryExpr -- 'int *' <28:5>
+        DeclRefExpr q (VarDecl at 4:10) 'int *' lvalue <28:7>
+Locals of pointers:

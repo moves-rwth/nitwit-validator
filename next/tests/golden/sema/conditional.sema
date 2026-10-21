@@ -1,0 +1,81 @@
+VarDecl i 'int' <2:5>
+VarDecl d 'double' <3:8>
+VarDecl ip 'int *' <4:6>
+VarDecl cip 'const int *' <5:12>
+VarDecl vp 'void *' <6:7>
+RecordDecl struct s size 4 align 4 <7:8>
+  FieldDecl a 'int' offset 0 <7:16>
+VarDecl s1 'struct s' <7:21>
+VarDecl s2 'struct s' <7:25>
+FunctionDecl nothing 'void (void)' <8:6>
+FunctionDecl conditional 'void (int)' <10:6>
+  VarDecl c 'int' parameter <10:22>
+  CompoundStmt <10:25>
+    ExpressionStmt <11:5>
+      ConditionalExpr 'double' <11:5>
+        ImplicitCastExpr LValueToRValue 'int' <11:5>
+          DeclRefExpr c (VarDecl at 10:22) 'int' lvalue <11:5>
+        ImplicitCastExpr IntegralToFloating 'double' <11:9>
+          ImplicitCastExpr LValueToRValue 'int' <11:9>
+            DeclRefExpr i (VarDecl at 2:5) 'int' lvalue <11:9>
+        ImplicitCastExpr LValueToRValue 'double' <11:13>
+          DeclRefExpr d (VarDecl at 3:8) 'double' lvalue <11:13>
+    ExpressionStmt <12:5>
+      ConditionalExpr 'int *' <12:5>
+        ImplicitCastExpr LValueToRValue 'int' <12:5>
+          DeclRefExpr c (VarDecl at 10:22) 'int' lvalue <12:5>
+        ImplicitCastExpr LValueToRValue 'int *' <12:9>
+          DeclRefExpr ip (VarDecl at 4:6) 'int *' lvalue <12:9>
+        ImplicitCastExpr NullToPointer 'int *' <12:14>
+          IntegerLiteral 0 'int' <12:14>
+    ExpressionStmt <13:5>
+      ConditionalExpr 'const int *' <13:5>
+        ImplicitCastExpr LValueToRValue 'int' <13:5>
+          DeclRefExpr c (VarDecl at 10:22) 'int' lvalue <13:5>
+        ImplicitCastExpr NoOp 'const int *' <13:9>
+          ImplicitCastExpr LValueToRValue 'int *' <13:9>
+            DeclRefExpr ip (VarDecl at 4:6) 'int *' lvalue <13:9>
+        ImplicitCastExpr LValueToRValue 'const int *' <13:14>
+          DeclRefExpr cip (VarDecl at 5:12) 'const int *' lvalue <13:14>
+    ExpressionStmt <14:5>
+      ConditionalExpr 'void *' <14:5>
+        ImplicitCastExpr LValueToRValue 'int' <14:5>
+          DeclRefExpr c (VarDecl at 10:22) 'int' lvalue <14:5>
+        ImplicitCastExpr BitCast 'void *' <14:9>
+          ImplicitCastExpr LValueToRValue 'int *' <14:9>
+            DeclRefExpr ip (VarDecl at 4:6) 'int *' lvalue <14:9>
+        ImplicitCastExpr LValueToRValue 'void *' <14:14>
+          DeclRefExpr vp (VarDecl at 6:7) 'void *' lvalue <14:14>
+    ExpressionStmt <15:5>
+      ConditionalExpr 'struct s' <15:5>
+        ImplicitCastExpr LValueToRValue 'int' <15:5>
+          DeclRefExpr c (VarDecl at 10:22) 'int' lvalue <15:5>
+        ImplicitCastExpr LValueToRValue 'struct s' <15:9>
+          DeclRefExpr s1 (VarDecl at 7:21) 'struct s' lvalue <15:9>
+        ImplicitCastExpr LValueToRValue 'struct s' <15:14>
+          DeclRefExpr s2 (VarDecl at 7:25) 'struct s' lvalue <15:14>
+    ExpressionStmt <16:5>
+      ConditionalExpr 'void' <16:5>
+        ImplicitCastExpr LValueToRValue 'int' <16:5>
+          DeclRefExpr c (VarDecl at 10:22) 'int' lvalue <16:5>
+        CallExpr 'void' <16:9>
+          ImplicitCastExpr FunctionToPointerDecay 'void (*)(void)' <16:9>
+            DeclRefExpr nothing (FunctionDecl at 8:6) 'void (void)' lvalue <16:9>
+        CallExpr 'void' <16:21>
+          ImplicitCastExpr FunctionToPointerDecay 'void (*)(void)' <16:21>
+            DeclRefExpr nothing (FunctionDecl at 8:6) 'void (void)' lvalue <16:21>
+    ExpressionStmt <17:5>
+      ConditionalExpr ?: 'double' <17:5>
+        ImplicitCastExpr IntegralToFloating 'double' <17:5>
+          ImplicitCastExpr LValueToRValue 'int' <17:5>
+            DeclRefExpr i (VarDecl at 2:5) 'int' lvalue <17:5>
+        ImplicitCastExpr LValueToRValue 'double' <17:10>
+          DeclRefExpr d (VarDecl at 3:8) 'double' lvalue <17:10>
+    ExpressionStmt <18:5>
+      ConditionalExpr ?: 'void *' <18:5>
+        ImplicitCastExpr BitCast 'void *' <18:5>
+          ImplicitCastExpr LValueToRValue 'int *' <18:5>
+            DeclRefExpr ip (VarDecl at 4:6) 'int *' lvalue <18:5>
+        ImplicitCastExpr LValueToRValue 'void *' <18:11>
+          DeclRefExpr vp (VarDecl at 6:7) 'void *' lvalue <18:11>
+Locals of conditional: 0=c<10:22>

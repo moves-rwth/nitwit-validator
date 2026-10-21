@@ -1,0 +1,140 @@
+VarDecl c 'char' <2:6>
+VarDecl uc 'unsigned char' <3:15>
+VarDecl s 'short' <4:7>
+VarDecl us 'unsigned short' <5:16>
+VarDecl i 'int' <6:5>
+VarDecl u 'unsigned int' <7:10>
+VarDecl l 'long' <8:6>
+VarDecl ul 'unsigned long' <9:15>
+VarDecl ll 'long long' <10:11>
+VarDecl f 'float' <11:7>
+VarDecl d 'double' <12:8>
+VarDecl ld 'long double' <13:13>
+VarDecl b '_Bool' <14:7>
+EnumDecl enum color 'unsigned int' <15:6>
+  EnumConstantDecl RED 'int' value 0 <15:14>
+  EnumConstantDecl GREEN 'int' value 1 <15:19>
+VarDecl e 'enum color' <15:27>
+FunctionDecl arithmetic 'void (void)' <17:6>
+  CompoundStmt <17:23>
+    ExpressionStmt <18:5>
+      BinaryExpr + 'int' <18:5>
+        ImplicitCastExpr IntegralCast 'int' <18:5>
+          ImplicitCastExpr LValueToRValue 'char' <18:5>
+            DeclRefExpr c (VarDecl at 2:6) 'char' lvalue <18:5>
+        ImplicitCastExpr IntegralCast 'int' <18:9>
+          ImplicitCastExpr LValueToRValue 'char' <18:9>
+            DeclRefExpr c (VarDecl at 2:6) 'char' lvalue <18:9>
+    ExpressionStmt <19:5>
+      BinaryExpr * 'int' <19:5>
+        ImplicitCastExpr IntegralCast 'int' <19:5>
+          ImplicitCastExpr LValueToRValue 'unsigned char' <19:5>
+            DeclRefExpr uc (VarDecl at 3:15) 'unsigned char' lvalue <19:5>
+        ImplicitCastExpr IntegralCast 'int' <19:10>
+          ImplicitCastExpr LValueToRValue 'short' <19:10>
+            DeclRefExpr s (VarDecl at 4:7) 'short' lvalue <19:10>
+    ExpressionStmt <20:5>
+      BinaryExpr + 'unsigned int' <20:5>
+        ImplicitCastExpr IntegralCast 'unsigned int' <20:5>
+          ImplicitCastExpr LValueToRValue 'int' <20:5>
+            DeclRefExpr i (VarDecl at 6:5) 'int' lvalue <20:5>
+        ImplicitCastExpr LValueToRValue 'unsigned int' <20:9>
+          DeclRefExpr u (VarDecl at 7:10) 'unsigned int' lvalue <20:9>
+    ExpressionStmt <21:5>
+      BinaryExpr - 'long' <21:5>
+        ImplicitCastExpr LValueToRValue 'long' <21:5>
+          DeclRefExpr l (VarDecl at 8:6) 'long' lvalue <21:5>
+        ImplicitCastExpr IntegralCast 'long' <21:9>
+          ImplicitCastExpr LValueToRValue 'unsigned int' <21:9>
+            DeclRefExpr u (VarDecl at 7:10) 'unsigned int' lvalue <21:9>
+    ExpressionStmt <22:5>
+      BinaryExpr / 'unsigned long long' <22:5>
+        ImplicitCastExpr IntegralCast 'unsigned long long' <22:5>
+          ImplicitCastExpr LValueToRValue 'long long' <22:5>
+            DeclRefExpr ll (VarDecl at 10:11) 'long long' lvalue <22:5>
+        ImplicitCastExpr IntegralCast 'unsigned long long' <22:10>
+          ImplicitCastExpr LValueToRValue 'unsigned long' <22:10>
+            DeclRefExpr ul (VarDecl at 9:15) 'unsigned long' lvalue <22:10>
+    ExpressionStmt <23:5>
+      BinaryExpr * 'float' <23:5>
+        ImplicitCastExpr IntegralToFloating 'float' <23:5>
+          ImplicitCastExpr LValueToRValue 'int' <23:5>
+            DeclRefExpr i (VarDecl at 6:5) 'int' lvalue <23:5>
+        ImplicitCastExpr LValueToRValue 'float' <23:9>
+          DeclRefExpr f (VarDecl at 11:7) 'float' lvalue <23:9>
+    ExpressionStmt <24:5>
+      BinaryExpr + 'double' <24:5>
+        ImplicitCastExpr FloatingCast 'double' <24:5>
+          ImplicitCastExpr LValueToRValue 'float' <24:5>
+            DeclRefExpr f (VarDecl at 11:7) 'float' lvalue <24:5>
+        ImplicitCastExpr LValueToRValue 'double' <24:9>
+          DeclRefExpr d (VarDecl at 12:8) 'double' lvalue <24:9>
+    ExpressionStmt <25:5>
+      BinaryExpr - 'long double' <25:5>
+        ImplicitCastExpr LValueToRValue 'long double' <25:5>
+          DeclRefExpr ld (VarDecl at 13:13) 'long double' lvalue <25:5>
+        ImplicitCastExpr IntegralToFloating 'long double' <25:10>
+          ImplicitCastExpr LValueToRValue 'long long' <25:10>
+            DeclRefExpr ll (VarDecl at 10:11) 'long long' lvalue <25:10>
+    ExpressionStmt <26:5>
+      BinaryExpr + 'int' <26:5>
+        ImplicitCastExpr IntegralCast 'int' <26:5>
+          ImplicitCastExpr LValueToRValue '_Bool' <26:5>
+            DeclRefExpr b (VarDecl at 14:7) '_Bool' lvalue <26:5>
+        ImplicitCastExpr IntegralCast 'int' <26:9>
+          ImplicitCastExpr LValueToRValue '_Bool' <26:9>
+            DeclRefExpr b (VarDecl at 14:7) '_Bool' lvalue <26:9>
+    ExpressionStmt <27:5>
+      BinaryExpr + 'unsigned int' <27:5>
+        ImplicitCastExpr IntegralCast 'unsigned int' <27:5>
+          ImplicitCastExpr LValueToRValue 'enum color' <27:5>
+            DeclRefExpr e (VarDecl at 15:27) 'enum color' lvalue <27:5>
+        ImplicitCastExpr IntegralCast 'unsigned int' <27:9>
+          IntegerLiteral 1 'int' <27:9>
+    ExpressionStmt <28:5>
+      UnaryExpr - 'int' <28:5>
+        ImplicitCastExpr IntegralCast 'int' <28:6>
+          ImplicitCastExpr LValueToRValue 'unsigned short' <28:6>
+            DeclRefExpr us (VarDecl at 5:16) 'unsigned short' lvalue <28:6>
+    ExpressionStmt <29:5>
+      UnaryExpr ~ 'int' <29:5>
+        ImplicitCastExpr IntegralCast 'int' <29:6>
+          ImplicitCastExpr LValueToRValue 'char' <29:6>
+            DeclRefExpr c (VarDecl at 2:6) 'char' lvalue <29:6>
+    ExpressionStmt <30:5>
+      BinaryExpr << 'int' <30:5>
+        ImplicitCastExpr IntegralCast 'int' <30:5>
+          ImplicitCastExpr LValueToRValue 'char' <30:5>
+            DeclRefExpr c (VarDecl at 2:6) 'char' lvalue <30:5>
+        ImplicitCastExpr LValueToRValue 'long' <30:10>
+          DeclRefExpr l (VarDecl at 8:6) 'long' lvalue <30:10>
+    ExpressionStmt <31:5>
+      BinaryExpr >> 'unsigned int' <31:5>
+        ImplicitCastExpr LValueToRValue 'unsigned int' <31:5>
+          DeclRefExpr u (VarDecl at 7:10) 'unsigned int' lvalue <31:5>
+        IntegerLiteral 3 'int' <31:10>
+    ExpressionStmt <32:5>
+      BinaryExpr % 'int' <32:5>
+        ImplicitCastExpr LValueToRValue 'int' <32:5>
+          DeclRefExpr i (VarDecl at 6:5) 'int' lvalue <32:5>
+        ImplicitCastExpr IntegralCast 'int' <32:9>
+          ImplicitCastExpr LValueToRValue 'char' <32:9>
+            DeclRefExpr c (VarDecl at 2:6) 'char' lvalue <32:9>
+    ExpressionStmt <33:5>
+      UnaryExpr ! 'int' <33:5>
+        ImplicitCastExpr LValueToRValue 'double' <33:6>
+          DeclRefExpr d (VarDecl at 12:8) 'double' lvalue <33:6>
+    ExpressionStmt <34:5>
+      BinaryExpr && 'int' <34:5>
+        ImplicitCastExpr LValueToRValue 'int' <34:5>
+          DeclRefExpr i (VarDecl at 6:5) 'int' lvalue <34:5>
+        ImplicitCastExpr LValueToRValue 'float' <34:10>
+          DeclRefExpr f (VarDecl at 11:7) 'float' lvalue <34:10>
+    ExpressionStmt <35:5>
+      BinaryExpr < 'int' <35:5>
+        ImplicitCastExpr LValueToRValue 'double' <35:5>
+          DeclRefExpr d (VarDecl at 12:8) 'double' lvalue <35:5>
+        ImplicitCastExpr IntegralToFloating 'double' <35:9>
+          ImplicitCastExpr LValueToRValue 'long' <35:9>
+            DeclRefExpr l (VarDecl at 8:6) 'long' lvalue <35:9>
+Locals of arithmetic:

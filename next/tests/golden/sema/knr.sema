@@ -1,0 +1,45 @@
+FunctionDecl add 'int ()' <2:1>
+  VarDecl a 'short' parameter <3:11>
+  VarDecl b 'double' parameter <4:12>
+  CompoundStmt <5:1>
+    ReturnStmt <6:5>
+      ImplicitCastExpr FloatingToIntegral 'int' <6:12>
+        BinaryExpr + 'double' <6:12>
+          ImplicitCastExpr IntegralToFloating 'double' <6:12>
+            ImplicitCastExpr IntegralCast 'int' <6:12>
+              ImplicitCastExpr LValueToRValue 'short' <6:12>
+                DeclRefExpr a (VarDecl at 3:11) 'short' lvalue <6:12>
+          ImplicitCastExpr LValueToRValue 'double' <6:16>
+            DeclRefExpr b (VarDecl at 4:12) 'double' lvalue <6:16>
+FunctionDecl helper 'int ()' extern implicit <11:12>
+FunctionDecl main 'int ()' <9:1>
+  CompoundStmt <9:8>
+    DeclarationStmt <10:5>
+      VarDecl x 'int' <10:9>
+        CallExpr 'int' <10:13>
+          ImplicitCastExpr FunctionToPointerDecay 'int (*)()' <10:13>
+            DeclRefExpr add (FunctionDecl at 2:1) 'int ()' lvalue <10:13>
+          IntegerLiteral 1 'int' <10:17>
+          ImplicitCastExpr FloatingCast 'double' <10:20>
+            FloatingLiteral 2.5f 'float' <10:20>
+    ReturnStmt <11:5>
+      BinaryExpr + 'int' <11:12>
+        CallExpr 'int' <11:12>
+          ImplicitCastExpr FunctionToPointerDecay 'int (*)()' <11:12>
+            DeclRefExpr helper (FunctionDecl at 11:12) 'int ()' lvalue <11:12>
+          ImplicitCastExpr LValueToRValue 'int' <11:19>
+            DeclRefExpr x (VarDecl at 10:9) 'int' lvalue <11:19>
+        CallExpr 'int' <11:24>
+          ImplicitCastExpr FunctionToPointerDecay 'int (*)()' <11:24>
+            DeclRefExpr add (FunctionDecl at 2:1) 'int ()' lvalue <11:24>
+          ImplicitCastExpr LValueToRValue 'int' <11:28>
+            DeclRefExpr x (VarDecl at 10:9) 'int' lvalue <11:28>
+FunctionDecl helper 'int ()' prev 11:12 <14:1>
+  VarDecl v 'int' parameter <14:8>
+  CompoundStmt <14:11>
+    ReturnStmt <15:5>
+      ImplicitCastExpr LValueToRValue 'int' <15:12>
+        DeclRefExpr v (VarDecl at 14:8) 'int' lvalue <15:12>
+Locals of add: 0=a<3:11> 1=b<4:12>
+Locals of main: 0=x<10:9>
+Locals of helper: 0=v<14:8>

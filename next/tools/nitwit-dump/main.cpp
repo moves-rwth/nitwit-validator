@@ -1,5 +1,5 @@
-// nitwit-dump: prints the tokens or the syntactic AST of a C file, for debugging and golden tests.
-// Usage: nitwit-dump [--tokens|--ast] [-32|-64] <file>
+// nitwit-dump: prints the tokens, the syntactic AST or the analyzed AST of a C file, for debugging and golden tests.
+// Usage: nitwit-dump [--tokens|--ast|--sema] [-32|-64] <file>
 // The output goes to stdout, diagnostics to stderr. The exit code is 0 on success, 1 if the file has errors or needs
 // the preprocessor, and 2 for a usage error.
 
@@ -10,10 +10,12 @@
 #include <string>
 #include <string_view>
 
+#include "ast/casting.hpp"
 #include "ast/context.hpp"
 #include "ast/dump.hpp"
 #include "lex/lexer.hpp"
 #include "parse/parser.hpp"
+#include "sema/sema.hpp"
 #include "support/large_stack.hpp"
 
 namespace {
@@ -23,8 +25,10 @@ using namespace nitwit;
 // The parser recurses on the host stack; deeply nested programs need more than the default 8 MiB.
 constexpr std::size_t stackBytes = std::size_t{1} << 30;
 
+enum class Mode : std::uint8_t { Tokens, Ast, Sema };
+
 struct Options {
-    bool tokens = false;
+    Mode mode = Mode::Ast;
     DataModel dataModel = DataModel::LP64;
     std::string file;
 };
@@ -34,9 +38,11 @@ std::optional<Options> parseOptions(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         const std::string_view argument = argv[i];
         if (argument == "--tokens") {
-            options.tokens = true;
+            options.mode = Mode::Tokens;
         } else if (argument == "--ast") {
-            options.tokens = false;
+            options.mode = Mode::Ast;
+        } else if (argument == "--sema") {
+            options.mode = Mode::Sema;
         } else if (argument == "-32") {
             options.dataModel = DataModel::ILP32;
         } else if (argument == "-64") {
@@ -59,6 +65,23 @@ void printDiagnostics(const DiagnosticEngine& diagnostics) {
     }
 }
 
+// The locals of every function definition with their indices, which the tree dump does not show.
+void printLocals(const ast::TranslationUnit& unit, const SourceManager& sources) {
+    for (const ast::Decl* decl : unit.decls) {
+        const auto* function = ast::dyn_cast<ast::FunctionDecl>(decl);
+        if (function == nullptr || function->body() == nullptr) {
+            continue;
+        }
+        std::print("Locals of {}:", function->name().text());
+        for (const ast::VarDecl* local : function->locals()) {
+            const LineColumn position = sources.lineColumn(local->location());
+            std::print(" {}={}<{}:{}>", local->localIndex(), local->name().empty() ? "<unnamed>" : local->name().text(),
+                       position.line, position.column);
+        }
+        std::println("");
+    }
+}
+
 int run(const Options& options) {
     SourceManager sources;
     const auto file = sources.loadFile(options.file);
@@ -75,7 +98,7 @@ int run(const Options& options) {
         return 1;
     }
 
-    if (options.tokens) {
+    if (options.mode == Mode::Tokens) {
         for (const lex::Token& token : lexed.tokens) {
             const LineColumn position = sources.lineColumn(token.location);
             std::println("{} '{}' <{}:{}>", lex::spelling(token.kind), lex::spellingOf(sources, token), position.line,
@@ -87,9 +110,15 @@ int run(const Options& options) {
 
     const TargetInfo target = TargetInfo::forDataModel(options.dataModel);
     ast::AstContext context(target, interner);
-    const ast::TranslationUnit* unit = parse::parseTranslationUnit(lexed.tokens, context, sources, diagnostics);
+    ast::TranslationUnit* unit = parse::parseTranslationUnit(lexed.tokens, context, sources, diagnostics);
+    if (unit != nullptr && options.mode == Mode::Sema && !sema::analyze(*unit, context, diagnostics)) {
+        unit = nullptr; // a partly analyzed tree is not dumped
+    }
     if (unit != nullptr) {
         std::print("{}", ast::dump(*unit, sources));
+        if (options.mode == Mode::Sema) {
+            printLocals(*unit, sources);
+        }
     }
     printDiagnostics(diagnostics);
     return unit != nullptr && !diagnostics.hasErrors() ? 0 : 1;
@@ -100,7 +129,7 @@ int run(const Options& options) {
 int main(int argc, char** argv) {
     const std::optional<Options> options = parseOptions(argc, argv);
     if (!options) {
-        std::println(stderr, "usage: nitwit-dump [--tokens|--ast] [-32|-64] <file>");
+        std::println(stderr, "usage: nitwit-dump [--tokens|--ast|--sema] [-32|-64] <file>");
         return 2;
     }
     int exitCode = 1;

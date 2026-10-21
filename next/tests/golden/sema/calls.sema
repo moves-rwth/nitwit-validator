@@ -1,0 +1,75 @@
+FunctionDecl with_prototype 'long (long, double)' <2:6>
+  VarDecl 'long' parameter <2:21>
+  VarDecl 'double' parameter <2:27>
+FunctionDecl without_prototype 'int ()' <3:5>
+FunctionDecl variadic 'int (const char *, ...)' <4:5>
+  VarDecl 'const char *' parameter <4:14>
+VarDecl callback 'void (*)(int)' <5:8>
+RecordDecl struct big size 16 align 4 <6:8>
+  FieldDecl data 'int [4]' offset 0 <6:18>
+FunctionDecl make 'struct big (struct big)' <7:12>
+  VarDecl b 'struct big' parameter <7:28>
+FunctionDecl calls 'void (char, float, short, struct big)' <9:6>
+  VarDecl c 'char' parameter <9:17>
+  VarDecl f 'float' parameter <9:26>
+  VarDecl s 'short' parameter <9:35>
+  VarDecl b 'struct big' parameter <9:49>
+  CompoundStmt <9:52>
+    ExpressionStmt <10:5>
+      CallExpr 'long' <10:5>
+        ImplicitCastExpr FunctionToPointerDecay 'long (*)(long, double)' <10:5>
+          DeclRefExpr with_prototype (FunctionDecl at 2:6) 'long (long, double)' lvalue <10:5>
+        ImplicitCastExpr IntegralCast 'long' <10:20>
+          ImplicitCastExpr LValueToRValue 'char' <10:20>
+            DeclRefExpr c (VarDecl at 9:17) 'char' lvalue <10:20>
+        ImplicitCastExpr FloatingCast 'double' <10:23>
+          ImplicitCastExpr LValueToRValue 'float' <10:23>
+            DeclRefExpr f (VarDecl at 9:26) 'float' lvalue <10:23>
+    ExpressionStmt <11:5>
+      CallExpr 'int' <11:5>
+        ImplicitCastExpr FunctionToPointerDecay 'int (*)()' <11:5>
+          DeclRefExpr without_prototype (FunctionDecl at 3:5) 'int ()' lvalue <11:5>
+        ImplicitCastExpr IntegralCast 'int' <11:23>
+          ImplicitCastExpr LValueToRValue 'char' <11:23>
+            DeclRefExpr c (VarDecl at 9:17) 'char' lvalue <11:23>
+        ImplicitCastExpr FloatingCast 'double' <11:26>
+          ImplicitCastExpr LValueToRValue 'float' <11:26>
+            DeclRefExpr f (VarDecl at 9:26) 'float' lvalue <11:26>
+        ImplicitCastExpr IntegralCast 'int' <11:29>
+          ImplicitCastExpr LValueToRValue 'short' <11:29>
+            DeclRefExpr s (VarDecl at 9:35) 'short' lvalue <11:29>
+    ExpressionStmt <12:5>
+      CallExpr 'int' <12:5>
+        ImplicitCastExpr FunctionToPointerDecay 'int (*)(const char *, ...)' <12:5>
+          DeclRefExpr variadic (FunctionDecl at 4:5) 'int (const char *, ...)' lvalue <12:5>
+        ImplicitCastExpr NoOp 'const char *' <12:14>
+          ImplicitCastExpr ArrayToPointerDecay 'char *' <12:14>
+            StringLiteral "%d %f" 'char [6]' lvalue <12:14>
+        ImplicitCastExpr IntegralCast 'int' <12:23>
+          ImplicitCastExpr LValueToRValue 'short' <12:23>
+            DeclRefExpr s (VarDecl at 9:35) 'short' lvalue <12:23>
+        ImplicitCastExpr FloatingCast 'double' <12:26>
+          ImplicitCastExpr LValueToRValue 'float' <12:26>
+            DeclRefExpr f (VarDecl at 9:26) 'float' lvalue <12:26>
+    ExpressionStmt <13:5>
+      CallExpr 'void' <13:5>
+        ImplicitCastExpr LValueToRValue 'void (*)(int)' <13:5>
+          DeclRefExpr callback (VarDecl at 5:8) 'void (*)(int)' lvalue <13:5>
+        ImplicitCastExpr IntegralCast 'int' <13:14>
+          ImplicitCastExpr LValueToRValue 'char' <13:14>
+            DeclRefExpr c (VarDecl at 9:17) 'char' lvalue <13:14>
+    ExpressionStmt <14:5>
+      CallExpr 'void' <14:5>
+        ImplicitCastExpr FunctionToPointerDecay 'void (*)(int)' <14:5>
+          ParenExpr 'void (int)' lvalue <14:5>
+            UnaryExpr * 'void (int)' lvalue <14:6>
+              ImplicitCastExpr LValueToRValue 'void (*)(int)' <14:7>
+                DeclRefExpr callback (VarDecl at 5:8) 'void (*)(int)' lvalue <14:7>
+        IntegerLiteral 1 'int' <14:17>
+    ExpressionStmt <15:5>
+      CallExpr 'struct big' <15:5>
+        ImplicitCastExpr FunctionToPointerDecay 'struct big (*)(struct big)' <15:5>
+          DeclRefExpr make (FunctionDecl at 7:12) 'struct big (struct big)' lvalue <15:5>
+        ImplicitCastExpr LValueToRValue 'struct big' <15:10>
+          DeclRefExpr b (VarDecl at 9:49) 'struct big' lvalue <15:10>
+Locals of calls: 0=c<9:17> 1=f<9:26> 2=s<9:35> 3=b<9:49>

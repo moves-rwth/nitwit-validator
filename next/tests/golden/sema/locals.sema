@@ -1,0 +1,62 @@
+VarDecl global 'int' <2:5>
+FunctionDecl locals 'int (int, char **)' <4:5>
+  VarDecl n 'int' parameter <4:16>
+  VarDecl argv 'char **' parameter <4:25>
+  CompoundStmt <4:33>
+    DeclarationStmt <5:5>
+      VarDecl total 'int' <5:9>
+        IntegerLiteral 0 'int' <5:17>
+    DeclarationStmt <6:5>
+      VarDecl calls 'int' static <6:16>
+    DeclarationStmt <7:5>
+      VarDecl global 'int' extern prev 2:5 <7:16>
+    ForStmt <8:5>
+      DeclarationStmt <8:10>
+        VarDecl i 'int' <8:14>
+          IntegerLiteral 0 'int' <8:18>
+      BinaryExpr < 'int' <8:21>
+        ImplicitCastExpr LValueToRValue 'int' <8:21>
+          DeclRefExpr i (VarDecl at 8:14) 'int' lvalue <8:21>
+        ImplicitCastExpr LValueToRValue 'int' <8:25>
+          DeclRefExpr n (VarDecl at 4:16) 'int' lvalue <8:25>
+      UnaryExpr postfix ++ 'int' <8:28>
+        DeclRefExpr i (VarDecl at 8:14) 'int' lvalue <8:28>
+      CompoundStmt <8:33>
+        DeclarationStmt <9:9>
+          VarDecl matrix 'int [n][2]' <9:13>
+        ExpressionStmt <10:9>
+          BinaryExpr += 'int' <10:9>
+            DeclRefExpr total (VarDecl at 5:9) 'int' lvalue <10:9>
+            SizeOfAlignOfExpr sizeof 'unsigned long' <10:18>
+              DeclRefExpr matrix (VarDecl at 9:13) 'int [n][2]' lvalue <10:25>
+    CompoundStmt <12:5>
+      DeclarationStmt <13:9>
+        VarDecl r 'int' register <13:22>
+          ImplicitCastExpr LValueToRValue 'int' <13:26>
+            DeclRefExpr n (VarDecl at 4:16) 'int' lvalue <13:26>
+      ExpressionStmt <14:9>
+        BinaryExpr += 'int' <14:9>
+          DeclRefExpr total (VarDecl at 5:9) 'int' lvalue <14:9>
+          ImplicitCastExpr LValueToRValue 'int' <14:18>
+            DeclRefExpr r (VarDecl at 13:22) 'int' lvalue <14:18>
+    DeclarationStmt <16:5>
+      TypedefDecl buffer 'char [n]' <16:18>
+    DeclarationStmt <17:5>
+      VarDecl b 'buffer' <17:12>
+    ReturnStmt <18:5>
+      ImplicitCastExpr IntegralCast 'int' <18:12>
+        BinaryExpr + 'unsigned long' <18:12>
+          BinaryExpr + 'unsigned long' <18:12>
+            BinaryExpr + 'unsigned long' <18:12>
+              ImplicitCastExpr IntegralCast 'unsigned long' <18:12>
+                ImplicitCastExpr LValueToRValue 'int' <18:12>
+                  DeclRefExpr total (VarDecl at 5:9) 'int' lvalue <18:12>
+              SizeOfAlignOfExpr sizeof 'unsigned long' <18:20>
+                DeclRefExpr b (VarDecl at 17:12) 'buffer' lvalue <18:27>
+            ImplicitCastExpr IntegralCast 'unsigned long' <18:31>
+              ImplicitCastExpr LValueToRValue 'int' <18:31>
+                DeclRefExpr calls (VarDecl at 6:16) 'int' lvalue <18:31>
+          ImplicitCastExpr IntegralCast 'unsigned long' <18:39>
+            ImplicitCastExpr LValueToRValue 'int' <18:39>
+              DeclRefExpr global (VarDecl at 7:16) 'int' lvalue <18:39>
+Locals of locals: 0=n<4:16> 1=argv<4:25> 2=total<5:9> 3=i<8:14> 4=matrix<9:13> 5=r<13:22> 6=b<17:12>
