@@ -14,7 +14,7 @@ namespace {
 
 constexpr std::string_view source = R"(extern int __VERIFIER_nondet_int(void);
 enum { LIMIT = 10 };
-int g;
+int g; unsigned short us;
 long f(int);
 int main(void) {
     int x = __VERIFIER_nondet_int();
@@ -101,6 +101,22 @@ TEST_F(ConstraintsTest, ResultHasTheTypeOfTheCall) {
     const auto compiled = compile("\\result == 5", 7, 17, context().builtin(ast::BuiltinKind::Long));
     ASSERT_TRUE(compiled.has_value()) << compiled.error();
     EXPECT_EQ(ast::typeToString((*compiled)->conjuncts[0].subject->type()), "long");
+}
+
+TEST_F(ConstraintsTest, TheSubjectIsWithoutTheConversionsToTheComparisonsType) {
+    // unsigned short is promoted to int, which the usual arithmetic conversions turn into unsigned int.
+    const auto compiled = compile("us == 1U");
+    ASSERT_TRUE(compiled.has_value()) << compiled.error();
+    const Conjunct& conjunct = (*compiled)->conjuncts[0];
+    EXPECT_EQ(ast::typeToString(conjunct.subject->type()), "unsigned short");
+    EXPECT_EQ(ast::typeToString(conjunct.type), "unsigned int");
+    EXPECT_EQ(ast::typeToString(conjunct.constant->type()), "unsigned int");
+}
+
+TEST_F(ConstraintsTest, WrittenCastsStayInTheSubject) {
+    const auto compiled = compile("(unsigned char)x == 1");
+    ASSERT_TRUE(compiled.has_value()) << compiled.error();
+    EXPECT_EQ(ast::typeToString((*compiled)->conjuncts[0].subject->type()), "unsigned char");
 }
 
 TEST_F(ConstraintsTest, NamesBindAsAtTheEventLocation) {

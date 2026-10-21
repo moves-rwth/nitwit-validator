@@ -21,10 +21,10 @@ namespace nitwit::validate {
 struct ProgramInput {
     SourceManager& sources;
     FileId file;
-    /// Whether `file` is the output of the external preprocessor; then waypoint lines refer to presumed lines of the
-    /// original file (architecture.md, "Source locations"). The original file is the one named `sources.name(file)`:
-    /// the driver registers the output under the path it passed to `cpp`, which the line markers repeat.
-    bool isPreprocessed = false;
+    /// For a program that went through the external preprocessor: the original program, and `file` is the
+    /// preprocessor's output. Waypoint lines then refer to presumed lines of the original file, whose lines also bound
+    /// the columns (architecture.md, "Source locations"). FileId::None otherwise.
+    FileId originalFile = FileId::None;
     ast::AstContext& context;
     const ast::TranslationUnit& unit;
     std::shared_ptr<const interp::Program> program;
@@ -34,15 +34,17 @@ struct ValidationOptions {
     std::string errorFunction = "reach_error";
     interp::RunOptions run;
     std::uint32_t maxRestarts = 1000;
+    /// The value of inputs that are neither fixed nor hinted, converted to the requested type (pointers get null).
+    std::int64_t defaultInput = 0;
     /// Progress of the validation (segments reached, restarts, why a run ended); null for none.
     std::ostream* log = nullptr;
 };
 
 enum class Verdict : std::uint8_t {
-    Confirmed,          // the error function was called in the target segment
+    Confirmed,          // the error function was called at the target, in the target segment
     LeftWitness,        // a follow waypoint failed or an avoid waypoint passed
     ProgramFinished,    // main returned or exit was called without reaching the error function
-    ErrorBeforeTarget,  // the error function was called before the target segment was reached
+    ErrorBeforeTarget,  // the error function was called before the target segment was reached, or not at the target
     TargetWithoutError, // the target segment was reached, but the program did not call the error function
     Unsupported,        // the witness or the program uses something NITWIT does not support
     Unknown,            // limits, undefined behaviour, abort, infeasible runs (__VERIFIER_assume)

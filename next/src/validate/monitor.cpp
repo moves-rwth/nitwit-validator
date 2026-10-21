@@ -18,15 +18,6 @@ bool isTrue(const value::Value& value) {
     return value::toBool(value).bits() != 0;
 }
 
-// `\result`, possibly converted for a comparison: the subject of a hint (validate/README.md, "Values").
-bool isResult(const ast::Expr* expr) {
-    expr = ast::ignoreParens(expr);
-    while (const auto* cast = ast::dyn_cast<ast::ImplicitCastExpr>(expr)) {
-        expr = ast::ignoreParens(cast->operand());
-    }
-    return ast::isa<ast::ResultExpr>(expr);
-}
-
 std::string_view nameOf(interp::ConditionEvent::Construct construct) {
     switch (construct) {
     case interp::ConditionEvent::Construct::If:
@@ -66,12 +57,12 @@ SegmentMonitor::SegmentMonitor(const witness::ViolationSequence& witness, const 
                                const std::string& errorFunction, ConstraintCompiler& constraints, WitnessOracle& oracle,
                                std::ostream* log)
     : segments_(witness.segments), program_(program), errorFunction_(errorFunction), constraints_(constraints),
-      oracle_(oracle), log_(log), locations_(program.sources, program.file, program.isPreprocessed) {
+      oracle_(oracle), log_(log), locations_(program.sources, program.file, program.originalFile, program.unit) {
     NITWIT_ASSERT(!segments_.empty(), "a violation sequence without segments");
     for (const witness::Segment& segment : segments_) {
         std::vector<Place>& places = places_.emplace_back();
         for (const witness::Waypoint& waypoint : segment.waypoints) {
-            places.push_back(locations_.place(waypoint.location));
+            places.push_back(locations_.place(waypoint.location, waypoint.type));
         }
     }
 }
@@ -79,6 +70,7 @@ SegmentMonitor::SegmentMonitor(const witness::ViolationSequence& witness, const 
 void SegmentMonitor::beginRun(std::uint32_t run) {
     run_ = run;
     current_ = 0;
+    isAtTarget_ = false;
     state_ = State::Following;
     reason_.clear();
     fixes_.clear();
@@ -109,10 +101,15 @@ interp::Directive SegmentMonitor::afterArguments(const interp::CallEvent& event,
     if (handle(call, context) == interp::Directive::Stop) {
         return interp::Directive::Stop;
     }
-    // The target waypoint passes when the error function is called while the target segment is current.
+    // The target waypoint passes when the error function is called at its location (the start of the call, where
+    // producers put it) while the target segment is current.
     if (event.callee != nullptr && event.callee->name().text() == errorFunction_) {
-        return stop(State::ErrorCalled, std::format("'{}' was called at {} in segment {} of {}", errorFunction_,
-                                                    locations_.describe(call.location), current_ + 1, segmentCount()));
+        const SourceLocation start = event.call->location();
+        isAtTarget_ = isTargetSegmentCurrent() && places_.back().back().contains(start);
+        const bool isElsewhere = isTargetSegmentCurrent() && !isAtTarget_;
+        return stop(State::ErrorCalled, std::format("'{}' was called at {} in segment {} of {}{}", errorFunction_,
+                                                    locations_.describe(start), current_ + 1, segmentCount(),
+                                                    isElsewhere ? ", not at the target" : ""));
     }
     offerHint(event, context);
     return state_ == State::Following ? interp::Directive::Continue : interp::Directive::Stop;
@@ -300,7 +297,8 @@ SegmentMonitor::Evaluation SegmentMonitor::evaluateBranching(WaypointId id, cons
         const value::Value expected = valueOf(program_.context, expectation->caseValue, type);
         passes = expected.bits() == condition.switchValue.bits();
         if (!passes && isFollow) {
-            if (std::optional<Fix> fix = resolveEqual(condition.switchValue, expected, type)) {
+            const Bound bound{.op = value::Comparison::Equal, .constant = expected, .type = type};
+            if (std::optional<Fix> fix = fixFor(condition.switchValue, type, bound)) {
                 evaluation.fixes.push_back(std::move(*fix));
             }
         }
@@ -319,34 +317,25 @@ std::optional<Fix> SegmentMonitor::resolve(const Conjunct& conjunct, interp::Eva
         return std::nullopt;
     }
     const std::expected<value::Value, std::string> subject = context.evaluate(conjunct.subject);
-    if (!subject || !isUnfixedInput(*subject)) {
-        return std::nullopt;
-    }
     const std::expected<value::Value, std::string> constant = context.evaluate(conjunct.constant);
-    if (!constant) {
+    if (!subject || !constant) {
         return std::nullopt;
     }
-    const ProvidedInput& input = oracle_.input(*subject->origin());
-    const Bound bound{.op = conjunct.op, .constant = *constant, .type = conjunct.subject->type()};
-    std::optional<value::Value> chosen = choose(program_.context, std::span(&bound, 1), input.type);
-    if (!chosen) {
-        return std::nullopt;
-    }
-    return Fix{.input = *subject->origin(), .value = std::move(*chosen)};
+    return fixFor(*subject, conjunct.subject->type(),
+                  {.op = conjunct.op, .constant = *constant, .type = conjunct.type});
 }
 
-std::optional<Fix> SegmentMonitor::resolveEqual(const value::Value& value, const value::Value& expected,
-                                                ast::QualType type) {
-    if (!isUnfixedInput(value)) {
+std::optional<Fix> SegmentMonitor::fixFor(const value::Value& subject, ast::QualType subjectType, const Bound& bound) {
+    if (!isUnfixedInput(subject)) {
         return std::nullopt;
     }
-    const ProvidedInput& input = oracle_.input(*value.origin());
-    const Bound bound{.op = value::Comparison::Equal, .constant = expected, .type = type};
-    std::optional<value::Value> chosen = choose(program_.context, std::span(&bound, 1), input.type);
+    const value::InputId input = *subject.origin();
+    std::optional<value::Value> chosen =
+        chooseInput(program_.context, std::span(&bound, 1), subjectType, oracle_.input(input).type);
     if (!chosen) {
         return std::nullopt;
     }
-    return Fix{.input = *value.origin(), .value = std::move(*chosen)};
+    return Fix{.input = input, .value = std::move(*chosen)};
 }
 
 bool SegmentMonitor::isUnfixedInput(const value::Value& value) const {
@@ -376,11 +365,11 @@ void SegmentMonitor::offerHint(const interp::CallEvent& event, interp::Evaluatio
         }
         std::vector<Bound> bounds;
         for (const Conjunct& conjunct : (*compiled)->conjuncts) {
-            if (conjunct.subject == nullptr || !isResult(conjunct.subject)) {
+            if (conjunct.subject == nullptr || !ast::isa<ast::ResultExpr>(conjunct.subject)) {
                 continue;
             }
             if (const auto constant = context.evaluate(conjunct.constant)) {
-                bounds.push_back({.op = conjunct.op, .constant = *constant, .type = conjunct.subject->type()});
+                bounds.push_back({.op = conjunct.op, .constant = *constant, .type = conjunct.type});
             }
         }
         const bool isFollow = point.action == witness::WaypointAction::Follow;

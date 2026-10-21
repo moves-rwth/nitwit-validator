@@ -34,10 +34,13 @@ struct WaypointId {
 struct Conjunct {
     const ast::Expr* expr = nullptr; // an analyzed scalar rvalue
     /// Set if the conjunct is `subject op constant`, also when written `constant op subject`: a relation that choosing
-    /// the subject's value can make true. Both operands have the comparison's type.
+    /// the subject's value can make true. The subject is without the implicit conversions to the comparison's type
+    /// (promotions, usual arithmetic conversions), which can lose the origin of an input although they keep its
+    /// value (`unsigned short` to `int` to `unsigned int`). The constant has the comparison's type.
     const ast::Expr* subject = nullptr;
     const ast::Expr* constant = nullptr;
     value::Comparison op = value::Comparison::Equal;
+    ast::QualType type; // of the comparison
 };
 
 struct CompiledConstraint {

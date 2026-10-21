@@ -36,9 +36,15 @@ witness confirmed). The format's own description is in sv-witnesses (`README.md`
 ### Evaluation points
 
 Only the waypoints of the current segment are evaluated. The location is the line plus, if given, the column (bytes,
-from 1). Without a column, every candidate in the line matches, so the first event of the waypoint's type in the line
-is its evaluation point. For a preprocessed program, lines are presumed lines of the original file. The interpreter
-reports a statement event for a label (or `case`) and again for the statement it labels; both are candidates.
+from 1). For a preprocessed program, lines are presumed lines of the original file, and a column beyond the end of the
+original line matches nothing (it points into a macro expansion, as in `testfiles/sv-comp-2019/09.assert.c`).
+
+- **Without a column**, a waypoint is evaluated at the first evaluation point of its type in the line, by column; a
+  target matches the whole line. The crafted witnesses of sv-benchmarks require this: in `ternary.1B0`, two branching
+  waypoints of line 15 without column both mean the first `?:` of the line, so the witness must be rejected.
+- **Blocks** have no evaluation point of their own (the interpreter reports no event for them). An assumption at a `{`,
+  where CPAchecker puts some, is evaluated before the first statement in the block, which runs in the same state.
+- The interpreter reports a statement event for a label (or `case`) and again for the statement it labels.
 
 Constraints are compiled at their first evaluation and kept for later runs. Their scope is that of the event's location
 in the function of the current frame, which contains the location; `location.function` is not needed for that.
@@ -49,7 +55,7 @@ in the function of the current frame, which contains the location; `location.fun
 | `branching` | after the controlling expression | keyword (`if`, `while`, `for`, `do`'s `while`, `switch`), or the `?` | the outcome is the constraint (`true`/`false`); for `switch`, the value matches the case label (or `default`: no case label matches) |
 | `function_enter` | after the arguments | the `)` of the call | always |
 | `function_return` | after the call returned | the `)` of the call | the constraint (with `\result`) holds, or there is none |
-| `target` | never | | the error function is called while the target segment is current |
+| `target` | when the error function is called | the start of the call (its name) | the target segment is current |
 
 ### Follow, avoid and progress
 
@@ -70,8 +76,8 @@ in the function of the current frame, which contains the location; `location.fun
 
   | Outcome | Exit code |
   |---|---|
-  | the error function is called while the target segment is current | 0 (confirmed) |
-  | the error function is called earlier | 252 |
+  | the error function is called at the target while the target segment is current | 0 (confirmed) |
+  | the error function is called earlier, or elsewhere | 252 |
   | the program ends (end of `main`, `exit`) | 242 |
   | the program aborts, `__VERIFIER_assume` fails, undefined behaviour without a defined result, a limit | 4 |
   | a construct the interpreter does not support | 4 |
@@ -92,7 +98,11 @@ in the function of the current frame, which contains the location; `location.fun
 - **`assumption` and `function_return` constraints:**
   - A constraint of the form `x == c` (or the other relations) on an lvalue whose value is an unmodified copy of an
     unfixed input fixes that input and restarts the run. "Unfixed" means neither fixed nor hinted. The value is
-    chosen as for hints (`x < c` gives `c - 1`, `x != c` gives 0, or 1 if `c` is 0).
+    chosen as for hints (`x < c` gives `c - 1`, `x != c` gives 0, or 1 if `c` is 0), for `x` and then converted to
+    the input's type; it must come back unchanged.
+  - `x` is taken without the conversions sema inserts for the comparison (promotions, usual arithmetic conversions):
+    in `a3 == 1U` for an `unsigned short a3`, the conversion from `int` to `unsigned int` loses the origin although it
+    keeps the value (`testfiles/sv-comp-2019/06.nondet.c`).
   - The case value of a follow `branching` waypoint at a `switch` fixes the switched value in the same way, as 3.x
     did by turning it into the assumption `condition == value`.
   - The failing conjuncts of one constraint fix all their inputs before one restart. A restart is only made when at
@@ -100,6 +110,8 @@ in the function of the current frame, which contains the location; `location.fun
   - `&&`-conjunctions are split; each part is handled alone.
   - Inputs fixed in this way stay fixed for later runs.
   - The number of restarts is limited.
+- **Defaults:** inputs that are neither fixed nor hinted get `ValidationOptions::defaultInput`, 0. NITWIT 3.x
+  effectively used 1; on the sample, 1 confirms one witness more and on `validation-crafted` six fewer.
 - **Escapes:** producer escapes like `"\result"` in double quotes are repaired by the witness parser.
 - **Stage 7 adds value search for `branching` waypoints:**
   - a condition that is an unmodified input (`if (__VERIFIER_nondet_int())`);

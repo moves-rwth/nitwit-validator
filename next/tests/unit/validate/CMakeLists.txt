@@ -1,6 +1,7 @@
 nitwit_add_unit_test(validate
     SOURCES
         constraints_test.cpp
+        end_to_end_test.cpp
         location_test.cpp
         monitor_test.cpp
         oracle_test.cpp

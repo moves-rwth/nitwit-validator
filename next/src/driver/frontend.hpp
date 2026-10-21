@@ -29,6 +29,10 @@ struct LoadedProgram {
     TargetInfo target;
     ast::AstContext context;
     std::vector<lex::Token> tokens;
+    /// The file the AST comes from: the program, or the preprocessor's output, registered under the program's path.
+    FileId file = FileId::None;
+    /// The program if `file` is the preprocessor's output; FileId::None otherwise.
+    FileId originalFile = FileId::None;
     ast::TranslationUnit* unit = nullptr;
     std::shared_ptr<const interp::Program> program;
 };

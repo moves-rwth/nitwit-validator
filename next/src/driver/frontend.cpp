@@ -43,6 +43,7 @@ std::expected<std::unique_ptr<LoadedProgram>, FrontendError> loadProgram(const s
             return std::unexpected(
                 FrontendError{.kind = FrontendError::Kind::Invalid, .messages = {preprocessed.error()}});
         }
+        loaded->originalFile = *source;
         source = loaded->sources.addFile(file.string(), std::move(*preprocessed));
         diagnostics = std::make_unique<DiagnosticEngine>(loaded->sources);
         lexed = lex::lexFile(loaded->sources, *source, loaded->interner, *diagnostics);
@@ -53,6 +54,7 @@ std::expected<std::unique_ptr<LoadedProgram>, FrontendError> loadProgram(const s
     if (diagnostics->hasErrors()) {
         return std::unexpected(invalid(*diagnostics, "the program cannot be lexed"));
     }
+    loaded->file = *source;
     loaded->tokens = std::move(lexed.tokens);
     loaded->unit = parse::parseTranslationUnit(loaded->tokens, loaded->context, loaded->sources, *diagnostics);
     if (loaded->unit == nullptr) {

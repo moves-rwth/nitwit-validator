@@ -203,6 +203,35 @@ TEST_F(RestartTest, AFailedFunctionReturnConstraintFixesTheReturnedInput) {
     EXPECT_EQ(result.runs, 2u);
 }
 
+TEST_F(RestartTest, InputsComparedAfterAChangeOfSignednessAreFixed) {
+    // testfiles/sv-comp-2019/06.nondet.c: `a3 == 1U` converts the unsigned short a3 to int and then to unsigned int,
+    // which loses its origin, although the value stays the same.
+    program(R"(extern unsigned short __VERIFIER_nondet_ushort(void);
+void reach_error(void);
+int main(void) {
+    unsigned short a3 = __VERIFIER_nondet_ushort();
+    if (a3 == 1U) reach_error();
+    return 0;
+}
+)");
+    const auto script = [](FakeExecution& x) {
+        x.statement(4, 5);
+        x.assign("a3", x.nondet(4, 50));
+        x.statement(5, 5);
+        if (x.branch(5, 5)) {
+            x.statement(5, 19);
+            x.call(5, 31);
+        }
+        return returned(0);
+    };
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Assumption, 5, 5, "a3 == 1U")},
+                                                       {follow(WaypointType::Branching, 5, 5, "true")},
+                                                       {target(5, 19)}}),
+                                             script);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
+    EXPECT_EQ(result.runs, 2u);
+}
+
 TEST_F(RestartTest, ACaseValueFixesTheSwitchedInput) {
     program(std::string(switchProgram));
     const ValidationResult result = validate(sequence({{follow(WaypointType::Branching, 5, 5, "2")}, {target(9, 9)}}),

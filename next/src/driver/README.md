@@ -13,7 +13,8 @@ nitwit --version
 - **Data model:** `-32`/`-64` select ILP32 (the default, as in 3.x) or LP64.
 - **Error function:** read from the property file. `CHECK( init(main()), LTL(G ! call(reach_error())) )` and the
   `__VERIFIER_error` variant are supported; any other property is reported as UNKNOWN (exit 4). Without `-p` and
-  `-e`, it is `reach_error`.
+  `-e`, it is `reach_error`. Giving both is a wrong command line (exit 3).
+- **Without `-w`:** a program without witness and without `--replay` gives exit code 240.
 - **`-v`:** prints the validation log (segments reached, restarts, why each run ended) to stderr.
 - **`--replay`:** the differential-testing mode (`tools/difftest/README.md`): runs `main` with the inputs file, without
   a witness. The program's output goes to stdout, and the exit status is the program's (or the harness codes).
@@ -36,11 +37,13 @@ sema and the interpreter all recurse on it.
 | 2. Lex the program; if it needs the preprocessor, run `cpp -m32/-m64` on it and lex the output (line markers kept) | `cpp` fails, or lexing fails | 4 |
 | 3. Parse, analyze, build the program | | 4 |
 | 4. Detect the witness format and parse the witness | | 2 |
-| 5. Validate: format 2.x (stage 6), format 1.0 (stage 8) | | the verdict's code |
+| 5. Validate: format 2.x (stage 6), format 1.0 (stage 8, UNKNOWN until then) | | the verdict's code |
+| NITWIT itself runs out of memory (`std::bad_alloc`) | | 251 |
 
 ## Output
 
-- **Diagnostics:** each one is printed as `file:line:column: severity: message`.
+- **Diagnostics:** each one is printed as `file:line:column: severity: message`. Errors in constraints point into the
+  constraint's text (`<constraint>:1:5: error: ...`).
 - **Result:** one final line starts with the verdict, as in 3.x:
   - `VALIDATED:` for a confirmed witness;
   - `FAILED:` when the witness was not confirmed;

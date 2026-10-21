@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <format>
 #include <limits>
+#include <utility>
 
 #include "ast/casting.hpp"
 #include "sema/types.hpp"
@@ -226,6 +227,24 @@ std::optional<value::Value> choose(ast::AstContext& context, std::span<const Bou
         }
     }
     return std::nullopt;
+}
+
+std::optional<value::Value> chooseInput(ast::AstContext& context, std::span<const Bound> bounds,
+                                        ast::QualType subjectType, ast::QualType inputType) {
+    const std::optional<value::Value> subject = choose(context, bounds, subjectType);
+    if (!subject) {
+        return std::nullopt;
+    }
+    std::optional<value::Value> input = convert(context, *subject, subjectType, inputType);
+    if (!input) {
+        return std::nullopt;
+    }
+    const std::optional<value::Value> back = convert(context, *input, inputType, subjectType);
+    const Bound same{.op = value::Comparison::Equal, .constant = *subject, .type = subjectType};
+    if (!back || !satisfies(context, *back, same)) {
+        return std::nullopt;
+    }
+    return input;
 }
 
 } // namespace nitwit::validate

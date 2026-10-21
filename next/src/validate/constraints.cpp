@@ -74,6 +74,22 @@ bool isConstant(const ast::Expr* expr) {
     }
 }
 
+// The operand of a comparison without the conversions sema inserted to bring it to the comparison's type: integer
+// promotions and the usual arithmetic conversions (C17 6.3.1.1, 6.3.1.8). They widen or change the signedness only, so
+// converting the operand's value directly to the comparison's type gives the same value.
+const ast::Expr* withoutArithmeticConversions(const ast::Expr* expr) {
+    while (true) {
+        expr = ast::ignoreParens(expr);
+        const auto* cast = ast::dyn_cast<ast::ImplicitCastExpr>(expr);
+        if (cast == nullptr
+            || (cast->castKind() != ast::CastKind::IntegralCast && cast->castKind() != ast::CastKind::IntegralToFloating
+                && cast->castKind() != ast::CastKind::FloatingCast)) {
+            return expr;
+        }
+        expr = cast->operand();
+    }
+}
+
 Conjunct conjunctOf(const ast::Expr* expr) {
     Conjunct conjunct;
     conjunct.expr = expr;
@@ -84,15 +100,14 @@ Conjunct conjunctOf(const ast::Expr* expr) {
     }
     const bool isLhsConstant = isConstant(binary->lhs());
     const bool isRhsConstant = isConstant(binary->rhs());
-    if (isRhsConstant && !isLhsConstant) {
-        conjunct.subject = binary->lhs();
-        conjunct.constant = binary->rhs();
-        conjunct.op = *op;
-    } else if (isLhsConstant && !isRhsConstant) {
-        conjunct.subject = binary->rhs();
-        conjunct.constant = binary->lhs();
-        conjunct.op = mirrored(*op);
+    if (isRhsConstant == isLhsConstant) {
+        return conjunct;
     }
+    const ast::Expr* subject = isRhsConstant ? binary->lhs() : binary->rhs();
+    conjunct.subject = withoutArithmeticConversions(subject);
+    conjunct.constant = isRhsConstant ? binary->rhs() : binary->lhs();
+    conjunct.op = isRhsConstant ? *op : mirrored(*op);
+    conjunct.type = subject->type();
     return conjunct;
 }
 

@@ -53,4 +53,10 @@ struct Bound {
 [[nodiscard]] std::optional<value::Value> choose(ast::AstContext& context, std::span<const Bound> bounds,
                                                  ast::QualType type);
 
+/// The value of an input of type `inputType` that makes a subject of type `subjectType` satisfy all bounds, when the
+/// program converts the input to the subject's type: choose() for the subject, if that value comes back from the
+/// input's type unchanged.
+[[nodiscard]] std::optional<value::Value> chooseInput(ast::AstContext& context, std::span<const Bound> bounds,
+                                                      ast::QualType subjectType, ast::QualType inputType);
+
 } // namespace nitwit::validate

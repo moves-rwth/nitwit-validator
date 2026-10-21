@@ -43,7 +43,7 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
                 .segmentsReached = 0};
     }
     ConstraintCompiler constraints(program, diagnostics);
-    WitnessOracle oracle(program.context);
+    WitnessOracle oracle(program.context, options.defaultInput);
     SegmentMonitor monitor(witness.violationSequences.front(), program, options.errorFunction, constraints, oracle,
                            options.log);
     // Every confirmation comes from one complete run: a restart begins again at main with more inputs fixed.

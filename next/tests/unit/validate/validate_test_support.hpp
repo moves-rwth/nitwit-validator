@@ -160,18 +160,18 @@ private:
 
 class ValidateTest : public ::testing::Test {
 public:
-    /// Parses and analyzes `text` as the file "test.c"; fails the test if that fails.
-    void program(std::string text, DataModel model = DataModel::ILP32) {
+    /// Parses and analyzes `text` as the file `name`; fails the test if that fails.
+    void program(std::string text, DataModel model = DataModel::ILP32, std::string name = "test.c") {
         target_ = std::make_unique<TargetInfo>(TargetInfo::forDataModel(model));
         context_ = std::make_unique<ast::AstContext>(*target_, interner_);
-        file_ = sources_.addFile("test.c", std::move(text));
+        file_ = sources_.addFile(std::move(name), std::move(text));
         lex::LexResult lexed = lex::lexFile(sources_, file_, interner_, diagnostics_);
         tokens_.push_back(std::move(lexed.tokens));
         unit_ = parse::parseTranslationUnit(tokens_.back(), *context_, sources_, diagnostics_);
         ASSERT_TRUE(unit_ != nullptr && sema::analyze(*unit_, *context_, diagnostics_)) << firstError();
         input_ = std::make_unique<ProgramInput>(ProgramInput{.sources = sources_,
                                                              .file = file_,
-                                                             .isPreprocessed = false,
+                                                             .originalFile = FileId::None,
                                                              .context = *context_,
                                                              .unit = *unit_,
                                                              .program = nullptr});

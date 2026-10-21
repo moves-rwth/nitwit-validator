@@ -2,6 +2,7 @@
 
 #include <format>
 #include <string>
+#include <utility>
 
 #include "support/assert.hpp"
 
@@ -72,7 +73,7 @@ ValidationResult verdictOf(const interp::RunResult& run, const SegmentMonitor& m
     case SegmentMonitor::State::Rejected:
         return decided(Verdict::LeftWitness, "the execution left the witness: " + monitor.reason());
     case SegmentMonitor::State::ErrorCalled:
-        if (monitor.isTargetSegmentCurrent()) {
+        if (monitor.isAtTarget()) {
             return decided(Verdict::Confirmed, "the witness was followed to its target: " + monitor.reason());
         }
         return decided(Verdict::ErrorBeforeTarget, "the target was not reached: " + monitor.reason());

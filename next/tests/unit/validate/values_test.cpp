@@ -112,6 +112,28 @@ TEST_F(ValuesTest, IntegerInputsCompareAsFloating) {
     EXPECT_EQ(chosenFor({equal}, ast::BuiltinKind::Int), "3");
 }
 
+TEST_F(ValuesTest, AnInputIsChosenThroughTheConversionToTheSubjectsType) {
+    const auto input = [&](const Bound& bound, ast::BuiltinKind subject, ast::BuiltinKind inputKind) {
+        const std::optional<value::Value> value =
+            chooseInput(context_, std::vector{bound}, type(subject), type(inputKind));
+        return value ? toString(context_, *value, type(inputKind)) : "none";
+    };
+    const ast::QualType intType = type(ast::BuiltinKind::Int);
+    // unsigned char d = <int input>; d == 200 holds for the input 200, d == 256 for none.
+    EXPECT_EQ(input({.op = Comparison::Equal, .constant = number(200, ast::BuiltinKind::Int), .type = intType},
+                    ast::BuiltinKind::UnsignedChar, ast::BuiltinKind::Int),
+              "200");
+    EXPECT_EQ(input({.op = Comparison::Equal, .constant = number(256, ast::BuiltinKind::Int), .type = intType},
+                    ast::BuiltinKind::UnsignedChar, ast::BuiltinKind::Int),
+              "none");
+    // float f = <double input>; f == 27.0f
+    EXPECT_EQ(
+        input(
+            {.op = Comparison::Equal, .constant = value::Value::ofFloat(27.0F), .type = type(ast::BuiltinKind::Float)},
+            ast::BuiltinKind::Float, ast::BuiltinKind::Double),
+        "27");
+}
+
 TEST_F(ValuesTest, PointersAreNotChosen) {
     const ast::QualType pointer = context_.pointerTo(type(ast::BuiltinKind::Int));
     const Bound bound{

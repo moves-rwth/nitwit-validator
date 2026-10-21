@@ -15,6 +15,7 @@
 #include "validate/location.hpp"
 #include "validate/oracle.hpp"
 #include "validate/validator.hpp"
+#include "validate/values.hpp"
 #include "witness/model.hpp"
 
 namespace nitwit::validate {
@@ -30,7 +31,7 @@ public:
     enum class State : std::uint8_t {
         Following,   // the run goes on
         Rejected,    // a follow waypoint failed or an avoid waypoint passed
-        ErrorCalled, // the error function was called, see isTargetSegmentCurrent()
+        ErrorCalled, // the error function was called, see isAtTarget()
         Restart,     // a follow waypoint failed, but it may pass with the inputs of fixes() fixed
         Unsupported, // a constraint cannot be compiled, or does not fit its waypoint
     };
@@ -57,6 +58,8 @@ public:
     [[nodiscard]] std::uint32_t segmentsPassed() const { return current_; }
     [[nodiscard]] std::uint32_t segmentCount() const { return static_cast<std::uint32_t>(segments_.size()); }
     [[nodiscard]] bool isTargetSegmentCurrent() const { return current_ + 1 == segmentCount(); }
+    /// For State::ErrorCalled: whether the call was at the target's location in the target segment.
+    [[nodiscard]] bool isAtTarget() const { return isAtTarget_; }
     /// For State::Restart: the inputs to fix, at most one fix per input.
     [[nodiscard]] const std::vector<Fix>& fixes() const { return fixes_; }
     [[nodiscard]] const LocationMap& locations() const { return locations_; }
@@ -85,8 +88,9 @@ private:
     Evaluation evaluateBranching(WaypointId id, const Event& event, interp::EvaluationContext& context, bool isFollow);
     /// The fix that makes a failed conjunct `subject op constant` true, if the subject is an unfixed input.
     std::optional<Fix> resolve(const Conjunct& conjunct, interp::EvaluationContext& context);
-    /// A fix that makes `value == expected` (of type `type`), if `value` is an unfixed input.
-    std::optional<Fix> resolveEqual(const value::Value& value, const value::Value& expected, ast::QualType type);
+    /// The fix of the input that `subject` (of type `subjectType`) is a copy of, so that the subject satisfies the
+    /// bound; none if the subject is not an unfixed input or no value of the input's type gives such a subject.
+    std::optional<Fix> fixFor(const value::Value& subject, ast::QualType subjectType, const Bound& bound);
     /// Whether a value is an unmodified copy of an input that is neither fixed nor hinted.
     [[nodiscard]] bool isUnfixedInput(const value::Value& value) const;
     /// Hands the oracle the value that the function_return waypoints of the current segment at this call ask for.
@@ -109,6 +113,7 @@ private:
 
     std::uint32_t run_ = 0;
     std::uint32_t current_ = 0;
+    bool isAtTarget_ = false;
     State state_ = State::Following;
     std::string reason_;
     std::vector<Fix> fixes_;

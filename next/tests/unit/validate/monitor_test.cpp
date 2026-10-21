@@ -25,7 +25,7 @@ TEST_F(MonitorTest, ConfirmsWhenTheErrorFunctionIsCalledInTheTargetSegment) {
     EXPECT_EQ(exitCode(result), 0);
     EXPECT_EQ(result.segmentsReached, 1u);
     EXPECT_EQ(result.runs, 1u);
-    EXPECT_EQ(result.message, "the witness was followed to its target: 'reach_error' was called at 7:21 in segment 2 "
+    EXPECT_EQ(result.message, "the witness was followed to its target: 'reach_error' was called at 7:9 in segment 2 "
                               "of 2");
 }
 
@@ -35,7 +35,25 @@ TEST_F(MonitorTest, TheErrorFunctionBeforeTheTargetSegmentIsNoConfirmation) {
                                              [](FakeExecution& x) { return runInputs(x, true); });
     EXPECT_EQ(result.verdict, Verdict::ErrorBeforeTarget) << result.message;
     EXPECT_EQ(exitCode(result), 252);
-    EXPECT_EQ(result.message, "the target was not reached: 'reach_error' was called at 7:21 in segment 1 of 2");
+    EXPECT_EQ(result.message, "the target was not reached: 'reach_error' was called at 7:9 in segment 1 of 2");
+}
+
+TEST_F(MonitorTest, TheErrorFunctionElsewhereThanTheTargetIsNoConfirmation) {
+    program(std::string(inputsProgram));
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 6, 5, "true")}, {target(9, 5)}}),
+                 [](FakeExecution& x) { return runInputs(x, true); });
+    EXPECT_EQ(result.verdict, Verdict::ErrorBeforeTarget) << result.message;
+    EXPECT_EQ(result.message,
+              "the target was not reached: 'reach_error' was called at 7:9 in segment 2 of 2, not at the target");
+}
+
+TEST_F(MonitorTest, ATargetWithoutColumnMatchesACallInItsLine) {
+    program(std::string(inputsProgram));
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 6, 5, "true")}, {target(7, std::nullopt)}}),
+                 [](FakeExecution& x) { return runInputs(x, true); });
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
 }
 
 TEST_F(MonitorTest, TheProgramFinishingBeforeTheTargetSegment) {
@@ -111,6 +129,38 @@ TEST_F(MonitorTest, AColumnSkipsTheOtherConditionsOfTheLine) {
     const ValidationResult result =
         validate(sequence({{follow(WaypointType::Branching, 6, 23, "true")}, {target(6, 34)}}), runTwoIfs);
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
+}
+
+TEST_F(MonitorTest, AnAssumptionAtABlockIsEvaluatedBeforeItsFirstStatement) {
+    // testfiles/sv-comp-2019/16.shadowing.c: CPAchecker places assumptions at the `{` of a block.
+    program(R"(extern float __VERIFIER_nondet_float(void);
+void reach_error(void);
+int main(void) {
+    float f = __VERIFIER_nondet_float();
+    {
+        float f = 2;
+    }
+    if (f == 27.0f) reach_error();
+    return 0;
+}
+)");
+    const auto script = [](FakeExecution& x) {
+        x.statement(4, 5);
+        x.assign("f", x.nondet(4, 39));
+        x.statement(6, 9);
+        x.statement(8, 5);
+        if (x.branch(8, 5)) {
+            x.statement(8, 21);
+            x.call(8, 33);
+        }
+        return returned(0);
+    };
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Assumption, 5, 5, "f == 27.0f")},
+                                                       {follow(WaypointType::Branching, 8, 5, "true")},
+                                                       {target(8, 21)}}),
+                                             script);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
+    EXPECT_EQ(result.runs, 2u);
 }
 
 TEST_F(MonitorTest, EventsOfOtherTypesAtTheLocationDoNotEvaluateAWaypoint) {
