@@ -36,7 +36,8 @@ public:
 
 /// A call as the evaluator passes it. Variadic arguments arrive after the default argument promotions (C17 6.5.2.2p6),
 /// so `printf` sees int, unsigned, long, ..., double, long double and pointers; pointers are unsigned integers of the
-/// pointer width.
+/// pointer width. For vprintf, vfprintf, vsprintf, vsnprintf and vasprintf, the evaluator passes the arguments the
+/// `va_list` refers to, from its current position on, in place of the `va_list`.
 struct LibraryCall {
     std::string_view name;
     std::span<const value::Value> arguments;
