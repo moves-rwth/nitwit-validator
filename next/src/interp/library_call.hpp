@@ -154,5 +154,7 @@ void initializePointer(LibraryContext& context, Address address, Address value);
 [[nodiscard]] std::span<const FunctionEntry> stringFunctions(); // library_string.cpp
 [[nodiscard]] std::span<const FunctionEntry> stdlibFunctions(); // library_stdlib.cpp
 [[nodiscard]] std::span<const ObjectEntry> stdlibObjects();     // library_stdlib.cpp
+[[nodiscard]] std::span<const FunctionEntry> stdioFunctions();  // library_stdio.cpp
+[[nodiscard]] std::span<const ObjectEntry> stdioObjects();      // library_stdio.cpp
 
 } // namespace nitwit::interp::library

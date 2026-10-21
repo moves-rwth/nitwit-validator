@@ -12,7 +12,7 @@ class DispatchTest : public LibraryTest {};
 INSTANTIATE_TEST_SUITE_P(DataModels, DispatchTest, testing::Values(DataModel::ILP32, DataModel::LP64), modelName);
 
 TEST(LibraryDispatchTest, FindsFunctionsByName) {
-    for (const std::string_view name : {"malloc", "strlen", "__assert_fail", "rand", "__errno_location"}) {
+    for (const std::string_view name : {"malloc", "printf", "strlen", "__assert_fail", "rand", "__errno_location"}) {
         EXPECT_NE(findLibraryFunction(name), nullptr) << name;
     }
     EXPECT_EQ(findLibraryFunction("strlen"), findLibraryFunction("strlen"));
@@ -53,11 +53,14 @@ TEST_P(DispatchTest, ExtraArgumentsAreIgnored) {
 }
 
 TEST_P(DispatchTest, LibraryObjects) {
-    for (const std::string_view name : {"errno", "__random_state"}) {
+    for (const std::string_view name : {"stdin", "stdout", "stderr", "errno", "__random_state", "_IO_2_1_stdout_"}) {
         EXPECT_TRUE(libraryObject(name, context.target()).has_value()) << name;
     }
     EXPECT_FALSE(libraryObject("environ", context.target()).has_value());
     EXPECT_FALSE(libraryObject("malloc", context.target()).has_value());
+    const std::optional<LibraryObject> stdoutObject = libraryObject("stdout", context.target());
+    EXPECT_EQ(stdoutObject->size, lp64() ? 8u : 4u);
+    EXPECT_EQ(stdoutObject->alignment, lp64() ? 8u : 4u);
 }
 
 } // namespace
