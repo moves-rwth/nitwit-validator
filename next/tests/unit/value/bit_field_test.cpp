@@ -3,8 +3,8 @@
 
 #include <gtest/gtest.h>
 
-#include "formats.hpp"
 #include "value/arithmetic.hpp"
+#include "value_formats.hpp"
 
 namespace nitwit::value {
 namespace {
@@ -115,6 +115,8 @@ TEST(BitFieldTest, Int128FieldAcrossSeventeenBytes) {
 TEST(BitFieldDeathTest, FieldOutsideTheStorageAsserts) {
     const auto storage = filled(0x00);
     EXPECT_DEATH((void)readBitField(storage, 90, 7, u32), "outside its storage");
+    // bitOffset + width wraps around in unsigned arithmetic.
+    EXPECT_DEATH((void)readBitField(storage, ~0u - 2, 7, u32), "outside its storage");
     EXPECT_DEATH((void)readBitField(storage, 0, 33, u32), "wider than its type");
 }
 

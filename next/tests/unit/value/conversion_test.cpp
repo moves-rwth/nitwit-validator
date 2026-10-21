@@ -12,13 +12,15 @@
 
 #include <gtest/gtest.h>
 
-#include "formats.hpp"
 #include "value/arithmetic.hpp"
+#include "value_formats.hpp"
 
 namespace nitwit::value {
 namespace {
 
 using namespace test;
+
+constexpr auto lp64 = DataModel::LP64;
 
 // ---- Integer to integer ----
 
@@ -161,61 +163,82 @@ bool isRepresentable(long double value, IntegerFormat format) {
     return truncated >= lowest && truncated < limit;
 }
 
-TEST(FloatToIntegerTest, MatchesGccOnX86_64) {
+TEST(FloatToIntegerTest, MatchesGccOnI386AndX86_64) {
     std::ifstream data(NITWIT_TEST_DATA_DIR "/float_to_integer.txt");
     ASSERT_TRUE(data) << "cannot open the test data";
     std::string line;
-    int rows = 0;
+    std::map<std::string, int> rows;
     while (std::getline(data, line)) {
         if (line.empty() || line.front() == '#') {
             continue;
         }
         std::istringstream fields(line);
+        std::string model;
         std::string source;
         std::string valueText;
         std::string target;
         std::string resultText;
-        fields >> source >> valueText >> target >> resultText;
+        fields >> model >> source >> valueText >> target >> resultText;
         ASSERT_FALSE(fields.fail()) << line;
+        ASSERT_TRUE(model == "lp64" || model == "ilp32") << line;
         const long double value = std::strtold(valueText.c_str(), nullptr);
         const IntegerFormat to = parseFormat(target);
-        const Result result = floatToInteger(floatingValue(source, value), parseFloatFormat(source), to);
+        const Result result = floatToInteger(floatingValue(source, value), parseFloatFormat(source), to,
+                                             model == "lp64" ? DataModel::LP64 : DataModel::ILP32);
         EXPECT_EQ(result.value.bits(), Value::integer(parseHex(resultText), to).bits()) << line;
         EXPECT_EQ(result.undefinedBehavior,
                   isRepresentable(value, to) ? UndefinedBehavior::None : UndefinedBehavior::FloatToIntegerOverflow)
             << line;
-        ++rows;
+        ++rows[model];
     }
-    EXPECT_GT(rows, 1000);
+    EXPECT_GT(rows["lp64"], 1000);
+    EXPECT_GT(rows["ilp32"], 800);
+}
+
+TEST(FloatToIntegerTest, UnsignedIntDependsOnTheDataModel) {
+    // x86-64 converts to a 64-bit integer and keeps the low half; i386 has no such SSE conversion and uses the
+    // subtract-2^31 sequence. gcc-14 -m64 and -m32 -msse2 -mfpmath=sse; hardware behaviour, not defined C.
+    const Value big = Value::ofDouble(5e9);
+    EXPECT_EQ(floatToInteger(big, FloatFormat::Double, u32, DataModel::LP64).value.bits(), 0x2A05'F200u);
+    EXPECT_EQ(floatToInteger(big, FloatFormat::Double, u32, DataModel::ILP32).value.bits(), 0u);
+    const Value nan = Value::ofFloat(std::numeric_limits<float>::quiet_NaN());
+    EXPECT_EQ(floatToInteger(nan, FloatFormat::Float, u32, DataModel::LP64).value.bits(), 0u);
+    EXPECT_EQ(floatToInteger(nan, FloatFormat::Float, u32, DataModel::ILP32).value.bits(), 0x8000'0000u);
+    // In range, both agree; x87 conversions of long double are the same on both.
+    EXPECT_EQ(floatToInteger(Value::ofDouble(3e9), FloatFormat::Double, u32, DataModel::ILP32).value.bits(),
+              3'000'000'000u);
+    EXPECT_EQ(floatToInteger(Value::ofLongDouble(5e9L), FloatFormat::LongDouble, u32, DataModel::ILP32).value.bits(),
+              0x2A05'F200u);
 }
 
 TEST(FloatToIntegerTest, TruncatesTowardZero) {
-    const Result negative = floatToInteger(Value::ofDouble(-2.9), FloatFormat::Double, s32);
+    const Result negative = floatToInteger(Value::ofDouble(-2.9), FloatFormat::Double, s32, lp64);
     EXPECT_EQ(negative.value.signedBits(), -2);
     EXPECT_EQ(negative.undefinedBehavior, UndefinedBehavior::None);
-    EXPECT_EQ(floatToInteger(Value::ofFloat(2.9F), FloatFormat::Float, u8).value.bits(), 2u);
+    EXPECT_EQ(floatToInteger(Value::ofFloat(2.9F), FloatFormat::Float, u8, lp64).value.bits(), 2u);
 }
 
 TEST(FloatToIntegerTest, NegativeFractionsFitUnsignedTypes) {
     // The integral part of -0.9 is 0, which is representable.
-    const Result result = floatToInteger(Value::ofDouble(-0.9), FloatFormat::Double, u32);
+    const Result result = floatToInteger(Value::ofDouble(-0.9), FloatFormat::Double, u32, lp64);
     EXPECT_EQ(result.value.bits(), 0u);
     EXPECT_EQ(result.undefinedBehavior, UndefinedBehavior::None);
 }
 
 TEST(FloatToIntegerTest, ValuesJustOutsideTheRange) {
-    EXPECT_EQ(floatToInteger(Value::ofDouble(127.9), FloatFormat::Double, s8).undefinedBehavior,
+    EXPECT_EQ(floatToInteger(Value::ofDouble(127.9), FloatFormat::Double, s8, lp64).undefinedBehavior,
               UndefinedBehavior::None);
-    EXPECT_EQ(floatToInteger(Value::ofDouble(128.0), FloatFormat::Double, s8).undefinedBehavior,
+    EXPECT_EQ(floatToInteger(Value::ofDouble(128.0), FloatFormat::Double, s8, lp64).undefinedBehavior,
               UndefinedBehavior::FloatToIntegerOverflow);
-    EXPECT_EQ(floatToInteger(Value::ofDouble(-128.9), FloatFormat::Double, s8).undefinedBehavior,
+    EXPECT_EQ(floatToInteger(Value::ofDouble(-128.9), FloatFormat::Double, s8, lp64).undefinedBehavior,
               UndefinedBehavior::None);
-    EXPECT_EQ(floatToInteger(Value::ofDouble(-129.0), FloatFormat::Double, s8).undefinedBehavior,
+    EXPECT_EQ(floatToInteger(Value::ofDouble(-129.0), FloatFormat::Double, s8, lp64).undefinedBehavior,
               UndefinedBehavior::FloatToIntegerOverflow);
-    EXPECT_EQ(floatToInteger(Value::ofDouble(-1.0), FloatFormat::Double, u64).undefinedBehavior,
+    EXPECT_EQ(floatToInteger(Value::ofDouble(-1.0), FloatFormat::Double, u64, lp64).undefinedBehavior,
               UndefinedBehavior::FloatToIntegerOverflow);
-    EXPECT_EQ(floatToInteger(Value::ofLongDouble(0x1.fffffffffffffffep63L), FloatFormat::LongDouble, u64).value.bits(),
-              0xFFFF'FFFF'FFFF'FFFFu);
+    EXPECT_EQ(
+        floatToInteger(Value::ofLongDouble(0x1.fffffffffffffffep63L), FloatFormat::LongDouble, u64, lp64).value.bits(),
+        0xFFFF'FFFF'FFFF'FFFFu);
 }
 
 TEST(FloatToIntegerTest, NanAndInfinitiesAreUndefined) {
@@ -224,9 +247,10 @@ TEST(FloatToIntegerTest, NanAndInfinitiesAreUndefined) {
             const Value operand = from == FloatFormat::Float    ? Value::ofFloat(static_cast<float>(value))
                                   : from == FloatFormat::Double ? Value::ofDouble(static_cast<double>(value))
                                                                 : Value::ofLongDouble(value);
-            EXPECT_EQ(floatToInteger(operand, from, s32).undefinedBehavior, UndefinedBehavior::FloatToIntegerOverflow);
+            EXPECT_EQ(floatToInteger(operand, from, s32, lp64).undefinedBehavior,
+                      UndefinedBehavior::FloatToIntegerOverflow);
             // cvttsd2si and fistp give the "integer indefinite" value.
-            EXPECT_EQ(floatToInteger(operand, from, s32).value.bits(), minBits(s32));
+            EXPECT_EQ(floatToInteger(operand, from, s32, lp64).value.bits(), minBits(s32));
         }
     }
 }

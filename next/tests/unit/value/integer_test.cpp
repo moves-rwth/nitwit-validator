@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include "formats.hpp"
 #include "value/arithmetic.hpp"
+#include "value_formats.hpp"
 
 namespace nitwit::value {
 namespace {
@@ -145,6 +145,19 @@ TEST_P(IntegerBoundaryTest, ComplementFlipsEveryBit) {
     const IntegerFormat f = GetParam();
     EXPECT_EQ(integerComplement(Value::integer(0, f), f).bits(), Value::integer(~UInt128{0}, f).bits());
     EXPECT_EQ(integerComplement(Value::integer(maxBits(f), f), f).bits(), minBits(f));
+}
+
+TEST_P(IntegerBoundaryTest, BitwiseOperatorsAtTheBoundaries) {
+    const IntegerFormat f = GetParam();
+    const UInt128 allOnes = ~UInt128{0}; // -1 for signed formats, the maximum for unsigned ones
+    expectResult(binaryBits(IntegerOperator::And, minBits(f), maxBits(f), f), 0, f, none);
+    expectResult(binaryBits(IntegerOperator::Or, minBits(f), maxBits(f), f), allOnes, f, none);
+    expectResult(binaryBits(IntegerOperator::Xor, minBits(f), maxBits(f), f), allOnes, f, none);
+    expectResult(binaryBits(IntegerOperator::And, allOnes, maxBits(f), f), maxBits(f), f, none);
+    expectResult(binaryBits(IntegerOperator::Or, maxBits(f), UInt128{0}, f), maxBits(f), f, none);
+    expectResult(binaryBits(IntegerOperator::Xor, allOnes, maxBits(f), f), minBits(f), f, none);
+    expectResult(binaryBits(IntegerOperator::Xor, maxBits(f), maxBits(f), f), 0, f, none);
+    expectResult(binaryBits(IntegerOperator::And, UInt128{1}, allOnes, f), 1, f, none);
 }
 
 TEST_P(IntegerBoundaryTest, ComparisonOrdersMinimumBelowMaximum) {

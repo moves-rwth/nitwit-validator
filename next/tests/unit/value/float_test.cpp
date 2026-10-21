@@ -69,16 +69,33 @@ TEST(FloatTest, NegateFlipsTheSignBit) {
     EXPECT_TRUE(std::signbit(negatedNan));
 }
 
-TEST(FloatTest, ComparisonsWithNanAreFalseExceptNotEqual) {
-    const Value nan = Value::ofDouble(std::numeric_limits<double>::quiet_NaN());
-    const Value one = Value::ofDouble(1.0);
-    for (const Comparison comparison :
-         {Comparison::Equal, Comparison::Less, Comparison::LessEqual, Comparison::Greater, Comparison::GreaterEqual}) {
-        EXPECT_FALSE(floatCompare(comparison, nan, one, FloatFormat::Double));
-        EXPECT_FALSE(floatCompare(comparison, nan, nan, FloatFormat::Double));
+/// `value` in `format`.
+Value inFormat(long double value, FloatFormat format) {
+    switch (format) {
+    case FloatFormat::Float:
+        return Value::ofFloat(static_cast<float>(value));
+    case FloatFormat::Double:
+        return Value::ofDouble(static_cast<double>(value));
+    case FloatFormat::LongDouble:
+        return Value::ofLongDouble(value);
     }
-    EXPECT_TRUE(floatCompare(Comparison::NotEqual, nan, nan, FloatFormat::Double));
-    EXPECT_TRUE(floatCompare(Comparison::NotEqual, one, nan, FloatFormat::Double));
+    return {};
+}
+
+TEST(FloatTest, ComparisonsWithNanAreFalseExceptNotEqual) {
+    for (const FloatFormat format : {FloatFormat::Float, FloatFormat::Double, FloatFormat::LongDouble}) {
+        SCOPED_TRACE(static_cast<int>(format));
+        const Value nan = inFormat(std::numeric_limits<long double>::quiet_NaN(), format);
+        const Value one = inFormat(1.0L, format);
+        for (const Comparison comparison : {Comparison::Equal, Comparison::Less, Comparison::LessEqual,
+                                            Comparison::Greater, Comparison::GreaterEqual}) {
+            EXPECT_FALSE(floatCompare(comparison, nan, one, format));
+            EXPECT_FALSE(floatCompare(comparison, one, nan, format));
+            EXPECT_FALSE(floatCompare(comparison, nan, nan, format));
+        }
+        EXPECT_TRUE(floatCompare(Comparison::NotEqual, nan, nan, format));
+        EXPECT_TRUE(floatCompare(Comparison::NotEqual, one, nan, format));
+    }
 }
 
 TEST(FloatTest, ComparisonsOfZerosAndInfinities) {

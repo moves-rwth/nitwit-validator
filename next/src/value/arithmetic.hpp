@@ -5,10 +5,15 @@
 // undefined behaviour report it and still produce the result x86 hardware gives, so that a caller can decide whether
 // to stop or to continue like a natively compiled program.
 //
+// These results model *run-time* code. GCC's constant folding gives other values for the same operations
+// ((int)1e10 is INT_MAX, 1 << 32 is 0), so sema must treat any reported undefined behaviour as "not a constant
+// expression" (C17 6.6p4) instead of using the value.
+//
 // Results inherit no origin: an origin marks an *unmodified* copy of an input, and arithmetic modifies.
 
 #include <cstdint>
 
+#include "support/target.hpp"
 #include "value/value.hpp"
 
 namespace nitwit::value {
@@ -20,7 +25,7 @@ enum class UndefinedBehavior : std::uint8_t {
     ShiftCountOutOfRange,   // negative count or count >= width (C17 6.5.7p3); x86 masks the count
     ShiftOfNegative,        // left shift of a negative value (C17 6.5.7p4)
     ShiftOverflow,          // left shift of a signed value whose result is not representable (C17 6.5.7p4)
-    FloatToIntegerOverflow, // C17 6.3.1.4p1; the value is what cvttss2si/cvttsd2si give
+    FloatToIntegerOverflow, // C17 6.3.1.4p1; the value is what GCC-compiled code gives on x86 (see arithmetic.cpp)
 };
 
 struct Result {
@@ -59,8 +64,9 @@ enum class Comparison : std::uint8_t { Equal, NotEqual, Less, LessEqual, Greater
 /// Any scalar to _Bool: 0 if it compares equal to 0, else 1 (C17 6.3.1.2). NaN converts to 1.
 [[nodiscard]] Value toBool(const Value& operand);
 [[nodiscard]] Value integerToFloat(const Value& operand, IntegerFormat from, FloatFormat to);
-/// Truncation toward zero; out of range (including NaN and infinities) is undefined behaviour.
-[[nodiscard]] Result floatToInteger(const Value& operand, FloatFormat from, IntegerFormat to);
+/// Truncation toward zero; out of range (including NaN and infinities) is undefined behaviour, whose value depends on
+/// the data model. Not for _Bool targets; use toBool.
+[[nodiscard]] Result floatToInteger(const Value& operand, FloatFormat from, IntegerFormat to, DataModel model);
 [[nodiscard]] Value convertFloat(const Value& operand, FloatFormat from, FloatFormat to);
 
 // ---- Bit-fields (C17 6.7.2.1; GCC allocates them from the least significant bit on x86) ----

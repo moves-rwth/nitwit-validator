@@ -8,7 +8,7 @@
 
 #include <gtest/gtest.h>
 
-#include "formats.hpp"
+#include "value_formats.hpp"
 
 namespace nitwit::value {
 namespace {

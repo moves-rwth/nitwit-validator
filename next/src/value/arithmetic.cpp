@@ -5,6 +5,7 @@
 #include <type_traits>
 
 #include "support/assert.hpp"
+#include "support/target.hpp"
 
 namespace nitwit::value {
 
@@ -131,22 +132,23 @@ std::uint64_t convertLikeX86(long double value, unsigned width) {
     return std::uint64_t{1} << (width - 1);
 }
 
-/// GCC's conversion to a 64-bit unsigned integer: values from 2^63 on are converted after subtracting 2^63 (in the
-/// source format), and the top bit is set again. NaN takes the path for small values.
+/// GCC's conversion to an unsigned integer of `width` bits when no wider signed conversion is available (64 bits; 32
+/// bits on i386): values from 2^(width-1) on are converted after subtracting 2^(width-1) (in the source format), and
+/// the top bit is flipped back. NaN takes the path for small values.
 template <typename F>
-std::uint64_t convertToUnsigned64LikeGcc(F value) {
-    const F two63 = std::ldexp(F{1}, 63);
-    if (value >= two63) {
-        return convertLikeX86(static_cast<long double>(value - two63), 64) ^ (std::uint64_t{1} << 63);
+std::uint64_t convertToUnsignedLikeGcc(F value, unsigned width) {
+    const F half = std::ldexp(F{1}, static_cast<int>(width) - 1);
+    if (value >= half) {
+        return convertLikeX86(static_cast<long double>(value - half), width) ^ (std::uint64_t{1} << (width - 1));
     }
-    return convertLikeX86(static_cast<long double>(value), 64);
+    return convertLikeX86(static_cast<long double>(value), width);
 }
 
 /// libgcc2.c, __fixunsdfti: converts the high and the low 64 bits separately.
 UInt128 fixunsLikeLibgcc(double value) {
     const double two64 = std::ldexp(1.0, 64);
-    const std::uint64_t high = convertToUnsigned64LikeGcc(value / two64);
-    const std::uint64_t low = convertToUnsigned64LikeGcc(value - static_cast<double>(high) * two64);
+    const std::uint64_t high = convertToUnsignedLikeGcc(value / two64, 64);
+    const std::uint64_t low = convertToUnsignedLikeGcc(value - static_cast<double>(high) * two64, 64);
     return (UInt128{high} << 64) | low;
 }
 
@@ -161,36 +163,36 @@ UInt128 fixunsLikeLibgcc(long double value) {
         return 0;
     }
     const long double two64 = std::ldexp(1.0L, 64);
-    UInt128 result = UInt128{convertToUnsigned64LikeGcc(value / two64)} << 64;
+    UInt128 result = UInt128{convertToUnsignedLikeGcc(value / two64, 64)} << 64;
     value -= static_cast<long double>(result);
     if (value < 0) {
-        result -= convertToUnsigned64LikeGcc(-value);
+        result -= convertToUnsignedLikeGcc(-value, 64);
     } else {
-        result += convertToUnsigned64LikeGcc(value);
+        result += convertToUnsignedLikeGcc(value, 64);
     }
     return result;
 }
 
 template <typename F>
-UInt128 outOfRangeConversion(F value, IntegerFormat to) {
+UInt128 outOfRangeConversion(F value, IntegerFormat to, DataModel model) {
+    constexpr bool isX87 = std::is_same_v<F, long double>;
     if (to.bits == 128) {
         // libgcc2.c: __fixsfti and its siblings convert the magnitude with __fixuns*fti.
         return to.isSigned && value < 0 ? UInt128{0} - fixunsLikeLibgcc(-value) : fixunsLikeLibgcc(value);
     }
-    if (to.bits == 64 && !to.isSigned) {
-        return convertToUnsigned64LikeGcc(value);
+    if (!to.isSigned && (to.bits == 64 || (to.bits == 32 && model == DataModel::ILP32 && !isX87))) {
+        // i386 has no 64-bit SSE conversion for unsigned int (x87 has one, which GCC uses for long double).
+        return convertToUnsignedLikeGcc(value, to.bits);
     }
-    // GCC converts to a signed integer of at least the target's width and keeps the low bits: at least 32 bits with
-    // SSE, at least 16 bits with x87, and twice the width for unsigned targets. On i386, GCC converts float and double
-    // to unsigned int with a 32-bit variant of convertToUnsigned64LikeGcc instead, which gives other values for some
-    // out-of-range operands (5e9 gives 0, NaN gives 2^31); those of x86-64 are used here.
-    constexpr unsigned minimumWidth = std::is_same_v<F, long double> ? 16 : 32;
+    // Otherwise GCC converts to a signed integer and keeps the low bits: at least 32 bits wide with SSE, at least 16
+    // bits with x87, and twice the target's width for unsigned targets.
+    constexpr unsigned minimumWidth = isX87 ? 16 : 32;
     const unsigned width = std::max(minimumWidth, to.isSigned ? to.bits : 2u * to.bits);
     return convertLikeX86(static_cast<long double>(value), width);
 }
 
 template <typename F>
-Result floatToIntegerOf(F value, IntegerFormat to) {
+Result floatToIntegerOf(F value, IntegerFormat to, DataModel model) {
     const long double truncated = std::trunc(static_cast<long double>(value));
     const long double lower = to.isSigned ? -std::ldexp(1.0L, to.bits - 1) : 0.0L;
     const long double upper = std::ldexp(1.0L, to.isSigned ? to.bits - 1 : to.bits);
@@ -199,12 +201,13 @@ Result floatToIntegerOf(F value, IntegerFormat to) {
             truncated < 0 ? UInt128{0} - static_cast<UInt128>(-truncated) : static_cast<UInt128>(truncated);
         return {Value::integer(bits, to)};
     }
-    return {Value::integer(outOfRangeConversion(value, to), to), UndefinedBehavior::FloatToIntegerOverflow};
+    return {Value::integer(outOfRangeConversion(value, to, model), to), UndefinedBehavior::FloatToIntegerOverflow};
 }
 
 void checkBitField(std::size_t storageBytes, unsigned bitOffset, unsigned width) {
     NITWIT_ASSERT(width >= 1 && width <= 128, "bit-field width out of range");
-    NITWIT_ASSERT(bitOffset + width <= storageBytes * 8, "bit-field outside its storage");
+    NITWIT_ASSERT(bitOffset <= storageBytes * 8 && width <= storageBytes * 8 - bitOffset,
+                  "bit-field outside its storage");
 }
 
 } // namespace
@@ -356,14 +359,14 @@ Value integerToFloat(const Value& operand, IntegerFormat from, FloatFormat to) {
     return from.isSigned ? fromHost(static_cast<Int128>(bits), to) : fromHost(bits, to);
 }
 
-Result floatToInteger(const Value& operand, FloatFormat from, IntegerFormat to) {
+Result floatToInteger(const Value& operand, FloatFormat from, IntegerFormat to, DataModel model) {
     switch (from) {
     case FloatFormat::Float:
-        return floatToIntegerOf(operand.asFloat(), to);
+        return floatToIntegerOf(operand.asFloat(), to, model);
     case FloatFormat::Double:
-        return floatToIntegerOf(operand.asDouble(), to);
+        return floatToIntegerOf(operand.asDouble(), to, model);
     case FloatFormat::LongDouble:
-        return floatToIntegerOf(operand.asLongDouble(), to);
+        return floatToIntegerOf(operand.asLongDouble(), to, model);
     }
     NITWIT_UNREACHABLE("unknown float format");
 }
