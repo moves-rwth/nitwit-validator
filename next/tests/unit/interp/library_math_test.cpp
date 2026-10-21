@@ -334,7 +334,7 @@ const MathCase mathCases[] = {
 
 class MathTest : public LibraryTest {
 protected:
-    value::Value make(const Argument& argument, Address out) {
+    TypedValue make(const Argument& argument, Address out) {
         switch (argument.kind) {
         case Argument::Kind::Float:
             return value::Value::ofFloat(static_cast<float>(argument.number));
@@ -349,7 +349,7 @@ protected:
         case Argument::Kind::Out:
             return pointer(out);
         }
-        return {};
+        return value::Value();
     }
 
     /// The result of a call as long double.
@@ -401,7 +401,7 @@ TEST_P(MathTest, ComputesLikeGlibc) {
         SCOPED_TRACE(mathCase.function);
         const Outcome& expected = lp64() ? mathCase.expected64 : mathCase.expected32;
         const Address out = buffer(16);
-        std::vector<value::Value> arguments;
+        std::vector<TypedValue> arguments;
         for (const Argument& argument : mathCase.arguments) {
             arguments.push_back(make(argument, out));
         }
@@ -467,6 +467,66 @@ TEST_P(MathTest, GlibcClassificationFunctions) {
     EXPECT_EQ(callInteger("__fpclassifyf", {value::Value::ofFloat(0)}), FP_ZERO);
     EXPECT_EQ(callInteger("__fpclassify", {value::Value::ofDouble(1e-310)}), FP_SUBNORMAL);
     EXPECT_EQ(callInteger("__fpclassifyl", {value::Value::ofLongDouble(1)}), FP_NORMAL);
+}
+
+// The values glibc 2.39's functions returned natively (-m64 and -m32), and those of GCC's builtins of the same name.
+
+TEST_P(MathTest, GlibcIsnanlReturns65535) {
+    for (const char* function : {"isnanl", "__isnanl"}) {
+        EXPECT_EQ(callInteger(function, {value::Value::ofLongDouble(-nan)}), 65535) << function;
+        EXPECT_EQ(callInteger(function, {value::Value::ofLongDouble(1)}), 0) << function;
+    }
+    EXPECT_EQ(callInteger("isnanf", {value::Value::ofFloat(floatNan)}), 1);
+    EXPECT_EQ(callInteger("__builtin_isnanl", {value::Value::ofLongDouble(nan)}), 1);
+    EXPECT_EQ(callInteger("__builtin_isnanf", {value::Value::ofFloat(floatNan)}), 1);
+}
+
+TEST_P(MathTest, GlibcIsinfGivesTheSignAndGccsBuiltinOne) {
+    for (const char* function : {"isinf", "isinff", "isinfl", "__isinf", "__isinff", "__isinfl"}) {
+        EXPECT_EQ(callInteger(function, {value::Value::ofDouble(-doubleInf)}), -1) << function;
+    }
+    for (const char* function : {"__builtin_isinf", "__builtin_isinff", "__builtin_isinfl"}) {
+        EXPECT_EQ(callInteger(function, {value::Value::ofDouble(-doubleInf)}), 1) << function;
+        EXPECT_EQ(callInteger(function, {value::Value::ofDouble(doubleInf)}), 1) << function;
+        EXPECT_EQ(callInteger(function, {value::Value::ofDouble(1)}), 0) << function;
+    }
+}
+
+TEST_P(MathTest, BuiltinFminAndFmaxChooseLikeGccsInlineCode) {
+    const auto chooses = [&](const char* function, value::Value x, value::Value y) {
+        const LibraryResult result = call(function, {std::move(x), std::move(y)});
+        switch (result.value.kind()) {
+        case value::Value::Kind::Float:
+            return std::signbit(result.value.asFloat());
+        case value::Value::Kind::Double:
+            return std::signbit(result.value.asDouble());
+        default:
+            return std::signbit(result.value.asLongDouble());
+        }
+    };
+    // Whether the result is negative: equal zeros give the first operand for float and double on x86-64, the second
+    // otherwise; a NaN gives the other operand.
+    EXPECT_EQ(chooses("__builtin_fmin", value::Value::ofDouble(-0.0), value::Value::ofDouble(0.0)), lp64());
+    EXPECT_EQ(chooses("__builtin_fmaxf", value::Value::ofFloat(0.0f), value::Value::ofFloat(-0.0f)), !lp64());
+    EXPECT_TRUE(chooses("__builtin_fminl", value::Value::ofLongDouble(0.0L), value::Value::ofLongDouble(-0.0L)));
+    EXPECT_FALSE(chooses("__builtin_fmax", value::Value::ofDouble(-doubleNan), value::Value::ofDouble(doubleNan)));
+    EXPECT_TRUE(chooses("__builtin_fmin", value::Value::ofDouble(doubleNan), value::Value::ofDouble(-doubleNan)));
+    EXPECT_EQ(call("__builtin_fmin", {value::Value::ofDouble(1), value::Value::ofDouble(2)}).value.asDouble(), 1);
+    EXPECT_EQ(
+        call("__builtin_fmaxl", {value::Value::ofLongDouble(1), value::Value::ofLongDouble(2)}).value.asLongDouble(),
+        2);
+    EXPECT_EQ(call("__builtin_fmin", {value::Value::ofDouble(doubleNan), value::Value::ofDouble(3)}).value.asDouble(),
+              3);
+    // glibc's own fmin on x86-64 keeps the second zero.
+    EXPECT_FALSE(chooses("fmin", value::Value::ofDouble(-0.0), value::Value::ofDouble(0.0)));
+}
+
+TEST_P(MathTest, MathMacrosAsFunctionsBehaveLikeGccsBuiltins) {
+    EXPECT_EQ(callInteger("isfinite", {value::Value::ofFloat(1)}), 1);
+    EXPECT_EQ(callInteger("isnormal", {value::Value::ofDouble(1e-310)}), 0);
+    EXPECT_EQ(callInteger("signbit", {value::Value::ofDouble(-1)}), 1);
+    EXPECT_EQ(callInteger("isless", {value::Value::ofDouble(1), value::Value::ofDouble(2)}), 1);
+    EXPECT_EQ(callInteger("isunordered", {value::Value::ofDouble(doubleNan), value::Value::ofDouble(2)}), 1);
 }
 
 TEST_P(MathTest, GlibcSignbitReturnsItsImplementationsBits) {

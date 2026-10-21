@@ -1,8 +1,12 @@
-// malloc and friends (C17 7.22.3) and alloca.
+// malloc and friends (C17 7.22.3). alloca is the evaluator's: its blocks belong to the stack frame.
 
 #include <algorithm>
+#include <cstddef>
 #include <format>
+#include <optional>
+#include <span>
 #include <string_view>
+#include <vector>
 
 #include "interp/library_call.hpp"
 #include "support/assert.hpp"
@@ -55,6 +59,30 @@ LibraryResult free(const Call& call) {
     return Call::returnVoid();
 }
 
+/// realloc when the old and the new block do not fit under the memory limit at the same time, as when a block grows
+/// close to the limit. The kept contents and their initialization state pass through host memory, so that the old
+/// block can be freed first; their origins are lost, which only costs the validation layer a hint for its inputs.
+Address reallocateAtLimit(const Call& call, Address old, std::uint64_t oldSize, std::uint64_t size) {
+    const std::uint64_t kept = std::min(oldSize, size);
+    std::vector<std::byte> bytes(kept);
+    call.read(old, bytes);
+    std::vector<bool> initialized(kept);
+    for (std::uint64_t i = 0; i < kept; ++i) {
+        initialized[i] = call.memory().isInitialized(old + i, 1);
+    }
+    freeBlock(call, old);
+    const Address block = call.allocateHeap(size, false);
+    for (std::uint64_t start = 0; start < kept;) { // write each run of initialized bytes
+        std::uint64_t end = start;
+        while (end < kept && initialized[end]) {
+            ++end;
+        }
+        call.write(block + start, std::span(bytes).subspan(start, end - start));
+        start = end + 1;
+    }
+    return block;
+}
+
 LibraryResult realloc(const Call& call) {
     const Address old = call.pointerArgument(0);
     const std::uint64_t size = call.sizeArgument(1);
@@ -69,22 +97,20 @@ LibraryResult realloc(const Call& call) {
     // The contents up to the smaller size move to a new block, with their initialization state and origins
     // (C17 7.22.3.5p2). A new block also for a smaller size, so that the old one dies and stale pointers are caught.
     const std::uint64_t oldSize = call.memory().find(old)->size;
-    const Address block = call.allocateHeap(size, false);
-    call.copy(block, old, std::min(oldSize, size));
+    const std::optional<Address> block = call.tryAllocateHeap(size, false);
+    if (!block) {
+        return call.returnPointer(reallocateAtLimit(call, old, oldSize, size));
+    }
+    call.copy(*block, old, std::min(oldSize, size));
     freeBlock(call, old);
-    return call.returnPointer(block);
-}
-
-/// alloca (not named so: glibc's <stdlib.h> defines a macro alloca). The block should die when the calling function
-/// returns, but the library does not see the frames, so it lives until the end of the run. It is a heap block, so
-/// that the memory limit covers it.
-LibraryResult allocateOnStack(const Call& call) {
-    return call.returnPointer(call.allocateHeap(call.sizeArgument(0), false));
+    return call.returnPointer(*block);
 }
 
 constexpr FunctionEntry functions[] = {
-    {"malloc", entryPoint<malloc>}, {"calloc", entryPoint<calloc>},          {"realloc", entryPoint<realloc>},
-    {"free", entryPoint<free>},     {"alloca", entryPoint<allocateOnStack>},
+    {"malloc", entryPoint<malloc>},
+    {"calloc", entryPoint<calloc>},
+    {"realloc", entryPoint<realloc>},
+    {"free", entryPoint<free>},
 };
 
 } // namespace

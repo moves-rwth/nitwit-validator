@@ -330,7 +330,7 @@ const PrintfCase printfCases[] = {
 
 class PrintfTest : public LibraryTest {
 protected:
-    value::Value make(const Argument& argument) {
+    TypedValue make(const Argument& argument) {
         const TargetInfo& target = context.target();
         switch (argument.kind) {
         case Argument::Kind::Integer:
@@ -338,7 +338,7 @@ protected:
             return integer(argument.integer, argument.type);
         case Argument::Kind::Size:
             return integer(argument.integer, target.sizeType());
-        case Argument::Kind::SignedSize:
+        case Argument::Kind::SignedSize: // ssize_t and ptrdiff_t are long (LP64) or int (ILP32)
         case Argument::Kind::PtrDiff:
             return integer(argument.integer, target.ptrdiffType());
         case Argument::Kind::Double:
@@ -348,19 +348,19 @@ protected:
         case Argument::Kind::String:
             return pointer(string(argument.text, Region::ReadOnly));
         }
-        return {};
+        return value::Value();
     }
 
     /// Calls `function` with the format as a string literal and the given arguments in front of it.
-    LibraryResult print(std::string_view function, std::vector<value::Value> leading, std::string_view format,
-                        std::vector<value::Value> arguments = {}) {
+    LibraryResult print(std::string_view function, std::vector<TypedValue> leading, std::string_view format,
+                        const std::vector<TypedValue>& arguments = {}) {
         leading.push_back(pointer(string(format, Region::ReadOnly)));
         leading.insert(leading.end(), arguments.begin(), arguments.end());
         return call(function, leading);
     }
 
-    /// The value of the library object `stdout` or `stderr`.
-    value::Value stream(std::string_view name) {
+    /// The value of the library object `stdin`, `stdout` or `stderr`.
+    TypedValue stream(std::string_view name) {
         return pointer(static_cast<Address>(readInteger(context.objectAddress(name), ScalarType::Pointer)));
     }
 };
@@ -372,7 +372,7 @@ TEST_P(PrintfTest, FormatsLikeGlibc) {
     for (const PrintfCase& printfCase : printfCases) {
         SCOPED_TRACE(printfCase.format);
         const std::string_view expected = lp64() ? printfCase.expected64 : printfCase.expected32;
-        std::vector<value::Value> arguments;
+        std::vector<TypedValue> arguments;
         for (const Argument& argument : printfCase.arguments) {
             arguments.push_back(make(argument));
         }
@@ -447,16 +447,40 @@ TEST_P(PrintfTest, TooFewArgumentsAreUndefined) {
     EXPECT_TRUE(isUndefined(print("printf", {}, "%*d", {intValue(1)}), "too few arguments"));
 }
 
-TEST_P(PrintfTest, ArgumentsOfTheWrongKindAreUndefined) {
-    EXPECT_TRUE(isUndefined(print("printf", {}, "%d", {value::Value::ofDouble(1)}), "%d expects an integer"));
-    EXPECT_TRUE(isUndefined(print("printf", {}, "%f", {intValue(1)}), "%f expects a double"));
-    EXPECT_TRUE(isUndefined(print("printf", {}, "%Lf", {value::Value::ofDouble(1)}), "expects a long double"));
+TEST_P(PrintfTest, ArgumentsOfAnotherTypeAreUndefined) {
+    EXPECT_TRUE(isUndefined(print("printf", {}, "%d", {value::Value::ofDouble(1)}),
+                            "%d expects int, but argument 2 is double"));
+    EXPECT_TRUE(isUndefined(print("printf", {}, "%f", {intValue(1)}), "%f expects double, but argument 2 is int"));
+    EXPECT_TRUE(isUndefined(print("printf", {}, "%Lf", {value::Value::ofDouble(1)}), "expects long double"));
     EXPECT_TRUE(isUndefined(print("printf", {}, "%s", {value::Value::ofDouble(1)}), "expects a pointer"));
+    EXPECT_TRUE(isUndefined(print("printf", {}, "%s", {intValue(1)}), "expects a pointer"));
+    EXPECT_TRUE(isUndefined(print("printf", {}, "%p", {integer(1, ScalarType::Long)}), "expects a pointer"));
+    EXPECT_TRUE(isUndefined(print("printf", {}, "%x", {pointer(16)}), "but argument 2 is a pointer"));
+    EXPECT_TRUE(isUndefined(print("printf", {}, "%.*f", {value::Value::ofDouble(1), value::Value::ofDouble(1)}),
+                            "%.*f expects int"));
 }
 
-TEST_P(PrintfTest, FloatArgumentsAreAcceptedAsPromoted) {
-    EXPECT_EQ(returned(print("printf", {}, "%.1f", {value::Value::ofFloat(0.5f)})), 3);
-    EXPECT_EQ(context.printed(), "0.5");
+TEST_P(PrintfTest, IntegerArgumentsMustHaveTheWidthOfTheConversion) {
+    // A signed/unsigned difference of the same width is allowed (C17 7.16.1.1p2).
+    EXPECT_EQ(returned(print("printf", {}, "%u %d", {intValue(-1), integer(5, ScalarType::UnsignedInt)})), 12);
+    // char and short arguments arrive promoted to int.
+    EXPECT_EQ(returned(print("printf", {}, "%hhd %hu", {intValue(300), intValue(-1)})), 8);
+    // long has the width of int on i386 and of long long on x86-64.
+    const LibraryResult longForInt = print("printf", {}, "%ld", {intValue(-1)});
+    if (lp64()) {
+        EXPECT_TRUE(isUndefined(longForInt, "%ld expects long, but argument 2 is int"));
+    } else {
+        EXPECT_EQ(returned(longForInt), 2);
+    }
+    const LibraryResult longLongForLong = print("printf", {}, "%lld", {integer(1, ScalarType::Long)});
+    if (lp64()) {
+        EXPECT_EQ(returned(longLongForLong), 1);
+    } else {
+        EXPECT_TRUE(isUndefined(longLongForLong, "%lld expects long long, but argument 2 is long"));
+    }
+    EXPECT_TRUE(isUndefined(print("printf", {}, "%d", {integer(1, ScalarType::LongLong)}), "expects int"));
+    EXPECT_TRUE(isUndefined(print("printf", {}, "%c", {integer(65, ScalarType::LongLong)}), "expects int"));
+    EXPECT_EQ(returned(print("printf", {}, "%zu", {integer(7, ScalarType::UnsignedLong)})), 1);
 }
 
 TEST_P(PrintfTest, InvalidSpecificationsAreUndefined) {
@@ -470,6 +494,9 @@ TEST_P(PrintfTest, UnsupportedSpecifications) {
     const Address count = buffer(4);
     EXPECT_TRUE(endedWith(print("printf", {}, "%n", {pointer(count)}), LibraryResult::Kind::Unsupported, "%n"));
     EXPECT_TRUE(endedWith(print("printf", {}, "%1$d", {intValue(1)}), LibraryResult::Kind::Unsupported, "positional"));
+    EXPECT_TRUE(endedWith(print("printf", {}, "%*1$d", {intValue(1)}), LibraryResult::Kind::Unsupported, "positional"));
+    EXPECT_TRUE(endedWith(print("printf", {}, "%.*2$d", {intValue(1), intValue(2)}), LibraryResult::Kind::Unsupported,
+                          "positional"));
     EXPECT_TRUE(endedWith(print("printf", {}, "%ls", {pointer(count)}), LibraryResult::Kind::Unsupported, "wide"));
     EXPECT_TRUE(endedWith(print("printf", {}, "%lc", {intValue(65)}), LibraryResult::Kind::Unsupported, "wide"));
     EXPECT_TRUE(endedWith(print("printf", {}, "%m"), LibraryResult::Kind::Unsupported));
@@ -481,6 +508,29 @@ TEST_P(PrintfTest, HugeFieldsAreUnsupported) {
         endedWith(print("printf", {}, "%*d", {intValue(-2000000), intValue(1)}), LibraryResult::Kind::Unsupported));
     EXPECT_TRUE(
         endedWith(print("printf", {}, "%.2000000f", {value::Value::ofDouble(1)}), LibraryResult::Kind::Unsupported));
+}
+
+TEST_P(PrintfTest, ThePrecisionOfStringsOnlyLimitsTheRead) {
+    EXPECT_EQ(returned(print("printf", {}, "%.100000000s|%.*s",
+                             {pointer(string("abc")), intValue(2000000000), pointer(string("de"))})),
+              6);
+    EXPECT_EQ(context.printed(), "abc|de");
+}
+
+TEST_P(PrintfTest, SprintfFromOverlappingObjectsIsUndefined) {
+    const Address text = buffer(64);
+    callPointer("strcpy", {pointer(text), pointer(string("ab"))});
+    EXPECT_TRUE(isUndefined(print("sprintf", {pointer(text)}, "X%s", {pointer(text)}), "overlapping"));
+    EXPECT_TRUE(isUndefined(print("snprintf", {pointer(text), size(64)}, "%s%s", {pointer(text), pointer(text)}),
+                            "overlapping"));
+    // The format string is read too.
+    const Address format = buffer(64);
+    callPointer("strcpy", {pointer(format), pointer(string("%d"))});
+    EXPECT_TRUE(isUndefined(call("sprintf", {pointer(format + 1), pointer(format), intValue(12)}), "overlapping"));
+    // Only what is written counts: here the null character after the source, or nothing.
+    EXPECT_EQ(returned(print("snprintf", {pointer(text + 3), size(1)}, "%s", {pointer(text)})), 2);
+    EXPECT_EQ(returned(print("snprintf", {pointer(text), size(0)}, "%s", {pointer(text)})), 2);
+    EXPECT_EQ(returned(print("sprintf", {pointer(text + 32)}, "%s", {pointer(text)})), 2);
 }
 
 TEST_P(PrintfTest, StringsAreReadFromMemory) {
@@ -536,7 +586,9 @@ TEST_P(PrintfTest, FwriteWritesElements) {
 
 TEST_P(PrintfTest, FflushSucceeds) {
     EXPECT_EQ(callInteger("fflush", {stream("stdout")}), 0);
+    EXPECT_EQ(callInteger("fflush", {stream("stdin")}), 0); // as glibc's
     EXPECT_EQ(callInteger("fflush", {pointer(0)}), 0);
+    EXPECT_TRUE(endedWith(call("fflush", {pointer(buffer(8))}), LibraryResult::Kind::Unsupported));
 }
 
 /// A context without an output stream.
@@ -550,18 +602,15 @@ TEST_P(PrintfTest, WithoutAnOutputStreamTheOutputIsDiscarded) {
     SilentContext silent(GetParam());
     const Address text = silent.memory().allocate(Region::Global, 2, 1, "text").value();
     ASSERT_TRUE(silent.memory().fill(text, std::byte{'x'}, 1).has_value());
-    const std::vector arguments{pointer(text)};
-    const LibraryResult result =
-        findLibraryFunction("puts")(silent, LibraryCall{.name = "puts", .arguments = arguments});
-    EXPECT_EQ(result.kind, LibraryResult::Kind::Return);
+    EXPECT_EQ(call(silent, "puts", {pointer(text)}).kind, LibraryResult::Kind::Return);
 }
 
 // ---- The stream objects ----
 
 TEST_P(PrintfTest, StreamsAreDistinctNonNullPointers) {
-    const Int128 in = stream("stdin").signedBits();
-    const Int128 out = stream("stdout").signedBits();
-    const Int128 err = stream("stderr").signedBits();
+    const Int128 in = stream("stdin").value.signedBits();
+    const Int128 out = stream("stdout").value.signedBits();
+    const Int128 err = stream("stderr").value.signedBits();
     EXPECT_NE(in, 0);
     EXPECT_NE(out, 0);
     EXPECT_NE(err, 0);

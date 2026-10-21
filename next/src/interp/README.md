@@ -18,8 +18,8 @@ to:
 - **SV-COMP:** `__VERIFIER_assume` (handled by the evaluator, because it ends the run), `__VERIFIER_error`,
   `__assert_fail`, `__assert`, `abort`, `exit`, `_Exit`. `__VERIFIER_atomic_begin` and `__VERIFIER_atomic_end` are
   no-ops in a single-threaded run.
-- **Memory:** `malloc`, `calloc`, `realloc`, `free`, `alloca`, `__builtin_alloca`, `memcpy`, `memmove`, `memset`,
-  `memcmp`, `memchr`, and their `__builtin_` forms.
+- **Memory:** `malloc`, `calloc`, `realloc`, `free`, `memcpy`, `memmove`, `memset`, `memcmp`, `memchr`, and their
+  `__builtin_` forms. `alloca` and `__builtin_alloca` are the evaluator's (see below).
 - **Strings:** `strlen`, `strnlen`, `strcpy`, `strncpy`, `strcat`, `strncat`, `strcmp`, `strncmp`, `strchr`,
   `strrchr`, `strstr`, `strdup`, `strndup`, `strspn`, `strcspn`.
 - **Conversions:** `atoi`, `atol`, `strtol`, `strtoul`, `strtoll`, `strtoull`, `abs`, `labs`, `llabs`.
@@ -40,22 +40,40 @@ to:
 - **GCC builtins:** `__builtin_expect`, `__builtin_unreachable` (undefined behaviour if reached), `__builtin_trap`
   (abort), `__builtin_bswap16/32/64`, `__builtin_clz/ctz/popcount/parity/ffs` with their `l`/`ll` forms (undefined
   behaviour for `clz`/`ctz` of 0), `__builtin_add/sub/mul_overflow`, `__builtin_constant_p` (0),
-  `__builtin_object_size` (-1 or 0, as GCC at -O0).
+  `__builtin_object_size` (-1 or 0 for a pointer to an object GCC does not know; sema folds known objects).
 - **Unsupported:** threads (`pthread_*`), `setjmp`/`longjmp`, files, `atexit`, signals. These end the run with
   `Unsupported`.
 
 Behaviour choices of the library:
 - **Allocation failure** (memory limit, `calloc` size overflow) ends the run with `OutOfMemory` instead of returning
-  NULL, as SV-COMP assumes that allocation succeeds.
+  NULL, as SV-COMP assumes that allocation succeeds. `realloc` that cannot hold the old and the new block at once moves
+  the contents through host memory and frees the old block first; the origins of the moved bytes are lost then.
 - **Uninitialized bytes** are read as stored by library functions (zero); they do not ask the oracle.
-- **`library_math.cpp` is compiled with `-fno-builtin`**, so that the host libm, not the compiler's inline version,
-  computes every function (`fmin` differed otherwise). Both data models use the 64-bit libm; i386's libm differs in
-  the last bit for a few functions (listed in the math tests).
+- **Known library functions are never inputs:** every library function in sema's builtin table is implemented or ends
+  the run as `Unsupported` (the `scanf` family, files, `qsort`, the `_chk` functions of `_FORTIFY_SOURCE`, ...).
+- **GCC builtins that differ from the glibc function of the same name** have their own implementation:
+  `__builtin_isinf`/`isinff`/`isinfl` give 1 for -inf (glibc's `isinf` gives -1), `__builtin_isnanl` gives 1 (glibc's
+  `isnanl` 65535), `__builtin_isdigit` gives 1 (glibc's `isdigit` the class bit), `__builtin_signbit` gives what
+  GCC's inline code gives, and `__builtin_fmin`/`fmax` choose between -0.0 and 0.0 and between two NaNs as GCC's inline
+  code does.
+- **glibc's behaviour instead of reporting undefined behaviour** where native runs do not fail:
+  `printf("%s", NULL)` prints `(null)`; `abs(INT_MIN)` (and `labs`, `llabs`) returns the minimum; `atoi` on overflow
+  returns what glibc's `(int) strtol(...)` gives; the ctype functions accept the negative arguments -128..-2 of a
+  signed `char` besides EOF (glibc's tables cover them); `memcpy(NULL, NULL, 0)` and other functions with size 0 access
+  nothing.
+- **Math with the host's 64-bit libm in both data models.** `library_math.cpp` is compiled with `-fno-builtin`, so
+  that glibc computes every function, not the compiler's inline version. i386's libm (`-m32 -msse2 -mfpmath=sse`)
+  differs in the last bit for many arguments of some functions; share of differing results in the reviewer's
+  measurement: `cbrt` 45 %, `lgamma` 37 %, `sinh` 25 %, `atan2f` 17 %, `expm1` 11 %, `tanh`/`tanhf` 11 %, `log1p`
+  10 %, `log10f` 8 %, `log10` 6 %, `atanf` 5 %, `tanf` 4 %, `erf` 3 %, `sin`, `cos`, `exp`, `log`, `pow`, `sqrt` at most
+  0.3 %; and `fmin(-0.0, 0.0)` gives the other zero. A helper process with the 32-bit libm could remove this
+  difference later. Only `lrint` and `lround`, whose result type differs, follow i386 (0x80000000 out of range).
 - **Left to the evaluator:**
   - the type-generic builtins whose behaviour depends on argument types: `__builtin_add/sub/mul_overflow` and their
     `_p` forms, `__atomic_*`;
   - the `va_list` of `vprintf` and friends: the evaluator passes the arguments the list refers to;
-  - the lifetime of `alloca` blocks: the library allocates them on the heap until the end of the run.
+  - `alloca` and `__builtin_alloca`, whose blocks belong to the stack frame (so `free` of such a block is a free of a
+    non-heap pointer, as in glibc).
 
 The library is tested without the evaluator: tests create a `Memory` and a small test context, call the functions,
 and compare with values that a natively compiled program prints (glibc on the same machine).

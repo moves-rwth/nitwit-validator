@@ -36,19 +36,36 @@ std::uint64_t stringLength(const Call& call, Address address) {
 
 // ---- Copying (C17 7.24.2, 7.24.3) ----
 
-LibraryResult memcpy(const Call& call) {
+/// The copy of memcpy and mempcpy; returns the end of the destination.
+Address copyMemory(const Call& call) {
     const Address destination = call.pointerArgument(0);
     const Address source = call.pointerArgument(1);
     const std::uint64_t size = call.sizeArgument(2);
     call.requireDisjoint(destination, size, source, size);
     call.copy(destination, source, size);
-    return call.returnPointer(destination);
+    return destination + size;
+}
+
+LibraryResult memcpy(const Call& call) {
+    copyMemory(call);
+    return call.returnPointer(call.pointerArgument(0));
+}
+
+/// A GNU extension: returns the end of the copy.
+LibraryResult mempcpy(const Call& call) {
+    return call.returnPointer(copyMemory(call));
 }
 
 LibraryResult memmove(const Call& call) {
     const Address destination = call.pointerArgument(0);
     call.copy(destination, call.pointerArgument(1), call.sizeArgument(2));
     return call.returnPointer(destination);
+}
+
+/// bcopy(source, destination, n), the BSD memmove.
+LibraryResult bcopy(const Call& call) {
+    call.copy(call.pointerArgument(1), call.pointerArgument(0), call.sizeArgument(2));
+    return Call::returnVoid();
 }
 
 LibraryResult memset(const Call& call) {
@@ -58,13 +75,30 @@ LibraryResult memset(const Call& call) {
     return call.returnPointer(destination);
 }
 
-LibraryResult strcpy(const Call& call) {
+/// bzero(s, n), the BSD memset(s, 0, n).
+LibraryResult bzero(const Call& call) {
+    call.fill(call.pointerArgument(0), std::byte{0}, call.sizeArgument(1));
+    return Call::returnVoid();
+}
+
+/// The copy of strcpy and stpcpy; returns the address of the copied terminator.
+Address copyString(const Call& call) {
     const Address destination = call.pointerArgument(0);
     const Address source = call.pointerArgument(1);
     const std::uint64_t size = stringLength(call, source) + 1;
     call.requireDisjoint(destination, size, source, size);
     call.copy(destination, source, size);
-    return call.returnPointer(destination);
+    return destination + size - 1;
+}
+
+LibraryResult strcpy(const Call& call) {
+    copyString(call);
+    return call.returnPointer(call.pointerArgument(0));
+}
+
+/// POSIX: returns the end of the copy, its terminating null character.
+LibraryResult stpcpy(const Call& call) {
+    return call.returnPointer(copyString(call));
 }
 
 /// Copies at most n characters and pads with null characters up to n (C17 7.24.2.4).
@@ -134,13 +168,23 @@ LibraryResult memcmp(const Call& call) {
     return call.returnInt(0);
 }
 
-/// strcmp and strncmp: compares up to `limit` characters and stops at the first difference or null character.
-LibraryResult compareStrings(const Call& call, std::uint64_t limit) {
+/// tolower in the C locale.
+std::byte lowerCase(std::byte c) {
+    return c >= std::byte{'A'} && c <= std::byte{'Z'} ? c | std::byte{0x20} : c;
+}
+
+/// strcmp, strncmp and their case-insensitive forms: compares up to `limit` characters and stops at the first
+/// difference or null character.
+LibraryResult compareStrings(const Call& call, std::uint64_t limit, bool ignoreCase) {
     ByteReader first(call, call.pointerArgument(0));
     ByteReader second(call, call.pointerArgument(1));
     for (std::uint64_t i = 0; i < limit; ++i) {
-        const std::byte a = first.next();
-        const std::byte b = second.next();
+        std::byte a = first.next();
+        std::byte b = second.next();
+        if (ignoreCase) {
+            a = lowerCase(a);
+            b = lowerCase(b);
+        }
         if (a != b) {
             return call.returnInt(compareBytes(call, a, b));
         }
@@ -152,11 +196,20 @@ LibraryResult compareStrings(const Call& call, std::uint64_t limit) {
 }
 
 LibraryResult strcmp(const Call& call) {
-    return compareStrings(call, std::numeric_limits<std::uint64_t>::max());
+    return compareStrings(call, std::numeric_limits<std::uint64_t>::max(), false);
 }
 
 LibraryResult strncmp(const Call& call) {
-    return compareStrings(call, call.sizeArgument(2));
+    return compareStrings(call, call.sizeArgument(2), false);
+}
+
+/// POSIX, in the C locale; glibc returns the difference of the lowered characters like strcmp.
+LibraryResult strcasecmp(const Call& call) {
+    return compareStrings(call, std::numeric_limits<std::uint64_t>::max(), true);
+}
+
+LibraryResult strncasecmp(const Call& call) {
+    return compareStrings(call, call.sizeArgument(2), true);
 }
 
 // ---- Search (C17 7.24.5) ----
@@ -240,13 +293,37 @@ LibraryResult strnlen(const Call& call) {
 }
 
 constexpr FunctionEntry functions[] = {
-    {"memcpy", entryPoint<memcpy>},   {"memmove", entryPoint<memmove>}, {"memset", entryPoint<memset>},
-    {"memcmp", entryPoint<memcmp>},   {"memchr", entryPoint<memchr>},   {"strlen", entryPoint<strlen>},
-    {"strnlen", entryPoint<strnlen>}, {"strcpy", entryPoint<strcpy>},   {"strncpy", entryPoint<strncpy>},
-    {"strcat", entryPoint<strcat>},   {"strncat", entryPoint<strncat>}, {"strcmp", entryPoint<strcmp>},
-    {"strncmp", entryPoint<strncmp>}, {"strchr", entryPoint<strchr>},   {"strrchr", entryPoint<strrchr>},
-    {"strstr", entryPoint<strstr>},   {"strdup", entryPoint<strdup>},   {"strndup", entryPoint<strndup>},
-    {"strspn", entryPoint<strspn>},   {"strcspn", entryPoint<strcspn>}, {"strpbrk", entryPoint<strpbrk>},
+    {"memcpy", entryPoint<memcpy>},
+    {"mempcpy", entryPoint<mempcpy>},
+    {"memmove", entryPoint<memmove>},
+    {"memset", entryPoint<memset>},
+    {"memcmp", entryPoint<memcmp>},
+    {"memchr", entryPoint<memchr>},
+    {"strlen", entryPoint<strlen>},
+    {"strnlen", entryPoint<strnlen>},
+    {"strcpy", entryPoint<strcpy>},
+    {"stpcpy", entryPoint<stpcpy>},
+    {"strncpy", entryPoint<strncpy>},
+    {"strcat", entryPoint<strcat>},
+    {"strncat", entryPoint<strncat>},
+    {"strcmp", entryPoint<strcmp>},
+    {"strncmp", entryPoint<strncmp>},
+    {"strcasecmp", entryPoint<strcasecmp>},
+    {"strncasecmp", entryPoint<strncasecmp>},
+    {"strchr", entryPoint<strchr>},
+    {"strrchr", entryPoint<strrchr>},
+    {"strstr", entryPoint<strstr>},
+    {"strdup", entryPoint<strdup>},
+    {"strndup", entryPoint<strndup>},
+    {"strspn", entryPoint<strspn>},
+    {"strcspn", entryPoint<strcspn>},
+    {"strpbrk", entryPoint<strpbrk>},
+    // The BSD functions of <strings.h>: bcmp is glibc's memcmp, index and rindex are strchr and strrchr.
+    {"bcmp", entryPoint<memcmp>},
+    {"bcopy", entryPoint<bcopy>},
+    {"bzero", entryPoint<bzero>},
+    {"index", entryPoint<strchr>},
+    {"rindex", entryPoint<strrchr>},
 };
 
 } // namespace

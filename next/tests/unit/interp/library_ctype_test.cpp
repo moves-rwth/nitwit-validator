@@ -77,6 +77,23 @@ TEST_P(CtypeTest, FunctionsReturnWhatGlibcsReturn) {
     }
 }
 
+TEST_P(CtypeTest, TablesAreReadOnly) {
+    const auto entryZero = static_cast<Address>(readInteger(callPointer("__ctype_b_loc", {}), ScalarType::Pointer));
+    EXPECT_EQ(memory().find(entryZero)->region, Region::ReadOnly);
+    const std::array<std::byte, 2> bytes{};
+    EXPECT_FALSE(memory().write(entryZero, bytes).has_value());
+    // The pointers to them are writable variables, as in glibc.
+    EXPECT_EQ(memory().find(callPointer("__ctype_b_loc", {}))->region, Region::Global);
+}
+
+TEST_P(CtypeTest, BuiltinIsdigitReturnsOne) {
+    // GCC expands it to (unsigned)(c - '0') <= 9, unlike glibc's isdigit, which returns the class bit.
+    EXPECT_EQ(callInteger("__builtin_isdigit", {intValue('7')}), 1);
+    EXPECT_EQ(callInteger("isdigit", {intValue('7')}), 2048);
+    EXPECT_EQ(callInteger("__builtin_isdigit", {intValue(1000)}), 0);
+    EXPECT_EQ(callInteger("__builtin_isalpha", {intValue('a')}), 1024);
+}
+
 TEST_P(CtypeTest, LocationsAreStable) {
     const Address location = callPointer("__ctype_b_loc", {});
     EXPECT_EQ(callPointer("__ctype_b_loc", {}), location);

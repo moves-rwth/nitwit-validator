@@ -8,10 +8,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "interp/library.hpp"
 #include "support/int128.hpp"
@@ -42,6 +42,8 @@ public:
 
     [[nodiscard]] std::size_t argumentCount() const { return call_.arguments.size(); }
     [[nodiscard]] const value::Value& argument(std::size_t index) const;
+    /// The type of an argument after the default argument promotions (LibraryCall::argumentTypes).
+    [[nodiscard]] ScalarType argumentType(std::size_t index) const;
     /// An integer or pointer argument converted to `type`, as the callee sees its parameter: canonical bits,
     /// sign-extended if `type` is signed.
     [[nodiscard]] UInt128 integerArgument(std::size_t index, ScalarType type) const;
@@ -68,8 +70,9 @@ public:
     // ---- Memory ----
 
     void read(Address address, std::span<std::byte> out) const;
-    /// The `size` bytes at `address`; checks the range before it allocates host memory for them.
-    [[nodiscard]] std::vector<std::byte> readBytes(Address address, std::uint64_t size) const;
+    /// Undefined behaviour unless the `size` bytes at `address` can be read; checks without reading them, so that a
+    /// function can then process a large range block by block.
+    void requireReadable(Address address, std::uint64_t size) const;
     void write(Address address, std::span<const std::byte> bytes) const;
     /// memmove semantics, with initialization state and origins (Memory::copy).
     void copy(Address destination, Address source, std::uint64_t size) const;
@@ -86,6 +89,8 @@ public:
     /// A new heap block; ends the run with OutOfMemory if the context refuses it. SV-COMP assumes that allocation
     /// never fails, so returning a null pointer instead would explore executions the verifiers do not consider.
     [[nodiscard]] Address allocateHeap(std::uint64_t size, bool zeroed) const;
+    /// A new heap block, or nothing if the context refuses it.
+    [[nodiscard]] std::optional<Address> tryAllocateHeap(std::uint64_t size, bool zeroed) const;
     [[nodiscard]] Address objectAddress(std::string_view object) const { return context_.objectAddress(object); }
     /// Stores `value` in errno (the library object behind __errno_location).
     void setErrno(int value) const;

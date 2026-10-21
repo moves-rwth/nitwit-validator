@@ -1,8 +1,11 @@
+#include <set>
+#include <string>
 #include <string_view>
 
 #include <gtest/gtest.h>
 
 #include "library_test_support.hpp"
+#include "sema/sema.hpp"
 
 namespace nitwit::interp::test {
 namespace {
@@ -22,22 +25,52 @@ TEST(LibraryDispatchTest, FindsFunctionsByName) {
 TEST(LibraryDispatchTest, KnowsNoOtherFunctions) {
     // The oracle answers calls of unknown functions; nondeterministic inputs and assume are the evaluator's.
     for (const std::string_view name : {"", "main", "reach_error", "__VERIFIER_nondet_int", "__VERIFIER_assume",
-                                        "__builtin_", "__builtin_no_such_function", "sscanf"}) {
+                                        "__builtin_", "__builtin_no_such_function", "getchar"}) {
         EXPECT_EQ(findLibraryFunction(name), nullptr) << name;
     }
 }
 
 TEST(LibraryDispatchTest, BuiltinFormsOfLibraryFunctions) {
     EXPECT_EQ(findLibraryFunction("__builtin_memcpy"), findLibraryFunction("memcpy"));
-    EXPECT_EQ(findLibraryFunction("__builtin_alloca"), findLibraryFunction("alloca"));
     EXPECT_EQ(findLibraryFunction("__builtin_fabsf"), findLibraryFunction("fabsf"));
-    // __builtin_isnan is type-generic, unlike glibc's isnan(double).
+    EXPECT_EQ(findLibraryFunction("__builtin_scanf"), findLibraryFunction("scanf"));
+    // Where GCC's builtin differs from glibc's function, it has its own implementation.
     EXPECT_NE(findLibraryFunction("__builtin_isnan"), findLibraryFunction("isnan"));
+    EXPECT_NE(findLibraryFunction("__builtin_isinff"), findLibraryFunction("isinff"));
+    EXPECT_NE(findLibraryFunction("__builtin_fmin"), findLibraryFunction("fmin"));
+    EXPECT_NE(findLibraryFunction("__builtin_isdigit"), findLibraryFunction("isdigit"));
+}
+
+/// The functions sema knows that the evaluator implements itself.
+const std::set<std::string, std::less<>> evaluatorFunctions = {
+    "alloca",
+    "__builtin_alloca",
+    "__builtin_va_start",
+    "__builtin_va_end",
+    "__builtin_va_copy",
+    "__builtin_add_overflow",
+    "__builtin_sub_overflow",
+    "__builtin_mul_overflow",
+};
+
+// No library function that sema types may silently become an input of the oracle.
+TEST(LibraryDispatchTest, EveryFunctionSemaKnowsIsImplementedOrUnsupported) {
+    const std::vector<std::string> names = sema::builtinFunctionNames();
+    EXPECT_GT(names.size(), 300u);
+    for (const std::string& name : names) {
+        if (evaluatorFunctions.contains(name)) {
+            EXPECT_EQ(findLibraryFunction(name), nullptr) << name;
+        } else {
+            EXPECT_NE(findLibraryFunction(name), nullptr) << name;
+        }
+    }
 }
 
 TEST_P(DispatchTest, UnsupportedFunctionsEndTheRun) {
-    for (const std::string_view name : {"setjmp", "_setjmp", "longjmp", "atexit", "signal", "fopen", "qsort",
-                                        "pthread_create", "pthread_mutex_lock", "thrd_create"}) {
+    for (const std::string_view name :
+         {"setjmp", "_setjmp", "longjmp", "atexit", "signal", "fopen", "qsort", "scanf", "sscanf", "__isoc99_sscanf",
+          "__builtin___memcpy_chk", "__builtin_return_address", "pthread_create", "pthread_mutex_lock",
+          "thrd_create"}) {
         EXPECT_TRUE(endedWith(call(name, {}), LibraryResult::Kind::Unsupported, name)) << name;
     }
 }
@@ -66,6 +99,8 @@ TEST_P(DispatchTest, LibraryObjects) {
     const std::optional<LibraryObject> stdoutObject = libraryObject("stdout", context.target());
     EXPECT_EQ(stdoutObject->size, lp64() ? 8u : 4u);
     EXPECT_EQ(stdoutObject->alignment, lp64() ? 8u : 4u);
+    EXPECT_FALSE(stdoutObject->readOnly);
+    EXPECT_TRUE(libraryObject("_nl_C_LC_CTYPE_class", context.target())->readOnly);
 }
 
 } // namespace

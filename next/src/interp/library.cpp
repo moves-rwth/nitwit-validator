@@ -17,18 +17,87 @@ using library::FunctionEntry;
 using library::ObjectEntry;
 
 /// Functions whose behaviour the interpreter cannot reproduce: they end the run as Unsupported instead of being
-/// answered by the oracle like unknown functions. Threads, non-local jumps, exit handlers, signals, files, processes,
-/// and functions that call back into the program.
+/// answered by the oracle like unknown functions. Every library function that sema knows is either implemented or
+/// listed here (tested), so that none silently becomes an input.
 LibraryResult unsupported(const Call& call) {
     call.unsupported(std::format("{} is not supported", call.name()));
 }
 
 constexpr std::array unsupportedNames = {
-    "setjmp",  "_setjmp",       "__sigsetjmp", "sigsetjmp",    "longjmp", "_longjmp",  "siglongjmp", "__longjmp_chk",
-    "atexit",  "at_quick_exit", "on_exit",     "__cxa_atexit", "signal",  "sigaction", "raise",      "kill",
-    "alarm",   "fopen",         "fdopen",      "freopen",      "fclose",  "fseek",     "ftell",      "rewind",
-    "tmpfile", "remove",        "rename",      "fork",         "vfork",   "execv",     "execve",     "execvp",
-    "execl",   "execlp",        "system",      "popen",        "wait",    "waitpid",   "qsort",      "bsearch",
+    // Non-local jumps, exit handlers, signals, processes.
+    "setjmp",
+    "_setjmp",
+    "__sigsetjmp",
+    "sigsetjmp",
+    "longjmp",
+    "_longjmp",
+    "siglongjmp",
+    "__longjmp_chk",
+    "atexit",
+    "at_quick_exit",
+    "on_exit",
+    "__cxa_atexit",
+    "signal",
+    "sigaction",
+    "raise",
+    "kill",
+    "alarm",
+    "fork",
+    "vfork",
+    "execv",
+    "execve",
+    "execvp",
+    "execl",
+    "execlp",
+    "system",
+    "popen",
+    "wait",
+    "waitpid",
+    // Files.
+    "fopen",
+    "fdopen",
+    "freopen",
+    "fclose",
+    "fseek",
+    "ftell",
+    "rewind",
+    "tmpfile",
+    "remove",
+    "rename",
+    // Input: the values would have to be parsed from inputs the witness does not give.
+    "scanf",
+    "sscanf",
+    "fscanf",
+    "vscanf",
+    "vsscanf",
+    "vfscanf",
+    "__isoc99_scanf",
+    "__isoc99_sscanf",
+    "__isoc99_fscanf",
+    "__isoc99_vscanf",
+    "__isoc99_vsscanf",
+    "__isoc99_vfscanf",
+    "__isoc23_scanf",
+    "__isoc23_sscanf",
+    "__isoc23_fscanf",
+    "__isoc23_vscanf",
+    "__isoc23_vsscanf",
+    "__isoc23_vfscanf",
+    // Callbacks into the program.
+    "qsort",
+    "bsearch",
+    // The checking functions of _FORTIFY_SOURCE (also as __builtin___memcpy_chk, ...).
+    "__memcpy_chk",
+    "__memmove_chk",
+    "__memset_chk",
+    "__strcpy_chk",
+    "__strncpy_chk",
+    "__strcat_chk",
+    "__sprintf_chk",
+    "__snprintf_chk",
+    // The machine's stack.
+    "__builtin_frame_address",
+    "__builtin_return_address",
 };
 constexpr std::array unsupportedPrefixes = {"pthread_", "thrd_", "mtx_", "cnd_", "tss_"};
 

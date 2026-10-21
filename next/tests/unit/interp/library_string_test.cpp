@@ -160,6 +160,35 @@ TEST_P(StringTest, MemcmpReturnsWhatGlibcReturns) {
     EXPECT_EQ(compare("memcmp", "abd", "abc", 3), 1);
     EXPECT_EQ(compare("memcmp", "a\x01", "a\xf1", 2), lp64() ? -240 : -1);
     EXPECT_EQ(compare("memcmp", "abc", "abc", 3), 0);
+    EXPECT_EQ(compare("bcmp", "a\x01", "a\xf1", 2), lp64() ? -240 : -1); // glibc's bcmp is memcmp
+}
+
+TEST_P(StringTest, StrcasecmpReturnsWhatGlibcReturns) {
+    EXPECT_EQ(compare("strcasecmp", "abc", "ABC"), 0);
+    EXPECT_EQ(compare("strcasecmp", "abc", "abd"), -1);
+    EXPECT_EQ(compare("strcasecmp", "a", "abc"), lp64() ? -98 : -1);
+    EXPECT_EQ(compare("strcasecmp", "Z", "a"), lp64() ? 25 : 1);
+    EXPECT_EQ(compare("strcasecmp", "[", "a"), lp64() ? -6 : -1); // '[' lies between 'Z' and 'a'
+    EXPECT_EQ(compare("strcasecmp", "a\xff", "A"), lp64() ? 255 : 1);
+    EXPECT_EQ(compare("strcasecmp", "hello", "HELLO world"), lp64() ? -32 : -1);
+    EXPECT_EQ(compare("strncasecmp", "hello", "HELLO world", 5), 0);
+    EXPECT_EQ(compare("strncasecmp", "a", "abc", 2), lp64() ? -98 : -1);
+}
+
+TEST_P(StringTest, BsdAndPosixRelatives) {
+    const Address destination = buffer(16);
+    EXPECT_EQ(callPointer("mempcpy", {pointer(destination), pointer(string("abc")), size(3)}), destination + 3);
+    EXPECT_EQ(callPointer("stpcpy", {pointer(destination), pointer(string("hello"))}), destination + 5);
+    EXPECT_EQ(readText(destination, 6), "hello\0"s);
+    EXPECT_TRUE(isUndefined(call("stpcpy", {pointer(destination + 1), pointer(destination)}), "overlapping"));
+    EXPECT_EQ(call("bcopy", {pointer(destination), pointer(destination + 1), size(5)}).kind,
+              LibraryResult::Kind::Return); // bcopy(source, destination, n) may overlap
+    EXPECT_EQ(readText(destination, 6), "hhello"s);
+    EXPECT_EQ(call("bzero", {pointer(destination), size(2)}).kind, LibraryResult::Kind::Return);
+    EXPECT_EQ(readText(destination, 3), "\0\0e"s);
+    const Address text = string("abcabc");
+    EXPECT_EQ(callPointer("index", {pointer(text), intValue('b')}), text + 1);
+    EXPECT_EQ(callPointer("rindex", {pointer(text), intValue('b')}), text + 4);
 }
 
 TEST_P(StringTest, ComparisonsStopAtTheFirstDifference) {

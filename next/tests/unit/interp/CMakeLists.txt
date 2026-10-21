@@ -9,4 +9,4 @@ nitwit_add_unit_test(interp
         library_stdlib_test.cpp
         library_string_test.cpp
         memory_test.cpp
-    DEPENDS nitwit_interp)
+    DEPENDS nitwit_interp nitwit_sema) # sema: its table of builtins, for library_dispatch_test.cpp

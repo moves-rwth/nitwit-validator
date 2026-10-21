@@ -53,7 +53,6 @@ TEST_P(HeapTest, AllocationBeyondTheLimitIsOutOfMemory) {
     context.heapLimit = 100;
     malloc(60);
     EXPECT_TRUE(endedWith(call("malloc", {size(60)}), LibraryResult::Kind::OutOfMemory, "cannot allocate 60 bytes"));
-    EXPECT_TRUE(endedWith(call("alloca", {size(60)}), LibraryResult::Kind::OutOfMemory));
     EXPECT_TRUE(endedWith(call("strdup", {pointer(string(std::string(70, 'x')))}), LibraryResult::Kind::OutOfMemory));
 }
 
@@ -120,10 +119,28 @@ TEST_P(HeapTest, ReallocOfInvalidPointersIsUndefined) {
     EXPECT_TRUE(isUndefined(call("realloc", {pointer(block), size(8)}), "freed before"));
 }
 
-TEST_P(HeapTest, AllocaReturnsABlockThatLivesOn) {
-    const Address block = callPointer("alloca", {size(32)});
-    EXPECT_EQ(memory().find(block)->size, 32u);
-    EXPECT_EQ(callPointer("__builtin_alloca", {size(4)}) % 16, 0u);
+TEST_P(HeapTest, ReallocGrowsABlockCloseToTheLimit) {
+    context.heapLimit = 100;
+    const Address block = malloc(60);
+    writeInteger(block, 0x11223344, ScalarType::Int);
+    writeInteger(block + 56, 0x55667788, ScalarType::Int);
+    const Address grown = callPointer("realloc", {pointer(block), size(70)});
+    EXPECT_FALSE(memory().find(block)->isAlive);
+    EXPECT_EQ(memory().find(grown)->size, 70u);
+    EXPECT_EQ(readInteger(grown, ScalarType::Int), 0x11223344);
+    EXPECT_EQ(readInteger(grown + 56, ScalarType::Int), 0x55667788);
+    EXPECT_FALSE(memory().isInitialized(grown + 4, 1)); // uninitialized in the old block
+    EXPECT_FALSE(memory().isInitialized(grown + 60, 1));
+    EXPECT_TRUE(endedWith(call("realloc", {pointer(grown), size(101)}), LibraryResult::Kind::OutOfMemory));
+}
+
+TEST_P(HeapTest, AllocaIsTheEvaluators) {
+    // Its blocks belong to the stack frame, so free and realloc reject them as non-heap pointers.
+    EXPECT_EQ(findLibraryFunction("alloca"), nullptr);
+    EXPECT_EQ(findLibraryFunction("__builtin_alloca"), nullptr);
+    const Address local = buffer(16, Region::Stack);
+    EXPECT_TRUE(isUndefined(call("free", {pointer(local)}), "not a heap block"));
+    EXPECT_TRUE(isUndefined(call("realloc", {pointer(local), size(32)}), "not a heap block"));
 }
 
 } // namespace

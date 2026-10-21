@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "ast/casting.hpp"
+#include "sema/sema.hpp"
 #include "sema/sema_impl.hpp"
 #include "support/assert.hpp"
 
@@ -417,3 +418,25 @@ std::optional<BuiltinInfo> lookupBuiltin(ast::AstContext& context, std::string_v
 }
 
 } // namespace nitwit::sema::detail
+
+namespace nitwit::sema {
+
+std::vector<std::string> builtinFunctionNames() {
+    std::vector<std::string> names;
+    for (const detail::Entry& entry : detail::entries) {
+        std::vector<std::string> variants{std::string(entry.name)};
+        if (entry.hasMathVariants) {
+            variants.push_back(std::string(entry.name) + "f");
+            variants.push_back(std::string(entry.name) + "l");
+        }
+        for (const std::string& variant : variants) {
+            names.push_back("__builtin_" + variant);
+            if (entry.origin == detail::Origin::Library) {
+                names.push_back(variant);
+            }
+        }
+    }
+    return names;
+}
+
+} // namespace nitwit::sema

@@ -1,14 +1,15 @@
-// Output through <stdio.h> (C17 7.21) to stdout and stderr, the only streams the interpreter has. stdout goes to the
-// context's output stream; stderr is discarded.
+// Output through <stdio.h> (C17 7.21) to stdout and stderr, the only output streams the interpreter has. stdout goes
+// to the context's output stream, unbuffered; stderr is discarded.
 
 #include <algorithm>
+#include <array>
 #include <climits>
 #include <format>
 #include <limits>
 #include <ostream>
+#include <span>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "interp/library_call.hpp"
 #include "interp/library_format.hpp"
@@ -23,7 +24,7 @@ constexpr std::string_view stdinFile = "_IO_2_1_stdin_";
 constexpr std::string_view stdoutFile = "_IO_2_1_stdout_";
 constexpr std::string_view stderrFile = "_IO_2_1_stderr_";
 
-enum class Stream : std::uint8_t { Stdout, Stderr };
+enum class Stream : std::uint8_t { Stdin, Stdout, Stderr };
 
 /// The stream that the FILE* argument at `index` designates.
 Stream streamArgument(const Call& call, std::size_t index) {
@@ -34,10 +35,22 @@ Stream streamArgument(const Call& call, std::size_t index) {
     if (stream == call.objectAddress(stderrFile)) {
         return Stream::Stderr;
     }
-    if (stream == 0) {
-        call.undefinedBehavior(std::format("{} writes to a null stream", call.name()));
+    if (stream == call.objectAddress(stdinFile)) {
+        return Stream::Stdin;
     }
-    call.unsupported(std::format("{} writes to a stream other than stdout and stderr", call.name()));
+    if (stream == 0) {
+        call.undefinedBehavior(std::format("{} uses a null stream", call.name()));
+    }
+    call.unsupported(std::format("{} uses a stream other than stdin, stdout and stderr", call.name()));
+}
+
+/// The stream an output function writes to: stdout or stderr.
+Stream outputStream(const Call& call, std::size_t index) {
+    const Stream stream = streamArgument(call, index);
+    if (stream == Stream::Stdin) {
+        call.unsupported(std::format("{} writes to stdin", call.name()));
+    }
+    return stream;
 }
 
 void emit(const Call& call, Stream stream, std::string_view text) {
@@ -56,45 +69,52 @@ LibraryResult returnCount(const Call& call, std::size_t count) {
 // ---- The printf family; the v forms get the arguments of their va_list (LibraryCall) ----
 
 LibraryResult printf(const Call& call) {
-    const std::string text = formatPrintf(call, call.pointerArgument(0), 1);
+    const std::string text = formatPrintf(call, call.pointerArgument(0), 1).text;
     emit(call, Stream::Stdout, text);
     return returnCount(call, text.size());
 }
 
 LibraryResult fprintf(const Call& call) {
-    const Stream stream = streamArgument(call, 0);
-    const std::string text = formatPrintf(call, call.pointerArgument(1), 2);
+    const Stream stream = outputStream(call, 0);
+    const std::string text = formatPrintf(call, call.pointerArgument(1), 2).text;
     emit(call, stream, text);
     return returnCount(call, text.size());
 }
 
+/// Writes the first `length` characters of the output of sprintf or snprintf and a null character to `buffer`, which
+/// must not overlap what the call read: copying between overlapping objects is undefined (C17 7.21.6.5p2,
+/// 7.21.6.6p2).
+void writeOutput(const Call& call, Address buffer, const Formatted& formatted, std::size_t length) {
+    for (const MemoryRange& read : formatted.reads) {
+        call.requireDisjoint(buffer, length + 1, read.address, read.size);
+    }
+    std::string bytes = formatted.text.substr(0, length);
+    bytes.push_back('\0');
+    call.write(buffer, std::as_bytes(std::span(bytes)));
+}
+
 LibraryResult sprintf(const Call& call) {
     const Address buffer = call.pointerArgument(0);
-    std::string text = formatPrintf(call, call.pointerArgument(1), 2);
-    const std::size_t count = text.size();
-    text.push_back('\0');
-    call.write(buffer, std::as_bytes(std::span(text)));
-    return returnCount(call, count);
+    const Formatted formatted = formatPrintf(call, call.pointerArgument(1), 2);
+    writeOutput(call, buffer, formatted, formatted.text.size());
+    return returnCount(call, formatted.text.size());
 }
 
 /// Writes at most n - 1 characters and a null character; returns the length of the whole output (C17 7.21.6.5).
 LibraryResult snprintf(const Call& call) {
     const Address buffer = call.pointerArgument(0);
     const std::uint64_t size = call.sizeArgument(1);
-    std::string text = formatPrintf(call, call.pointerArgument(2), 3);
-    const std::size_t count = text.size();
+    const Formatted formatted = formatPrintf(call, call.pointerArgument(2), 3);
     if (size > 0) {
-        text.resize(std::min<std::uint64_t>(count, size - 1));
-        text.push_back('\0');
-        call.write(buffer, std::as_bytes(std::span(text)));
+        writeOutput(call, buffer, formatted, std::min<std::uint64_t>(formatted.text.size(), size - 1));
     }
-    return returnCount(call, count);
+    return returnCount(call, formatted.text.size());
 }
 
 /// asprintf(&pointer, format, ...): the output in a new heap block (a GNU extension).
 LibraryResult asprintf(const Call& call) {
     const Address pointer = call.pointerArgument(0);
-    std::string text = formatPrintf(call, call.pointerArgument(1), 2);
+    std::string text = formatPrintf(call, call.pointerArgument(1), 2).text;
     const std::size_t count = text.size();
     text.push_back('\0');
     const Address block = call.allocateHeap(text.size(), false);
@@ -115,7 +135,7 @@ LibraryResult puts(const Call& call) {
 /// glibc's fputs returns 1.
 LibraryResult fputs(const Call& call) {
     const std::string text = call.readString(call.pointerArgument(0));
-    emit(call, streamArgument(call, 1), text);
+    emit(call, outputStream(call, 1), text);
     return call.returnInt(1);
 }
 
@@ -131,25 +151,34 @@ LibraryResult putchar(const Call& call) {
 }
 
 LibraryResult fputc(const Call& call) {
-    return writeCharacter(call, streamArgument(call, 1));
+    return writeCharacter(call, outputStream(call, 1));
 }
 
 /// fwrite(pointer, size, count, stream) returns the number of elements written; 0 if size or count is 0.
 LibraryResult fwrite(const Call& call) {
     const Address source = call.pointerArgument(0);
-    const UInt128 bytes = UInt128{call.sizeArgument(1)} * call.sizeArgument(2);
-    const Stream stream = streamArgument(call, 3);
-    if (bytes > std::numeric_limits<std::uint64_t>::max()) {
+    const UInt128 total = UInt128{call.sizeArgument(1)} * call.sizeArgument(2);
+    const Stream stream = outputStream(call, 3);
+    if (total > std::numeric_limits<std::uint64_t>::max()) {
         call.undefinedBehavior(std::format("{} reads past the end of the object", call.name()));
     }
-    const std::vector<std::byte> data = call.readBytes(source, static_cast<std::uint64_t>(bytes));
-    emit(call, stream, std::string_view(reinterpret_cast<const char*>(data.data()), data.size()));
-    return call.returnSize(bytes == 0 ? 0 : call.sizeArgument(2));
+    const auto size = static_cast<std::uint64_t>(total);
+    call.requireReadable(source, size);
+    // In blocks, so that a large range needs no host memory of its size.
+    std::array<std::byte, 4096> block{};
+    for (std::uint64_t done = 0; done < size;) {
+        const std::span<std::byte> part = std::span(block).first(std::min<std::uint64_t>(block.size(), size - done));
+        call.read(source + done, part);
+        emit(call, stream, std::string_view(reinterpret_cast<const char*>(part.data()), part.size()));
+        done += part.size();
+    }
+    return call.returnSize(size == 0 ? 0 : call.sizeArgument(2));
 }
 
+/// fflush(NULL) flushes all streams; the interpreter's are unbuffered.
 LibraryResult fflush(const Call& call) {
-    if (call.pointerArgument(0) != 0) { // fflush(NULL) flushes all streams
-        streamArgument(call, 0);
+    if (call.pointerArgument(0) != 0) {
+        streamArgument(call, 0); // glibc's fflush(stdin) succeeds as well
     }
     return call.returnInt(0);
 }

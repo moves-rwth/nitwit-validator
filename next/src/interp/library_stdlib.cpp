@@ -15,8 +15,8 @@ namespace {
 
 // ---- Termination ----
 
-/// exit, _Exit, _exit and quick_exit. The evaluator flushes the output; atexit is not supported, so there are no
-/// handlers to run.
+/// exit, _Exit, _exit and quick_exit. The interpreter's stdout is unbuffered (as in tools/difftest), so the output
+/// written before is kept by all of them; atexit is not supported, so there are no handlers to run.
 LibraryResult exit(const Call& call) {
     LibraryResult result;
     result.kind = LibraryResult::Kind::Exit;
@@ -28,23 +28,30 @@ LibraryResult abort(const Call& call) {
     return ending(LibraryResult::Kind::Abort, std::format("{} was called", call.name()));
 }
 
-/// __assert_fail(assertion, file, line, function), which the assert macro calls (and sv-benchmarks' reach_error).
-/// glibc prints the message to stderr, which the interpreter discards, and aborts.
-LibraryResult assertFail(const Call& call) {
-    const std::string assertion = call.readString(call.pointerArgument(0));
-    const std::string file = call.readString(call.pointerArgument(1));
-    const auto line = static_cast<unsigned>(call.integerArgument(2, ScalarType::UnsignedInt));
-    const std::string function = call.readString(call.pointerArgument(3));
-    return ending(LibraryResult::Kind::Abort,
-                  std::format("{}:{}: {}: Assertion `{}' failed.", file, line, function, assertion));
+/// The string argument at `index`, or "(null)" for a null pointer, as glibc's message prints it.
+std::string stringOrNull(const Call& call, std::size_t index) {
+    const Address address = call.pointerArgument(index);
+    return address == 0 ? "(null)" : call.readString(address);
 }
 
-/// __assert(assertion, file, line), glibc's BSD form.
-LibraryResult bsdAssert(const Call& call) {
-    const std::string assertion = call.readString(call.pointerArgument(0));
-    const std::string file = call.readString(call.pointerArgument(1));
+/// The message glibc prints to stderr (which the interpreter discards) before it aborts; the function is optional.
+LibraryResult assertionFailed(const Call& call, unsigned line, Address function) {
+    const std::string assertion = stringOrNull(call, 0);
+    const std::string file = stringOrNull(call, 1);
+    const std::string functionPart = function == 0 ? "" : call.readString(function) + ": ";
     return ending(LibraryResult::Kind::Abort,
-                  std::format("{}:{}: Assertion `{}' failed.", file, call.intArgument(2), assertion));
+                  std::format("{}:{}: {}Assertion `{}' failed.", file, line, functionPart, assertion));
+}
+
+/// __assert_fail(assertion, file, line, function), which the assert macro calls (and sv-benchmarks' reach_error).
+LibraryResult assertFail(const Call& call) {
+    const auto line = static_cast<unsigned>(call.integerArgument(2, ScalarType::UnsignedInt));
+    return assertionFailed(call, line, call.pointerArgument(3));
+}
+
+/// __assert(assertion, file, line), glibc's BSD form: __assert_fail without a function.
+LibraryResult bsdAssert(const Call& call) {
+    return assertionFailed(call, static_cast<unsigned>(call.intArgument(2)), 0);
 }
 
 // ---- errno (C17 7.5) ----

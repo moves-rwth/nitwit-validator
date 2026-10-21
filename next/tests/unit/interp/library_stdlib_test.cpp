@@ -406,7 +406,15 @@ TEST_P(StdlibTest, AssertFailAbortsWithGlibcsMessage) {
     EXPECT_TRUE(endedWith(result, LibraryResult::Kind::Abort, "main.c:12: f: Assertion `x > 0' failed."));
     EXPECT_TRUE(endedWith(call("__assert", {pointer(string("0")), pointer(string("a.c")), intValue(7)}),
                           LibraryResult::Kind::Abort, "a.c:7: Assertion `0' failed."));
-    EXPECT_TRUE(isUndefined(call("__assert_fail", {pointer(0), pointer(0), intValue(1), pointer(0)}), "null"));
+}
+
+TEST_P(StdlibTest, AssertFailWithNullArgumentsPrintsLikeGlibc) {
+    const TypedValue line = integer(12, ScalarType::UnsignedInt);
+    EXPECT_TRUE(endedWith(call("__assert_fail", {pointer(string("x > 0")), pointer(string("f.c")), line, pointer(0)}),
+                          LibraryResult::Kind::Abort, "f.c:12: Assertion `x > 0' failed."));
+    EXPECT_TRUE(endedWith(call("__assert_fail", {pointer(0), pointer(0), line, pointer(string("main"))}),
+                          LibraryResult::Kind::Abort, "(null):12: main: Assertion `(null)' failed."));
+    EXPECT_TRUE(isUndefined(call("__assert_fail", {pointer(16), pointer(0), line, pointer(0)}), "null pointer"));
 }
 
 TEST_P(StdlibTest, AtomicSectionsAreNoOps) {

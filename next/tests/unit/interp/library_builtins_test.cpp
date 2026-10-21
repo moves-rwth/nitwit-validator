@@ -24,8 +24,8 @@ protected:
 INSTANTIATE_TEST_SUITE_P(DataModels, BuiltinsTest, testing::Values(DataModel::ILP32, DataModel::LP64), modelName);
 
 TEST_P(BuiltinsTest, ExpectReturnsItsArgumentWithItsOrigin) {
-    value::Value argument = integer(5, ScalarType::Long);
-    argument.setOrigin(InputId{2});
+    TypedValue argument = integer(5, ScalarType::Long);
+    argument.value.setOrigin(InputId{2});
     const LibraryResult result = call("__builtin_expect", {argument, integer(0, ScalarType::Long)});
     EXPECT_EQ(returned(result), 5);
     EXPECT_EQ(result.value.origin(), InputId{2});
@@ -41,14 +41,20 @@ TEST_P(BuiltinsTest, UnreachableIsUndefinedAndTrapAborts) {
     EXPECT_TRUE(endedWith(call("__builtin_abort", {}), LibraryResult::Kind::Abort));
 }
 
-TEST_P(BuiltinsTest, ConstantPAndObjectSizeAsAtO0) {
+TEST_P(BuiltinsTest, ConstantPIsZeroForValues) {
     EXPECT_EQ(callInteger("__builtin_constant_p", {intValue(1)}), 0);
-    const Int128 unknown = lp64() ? Int128{UINT64_MAX} : Int128{UINT32_MAX};
-    EXPECT_EQ(callInteger("__builtin_object_size", {pointer(0x1000), intValue(0)}), unknown);
-    EXPECT_EQ(callInteger("__builtin_object_size", {pointer(0x1000), intValue(1)}), unknown);
-    EXPECT_EQ(callInteger("__builtin_object_size", {pointer(0x1000), intValue(2)}), 0);
-    EXPECT_EQ(callInteger("__builtin_object_size", {pointer(0x1000), intValue(3)}), 0);
     EXPECT_EQ(call("__builtin_prefetch", {pointer(0)}).kind, LibraryResult::Kind::Return);
+}
+
+// The library sees only pointers whose object GCC does not know; calls on known objects are folded before.
+TEST_P(BuiltinsTest, ObjectSizeOfAnUnknownObject) {
+    const Int128 unknown = lp64() ? Int128{UINT64_MAX} : Int128{UINT32_MAX};
+    for (const char* function : {"__builtin_object_size", "__builtin_dynamic_object_size"}) {
+        EXPECT_EQ(callInteger(function, {pointer(0x1000), intValue(0)}), unknown) << function;
+        EXPECT_EQ(callInteger(function, {pointer(0x1000), intValue(1)}), unknown) << function;
+        EXPECT_EQ(callInteger(function, {pointer(0x1000), intValue(2)}), 0) << function;
+        EXPECT_EQ(callInteger(function, {pointer(0x1000), intValue(3)}), 0) << function;
+    }
 }
 
 TEST_P(BuiltinsTest, ByteSwaps) {

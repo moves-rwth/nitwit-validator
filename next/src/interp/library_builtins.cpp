@@ -36,7 +36,9 @@ LibraryResult constantP(const Call& call) {
     return call.returnInt(0);
 }
 
-/// GCC at -O0 knows no object sizes: (size_t)-1 for the types 0 and 1 (maximum), 0 for 2 and 3 (minimum).
+/// What GCC gives for a pointer whose object it does not know: (size_t)-1 for the types 0 and 1 (maximum), 0 for 2 and
+/// 3 (minimum). For a known object (`char buf[64]` gives 64 even at -O0) the call must be folded before it reaches the
+/// library.
 LibraryResult objectSize(const Call& call) {
     const int type = call.intArgument(1);
     return call.returnSize((type & 2) == 0 ? ~std::uint64_t{0} : 0);

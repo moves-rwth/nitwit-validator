@@ -13,6 +13,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -25,7 +26,30 @@
 
 namespace nitwit::interp::test {
 
-/// Library objects are allocated on first use in the Global region; heap blocks count against `heapLimit`.
+/// An argument of a call: its value and its type after the default argument promotions (LibraryCall::argumentTypes).
+struct TypedValue {
+    TypedValue(value::Value value, ScalarType type) : value(std::move(value)), type(type) {}
+    /// A floating value, whose type follows from its kind; integers need their type.
+    TypedValue(value::Value value) : value(std::move(value)), type(floatingType(this->value.kind())) {}
+
+    value::Value value;
+    ScalarType type;
+
+private:
+    static ScalarType floatingType(value::Value::Kind kind) {
+        switch (kind) {
+        case value::Value::Kind::Float:
+            return ScalarType::Float;
+        case value::Value::Kind::LongDouble:
+            return ScalarType::LongDouble;
+        default:
+            return ScalarType::Double;
+        }
+    }
+};
+
+/// Library objects are allocated on first use in the Global region (ReadOnly if they are read-only); heap blocks count
+/// against `heapLimit`.
 class TestContext : public LibraryContext {
 public:
     explicit TestContext(DataModel model) : target_(TargetInfo::forDataModel(model)), memory_(target_.pointerBits()) {}
@@ -53,7 +77,8 @@ public:
         }
         // The map's key outlives the Memory, as the name of an allocation must.
         const auto entry = objects_.emplace(std::string(name), 0).first;
-        entry->second = memory_.allocate(Region::Global, object->size, object->alignment, entry->first).value();
+        const Region region = object->readOnly ? Region::ReadOnly : Region::Global;
+        entry->second = memory_.allocate(region, object->size, object->alignment, entry->first).value();
         if (object->initialize != nullptr) {
             object->initialize(*this, entry->second); // may allocate other objects
         }
@@ -93,12 +118,12 @@ protected:
 
     // ---- Arguments ----
 
-    [[nodiscard]] value::Value integer(Int128 value, ScalarType type) const {
-        return value::Value::integer(static_cast<UInt128>(value), format(type));
+    [[nodiscard]] TypedValue integer(Int128 value, ScalarType type) const {
+        return {value::Value::integer(static_cast<UInt128>(value), format(type)), type};
     }
-    [[nodiscard]] value::Value intValue(Int128 value) const { return integer(value, ScalarType::Int); }
-    [[nodiscard]] value::Value size(Int128 value) const { return integer(value, context.target().sizeType()); }
-    [[nodiscard]] value::Value pointer(Address address) const { return integer(address, ScalarType::Pointer); }
+    [[nodiscard]] TypedValue intValue(Int128 value) const { return integer(value, ScalarType::Int); }
+    [[nodiscard]] TypedValue size(Int128 value) const { return integer(value, context.target().sizeType()); }
+    [[nodiscard]] TypedValue pointer(Address address) const { return integer(address, ScalarType::Pointer); }
 
     /// A null-terminated string in an object of its own, in `region` (Global or ReadOnly).
     Address string(std::string_view text, Region region = Region::Global) {
@@ -133,13 +158,24 @@ protected:
 
     // ---- Calls ----
 
-    LibraryResult call(std::string_view name, const std::vector<value::Value>& arguments) {
+    LibraryResult call(std::string_view name, const std::vector<TypedValue>& arguments) {
+        return call(context, name, arguments);
+    }
+
+    static LibraryResult call(LibraryContext& context, std::string_view name,
+                              const std::vector<TypedValue>& arguments) {
         const LibraryFunction function = findLibraryFunction(name);
         if (function == nullptr) {
             ADD_FAILURE() << "the library has no function " << name;
             return {};
         }
-        return function(context, LibraryCall{.name = name, .arguments = arguments});
+        std::vector<value::Value> values;
+        std::vector<ScalarType> types;
+        for (const TypedValue& argument : arguments) {
+            values.push_back(argument.value);
+            types.push_back(argument.type);
+        }
+        return function(context, LibraryCall{.name = name, .arguments = values, .argumentTypes = types});
     }
 
     /// The integer a call returned (sign-extended if its type is signed); fails the test if it did not return one.
@@ -152,11 +188,11 @@ protected:
         return result.value.signedBits();
     }
 
-    Int128 callInteger(std::string_view name, const std::vector<value::Value>& arguments) {
+    Int128 callInteger(std::string_view name, const std::vector<TypedValue>& arguments) {
         return returned(call(name, arguments));
     }
 
-    Address callPointer(std::string_view name, const std::vector<value::Value>& arguments) {
+    Address callPointer(std::string_view name, const std::vector<TypedValue>& arguments) {
         return static_cast<Address>(returned(call(name, arguments)));
     }
 
@@ -194,7 +230,7 @@ protected:
     void writeInteger(Address address, Int128 value, ScalarType type) {
         const value::IntegerFormat integerFormat = format(type);
         std::vector<std::byte> bytes(integerFormat.bits / 8u);
-        value::encodeInteger(integer(value, type), integerFormat, bytes);
+        value::encodeInteger(integer(value, type).value, integerFormat, bytes);
         EXPECT_TRUE(memory().write(address, bytes).has_value());
     }
 

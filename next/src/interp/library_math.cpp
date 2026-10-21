@@ -206,8 +206,20 @@ int visitFloat(const Call& call, std::size_t index, Function function) {
     }
 }
 
+/// GCC's __builtin_isnan.
 struct IsNan {
     int operator()(auto x) const { return std::isnan(x) ? 1 : 0; }
+};
+
+/// glibc's isnan functions: 1 for a NaN, except isnanl and __isnanl, which return 65535 (measured, both data models).
+struct GlibcIsNan {
+    template <typename T>
+    int operator()(T x) const {
+        if (!std::isnan(x)) {
+            return 0;
+        }
+        return std::is_same_v<T, long double> ? 65535 : 1;
+    }
 };
 
 /// GCC's __builtin_isinf: 1 for both infinities.
@@ -320,6 +332,27 @@ bool isLessGreater(long double x, long double y) {
 }
 bool isUnordered(long double x, long double y) {
     return std::isunordered(x, y);
+}
+
+/// GCC's __builtin_fmin and __builtin_fmax, which it expands inline instead of calling the library. They differ from
+/// glibc's fmin and fmax only where C leaves the choice open: equal operands of different sign (-0.0 and 0.0) and two
+/// NaNs. With a NaN, the result is the other operand; with equal operands, the first for float and double on x86-64
+/// and the second otherwise (measured with gcc-14 -O0, -m64 and -m32 -msse2 -mfpmath=sse).
+template <typename T, bool isMax>
+LibraryResult builtinMinMax(const Call& call) {
+    const T x = argument<T>(call, 0);
+    const T y = argument<T>(call, 1);
+    if (std::isnan(x)) {
+        return returnFloat(y);
+    }
+    if (std::isnan(y)) {
+        return returnFloat(x);
+    }
+    if (x != y) {
+        return returnFloat((x < y) != isMax ? x : y);
+    }
+    const bool first = call.target().dataModel() == DataModel::LP64 && !std::is_same_v<T, long double>;
+    return returnFloat(first ? x : y);
 }
 
 // ---- The floating-point environment (C17 7.6) ----
@@ -521,12 +554,12 @@ constexpr FunctionEntry functions[] = {
     {"__fpclassify", entryPoint<typed<double, FpClassify>>},
     {"__fpclassifyf", entryPoint<typed<float, FpClassify>>},
     {"__fpclassifyl", entryPoint<typed<long double, FpClassify>>},
-    {"__isnan", entryPoint<typed<double, IsNan>>},
-    {"__isnanf", entryPoint<typed<float, IsNan>>},
-    {"__isnanl", entryPoint<typed<long double, IsNan>>},
-    {"isnan", entryPoint<typed<double, IsNan>>},
-    {"isnanf", entryPoint<typed<float, IsNan>>},
-    {"isnanl", entryPoint<typed<long double, IsNan>>},
+    {"__isnan", entryPoint<typed<double, GlibcIsNan>>},
+    {"__isnanf", entryPoint<typed<float, GlibcIsNan>>},
+    {"__isnanl", entryPoint<typed<long double, GlibcIsNan>>},
+    {"isnan", entryPoint<typed<double, GlibcIsNan>>},
+    {"isnanf", entryPoint<typed<float, GlibcIsNan>>},
+    {"isnanl", entryPoint<typed<long double, GlibcIsNan>>},
     {"__isinf", entryPoint<typed<double, IsInfSign>>},
     {"__isinff", entryPoint<typed<float, IsInfSign>>},
     {"__isinfl", entryPoint<typed<long double, IsInfSign>>},
@@ -542,9 +575,14 @@ constexpr FunctionEntry functions[] = {
     {"__signbit", entryPoint<signbit<double>>},
     {"__signbitf", entryPoint<signbit<float>>},
     {"__signbitl", entryPoint<signbit<long double>>},
-    // GCC's builtins; the type-generic ones take the argument in its own format
+    // GCC's builtins where they differ from the glibc function of the same name, which findLibraryFunction would use.
+    // The type-generic ones take the argument in its own format.
     {"__builtin_isnan", entryPoint<generic<IsNan>>},
+    {"__builtin_isnanf", entryPoint<typed<float, IsNan>>},
+    {"__builtin_isnanl", entryPoint<typed<long double, IsNan>>},
     {"__builtin_isinf", entryPoint<generic<IsInf>>},
+    {"__builtin_isinff", entryPoint<typed<float, IsInf>>},
+    {"__builtin_isinfl", entryPoint<typed<long double, IsInf>>},
     {"__builtin_isinf_sign", entryPoint<generic<IsInfSign>>},
     {"__builtin_isfinite", entryPoint<generic<IsFinite>>},
     {"__builtin_isnormal", entryPoint<generic<IsNormal>>},
@@ -552,12 +590,28 @@ constexpr FunctionEntry functions[] = {
     {"__builtin_signbitf", entryPoint<typed<float, BuiltinSignBit>>},
     {"__builtin_signbitl", entryPoint<typed<long double, BuiltinSignBit>>},
     {"__builtin_fpclassify", entryPoint<builtinFpclassify>},
+    {"__builtin_fmin", entryPoint<builtinMinMax<double, false>>},
+    {"__builtin_fminf", entryPoint<builtinMinMax<float, false>>},
+    {"__builtin_fminl", entryPoint<builtinMinMax<long double, false>>},
+    {"__builtin_fmax", entryPoint<builtinMinMax<double, true>>},
+    {"__builtin_fmaxf", entryPoint<builtinMinMax<float, true>>},
+    {"__builtin_fmaxl", entryPoint<builtinMinMax<long double, true>>},
     {"__builtin_isgreater", entryPoint<quietComparison<isGreater>>},
     {"__builtin_isgreaterequal", entryPoint<quietComparison<isGreaterEqual>>},
     {"__builtin_isless", entryPoint<quietComparison<isLess>>},
     {"__builtin_islessequal", entryPoint<quietComparison<isLessEqual>>},
     {"__builtin_islessgreater", entryPoint<quietComparison<isLessGreater>>},
     {"__builtin_isunordered", entryPoint<quietComparison<isUnordered>>},
+    // The macros of <math.h> that GCC also knows as functions; glibc has no functions of these names.
+    {"isfinite", entryPoint<generic<IsFinite>>},
+    {"isnormal", entryPoint<generic<IsNormal>>},
+    {"signbit", entryPoint<generic<BuiltinSignBit>>},
+    {"isgreater", entryPoint<quietComparison<isGreater>>},
+    {"isgreaterequal", entryPoint<quietComparison<isGreaterEqual>>},
+    {"isless", entryPoint<quietComparison<isLess>>},
+    {"islessequal", entryPoint<quietComparison<isLessEqual>>},
+    {"islessgreater", entryPoint<quietComparison<isLessGreater>>},
+    {"isunordered", entryPoint<quietComparison<isUnordered>>},
     {"__builtin_inf", entryPoint<infinity<double>>},
     {"__builtin_inff", entryPoint<infinity<float>>},
     {"__builtin_infl", entryPoint<infinity<long double>>},

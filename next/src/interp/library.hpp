@@ -30,7 +30,8 @@ public:
     [[nodiscard]] virtual std::ostream* output() = 0;
     /// Allocates heap memory and accounts for it against the memory limit (malloc and friends).
     [[nodiscard]] virtual std::expected<Address, MemoryError> allocateHeap(std::uint64_t size, bool zeroed) = 0;
-    /// The address of a library object (see libraryObject), allocated on first use.
+    /// The address of a library object (see libraryObject), allocated on first use: in Region::ReadOnly if the object
+    /// is readOnly, else in Region::Global. Its initialize function may ask for the addresses of other objects.
     [[nodiscard]] virtual Address objectAddress(std::string_view name) = 0;
 };
 
@@ -41,6 +42,10 @@ public:
 struct LibraryCall {
     std::string_view name;
     std::span<const value::Value> arguments;
+    /// The type of each argument after the default argument promotions: Int, UnsignedInt, Long, ..., Double,
+    /// LongDouble, and Pointer for pointers. One per argument; records are never passed to library functions. printf
+    /// checks its arguments against the conversion specifications with them (C17 7.21.6.1p9).
+    std::span<const ScalarType> argumentTypes;
 };
 
 /// How a library function ends.
@@ -72,6 +77,9 @@ using LibraryFunction = LibraryResult (*)(LibraryContext& context, const Library
 struct LibraryObject {
     std::uint64_t size = 0;
     std::uint64_t alignment = 1;
+    /// Read-only objects (like glibc's tables in .rodata) are allocated in Region::ReadOnly, and initialize fills them
+    /// with Memory::initialize.
+    bool readOnly = false;
     /// Writes the initial contents; called once when the object is allocated.
     void (*initialize)(LibraryContext& context, Address address) = nullptr;
 };

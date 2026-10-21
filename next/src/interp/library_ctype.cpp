@@ -102,7 +102,11 @@ void initializeTable(LibraryContext& context, Address address) {
 
 template <std::size_t entrySize, auto entry>
 LibraryObject table(const TargetInfo& /*target*/) {
-    return {.size = tableEntries * entrySize, .alignment = entrySize, .initialize = initializeTable<entrySize, entry>};
+    // Read-only, as in glibc's .rodata.
+    return {.size = tableEntries * entrySize,
+            .alignment = entrySize,
+            .readOnly = true,
+            .initialize = initializeTable<entrySize, entry>};
 }
 
 /// A pointer variable (__ctype_b, ...) that points to the entry for 0 of `tableName`.
@@ -141,6 +145,12 @@ LibraryResult convertCharacter(const Call& call) {
     return call.returnInt(c >= tableFirst && c < tableEnd ? convert(c) : c);
 }
 
+/// GCC expands __builtin_isdigit to (unsigned)(c - '0') <= 9: 1, not glibc's class bit, and no table lookup.
+LibraryResult builtinIsdigit(const Call& call) {
+    const auto offset = static_cast<unsigned>(call.intArgument(0)) - unsigned{'0'};
+    return call.returnInt(offset <= 9 ? 1 : 0);
+}
+
 LibraryResult isascii(const Call& call) {
     return call.returnInt((call.intArgument(0) & ~0x7F) == 0 ? 1 : 0);
 }
@@ -160,6 +170,7 @@ LibraryResult ctypeGetMbCurMax(const Call& call) {
 }
 
 constexpr FunctionEntry functions[] = {
+    {"__builtin_isdigit", entryPoint<builtinIsdigit>}, // the other __builtin_ forms call the functions
     {"isalnum", entryPoint<classify<alnumBit>>},
     {"isalpha", entryPoint<classify<alphaBit>>},
     {"isblank", entryPoint<classify<blankBit>>},
