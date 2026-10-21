@@ -10,3 +10,8 @@ foreach(module IN ITEMS support value lex ast parse sema interp witness validate
         add_subdirectory(corpus/${module})
     endif()
 endforeach()
+
+# The semantics suite runs the programs of tests/semantics with the replay mode of the driver.
+if(TARGET nitwit)
+    add_subdirectory(semantics)
+endif()
