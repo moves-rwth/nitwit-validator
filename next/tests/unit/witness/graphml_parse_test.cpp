@@ -151,6 +151,48 @@ TEST(GraphmlParseTest, DefaultsOnlyApplyToTheirDomain) {
     EXPECT_FALSE(witness->nodes.at(1).isSink);
 }
 
+TEST(GraphmlParseTest, KeysWithoutForApplyToAllElements) {
+    // GraphML: the attribute `for` defaults to "all".
+    const std::string keys = std::format("{}\n{}", entryKey,
+                                         R"(<key attr.name="enterFunction" id="f"><default>g</default></key>
+<key attr.name="isSinkNode" id="s"><default>true</default></key>)");
+    const auto witness = parseGraphmlWitness(graphml(keys, edgeGraph("")));
+    ASSERT_TRUE(witness.has_value()) << witness.error().message;
+    EXPECT_EQ(witness->edges.at(0).enterFunction, "g");
+    EXPECT_TRUE(witness->nodes.at(1).isSink);
+}
+
+TEST(GraphmlParseTest, CdataSectionsArePartOfTheValue) {
+    const auto witness = parseGraphmlWitness(graphml(
+        entryKey, edgeGraph("<data key=\"assumption\">x <![CDATA[<]]> 5 &amp;&amp; y <![CDATA[>]]> 1;</data>")));
+    ASSERT_TRUE(witness.has_value()) << witness.error().message;
+    EXPECT_EQ(witness->edges.at(0).assumption, "x < 5 && y > 1;");
+}
+
+TEST(GraphmlParseTest, ControlMustBeConditionTrueOrFalse) {
+    for (const char* control : {"condition-true", "condition-false"}) {
+        const auto witness =
+            parseGraphmlWitness(graphml(entryKey, edgeGraph(std::format("<data key=\"control\">{}</data>", control))));
+        ASSERT_TRUE(witness.has_value()) << witness.error().message;
+        EXPECT_EQ(witness->edges.at(0).control, control);
+    }
+    EXPECT_EQ(errorOf(graphml(entryKey, edgeGraph("<data key=\"control\">true</data>"))),
+              "edge 1 ('A' -> 'B'): control must be condition-true or condition-false, not 'true'");
+}
+
+TEST(GraphmlParseTest, ReadsUtf16WithByteOrderMark) {
+    const std::string utf8 = graphml(entryKey, edgeGraph("<data key=\"enterFunction\">main</data>"));
+    std::string utf16 = "\xFF\xFE"; // little endian
+    for (const char c : utf8) {
+        utf16 += c;
+        utf16 += '\0';
+    }
+    ASSERT_EQ(detectFormat(utf16), WitnessFormat::Graphml);
+    const auto witness = parseGraphmlWitness(utf16);
+    ASSERT_TRUE(witness.has_value()) << witness.error().message;
+    EXPECT_EQ(witness->edges.at(0).enterFunction, "main");
+}
+
 TEST(GraphmlParseTest, ValuesAreTrimmed) {
     const auto witness = parseGraphmlWitness(graphml(entryKey, edgeGraph("<data key=\"startline\">\n  12\n</data>"
                                                                          "<data key=\"assumption\"> x == 1; </data>")));

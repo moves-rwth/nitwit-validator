@@ -2,6 +2,7 @@
 #include <format>
 #include <iterator>
 #include <map>
+#include <new>
 #include <optional>
 #include <set>
 #include <string>
@@ -19,10 +20,12 @@ namespace nitwit::witness {
 namespace {
 
 // Format 1.0 (README-GraphML.md): a `<data key="...">` element refers to a `<key>` declaration by its id, and the
-// declaration's attr.name says what the data means. Data are read by the attr.names of the format's examples
-// (isEntryNode, startline, ...). The documentation's tables name the keys by their ids, which differ for the keys
-// below. Some producers declare these ids as attr.name, and the key of a data element without a declaration is taken
-// as such an id, so these ids are mapped to the attr.names.
+// declaration's attr.name says what the data means. Data are read by the attr.names that CPAchecker declares
+// (isEntryNode, startline, ...). The format documentation instead names the keys by CPAchecker's key ids, which
+// differ from the attr.names for entry, sink, violation, sourcecodelang and programfile (returnFromFunction is named
+// as the attr.name). CPAchecker's ids returnFrom and originfile differ, too. Some producers declare such ids as
+// attr.name, and the key of a data element without a declaration is taken as an id, so these ids are mapped to the
+// attr.names.
 constexpr std::pair<std::string_view, std::string_view> keyIdAliases[] = {
     {"entry", "isEntryNode"},         {"sink", "isSinkNode"},
     {"violation", "isViolationNode"}, {"sourcecodelang", "sourcecodeLanguage"},
@@ -39,16 +42,27 @@ std::string_view trim(std::string_view text) {
     return text.substr(begin, text.find_last_not_of(whitespace) + 1 - begin);
 }
 
+/// The trimmed character data of an element, CDATA sections included: `x <![CDATA[<]]> 5;` gives "x < 5;".
+std::string textOf(const pugi::xml_node& element) {
+    std::string text;
+    for (const pugi::xml_node child : element.children()) {
+        if (child.type() == pugi::node_pcdata || child.type() == pugi::node_cdata) {
+            text += child.value();
+        }
+    }
+    return std::string(trim(text));
+}
+
 struct KeyDeclaration {
     std::string name;
-    std::string domain; // the attribute `for`: "graph", "node", "edge" or "all"
+    std::string domain; // the attribute `for`: "graph", "node", "edge" or "all" (GraphML's default)
     std::optional<std::string> defaultValue;
 };
 
 /// A data element: what it means (an attr.name, with the key-id aliases resolved) and its value.
 struct Datum {
     std::string_view name;
-    std::string_view value;
+    std::string value;
 };
 
 class KeyTable {
@@ -56,10 +70,10 @@ public:
     explicit KeyTable(const pugi::xml_node& graphml) {
         for (const pugi::xml_node key : graphml.children("key")) {
             KeyDeclaration declaration{.name = key.attribute("attr.name").value(),
-                                       .domain = key.attribute("for").value(),
+                                       .domain = key.attribute("for").as_string("all"),
                                        .defaultValue = std::nullopt};
             if (const pugi::xml_node defaultValue = key.child("default")) {
-                declaration.defaultValue = defaultValue.text().get();
+                declaration.defaultValue = textOf(defaultValue);
             }
             declarations_.emplace(key.attribute("id").value(), std::move(declaration));
         }
@@ -71,11 +85,11 @@ public:
         std::vector<Datum> result;
         for (const auto& [id, declaration] : declarations_) {
             if (declaration.defaultValue && (declaration.domain == domain || declaration.domain == "all")) {
-                result.push_back({meaning(id), trim(*declaration.defaultValue)});
+                result.push_back({meaning(id), *declaration.defaultValue});
             }
         }
         for (const pugi::xml_node data : element.children("data")) {
-            result.push_back({meaning(data.attribute("key").value()), trim(data.text().get())});
+            result.push_back({meaning(data.attribute("key").value()), textOf(data)});
         }
         return result;
     }
@@ -105,6 +119,8 @@ std::expected<bool, Error> parseBoolean(const Datum& datum, std::string_view whe
         Error{std::format("{}: {} must be true or false, not '{}'", where, datum.name, datum.value)});
 }
 
+// Unlike format 2.x, whose schema requires lines of at least 1, any non-negative number is accepted, also for lines:
+// the GraphML documentation gives no minimum, and NITWIT 3.x accepted 0.
 std::expected<std::uint32_t, Error> parseNumber(const Datum& datum, std::string_view where) {
     if (const auto number = parseUnsigned(datum.value)) {
         return *number;
@@ -182,6 +198,10 @@ std::expected<GraphmlEdge, Error> readEdge(const KeyTable& keys, const pugi::xml
         } else if (datum.name == "assumption.resultfunction") {
             text = &edge.assumptionResultFunction;
         } else if (datum.name == "control") {
+            if (datum.value != "condition-true" && datum.value != "condition-false") {
+                return std::unexpected(Error{std::format(
+                    "{}: control must be condition-true or condition-false, not '{}'", where, datum.value)});
+            }
             text = &edge.control;
         } else if (datum.name == "enterFunction") {
             text = &edge.enterFunction;
@@ -219,11 +239,12 @@ std::pair<std::size_t, std::size_t> lineColumn(std::string_view contents, std::s
     return {line, lineStart == std::string_view::npos ? before.size() + 1 : before.size() - lineStart};
 }
 
-} // namespace
-
-std::expected<GraphmlWitness, Error> parseGraphmlWitness(std::string_view contents) {
+std::expected<GraphmlWitness, Error> readGraphml(std::string_view contents) {
     pugi::xml_document document;
     const pugi::xml_parse_result result = document.load_buffer(contents.data(), contents.size());
+    if (result.status == pugi::status_out_of_memory) {
+        throw std::bad_alloc();
+    }
     if (!result) {
         const auto [line, column] = lineColumn(contents, static_cast<std::size_t>(result.offset));
         return std::unexpected(
@@ -282,6 +303,16 @@ std::expected<GraphmlWitness, Error> parseGraphmlWitness(std::string_view conten
         witness.edges.push_back(std::move(*edge));
     }
     return witness;
+}
+
+} // namespace
+
+std::expected<GraphmlWitness, Error> parseGraphmlWitness(std::string_view contents) {
+    try {
+        return readGraphml(contents);
+    } catch (const std::bad_alloc&) {
+        return std::unexpected(Error{"out of memory while reading the witness"});
+    }
 }
 
 } // namespace nitwit::witness

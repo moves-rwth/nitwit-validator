@@ -1,5 +1,5 @@
-# A non-termination witness in format 2.1 in the style of some producers: flow mappings, unquoted scalars, a line
-# written as a string, and the thread id of the main thread. The last segment is a cycle segment.
+# A non-termination witness in format 2.1 in the style of some producers: flow mappings, unquoted scalars and a line
+# written as a string. The last segment is a cycle segment.
 - entry_type: violation_sequence
   metadata:
     format_version: 2.1
@@ -14,6 +14,6 @@
       language: C
   content:
   - segment:
-    - waypoint: {type: assumption, action: follow, location: {file_name: loop.c, line: "4", column: 3}, constraint: {value: n >= 0, format: c_expression}, thread_id: 0}
+    - waypoint: {type: assumption, action: follow, location: {file_name: loop.c, line: "4", column: 3}, constraint: {value: n >= 0, format: c_expression}}
   - segment:
     - waypoint: {type: branching, action: cycle, location: {file_name: loop.c, line: 5, column: 3, function: main}, constraint: {value: true}}

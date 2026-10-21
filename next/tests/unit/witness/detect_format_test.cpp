@@ -1,3 +1,5 @@
+#include <string_view>
+
 #include <gtest/gtest.h>
 
 #include "witness/parse.hpp"
@@ -13,6 +15,12 @@ TEST(DetectFormatTest, XmlIsGraphml) {
 TEST(DetectFormatTest, WhitespaceAndByteOrderMarkAreSkipped) {
     EXPECT_EQ(detectFormat("\xEF\xBB\xBF \r\n\t<graphml/>"), WitnessFormat::Graphml);
     EXPECT_EQ(detectFormat("\xEF\xBB\xBF- entry_type: violation_sequence"), WitnessFormat::Yaml);
+}
+
+TEST(DetectFormatTest, Utf16ByteOrderMarkIsGraphml) {
+    using namespace std::string_view_literals;
+    EXPECT_EQ(detectFormat("\xFF\xFE<\0g\0"sv), WitnessFormat::Graphml);
+    EXPECT_EQ(detectFormat("\xFE\xFF\0<\0g"sv), WitnessFormat::Graphml);
 }
 
 TEST(DetectFormatTest, AnythingElseIsYaml) {

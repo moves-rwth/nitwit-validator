@@ -12,6 +12,7 @@
 namespace nitwit::witness {
 namespace {
 
+using testing::AllOf;
 using testing::ElementsAre;
 using testing::HasSubstr;
 
@@ -44,19 +45,23 @@ std::string waypointErrorOf(std::string_view waypoint) {
     return errorOf(witnessWithWaypoint(waypoint));
 }
 
-/// The constraint value of an assumption waypoint whose constraint is written as `value` in a YAML block mapping.
+/// A witness whose only waypoint is an assumption with the constraint value `value`, written in a block mapping.
+std::string witnessWithConstraintValue(std::string_view value) {
+    return std::format("- entry_type: violation_sequence\n"
+                       "  content:\n"
+                       "  - segment:\n"
+                       "    - waypoint:\n"
+                       "        type: assumption\n"
+                       "        action: follow\n"
+                       "        location: {{file_name: a.c, line: 3}}\n"
+                       "        constraint:\n"
+                       "          value: {}\n",
+                       value);
+}
+
+/// The constraint value of witnessWithConstraintValue(value) after parsing.
 std::string constraintValue(std::string_view value) {
-    const std::string contents = std::format("- entry_type: violation_sequence\n"
-                                             "  content:\n"
-                                             "  - segment:\n"
-                                             "    - waypoint:\n"
-                                             "        type: assumption\n"
-                                             "        action: follow\n"
-                                             "        location: {{file_name: a.c, line: 3}}\n"
-                                             "        constraint:\n"
-                                             "          value: {}\n",
-                                             value);
-    const auto witness = parseYamlWitness(contents);
+    const auto witness = parseYamlWitness(witnessWithConstraintValue(value));
     if (!witness) {
         ADD_FAILURE() << witness.error().message;
         return {};
@@ -108,8 +113,10 @@ TEST(YamlParseTest, ReadsSegmentsAndWaypointsInOrder) {
     EXPECT_EQ(enter.action, WaypointAction::Avoid);
     EXPECT_EQ(enter.constraint, std::nullopt);
 
-    EXPECT_EQ(segments[1].waypoints[1].type, WaypointType::Branching);
-    EXPECT_EQ(segments[1].waypoints[1].constraint->value, "true");
+    const Waypoint& branching = segments[1].waypoints[1];
+    EXPECT_EQ(branching.type, WaypointType::Branching);
+    EXPECT_EQ(branching.constraint->value, "true");
+    EXPECT_EQ(branching.constraint->format, "");
 
     const Waypoint& functionReturn = segments[2].waypoints[0];
     EXPECT_EQ(functionReturn.type, WaypointType::FunctionReturn);
@@ -136,7 +143,6 @@ TEST(YamlParseTest, ReadsFormat21InFlowStyle) {
     EXPECT_EQ(assumption.location.line, 4u);
     EXPECT_EQ(assumption.location.column, 3u);
     EXPECT_EQ(assumption.constraint->value, "n >= 0");
-    EXPECT_EQ(assumption.threadId, 0u);
 
     const Waypoint& cycle = sequence.segments[1].waypoints.at(0);
     EXPECT_EQ(cycle.type, WaypointType::Branching);
@@ -202,7 +208,7 @@ TEST(YamlParseTest, WaypointFieldsMustHaveTheRightKind) {
     EXPECT_THAT(waypointErrorOf("{type: [target], action: follow, location: {file_name: a.c, line: 3}}"),
                 HasSubstr("'type' must be a scalar, not a sequence"));
     EXPECT_THAT(waypointErrorOf("{type: target, action: follow, location: [a.c, 3]}"),
-                HasSubstr("location: expected a mapping, found a sequence"));
+                HasSubstr("'location' must be a mapping, not a sequence"));
     EXPECT_THAT(waypointErrorOf("{type: target, action: follow, location: {file_name: {a: b}, line: 3}}"),
                 HasSubstr("'file_name' must be a scalar, not a mapping"));
 }
@@ -218,7 +224,7 @@ TEST(YamlParseTest, ColumnAndFunctionAreOptional) {
     EXPECT_EQ(waypoint->location.function, "");
 }
 
-TEST(YamlParseTest, NullValuesCountAsMissing) {
+TEST(YamlParseTest, NullValuesOfOptionalKeysCountAsMissing) {
     const auto waypoint =
         parseWaypoint("{type: target, action: follow, location: {file_name: a.c, line: 3, column: null, function: ~}, "
                       "constraint: , thread_id: null}");
@@ -227,9 +233,13 @@ TEST(YamlParseTest, NullValuesCountAsMissing) {
     EXPECT_EQ(waypoint->location.function, "");
     EXPECT_EQ(waypoint->constraint, std::nullopt);
     EXPECT_EQ(waypoint->threadId, std::nullopt);
+}
 
+TEST(YamlParseTest, NullValuesOfRequiredKeysAreErrors) {
     EXPECT_THAT(waypointErrorOf("{type: target, action: follow, location: {file_name: a.c, line: null}}"),
-                HasSubstr("missing key 'line'"));
+                HasSubstr("'line' must be a scalar, not null"));
+    EXPECT_THAT(waypointErrorOf("{type: target, action: follow, location: ~}"),
+                HasSubstr("'location' must be a mapping, not null"));
 }
 
 TEST(YamlParseTest, LineAndColumnMayBeStrings) {
@@ -242,9 +252,9 @@ TEST(YamlParseTest, LineAndColumnMayBeStrings) {
 
 TEST(YamlParseTest, MissingFileNameOrLineIsAnError) {
     EXPECT_THAT(waypointErrorOf("{type: target, action: follow, location: {line: 3}}"),
-                HasSubstr("location: missing key 'file_name'"));
+                AllOf(HasSubstr("waypoint 1, location"), HasSubstr("missing key 'file_name'")));
     EXPECT_THAT(waypointErrorOf("{type: target, action: follow, location: {file_name: a.c, column: 3}}"),
-                HasSubstr("location: missing key 'line'"));
+                AllOf(HasSubstr("waypoint 1, location"), HasSubstr("missing key 'line'")));
 }
 
 TEST(YamlParseTest, LineMustBePositive) {
@@ -284,7 +294,7 @@ TEST(YamlParseTest, ConstraintValueKeepsTheTextOfAnyScalar) {
     EXPECT_EQ(constraintValue("''"), "");
 }
 
-TEST(YamlParseTest, ConstraintFormatIsKeptAndDefaultsToCExpression) {
+TEST(YamlParseTest, ConstraintFormatIsKeptAndEmptyIfNotGiven) {
     const auto withFormat =
         parseWaypoint("{type: function_return, action: follow, location: {file_name: a.c, line: 3}, "
                       "constraint: {value: '\\result == 1', format: ext_c_expression}}");
@@ -294,28 +304,28 @@ TEST(YamlParseTest, ConstraintFormatIsKeptAndDefaultsToCExpression) {
     const auto withoutFormat = parseWaypoint(
         "{type: branching, action: follow, location: {file_name: a.c, line: 3}, constraint: {value: false}}");
     ASSERT_TRUE(withoutFormat.has_value()) << withoutFormat.error().message;
-    EXPECT_EQ(withoutFormat->constraint->format, "c_expression");
+    EXPECT_EQ(withoutFormat->constraint->format, "");
 }
 
 TEST(YamlParseTest, ConstraintWithoutValueIsAnError) {
     EXPECT_THAT(waypointErrorOf("{type: assumption, action: follow, location: {file_name: a.c, line: 3}, "
                                 "constraint: {format: c_expression}}"),
-                HasSubstr("constraint: missing key 'value'"));
+                AllOf(HasSubstr("waypoint 1, constraint"), HasSubstr("missing key 'value'")));
     EXPECT_THAT(waypointErrorOf("{type: assumption, action: follow, location: {file_name: a.c, line: 3}, "
                                 "constraint: {value: null}}"),
-                HasSubstr("constraint: missing key 'value'"));
+                HasSubstr("'value' must be a scalar, not null"));
 }
 
 TEST(YamlParseTest, ConstraintMustBeAMappingWithAScalarValue) {
     EXPECT_THAT(waypointErrorOf("{type: assumption, action: follow, location: {file_name: a.c, line: 3}, "
                                 "constraint: x == 1}"),
-                HasSubstr("constraint: expected a mapping, found a scalar"));
+                HasSubstr("'constraint' must be a mapping, not a scalar"));
     EXPECT_THAT(waypointErrorOf("{type: assumption, action: follow, location: {file_name: a.c, line: 3}, "
                                 "constraint: {value: [x == 1]}}"),
                 HasSubstr("'value' must be a scalar, not a sequence"));
 }
 
-// witness format 2.x: "\r" and "\a" are escape sequences in double-quoted YAML strings only (YAML 1.2, 5.7).
+// witness format 2.x: "\r" and "\a" are escape sequences in double-quoted YAML strings only (YAML 1.2.2, 5.7).
 TEST(YamlParseTest, RepairsResultMangledByDoubleQuotes) {
     EXPECT_EQ(constraintValue(R"("\result == 7")"), "\\result == 7");
     EXPECT_EQ(constraintValue(R"("\result > 0 && \result < 9")"), "\\result > 0 && \\result < 9");
@@ -332,12 +342,28 @@ TEST(YamlParseTest, CorrectlyWrittenBackslashesStayUnchanged) {
     EXPECT_EQ(constraintValue(R"("\\at(x, Pre) == 1")"), "\\at(x, Pre) == 1");
 }
 
-TEST(YamlParseTest, OtherCarriageReturnsAndBellsStay) {
-    EXPECT_EQ(constraintValue(R"("x\r == 1")"), "x\r == 1");
-    EXPECT_EQ(constraintValue(R"("\a == 1")"), "\a == 1");
+TEST(YamlParseTest, OtherControlCharactersInConstraintsAreErrors) {
+    // "\valid" gives a vertical tab, "\forall" a form feed, "\e" an escape; a carriage return or bell character that
+    // is not part of "\result" or "\at(" is not repaired.
+    const std::pair<const char*, const char*> cases[] = {
+        {R"x("\valid(p)")x", "0x0B"}, {R"("\forall int i; i > 0")", "0x0C"},
+        {R"("\exists")", "0x1B"},     {R"("x\r == 1")", "0x0D"},
+        {R"("\a == 1")", "0x07"},
+    };
+    for (const auto& [value, character] : cases) {
+        EXPECT_THAT(errorOf(witnessWithConstraintValue(value)),
+                    AllOf(HasSubstr(std::format("'value' contains the control character {}", character)),
+                          HasSubstr("a backslash starts an escape sequence")))
+            << value;
+    }
 }
 
-// ---- Thread ids (format 2.1) ----
+TEST(YamlParseTest, TabAndNewlineInConstraintsStay) {
+    EXPECT_EQ(constraintValue(R"("x ==\t1")"), "x ==\t1");
+    EXPECT_EQ(constraintValue(R"("x ==\n1")"), "x ==\n1");
+}
+
+// ---- Thread ids (format 2.2) ----
 
 TEST(YamlParseTest, ThreadIdIsRead) {
     const auto number =
@@ -386,12 +412,12 @@ TEST(YamlParseTest, OtherEntryTypesAreListedButNotChecked) {
 }
 
 TEST(YamlParseTest, EntryWithoutEntryTypeIsAnError) {
-    EXPECT_THAT(errorOf("- entry_type: violation_sequence\n  content: []\n- metadata: {}\n"),
-                HasSubstr("entry 2: missing key 'entry_type'"));
+    EXPECT_EQ(errorOf("- entry_type: violation_sequence\n  content: []\n- metadata: {}\n"),
+              "entry 2 (line 3, column 3): missing key 'entry_type'");
 }
 
 TEST(YamlParseTest, EntryMustBeAMapping) {
-    EXPECT_THAT(errorOf("- violation_sequence\n"), HasSubstr("entry 1: expected a mapping, found a scalar"));
+    EXPECT_EQ(errorOf("- violation_sequence\n"), "entry 1 (line 1, column 3): expected a mapping, found a scalar");
 }
 
 TEST(YamlParseTest, MetadataIsOptional) {
@@ -421,13 +447,14 @@ TEST(YamlParseTest, MetadataFieldsMustHaveTheRightKind) {
     const auto withMetadata = [](std::string_view metadata) {
         return std::format("- entry_type: violation_sequence\n  metadata: {}\n  content: []\n", metadata);
     };
-    EXPECT_THAT(errorOf(withMetadata("[2.0]")), HasSubstr("entry 1, metadata: expected a mapping, found a sequence"));
+    EXPECT_THAT(errorOf(withMetadata("[2.0]")), HasSubstr("entry 1 (line 2, column 13): 'metadata' must be a mapping"));
     EXPECT_THAT(errorOf(withMetadata("{producer: CPAchecker}")),
-                HasSubstr("entry 1, metadata, producer: expected a mapping, found a scalar"));
-    EXPECT_THAT(errorOf(withMetadata("{task: {input_files: a.c}}")),
-                HasSubstr("entry 1, metadata, task: 'input_files' must be a sequence, not a scalar"));
+                AllOf(HasSubstr("entry 1, metadata"), HasSubstr("'producer' must be a mapping, not a scalar")));
+    EXPECT_THAT(
+        errorOf(withMetadata("{task: {input_files: a.c}}")),
+        AllOf(HasSubstr("entry 1, metadata, task"), HasSubstr("'input_files' must be a sequence, not a scalar")));
     EXPECT_THAT(errorOf(withMetadata("{task: {input_files: [[a.c]]}}")),
-                HasSubstr("'input_files' must be a scalar, not a sequence"));
+                HasSubstr("items of 'input_files' must be scalars, not a sequence"));
     EXPECT_THAT(errorOf(withMetadata("{format_version: {major: 2}}")),
                 HasSubstr("'format_version' must be a scalar, not a mapping"));
 }
@@ -435,14 +462,14 @@ TEST(YamlParseTest, MetadataFieldsMustHaveTheRightKind) {
 // ---- Document and sequence structure ----
 
 TEST(YamlParseTest, WitnessMustBeASequenceOfEntries) {
-    EXPECT_THAT(errorOf("entry_type: violation_sequence\n"),
-                HasSubstr("the witness must be a sequence of entries, not a mapping"));
-    EXPECT_THAT(errorOf("witness\n"), HasSubstr("the witness must be a sequence of entries, not a scalar"));
+    EXPECT_EQ(errorOf("entry_type: violation_sequence\n"), "the witness must be a sequence of entries, not a mapping");
+    EXPECT_EQ(errorOf("witness\n"), "the witness must be a sequence of entries, not a scalar");
 }
 
 TEST(YamlParseTest, EmptyWitnessIsAnError) {
     EXPECT_EQ(errorOf(""), "the witness is empty");
     EXPECT_EQ(errorOf("# only a comment\n"), "the witness is empty");
+    EXPECT_EQ(errorOf("---\n"), "the witness is empty");
 }
 
 TEST(YamlParseTest, EmptySequenceHasNoEntries) {
@@ -462,39 +489,89 @@ TEST(YamlParseTest, DeepNestingIsAnErrorNotACrash) {
     EXPECT_THAT(errorOf("- " + std::string(10'000, '[')), HasSubstr("invalid YAML"));
 }
 
+TEST(YamlParseTest, ExactlyOneDocumentIsAllowed) {
+    EXPECT_EQ(errorOf("- entry_type: invariant_set\n---\n- entry_type: invariant_set\n"),
+              "line 2, column 1: the witness must be a single YAML document");
+    EXPECT_EQ(errorOf("- entry_type: invariant_set\n---\n"),
+              "line 2, column 1: the witness must be a single YAML document");
+
+    // Explicit start and end markers of the one document are fine.
+    const auto witness = parseYamlWitness("---\n- entry_type: invariant_set\n...\n");
+    ASSERT_TRUE(witness.has_value()) << witness.error().message;
+    EXPECT_THAT(witness->otherEntryTypes, ElementsAre("invariant_set"));
+}
+
+TEST(YamlParseTest, AliasesAreRejected) {
+    EXPECT_EQ(errorOf("- &entry {entry_type: invariant_set}\n- *entry\n"),
+              "line 2, column 3: YAML aliases are not supported");
+}
+
+TEST(YamlParseTest, AliasesCannotExpandToHugeWitnesses) {
+    // "Billion laughs": each level of aliases multiplies the number of waypoints by 10.
+    std::string contents =
+        "- entry_type: invariant_set\n"
+        "  w0: &w0 {waypoint: {type: target, action: follow, location: {file_name: a.c, line: 3}}}\n";
+    for (int level = 1; level <= 8; ++level) {
+        contents += std::format("  w{}: &w{} [", level, level);
+        for (int i = 0; i < 10; ++i) {
+            contents += std::format("{}*w{}", i == 0 ? "" : ", ", level - 1);
+        }
+        contents += "]\n";
+    }
+    contents += "- entry_type: violation_sequence\n  content: [{segment: *w8}]\n";
+    EXPECT_THAT(errorOf(contents), HasSubstr("YAML aliases are not supported"));
+}
+
+TEST(YamlParseTest, AnchorsWithoutAliasesAreIgnored) {
+    const auto witness = parseYamlWitness("- &first\n  entry_type: invariant_set\n");
+    ASSERT_TRUE(witness.has_value()) << witness.error().message;
+    EXPECT_THAT(witness->otherEntryTypes, ElementsAre("invariant_set"));
+}
+
+TEST(YamlParseTest, DuplicateKeysAreRejected) {
+    EXPECT_EQ(waypointErrorOf("{type: target, action: follow, type: assumption, location: {file_name: a.c, line: 3}}"),
+              "line 4, column 48: duplicate key 'type' (YAML requires unique keys)");
+    // Keys of different mappings may repeat.
+    EXPECT_TRUE(parseYamlWitness("- {entry_type: a}\n- {entry_type: b}\n").has_value());
+}
+
 TEST(YamlParseTest, ViolationSequenceNeedsContent) {
-    EXPECT_THAT(errorOf("- entry_type: violation_sequence\n"), HasSubstr("entry 1: missing key 'content'"));
+    EXPECT_THAT(errorOf("- entry_type: violation_sequence\n"), HasSubstr("missing key 'content'"));
     EXPECT_THAT(errorOf("- entry_type: violation_sequence\n  content: {segment: []}\n"),
-                HasSubstr("entry 1: 'content' must be a sequence, not a mapping"));
+                HasSubstr("'content' must be a sequence, not a mapping"));
+    EXPECT_THAT(errorOf("- entry_type: violation_sequence\n  content: ~\n"),
+                HasSubstr("'content' must be a sequence, not null"));
 }
 
 TEST(YamlParseTest, SegmentItemsNeedTheKeySegment) {
     EXPECT_THAT(errorOf("- entry_type: violation_sequence\n  content: [{waypoints: []}]\n"),
-                HasSubstr("entry 1, segment 1: missing key 'segment'"));
+                HasSubstr("entry 1, segment 1 (line 2, column 13): missing key 'segment'"));
     EXPECT_THAT(errorOf("- entry_type: violation_sequence\n  content: [segment]\n"),
-                HasSubstr("entry 1, segment 1: expected a mapping, found a scalar"));
+                HasSubstr("entry 1, segment 1 (line 2, column 13): expected a mapping, found a scalar"));
     EXPECT_THAT(errorOf("- entry_type: violation_sequence\n  content: [~]\n"),
-                HasSubstr("entry 1, segment 1: expected a mapping, found an empty value"));
+                HasSubstr("expected a mapping, found null"));
     EXPECT_THAT(errorOf("- entry_type: violation_sequence\n  content: [{segment: {waypoint: {}}}]\n"),
-                HasSubstr("entry 1, segment 1: 'segment' must be a sequence, not a mapping"));
+                HasSubstr("'segment' must be a sequence, not a mapping"));
 }
 
 TEST(YamlParseTest, WaypointItemsNeedTheKeyWaypoint) {
     EXPECT_THAT(errorOf("- entry_type: violation_sequence\n  content: [{segment: [{type: target}]}]\n"),
-                HasSubstr("entry 1, segment 1, waypoint 1: missing key 'waypoint'"));
+                HasSubstr("entry 1, segment 1, waypoint 1 (line 2, column 24): missing key 'waypoint'"));
     EXPECT_THAT(errorOf("- entry_type: violation_sequence\n  content: [{segment: [{waypoint: target}]}]\n"),
-                HasSubstr("entry 1, segment 1, waypoint 1: expected a mapping, found a scalar"));
+                HasSubstr("'waypoint' must be a mapping, not a scalar"));
 }
 
-TEST(YamlParseTest, ErrorsNameTheEntrySegmentAndWaypoint) {
-    const std::string waypoint = "{waypoint: {type: target, action: follow, location: {file_name: a.c, line: 3}}}";
-    const std::string contents = std::format("- entry_type: invariant_set\n"
-                                             "- entry_type: violation_sequence\n"
-                                             "  content:\n"
-                                             "  - segment: [{0}]\n"
-                                             "  - segment: [{0}, {0}, {{waypoint: {{type: jump}}}}]\n",
-                                             waypoint);
-    EXPECT_EQ(errorOf(contents), "entry 2, segment 2, waypoint 3: unknown waypoint type 'jump'");
+TEST(YamlParseTest, ErrorsNameTheEntrySegmentWaypointAndPosition) {
+    const std::string contents = "- entry_type: invariant_set\n"
+                                 "- entry_type: violation_sequence\n"
+                                 "  content:\n"
+                                 "  - segment:\n"
+                                 "    - waypoint: {type: target, action: follow, location: {file_name: a.c, line: 3}}\n"
+                                 "  - segment:\n"
+                                 "    - waypoint: {type: target, action: follow, location: {file_name: a.c, line: 3}}\n"
+                                 "    - waypoint: {type: target, action: follow, location: {file_name: a.c, line: 3}}\n"
+                                 "    - waypoint: {type: jump}\n";
+    EXPECT_EQ(errorOf(contents), "entry 2, segment 2, waypoint 3 (line 9, column 24): unknown waypoint type 'jump'");
 }
 
 TEST(YamlParseTest, UnknownKeysAreIgnored) {

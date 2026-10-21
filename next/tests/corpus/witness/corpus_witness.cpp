@@ -53,9 +53,9 @@ Outcome parseFile(const fs::path& path) {
     return outcome;
 }
 
-/// Parses the files, the small ones on several threads. yaml-cpp needs about 30 times the size of a witness in
-/// memory, 7.6 GB for the largest one of 235 MB, and glibc keeps memory freed by a thread in that thread's arena.
-/// So the files above `largeFile` bytes are parsed one at a time.
+/// Parses the files, the small ones on several threads. Parsing needs about 7 times the size of a witness in memory,
+/// 1.5 GB for the largest one of 235 MB, and glibc keeps memory freed by a thread in that thread's arena. So the files
+/// above `largeFile` bytes are parsed one at a time.
 std::vector<Outcome> parseAll(const std::vector<fs::path>& files) {
     constexpr std::uintmax_t largeFile = std::uintmax_t{4} << 20;
     std::vector<Outcome> outcomes(files.size());
