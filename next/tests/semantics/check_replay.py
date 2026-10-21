@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Runs one program of the semantics suite with `nitwit --replay` and checks it against the expected files that
 tools/difftest/difftest.py maintains (tools/difftest/README.md, "Semantics tests"): the output, the outcome, the input
-log, and that stderr holds only the harness's markers.
+log, and that stderr holds only the harness's markers. For an expected error, the marker (which names the error
+function) is compared with that of a native GCC run.
 
 Usage: check_replay.py <nitwit> <program.c> <32|64>
 """
@@ -14,6 +15,7 @@ from pathlib import Path
 
 MARKER = b"NITWIT-DIFFTEST: "
 TIMEOUT_SECONDS = 120
+DIFFTEST_DIR = Path(__file__).resolve().parents[2] / "tools" / "difftest"
 
 
 def outcome(status: int, stderr: bytes) -> str:
@@ -27,6 +29,20 @@ def outcome(status: int, stderr: bytes) -> str:
     if status == 99 and MARKER + b"bad input" in stderr:
         return "bad-input"
     return f"exit:{status}"
+
+
+def native_markers(program: Path, bits: str, inputs: Path | None) -> list[bytes]:
+    """The harness's marker lines of the program compiled with GCC (tools/difftest/difftest.py)."""
+    sys.path.insert(0, str(DIFFTEST_DIR))
+    import difftest  # noqa: PLC0415 - only needed for the error tests
+
+    limits = difftest.Limits(timeout=TIMEOUT_SECONDS)
+    with tempfile.TemporaryDirectory(prefix="nitwit-semantics-native-") as directory:
+        compiled = difftest.compile_program(program, difftest.Build(difftest.GCC, int(bits)), Path(directory), limits)
+        if compiled.binary is None:
+            return [b"native compile failure: " + compiled.message.encode()]
+        run = difftest.run_binary(compiled, inputs, limits)
+    return difftest.markers(run.stderr)
 
 
 def main(nitwit: str, program: Path, bits: str) -> int:
@@ -56,6 +72,12 @@ def main(nitwit: str, program: Path, bits: str) -> int:
     if log_path.exists() and actual_log != log_path.read_bytes():
         problems.append("input log differs:\n--- expected\n" + log_path.read_text(errors="replace")
                         + "--- actual\n" + actual_log.decode(errors="replace"))
+    if expected_status == "error":
+        # The expected files keep no stderr: the marker names the error function, which a native run shows.
+        expected_markers = native_markers(program, bits, inputs if inputs.exists() else None)
+        actual_markers = [line for line in run.stderr.splitlines() if line.startswith(MARKER)]
+        if actual_markers != expected_markers:
+            problems.append(f"markers {actual_markers}, expected {expected_markers}")
     for problem in problems:
         print(problem)
     return 1 if problems else 0

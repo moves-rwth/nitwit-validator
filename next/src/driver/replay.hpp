@@ -79,9 +79,13 @@ public:
 
     /// The error function that was called, if any.
     [[nodiscard]] const std::optional<std::string>& errorFunction() const { return errorFunction_; }
+    /// Whether the last function without definition that was called is __builtin_trap, which ends a native run by
+    /// SIGILL instead of SIGABRT.
+    [[nodiscard]] bool hasTrapped() const { return hasTrapped_; }
 
 private:
     std::optional<std::string> errorFunction_;
+    bool hasTrapped_ = false;
 };
 
 struct ReplayOptions {
