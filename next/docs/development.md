@@ -26,9 +26,15 @@ From Git Bash, set `MSYS_NO_PATHCONV=1` so that `/mnt/...` paths are not rewritt
 through another shell, which expands `$variables` first: put anything with variables into a script file and run
 `wsl -d Ubuntu -- bash /mnt/.../script.sh`.
 
-When several agents share the machine, build with at most `-j 8` and do not run corpus jobs at the same time as
-sanitizer builds. Heavy parallel load on `/mnt/e` has crashed WSL (`Wsl/Service/E_UNEXPECTED`); `wsl --shutdown`
-recovers it.
+When several agents share the machine:
+- build with at most `-j 8` (`CMAKE_BUILD_PARALLEL_LEVEL=8`) and run at most 8 corpus threads;
+- cap the memory of heavy processes: `ulimit -v 10000000` for non-sanitizer programs, and for sanitizer builds
+  `ASAN_OPTIONS=hard_rss_limit_mb=6000`, since ASan cannot start under an address-space limit (libFuzzer: `-rss_limit_mb`);
+- do not run corpus jobs at the same time as sanitizer builds.
+
+Running out of memory has crashed WSL several times (`Wsl/Service/E_UNEXPECTED`), killing every job in it.
+`wsl --shutdown` recovers it. Jobs started detached (`setsid nohup ...`) survive the end of the `wsl.exe` session that
+started them.
 
 `tools/check.sh` runs what every hand-over requires: it configures, builds and tests the `gcc-debug`, `clang-debug` and
 `asan` presets, then checks the formatting with `clang-format-20`.
