@@ -7,6 +7,52 @@ Executes the typed AST: memory model, lowering of function bodies, expression ev
 - `interpreter.hpp`: `buildProgram` (lowering, done once per program) and `Interpreter` (one run).
 - `oracle.hpp`: `InputOracle`, the source of nondeterministic values.
 - `observer.hpp`: `ExecutionObserver`, the events the validation layer follows, and `EvaluationContext`.
+- `library.hpp`: the C library functions, GCC builtins and library objects the interpreter implements, behind
+  `LibraryContext`.
+
+## Library: what to implement
+
+The functions sv-benchmarks programs call, and the glibc internals that header macros in preprocessed `.i` files expand
+to:
+
+- **SV-COMP:** `__VERIFIER_assume` (handled by the evaluator, because it ends the run), `__VERIFIER_error`,
+  `__assert_fail`, `__assert`, `abort`, `exit`, `_Exit`. `__VERIFIER_atomic_begin` and `__VERIFIER_atomic_end` are
+  no-ops in a single-threaded run.
+- **Memory:** `malloc`, `calloc`, `realloc`, `free`, `alloca`, `__builtin_alloca`, `memcpy`, `memmove`, `memset`,
+  `memcmp`, `memchr`, and their `__builtin_` forms.
+- **Strings:** `strlen`, `strnlen`, `strcpy`, `strncpy`, `strcat`, `strncat`, `strcmp`, `strncmp`, `strchr`,
+  `strrchr`, `strstr`, `strdup`, `strndup`, `strspn`, `strcspn`.
+- **Conversions:** `atoi`, `atol`, `strtol`, `strtoul`, `strtoll`, `strtoull`, `abs`, `labs`, `llabs`.
+- **ctype:** `isdigit`, `isalpha`, `isspace`, `toupper`, `tolower`, ..., and glibc's `__ctype_b_loc`,
+  `__ctype_tolower_loc`, `__ctype_toupper_loc` with the tables of the C locale.
+- **errno:** `__errno_location`.
+- **Output:**
+  - `printf`, `vprintf`, `sprintf`, `snprintf`, `vsnprintf`;
+  - `puts`, `putchar`, `fputs`, `fputc`, `putc`, `fprintf`, `fflush` on `stdout` and `stderr`.
+  - The library objects `stdout`, `stderr` and `stdin` are distinct non-null pointers.
+  - Formatting follows glibc, so that output is byte-identical to native runs.
+- **Math:**
+  - The functions of `math.h` that occur in the corpus (`fabs`, `sqrt`, `floor`, `ceil`, `round`, `trunc`, `fmod`,
+    `fmin`, `fmax`, `copysign`, `nextafter`, `exp`, `log`, `pow`, `sin`, `cos`, ..., with their `f` and `l` variants),
+    computed with the host libm, which is glibc's.
+  - glibc's `__fpclassify`, `__isnan`, `__isinf`, `__signbit`, `__finite` (with their `f`/`l` variants).
+  - The `__builtin_` forms: `isnan`, `isinf`, `isfinite`, `signbit`, `fabs`, `inf`, `nan`, `huge_val`.
+- **GCC builtins:** `__builtin_expect`, `__builtin_unreachable` (undefined behaviour if reached), `__builtin_trap`
+  (abort), `__builtin_bswap16/32/64`, `__builtin_clz/ctz/popcount/parity/ffs` with their `l`/`ll` forms (undefined
+  behaviour for `clz`/`ctz` of 0), `__builtin_add/sub/mul_overflow`, `__builtin_constant_p` (0),
+  `__builtin_object_size` (-1 or 0, as GCC at -O0).
+- **Unsupported:** threads (`pthread_*`), `setjmp`/`longjmp`, files, `atexit`, signals. These end the run with
+  `Unsupported`.
+
+The library is tested without the evaluator: tests create a `Memory` and a small test context, call the functions,
+and compare with values that a natively compiled program prints (glibc on the same machine).
+
+## Replay mode
+
+`nitwit --replay` (see `tools/difftest/README.md`) feeds `__VERIFIER_nondet_*` calls from the inputs file and writes
+the input log in the harness's format. Native runs have no counterpart for the other input requests. Uninitialized
+reads and calls of unknown functions therefore return 0 in replay mode, and they neither consume input lines nor
+appear in the log.
 
 ## Memory: behaviour to keep
 
