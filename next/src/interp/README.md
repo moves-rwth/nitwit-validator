@@ -20,6 +20,21 @@ Executes the typed AST: memory model, lowering of function bodies, expression ev
 - **Lookup:** finding the allocation of an address is on the hot path of every load and store. Keep the last
   allocation found as a cache.
 
+The address layout in `memory.cpp`:
+
+| Region | 32-bit pointers | 64-bit pointers |
+|---|---|---|
+| Code | `0x0001_0000`–`0x0100_0000` | 64 KiB–1 TiB |
+| ReadOnly | `0x0100_0000`–`0x0800_0000` | 1–2 TiB |
+| Global | `0x0800_0000`–`0x6000_0000` | 2–3 TiB |
+| Heap | `0x6000_0000`–`0xC000_0000` | 3–4 TiB |
+| Stack | `0xC000_0000`–`0xFFFF_0000`, growing down | 4–5 TiB, growing down |
+
+Accesses below 64 KiB are null-pointer accesses. Stack addresses are reused because the stack region is bounded (1 GiB
+with 32-bit pointers): a program that calls functions in a long loop would exhaust it otherwise. The price is that a
+use of a dangling pointer to a local is detected as DeadObject only until a later stack allocation reuses its place;
+after that, the access reaches the new object, as in a native run.
+
 ## Execution: behaviour to keep
 
 - **Lowering:** each function body becomes a flat instruction list: evaluate, declare, branch, jump, switch, return,

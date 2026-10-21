@@ -5,7 +5,9 @@ Run-time values and C arithmetic, shared by constant evaluation in `sema` and by
 - `value.hpp`: `Value` (integers up to 128 bits, `float`, `double`, `long double`, byte blobs for records), formats,
   origins, encoding to and from object representations.
 - `arithmetic.hpp`: integer and floating operations, conversions, bit-fields. Undefined behaviour is reported in the
-  result, never trapped on.
+  result, never trapped on. The value that comes with it is what GCC-compiled run-time code gives; for out-of-range
+  conversions of `float` and `double` to `unsigned int` it differs between i386 and x86-64, so `floatToInteger` takes
+  the data model.
 
 The host must be x86-64 with SSE (checked at compile time): `float` and `double` arithmetic on the host is then
 exactly the target's arithmetic, and the host's `long double` is the x87 extended format of the target.
@@ -19,4 +21,5 @@ exactly the target's arithmetic, and the host's `long double` is the x87 extende
   byte boundaries, signed and unsigned, width 1 and full width.
 - The expected values come from C semantics and were confirmed by compiling the same operation with GCC on x86-64
   (`-m32` and `-m64`, `-fwrapv` for wrapped results). The tests note where a value is hardware behaviour rather than
-  defined C.
+  defined C. `data/float_to_integer.txt` holds the results of every floating-to-integer conversion for a set of
+  boundary values, generated with gcc-14 `-m64` and `-m32 -msse2 -mfpmath=sse`.

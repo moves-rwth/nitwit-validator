@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -60,6 +61,14 @@ public:
 private:
     // The alternatives are in the order of Kind.
     using Payload = std::variant<std::monostate, UInt128, float, double, long double, std::vector<std::byte>>;
+    template <Kind kind>
+    using Alternative = std::variant_alternative_t<static_cast<std::size_t>(kind), Payload>;
+    static_assert(std::is_same_v<Alternative<Kind::None>, std::monostate>
+                  && std::is_same_v<Alternative<Kind::Integer>, UInt128>
+                  && std::is_same_v<Alternative<Kind::Float>, float>
+                  && std::is_same_v<Alternative<Kind::Double>, double>
+                  && std::is_same_v<Alternative<Kind::LongDouble>, long double>
+                  && std::is_same_v<Alternative<Kind::Bytes>, std::vector<std::byte>>);
 
     explicit Value(Payload payload) : payload_(std::move(payload)) {}
 
