@@ -1,0 +1,24 @@
+__VERIFIER_nondet_memory 1
+__VERIFIER_nondet_memory 2
+__VERIFIER_nondet_memory 255
+__VERIFIER_nondet_memory 0
+__VERIFIER_nondet_pointer 0
+__VERIFIER_nondet_pointer 4096
+__VERIFIER_nondet_pchar 0
+__VERIFIER_nondet_size_t 4294967295
+__VERIFIER_nondet_u8 44
+__VERIFIER_nondet_u16 65535
+__VERIFIER_nondet_u32 4294967295
+__VERIFIER_nondet_loff_t -5
+__VERIFIER_nondet_sector_t 4294967295
+__VERIFIER_nondet_ulonglong 18446744073709551615
+__VERIFIER_nondet_int 0 default
+__VERIFIER_nondet_pointer 0 default
+__VERIFIER_nondet_memory 0 default
+__VERIFIER_nondet_memory 0 default
+__VERIFIER_nondet_memory 0 default
+__VERIFIER_nondet_memory 0 default
+__VERIFIER_nondet_memory 0 default
+__VERIFIER_nondet_memory 0 default
+__VERIFIER_nondet_memory 0 default
+__VERIFIER_nondet_memory 0 default

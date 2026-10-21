@@ -1,8 +1,9 @@
 // Dynamic memory: malloc, calloc (zeroed), realloc (keeps the contents), free, linked structures on the heap.
 int printf(const char *, ...);
-void *malloc(unsigned long);
-void *calloc(unsigned long, unsigned long);
-void *realloc(void *, unsigned long);
+typedef __typeof__(sizeof 0) size_t;
+void *malloc(size_t);
+void *calloc(size_t, size_t);
+void *realloc(void *, size_t);
 void free(void *);
 int __VERIFIER_nondet_int(void);
 

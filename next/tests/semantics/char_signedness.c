@@ -40,6 +40,6 @@ int main(void) {
     printf("%d %c\n", digit - '0', 'a' + 2);
     // char promotes to int before the conversion to unsigned, so the sign is extended.
     printf("%u %u\n", (unsigned)c, (unsigned)uc);
-    printf("%x\n", (unsigned char)c);
+    printf("%x\n", (unsigned)(unsigned char)c);
     return 0;
 }

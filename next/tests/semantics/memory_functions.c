@@ -1,10 +1,11 @@
 // Memory functions of <string.h>: memset, memcpy, memmove with overlap, memcmp (sign only), memchr.
 int printf(const char *, ...);
-void *memset(void *, int, unsigned long);
-void *memcpy(void *, const void *, unsigned long);
-void *memmove(void *, const void *, unsigned long);
-int memcmp(const void *, const void *, unsigned long);
-void *memchr(const void *, int, unsigned long);
+typedef __typeof__(sizeof 0) size_t;
+void *memset(void *, int, size_t);
+void *memcpy(void *, const void *, size_t);
+void *memmove(void *, const void *, size_t);
+int memcmp(const void *, const void *, size_t);
+void *memchr(const void *, int, size_t);
 int __VERIFIER_nondet_int(void);
 
 struct Record {

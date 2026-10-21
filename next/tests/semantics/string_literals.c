@@ -1,7 +1,8 @@
 // String literals (C17 6.4.5): type and size, concatenation, escape sequences, embedded null characters, arrays
 // initialized from literals.
 int printf(const char *, ...);
-unsigned long strlen(const char *);
+typedef __typeof__(sizeof 0) size_t;
+size_t strlen(const char *);
 int __VERIFIER_nondet_int(void);
 
 int main(void) {

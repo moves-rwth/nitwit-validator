@@ -26,6 +26,6 @@ int main(void) {
     unsigned long long wide = 0xDEADBEEFCAFEBABEull;
     printf("%llx %llx\n", wide >> (k * 7), wide << (k * 7));
     int j = __VERIFIER_nondet_int();
-    printf("%x %x\n", 0x12345678 >> j, 0x12345678u << j);
+    printf("%x %x\n", (unsigned)(0x12345678 >> j), 0x12345678u << j);
     return 0;
 }

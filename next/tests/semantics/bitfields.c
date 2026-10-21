@@ -37,16 +37,16 @@ int main(void) {
     f.b = 31;
     f.c = -3;
     f.d = 1;
-    printf("%u %u %d %u\n", f.a, f.b, f.c, f.d);
+    printf("%u %u %d %u\n", (unsigned)f.a, (unsigned)f.b, f.c, (unsigned)f.d);
     f.b += 1;
-    printf("%u\n", f.b);
+    printf("%u\n", (unsigned)f.b);
     // Bit-fields narrower than int promote to int, even the unsigned ones.
     printf("%d %d\n", f.a - 2 < 0, f.c - 10);
 
     int k = __VERIFIER_nondet_int();
     f.c = k;
     f.a = k;
-    printf("%d %u %d\n", f.c, f.a, f.a + f.c);
+    printf("%d %u %d\n", f.c, (unsigned)f.a, f.a + f.c);
 
     struct Mixed m = {'a', -5, 200, 'b'};
     printf("%c %d %d %c\n", m.x, m.y, m.z, m.w);
@@ -56,10 +56,10 @@ int main(void) {
 
     struct Straddle s = {63, 1, 4095, 1048575};
     s.b += 62;
-    printf("%u %u %u %u\n", s.a, s.b, s.c, s.d);
+    printf("%u %u %u %u\n", (unsigned)s.a, (unsigned)s.b, (unsigned)s.c, (unsigned)s.d);
 
     struct Unnamed u = {-4, 3, 2};
-    printf("%d %d %u\n", u.first, u.second, u.third);
+    printf("%d %d %u\n", u.first, u.second, (unsigned)u.third);
 
     printf("%u %u %u %u\n", (unsigned)sizeof(struct Flags), (unsigned)sizeof(struct Mixed),
            (unsigned)sizeof(struct Straddle), (unsigned)sizeof(struct Unnamed));

@@ -97,15 +97,15 @@ int main(void) {
     case 1:
         printf("never\n");
     }
-    // The controlling expression is promoted; case labels are converted to the promoted type.
+    // The controlling expression is promoted; case labels are converted to the promoted type (int), so -56 does not
+    // match 200, although (unsigned char)-56 == 200.
     unsigned char uc = 200;
     switch (uc) {
-    case 200:
-        printf("uc 200\n");
-        break;
     case -56:
-        printf("uc -56\n");
+        printf("uc matches -56\n");
         break;
+    default:
+        printf("uc no match\n");
     }
     unsigned u = 4294967295u;
     switch (u) {

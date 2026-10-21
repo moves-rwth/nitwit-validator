@@ -89,7 +89,7 @@ int main(void) {
     printf("%d %d\n", sumInts(3, 1, 2, 3), sumInts(3, c, s, 10));
     printf("%g\n", average(3, 1.0, f, 4.5));
     int x = 42;
-    describe("ildsp", 7, 1LL << 40, 2.25, "text", &x);
+    describe("ildsp", 7, 1LL << 40, 2.25, (const char *)"text", (void *)&x);
     int k = __VERIFIER_nondet_int();
     printf("%d\n", maxTwice(4, 3, k, -1, 8));
     logMessage("%s=%d, %c%c\n", "k", k, 'o', 'k');

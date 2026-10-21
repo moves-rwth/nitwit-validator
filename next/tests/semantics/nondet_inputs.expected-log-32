@@ -1,0 +1,16 @@
+__VERIFIER_nondet_char -56
+__VERIFIER_nondet_uchar 255
+__VERIFIER_nondet_short -25536
+__VERIFIER_nondet_ushort 65535
+__VERIFIER_nondet_int 2147483647
+__VERIFIER_nondet_uint 4294967295
+__VERIFIER_nondet_long 0
+__VERIFIER_nondet_ulong 4294967295
+__VERIFIER_nondet_longlong -9223372036854775808
+__VERIFIER_nondet_ulonglong 18446744073709551615
+__VERIFIER_nondet_bool 1
+__VERIFIER_nondet_float 0x1.8p+1
+__VERIFIER_nondet_double -0x1.0000000000001p-1022
+__VERIFIER_nondet_float 0x1p+24
+__VERIFIER_nondet_int 0 default
+__VERIFIER_nondet_double 0x0p+0 default

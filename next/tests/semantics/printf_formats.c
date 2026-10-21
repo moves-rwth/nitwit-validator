@@ -6,9 +6,9 @@ int putchar(int);
 int __VERIFIER_nondet_int(void);
 
 int main(void) {
-    printf("[%d] [%i] [%u] [%x] [%X] [%o] [%c] [%s] [%%]\n", -42, 42, 42u, 255, 255, 8, 'z', "str");
+    printf("[%d] [%i] [%u] [%x] [%X] [%o] [%c] [%s] [%%]\n", -42, 42, 42u, 255u, 255u, 8u, 'z', "str");
     printf("[%5d] [%-5d] [%05d] [%+d] [% d] [%+d]\n", 42, 42, 42, 42, 42, -42);
-    printf("[%#x] [%#o] [%#X] [%#x]\n", 255, 8, 255, 0);
+    printf("[%#x] [%#o] [%#X] [%#x]\n", 255u, 8u, 255u, 0u);
     printf("[%.3d] [%8.3d] [%-8.3d|] [%.0d]\n", 7, 7, 7, 0);
     printf("[%.2s] [%10s] [%-10s|] [%.*s]\n", "abcdef", "right", "left", 3, "precision");
     printf("[%*d] [%-*d|] [%*.*f]\n", 6, 42, 6, 42, 9, 2, 3.14159);
@@ -31,7 +31,7 @@ int main(void) {
     putchar('\n');
 
     int k = __VERIFIER_nondet_int();
-    printf("[%d] [%x] [%o] [%08X] [%-6d|] [%c]\n", k, k, k, k, k, 'a' + k % 26);
+    printf("[%d] [%x] [%o] [%08X] [%-6d|] [%c]\n", k, (unsigned)k, (unsigned)k, (unsigned)k, k, 'a' + k % 26);
     printf("[%.*f] [%*s]\n", k % 5, 2.0 / 3, k % 7, "w");
     return 0;
 }
