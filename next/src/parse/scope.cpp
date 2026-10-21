@@ -119,7 +119,9 @@ ast::FunctionDecl* Parser::declareImplicitFunction(const lex::Token& name) {
     auto* function =
         context_.create<ast::FunctionDecl>(name.identifier, name.location, type, ast::StorageClass::Extern);
     function->setImplicit();
-    if (!name.identifier.text().starts_with("__builtin_")) {
+    // GCC knows its builtins without a declaration; sema gives them their real types.
+    const std::string_view text = name.identifier.text();
+    if (!text.starts_with("__builtin_") && !text.starts_with("__atomic_") && !text.starts_with("__sync_")) {
         warning(name.location, std::format("implicit declaration of function '{}'", name.identifier.text()));
     }
     if (const auto found = externals_.find(name.identifier); found != externals_.end()) {

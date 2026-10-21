@@ -367,6 +367,13 @@ TEST_F(ExpressionTest, BuiltinFunctionsAreDeclaredImplicitlyWithoutWarning) {
     EXPECT_TRUE(messages().empty());
 }
 
+TEST_F(ExpressionTest, AtomicAndSyncBuiltinsAreDeclaredImplicitlyWithoutWarning) {
+    const ast::TranslationUnit* unit = parse("int f(int *p) { __sync_synchronize(); return __atomic_load_n(p, 5); }");
+    ASSERT_NE(unit, nullptr);
+    EXPECT_TRUE(find<ast::FunctionDecl>(unit, "__atomic_load_n")->isImplicit());
+    EXPECT_TRUE(messages().empty());
+}
+
 TEST_F(ExpressionTest, UndeclaredAttributeArgumentsAreUnbound) {
     EXPECT_EQ(dumpOf("typedef int QI __attribute__((__mode__(__QI__)));"), "TypedefDecl QI 'int'\n"
                                                                            "  Attribute mode\n"
