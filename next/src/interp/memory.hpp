@@ -79,6 +79,15 @@ public:
     void popStack(Address base);
 
     [[nodiscard]] std::expected<void, MemoryError> read(Address address, std::span<std::byte> out) const;
+
+    /// What readScalar tells besides the bytes.
+    struct ScalarRead {
+        bool isInitialized = true;            // every byte of the range has been written
+        std::optional<value::InputId> origin; // the origin of exactly this range
+    };
+    /// read, isInitialized and origin in one lookup, for the loads of the evaluator.
+    [[nodiscard]] std::expected<ScalarRead, MemoryError> readScalar(Address address, std::span<std::byte> out) const;
+
     /// Writes bytes, marks them initialized, and removes the origins of the overwritten bytes.
     [[nodiscard]] std::expected<void, MemoryError> write(Address address, std::span<const std::byte> bytes);
     /// Writes into a ReadOnly allocation, to set up string literals. Precondition: a valid range.
@@ -92,6 +101,9 @@ public:
     /// Whether every byte of the range has been written. Global and ReadOnly bytes and those of allocateZeroed count as
     /// written, unless copy brought uninitialized bytes in. Precondition: the range is readable.
     [[nodiscard]] bool isInitialized(Address address, std::uint64_t size) const;
+    /// Makes the bytes uninitialized again and removes their origins: an automatic object whose declaration is reached
+    /// again holds an indeterminate value (C17 6.2.4p6). The range must be writable.
+    [[nodiscard]] std::expected<void, MemoryError> markUninitialized(Address address, std::uint64_t size);
 
     /// The allocation that contains `address` or ends exactly at it (a one-past-the-end pointer), alive or dead.
     [[nodiscard]] std::optional<AllocationInfo> find(Address address) const;
