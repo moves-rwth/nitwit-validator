@@ -85,7 +85,7 @@ FunctionDecl main 'int ()' <18:5>
       UnaryExpr postfix ++ 'int' <24:29>
         DeclRefExpr i (VarDecl at 24:14) 'int' lvalue <24:29>
       ExpressionStmt <25:9>
-        BinaryExpr += 'int' <25:9>
+        BinaryExpr += computation 'int' 'int' <25:9>
           DeclRefExpr sum (VarDecl at 23:9) 'int' lvalue <25:9>
           BinaryExpr * 'int' <25:16>
             ImplicitCastExpr LValueToRValue 'int' <25:16>

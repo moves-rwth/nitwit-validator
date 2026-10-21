@@ -1,0 +1,61 @@
+VarDecl l 'long' <3:6>
+VarDecl ul 'unsigned long' <4:15>
+VarDecl u 'unsigned int' <5:14>
+VarDecl ll 'long long' <6:11>
+VarDecl p 'int *' <7:6>
+VarDecl buf 'char [16]' <8:6>
+RecordDecl struct mixed size 32 align 4 <9:8>
+  FieldDecl c 'char' offset 0 <9:21>
+  FieldDecl d 'double' offset 4 <9:31>
+  FieldDecl ll 'long long' offset 12 <9:44>
+  FieldDecl ld 'long double' offset 20 <9:60>
+FunctionDecl __atomic_fetch_add 'int ()' extern implicit <16:5>
+FunctionDecl __builtin_object_size 'unsigned int (const void *, int)' extern implicit <17:35>
+FunctionDecl models 'unsigned long (void)' <11:15>
+  CompoundStmt <11:28>
+    ExpressionStmt <12:5>
+      BinaryExpr + 'unsigned long' <12:5>
+        ImplicitCastExpr IntegralCast 'unsigned long' <12:5>
+          ImplicitCastExpr LValueToRValue 'long' <12:5>
+            DeclRefExpr l (VarDecl at 3:6) 'long' lvalue <12:5>
+        ImplicitCastExpr IntegralCast 'unsigned long' <12:9>
+          ImplicitCastExpr LValueToRValue 'unsigned int' <12:9>
+            DeclRefExpr u (VarDecl at 5:14) 'unsigned int' lvalue <12:9>
+    ExpressionStmt <13:5>
+      BinaryExpr + 'long long' <13:5>
+        ImplicitCastExpr LValueToRValue 'long long' <13:5>
+          DeclRefExpr ll (VarDecl at 6:11) 'long long' lvalue <13:5>
+        ImplicitCastExpr IntegralCast 'long long' <13:10>
+          ImplicitCastExpr LValueToRValue 'unsigned long' <13:10>
+            DeclRefExpr ul (VarDecl at 4:15) 'unsigned long' lvalue <13:10>
+    ExpressionStmt <14:5>
+      BinaryExpr - 'int' <14:5>
+        ImplicitCastExpr LValueToRValue 'int *' <14:5>
+          DeclRefExpr p (VarDecl at 7:6) 'int *' lvalue <14:5>
+        ImplicitCastExpr LValueToRValue 'int *' <14:9>
+          DeclRefExpr p (VarDecl at 7:6) 'int *' lvalue <14:9>
+    ExpressionStmt <15:5>
+      CastExpr (long long) PointerToIntegral 'long long' <15:5>
+        ImplicitCastExpr LValueToRValue 'int *' <15:16>
+          DeclRefExpr p (VarDecl at 7:6) 'int *' lvalue <15:16>
+    ExpressionStmt <16:5>
+      CallExpr 'int *' <16:5>
+        ImplicitCastExpr FunctionToPointerDecay 'int (*)()' <16:5>
+          DeclRefExpr __atomic_fetch_add (FunctionDecl at 16:5) 'int ()' lvalue <16:5>
+        UnaryExpr & 'int **' <16:24>
+          DeclRefExpr p (VarDecl at 7:6) 'int *' lvalue <16:25>
+        ImplicitCastExpr IntegralCast 'unsigned int' <16:28>
+          IntegerLiteral 1 'int' <16:28>
+        IntegerLiteral 0 'int' <16:31>
+    ReturnStmt <17:5>
+      ImplicitCastExpr IntegralCast 'unsigned long' <17:12>
+        BinaryExpr + 'unsigned int' <17:12>
+          SizeOfAlignOfExpr sizeof (struct mixed) 'unsigned int' <17:12>
+          CallExpr 'unsigned int' <17:35>
+            ImplicitCastExpr FunctionToPointerDecay 'unsigned int (*)(const void *, int)' <17:35>
+              DeclRefExpr __builtin_object_size (FunctionDecl at 17:35) 'unsigned int (const void *, int)' lvalue <17:35>
+            ImplicitCastExpr BitCast 'const void *' <17:57>
+              ImplicitCastExpr ArrayToPointerDecay 'char *' <17:57>
+                DeclRefExpr buf (VarDecl at 8:6) 'char [16]' lvalue <17:57>
+            IntegerLiteral 0 'int' <17:62>
+Locals of models:

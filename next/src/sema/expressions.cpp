@@ -27,8 +27,9 @@ bool fits(ast::AstContext& context, std::uint64_t value, BuiltinKind kind) {
 ast::QualType characterType(ast::AstContext& context, lex::CharEncoding encoding) {
     switch (encoding) {
     case lex::CharEncoding::Plain:
-    case lex::CharEncoding::Wide: // wchar_t is int on x86 Linux
         return context.builtin(BuiltinKind::Int);
+    case lex::CharEncoding::Wide:
+        return wcharType(context);
     case lex::CharEncoding::Utf8:
         return context.builtin(BuiltinKind::UnsignedChar);
     case lex::CharEncoding::Utf16:
@@ -45,7 +46,7 @@ ast::QualType stringElementType(ast::AstContext& context, lex::CharEncoding enco
     case lex::CharEncoding::Utf8:
         return context.builtin(BuiltinKind::Char);
     case lex::CharEncoding::Wide:
-        return context.builtin(BuiltinKind::Int);
+        return wcharType(context);
     case lex::CharEncoding::Utf16:
         return context.builtin(BuiltinKind::UnsignedShort);
     case lex::CharEncoding::Utf32:
@@ -341,14 +342,42 @@ void Sema::genericBuiltinCall(ast::CallExpr* call, GenericBuiltin builtin) {
             error(arguments[0]->location(), std::format("non-floating-point argument in call to function '{}'", name));
         }
         return call->setType(intType, ast::ValueCategory::RValue);
-    case GenericBuiltin::FloatCompare:
+    case GenericBuiltin::Fpclassify:
+        // __builtin_fpclassify(nan, infinite, normal, subnormal, zero, x): x is not promoted.
+        requireArguments(6);
+        for (std::size_t i = 0; i < 5; ++i) {
+            arguments[i] = rvalue(arguments[i]);
+            if (!isIntegerClass(classify(context_, arguments[i]->type()))) {
+                error(arguments[i]->location(),
+                      std::format("non-integer argument {} in call to function '{}'", i + 1, name));
+            }
+            arguments[i] = convert(arguments[i], intType);
+        }
+        arguments[5] = rvalue(arguments[5]);
+        if (classify(context_, arguments[5]->type()) != TypeClass::Floating) {
+            error(arguments[5]->location(), std::format("non-floating-point argument in call to function '{}'", name));
+        }
+        return call->setType(intType, ast::ValueCategory::RValue);
+    case GenericBuiltin::FloatCompare: {
+        // GCC: two real floating operands, or one and an operand of an integer type.
         requireArguments(2);
-        if (!isArithmeticClass(classify(context_, arguments[0]->type()))
-            || !isArithmeticClass(classify(context_, arguments[1]->type()))) {
-            error(call->location(), std::format("non-floating-point arguments in call to function '{}'", name));
+        const auto kindOf = [&](const ast::Expr* argument) {
+            const TypeClass type = classify(context_, valueType(argument));
+            if (type == TypeClass::Floating) {
+                return 2;
+            }
+            return isIntegerClass(type) ? 1 : 0;
+        };
+        const int first = kindOf(arguments[0]);
+        const int second = kindOf(arguments[1]);
+        if (first == 0 || second == 0 || first + second < 3) {
+            error(arguments[0]->location(), std::format("non-floating-point arguments in call to function '{}'", name));
         }
         (void)usualArithmeticConversions(arguments[0], arguments[1]);
         return call->setType(intType, ast::ValueCategory::RValue);
+    }
+    case GenericBuiltin::Atomic:
+        return atomicCall(call, name);
     case GenericBuiltin::VaStart:
         requireArguments(2);
         requireVaList(0);
@@ -442,7 +471,10 @@ void Sema::subscript(ast::ArraySubscriptExpr* subscript) {
     index = promote(index);
     const ast::QualType element = pointeeOf(base->type());
     const TypeClass elementClass = classify(context_, element);
-    if (elementClass != TypeClass::Void && elementClass != TypeClass::Function && !isVariablySized(element)) {
+    if (elementClass == TypeClass::Function) {
+        error(subscript->location(), "subscripted value is pointer to function");
+    }
+    if (elementClass != TypeClass::Void && !isVariablySized(element)) {
         requireComplete(element, subscript->location(),
                         std::format("invalid use of undefined type '{}'", typeName(element)));
     }
@@ -504,13 +536,13 @@ void Sema::compoundLiteral(ast::CompoundLiteralExpr* literal) {
         std::vector<ast::Expr*> elements;
         if (!list->elements().empty()) {
             ast::QualType scalar = type;
-            elements.push_back(initializer(scalar, list->elements().front()));
+            elements.push_back(initializer(scalar, list->elements().front(), literal->isFileScope()));
         }
         list->setElements(context_.copy<ast::Expr*>(elements));
         list->setSemanticForm();
         list->setType(unqualified(context_, type), ast::ValueCategory::RValue);
     } else {
-        ast::Expr* result = initializer(type, list);
+        ast::Expr* result = initializer(type, list, literal->isFileScope());
         NITWIT_ASSERT(result == list || ast::isa<ast::StringLiteralExpr>(result),
                       "the initializer of a compound literal stays its InitListExpr");
         if (result != list) {
@@ -524,6 +556,7 @@ void Sema::compoundLiteral(ast::CompoundLiteralExpr* literal) {
 
 void Sema::sizeOfAlignOf(ast::SizeOfAlignOfExpr* sizeOf) {
     ast::QualType type;
+    // GCC 14 says `__alignof__` for _Alignof too.
     const std::string_view name = sizeOf->op() == ast::SizeOfAlignOfExpr::Operator::SizeOf ? "sizeof" : "__alignof__";
     if (ast::Expr* operand = sizeOf->operand()) {
         expr(operand);
@@ -600,12 +633,10 @@ void Sema::statementExpr(ast::StatementExpr* statementExpr) {
     ast::CompoundStmt* body = statementExpr->body();
     stmt(body);
     ast::QualType type = context_.builtin(BuiltinKind::Void);
-    if (!body->body().empty()) {
-        if (auto* last = ast::dyn_cast<ast::ExpressionStmt>(body->body().back());
-            last != nullptr && classify(context_, last->expr()->type()) != TypeClass::Void) {
-            last->setExpr(rvalue(last->expr()));
-            type = last->expr()->type();
-        }
+    if (ast::ExpressionStmt* last = statementExpr->valueStatement();
+        last != nullptr && classify(context_, last->expr()->type()) != TypeClass::Void) {
+        last->setExpr(rvalue(last->expr()));
+        type = last->expr()->type();
     }
     statementExpr->setType(type, ast::ValueCategory::RValue);
 }

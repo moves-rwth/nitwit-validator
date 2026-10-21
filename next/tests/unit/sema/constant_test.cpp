@@ -23,7 +23,49 @@ protected:
         return evaluateIntegerConstant(context(),
                                        ast::cast<ast::ExpressionStmt>(function->body()->body().front())->expr());
     }
+
+    // knownObjectSize for the call `call` in a function with a local `char local[32]`.
+    std::optional<std::uint64_t> objectSize(std::string_view call, DataModel model = DataModel::LP64) {
+        const ast::TranslationUnit* unit =
+            analyze(std::format("struct S {{ char a[10]; int b; char c[3]; }} s; char buf[64]; struct S *p;\n"
+                                "void test(void) {{\nchar local[32];\n{};\n}}\n",
+                                call),
+                    model);
+        EXPECT_NE(unit, nullptr) << firstError();
+        if (unit == nullptr) {
+            return std::nullopt;
+        }
+        const auto* function = ast::cast<ast::FunctionDecl>(unit->decls.back());
+        const auto* statement = ast::cast<ast::ExpressionStmt>(function->body()->body()[1]);
+        return knownObjectSize(context(), ast::cast<ast::CallExpr>(statement->expr()));
+    }
 };
+
+// The values of gcc-14 -O0 on x86-64 and i386.
+TEST_F(ConstantTest, KnownObjectSizesAsGccComputesThemAtO0) {
+    for (const int type : {0, 1, 2, 3}) {
+        EXPECT_EQ(objectSize(std::format("__builtin_object_size(buf, {})", type)), 64u);
+    }
+    EXPECT_EQ(objectSize("__builtin_object_size(s.a, 0)"), 20u);
+    EXPECT_EQ(objectSize("__builtin_object_size(s.a, 1)"), 10u);
+    EXPECT_EQ(objectSize("__builtin_object_size(s.a, 2)"), 20u);
+    EXPECT_EQ(objectSize("__builtin_object_size(s.a, 3)"), 10u);
+    EXPECT_EQ(objectSize("__builtin_object_size(&s.b, 0)"), 8u);
+    EXPECT_EQ(objectSize("__builtin_object_size(&s.b, 1)"), 4u);
+    EXPECT_EQ(objectSize("__builtin_object_size(&buf[4], 0)"), 60u);
+    EXPECT_EQ(objectSize("__builtin_object_size(&s.a[3], 1)"), 7u);
+    EXPECT_EQ(objectSize("__builtin_object_size(buf + 4, 0)"), 60u);
+    EXPECT_EQ(objectSize("__builtin_object_size(local, 0)"), 32u);
+    EXPECT_EQ(objectSize("__builtin_object_size(&s, 0)"), 20u);
+    EXPECT_EQ(objectSize("__builtin_object_size((char *)&s + 2, 0)"), 18u);
+    EXPECT_EQ(objectSize("__builtin_object_size((void *)buf, 0)"), 64u);
+    EXPECT_EQ(objectSize("__builtin_dynamic_object_size(buf, 0)"), 64u);
+    EXPECT_EQ(objectSize("__builtin_dynamic_object_size(s.c, 1)"), 3u);
+    EXPECT_EQ(objectSize("__builtin_object_size(s.a, 1)", DataModel::ILP32), 10u);
+    // Unknown: the library answers (size_t)-1 or 0.
+    EXPECT_EQ(objectSize("__builtin_object_size(p->a, 1)"), std::nullopt);
+    EXPECT_EQ(objectSize("__builtin_object_size(p, 0)"), std::nullopt);
+}
 
 TEST_F(ConstantTest, ArithmeticInTheTypesOfTheOperands) {
     EXPECT_EQ(constantOf("", "1 + 2 * 3"), 7);
@@ -140,6 +182,35 @@ TEST_F(ConstantTest, BuiltinsWithConstantArguments) {
     EXPECT_EQ(constantOf("", "__builtin_parity(7)"), 1);
     EXPECT_EQ(constantOf("", "__builtin_ffs(8)"), 4);
     EXPECT_EQ(errorOf("enum { A = __builtin_clz(0) };"), "1:12: enumerator value for 'A' is not an integer constant");
+    EXPECT_EQ(constantOf("", "__builtin_constant_p(1.5)"), 1);
+    EXPECT_EQ(constantOf("", "__builtin_constant_p(\"abc\")"), 1);
+    EXPECT_EQ(constantOf("char a[2];", "__builtin_constant_p(a)"), 0);
+}
+
+TEST_F(ConstantTest, BuiltinsOfFloatingArgumentsAreNotFolded) {
+    for (const std::string_view call :
+         {"__builtin_isnan(1.0)", "__builtin_lround(2.5)", "__builtin_signbit(-1.0)", "__builtin_isgreater(1.0, 2.0)",
+          "__builtin_fpclassify(0, 1, 2, 3, 4, 1.0)", "__builtin_isinf_sign(1.0)", "__builtin_ilogb(8.0)"}) {
+        EXPECT_EQ(errorOf(std::format("enum {{ A = {} }};", call)),
+                  "1:12: enumerator value for 'A' is not an integer constant")
+            << call;
+    }
+    // Where a null pointer constant could stand, sema evaluates them too.
+    EXPECT_NE(analyze("int a = __builtin_isnan(1.0); long b = __builtin_lround(2.5); int *p = __builtin_signbit(1.0);"),
+              nullptr)
+        << firstError();
+}
+
+TEST_F(ConstantTest, PointersSignExtendToWiderIntegersAsInGcc) {
+    EXPECT_EQ(constantOf("", "(long long)(char *)-1 < 0", DataModel::ILP32), 1);
+    EXPECT_EQ(constantOf("", "(unsigned long long)(char *)0x80000000u >> 32 == 0xffffffff", DataModel::ILP32), 1);
+    EXPECT_EQ(constantOf("", "(__int128)(char *)-1 < 0"), 1);
+}
+
+TEST_F(ConstantTest, AlignofAVariableUsesItsRequestedAlignment) {
+    EXPECT_EQ(constantOf("int x __attribute__((aligned(1)));", "__alignof__(x)"), 1);
+    EXPECT_EQ(constantOf("_Alignas(0) double x;", "__alignof__(x)", DataModel::ILP32), 8);
+    EXPECT_EQ(constantOf("_Alignas(32) char x;", "__alignof__(x)"), 32);
 }
 
 TEST_F(ConstantTest, GnuTypeBuiltins) {

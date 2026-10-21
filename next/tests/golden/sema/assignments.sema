@@ -11,38 +11,38 @@ FunctionDecl assignments 'void (void)' <8:6>
         ImplicitCastExpr IntegralCast 'char' <9:9>
           IntegerLiteral 300 'int' <9:9>
     ExpressionStmt <10:5>
-      BinaryExpr += 'char' <10:5>
+      BinaryExpr += computation 'double' 'char' <10:5>
         DeclRefExpr c (VarDecl at 2:6) 'char' lvalue <10:5>
         ImplicitCastExpr LValueToRValue 'double' <10:10>
           DeclRefExpr d (VarDecl at 4:8) 'double' lvalue <10:10>
     ExpressionStmt <11:5>
-      BinaryExpr *= 'char' <11:5>
+      BinaryExpr *= computation 'int' 'char' <11:5>
         DeclRefExpr c (VarDecl at 2:6) 'char' lvalue <11:5>
         IntegerLiteral 2 'int' <11:10>
     ExpressionStmt <12:5>
-      BinaryExpr <<= 'unsigned short' <12:5>
+      BinaryExpr <<= computation 'int' 'unsigned short' <12:5>
         DeclRefExpr us (VarDecl at 3:16) 'unsigned short' lvalue <12:5>
         IntegerLiteral 3 'int' <12:12>
     ExpressionStmt <13:5>
-      BinaryExpr %= 'unsigned short' <13:5>
+      BinaryExpr %= computation 'int' 'unsigned short' <13:5>
         DeclRefExpr us (VarDecl at 3:16) 'unsigned short' lvalue <13:5>
         IntegerLiteral 7 'int' <13:11>
     ExpressionStmt <14:5>
-      BinaryExpr += 'int *' <14:5>
+      BinaryExpr += computation 'int *' 'int *' <14:5>
         DeclRefExpr p (VarDecl at 5:6) 'int *' lvalue <14:5>
         IntegerLiteral 2 'int' <14:10>
     ExpressionStmt <15:5>
-      BinaryExpr -= 'int *' <15:5>
+      BinaryExpr -= computation 'int *' 'int *' <15:5>
         DeclRefExpr p (VarDecl at 5:6) 'int *' lvalue <15:5>
         ImplicitCastExpr IntegralCast 'int' <15:10>
           ImplicitCastExpr LValueToRValue 'char' <15:10>
             DeclRefExpr c (VarDecl at 2:6) 'char' lvalue <15:10>
     ExpressionStmt <16:5>
-      BinaryExpr |= '_Bool' <16:5>
+      BinaryExpr |= computation 'int' '_Bool' <16:5>
         DeclRefExpr b (VarDecl at 6:7) '_Bool' lvalue <16:5>
         IntegerLiteral 2 'int' <16:10>
     ExpressionStmt <17:5>
-      BinaryExpr /= 'double' <17:5>
+      BinaryExpr /= computation 'double' 'double' <17:5>
         DeclRefExpr d (VarDecl at 4:8) 'double' lvalue <17:5>
         ImplicitCastExpr IntegralToFloating 'double' <17:10>
           ImplicitCastExpr IntegralCast 'int' <17:10>

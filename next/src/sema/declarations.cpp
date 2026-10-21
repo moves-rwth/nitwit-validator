@@ -1,8 +1,11 @@
 // Declarations (C17 6.7, 6.9): their types, attributes, redeclarations and initializers.
 
+#include <algorithm>
 #include <bit>
 #include <format>
+#include <span>
 #include <string>
+#include <vector>
 
 #include "ast/casting.hpp"
 #include "sema/constant.hpp"
@@ -50,18 +53,28 @@ void Sema::checkUnsupportedAttributes(const ast::Decl* decl) {
     }
 }
 
-std::uint64_t Sema::alignmentArgument(const ast::Attribute& attribute) {
-    if (attribute.arguments.empty()) {
-        return biggestAlignment;
+// The parser turns _Alignas into `aligned`. Several specifiers give the strictest alignment, and an alignment of zero
+// has no effect (C17 6.7.5p6; GCC ignores `aligned(0)` with a warning).
+std::uint64_t Sema::requestedAlignment(const ast::Decl* decl) {
+    std::uint64_t alignment = 0;
+    for (const ast::Attribute& attribute : decl->attributes()) {
+        if (attribute.name.text() != "aligned") {
+            continue;
+        }
+        if (attribute.arguments.empty()) {
+            alignment = std::max(alignment, biggestAlignment);
+            continue;
+        }
+        ast::Expr* argument = attribute.arguments.front();
+        expr(argument);
+        const Int128 value = integerConstant(argument, "requested alignment");
+        if (value < 0 || value > static_cast<Int128>(maxAlignment)
+            || (value != 0 && !std::has_single_bit(static_cast<std::uint64_t>(value)))) {
+            error(attribute.location, "requested alignment is not a positive power of 2");
+        }
+        alignment = std::max(alignment, static_cast<std::uint64_t>(value));
     }
-    ast::Expr* argument = attribute.arguments.front();
-    expr(argument);
-    const Int128 value = integerConstant(argument, "requested alignment");
-    if (value <= 0 || value > static_cast<Int128>(maxAlignment)
-        || !std::has_single_bit(static_cast<std::uint64_t>(value))) {
-        error(attribute.location, "requested alignment is not a positive power of 2");
-    }
-    return static_cast<std::uint64_t>(value);
+    return alignment;
 }
 
 // GCC's `mode` attribute (c_common_type_for_mode): QI, HI, SI, DI and TI select integers of 1, 2, 4, 8 and 16 bytes
@@ -263,9 +276,7 @@ void Sema::typedefDecl(ast::TypedefDecl* typedefDecl) {
     if (const std::optional<ast::QualType> type = modeType(typedefDecl, typedefDecl->underlying())) {
         typedefDecl->setUnderlying(*type);
     }
-    if (const ast::Attribute* aligned = findAttribute(typedefDecl, "aligned")) {
-        typedefDecl->setRequestedAlignment(alignmentArgument(*aligned));
-    }
+    typedefDecl->setRequestedAlignment(requestedAlignment(typedefDecl));
 }
 
 void Sema::staticAssert(ast::StaticAssertDecl* staticAssert) {
@@ -273,6 +284,9 @@ void Sema::staticAssert(ast::StaticAssertDecl* staticAssert) {
     expr(condition);
     if (!isIntegerClass(classify(context_, condition->type()))) {
         error(condition->location(), "static assertion expression is not an integer");
+    }
+    if (staticAssert->message() != nullptr) {
+        expr(staticAssert->message());
     }
     if (integerConstant(condition, "static assertion expression") == 0) {
         std::string message = "static assertion failed";
@@ -294,9 +308,7 @@ void Sema::varDecl(ast::VarDecl* var) {
     if (const std::optional<ast::QualType> type = modeType(var, var->type())) {
         var->setType(*type);
     }
-    if (const ast::Attribute* aligned = findAttribute(var, "aligned")) {
-        var->setRequestedAlignment(alignmentArgument(*aligned));
-    }
+    var->setRequestedAlignment(requestedAlignment(var));
     const TypeClass typeClass = classify(context_, var->type());
     // GCC accepts `extern void x;`, a symbol only used for its address.
     if (typeClass == TypeClass::Void
@@ -337,7 +349,7 @@ void Sema::varDecl(ast::VarDecl* var) {
             error(var->location(), "variable-sized object may not be initialized");
         }
         ast::QualType type = var->type();
-        var->setInitializer(initializer(type, init));
+        var->setInitializer(initializer(type, init, var->hasStaticStorage()));
         var->setType(type);
     }
 
@@ -393,6 +405,26 @@ void Sema::parameter(ast::VarDecl* parameter) {
     parameter->setType(adjustedParameterType(parameter->type()));
 }
 
+// The `mode` attribute of a parameter also changes the parameter's type in the function's prototype.
+void Sema::applyParameterModes(ast::FunctionDecl* function) {
+    const ast::FunctionType* type = functionOf(function->type());
+    const std::span<ast::VarDecl* const> declared = function->parameters();
+    if (type == nullptr || !type->hasPrototype() || type->parameters().size() != declared.size()) {
+        return;
+    }
+    std::vector<ast::QualType> parameters(type->parameters().begin(), type->parameters().end());
+    bool isChanged = false;
+    for (std::size_t i = 0; i < declared.size(); ++i) {
+        if (findAttribute(declared[i], "mode") != nullptr) {
+            parameters[i] = unqualified(context_, declared[i]->type()).withQualifiers(parameters[i].qualifiers());
+            isChanged = true;
+        }
+    }
+    if (isChanged) {
+        function->setType(context_.functionType(type->returnType(), parameters, type->isVariadic(), true));
+    }
+}
+
 void Sema::adjustParameterTypes(ast::FunctionDecl* function) {
     const ast::FunctionType* type = functionOf(function->type());
     if (type == nullptr || !type->hasPrototype()) {
@@ -419,6 +451,7 @@ void Sema::functionDecl(ast::FunctionDecl* function) {
     for (ast::VarDecl* parameter : function->parameters()) {
         this->parameter(parameter);
     }
+    applyParameterModes(function);
     if (function->isImplicit() && function->previous() != nullptr) {
         // A call of a function declared in a block that has ended refers to that function.
         function->setType(function->previous()->type());
@@ -445,9 +478,10 @@ void Sema::functionDecl(ast::FunctionDecl* function) {
 void Sema::applyBuiltinSignature(ast::FunctionDecl* function) {
     const std::optional<BuiltinInfo> builtin = lookupBuiltin(context_, function->name().text());
     if (!builtin) {
+        // GCC knows no such builtin either (GCC 14 rejects every implicit declaration), or NITWIT does not support
+        // it: either way, nothing could define it.
         if (function->name().text().starts_with("__builtin_")) {
-            warning(function->location(),
-                    std::format("unknown builtin function '{}' is treated as 'int ()'", function->name().text()));
+            error(function->location(), std::format("implicit declaration of function '{}'", function->name().text()));
         }
         return;
     }
@@ -457,11 +491,47 @@ void Sema::applyBuiltinSignature(ast::FunctionDecl* function) {
     if (builtin->signature.isNull()) {
         return; // a type-generic builtin, typed at each call
     }
-    if (builtin->isLibraryFunction && !compatible(context_, function->type(), builtin->signature)) {
+    if (builtin->isLibraryFunction && !function->name().text().starts_with("__builtin_")
+        && !compatible(context_, function->type(), builtin->signature)) {
         warning(function->location(),
                 std::format("incompatible implicit declaration of built-in function '{}'", function->name().text()));
     }
     function->setType(builtin->signature);
+}
+
+// An old-style definition (with an identifier list) after a prototype: C17 6.7.6.3p15 requires each parameter of the
+// prototype to be compatible with the promoted type of the defined parameter; GCC also accepts the declared type
+// (`int f(char); int f(c) char c; {}`, -Wpedantic only). The function keeps the prototype, so calls convert their
+// arguments to its parameter types; the parameters keep their declared types, to which the interpreter converts the
+// arguments on entry, as for every old-style definition. Returns false if the declarations are not of this kind.
+bool Sema::mergeOldStyleDefinition(ast::FunctionDecl* function, const ast::FunctionDecl* previous) {
+    const ast::FunctionType* type = functionOf(function->type());
+    const ast::FunctionType* prototype = functionOf(previous->type());
+    if (function->body() == nullptr || type == nullptr || type->hasPrototype() || prototype == nullptr
+        || !prototype->hasPrototype() || prototype->isVariadic()
+        || !compatible(context_, type->returnType(), prototype->returnType())) {
+        return false;
+    }
+    if (prototype->parameters().size() != function->parameters().size()) {
+        error(function->location(), "number of arguments doesn't match prototype");
+    }
+    for (std::size_t i = 0; i < function->parameters().size(); ++i) {
+        const ast::VarDecl* parameter = function->parameters()[i];
+        const ast::QualType declared = parameter->type();
+        const ast::QualType promoted = builtinKind(context_, declared) == ast::BuiltinKind::Float
+                                           ? context_.builtin(ast::BuiltinKind::Double)
+                                           : promotedType(context_, declared);
+        if (!compatibleUnqualified(context_, prototype->parameters()[i], declared)
+            && !compatibleUnqualified(context_, prototype->parameters()[i], promoted)) {
+            error(parameter->location(),
+                  std::format("argument '{}' doesn't match prototype", parameter->name().text()));
+        }
+    }
+    if (previous->isNoreturn()) {
+        function->setNoreturn();
+    }
+    function->setType(previous->type());
+    return true;
 }
 
 // C17 6.2.7p4 for functions. A declaration that conflicts with an implicit declaration replaces its type with a
@@ -469,6 +539,9 @@ void Sema::applyBuiltinSignature(ast::FunctionDecl* function) {
 void Sema::mergeFunction(ast::FunctionDecl* function) {
     const ast::FunctionDecl* previous = function->previous();
     if (previous == nullptr) {
+        return;
+    }
+    if (mergeOldStyleDefinition(function, previous)) {
         return;
     }
     if (!compatible(context_, previous->type(), function->type())) {

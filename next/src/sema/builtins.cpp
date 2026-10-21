@@ -11,6 +11,7 @@
 #include "ast/casting.hpp"
 #include "sema/sema.hpp"
 #include "sema/sema_impl.hpp"
+#include "sema/types.hpp"
 #include "support/assert.hpp"
 
 namespace nitwit::sema::detail {
@@ -22,6 +23,7 @@ using ast::BuiltinKind;
 enum class Origin : std::uint8_t {
     Library, // a C library function GCC knows as a builtin: both `name` and `__builtin_name`
     Builtin, // only `__builtin_name`
+    Gnu,     // a GNU builtin with a name of its own, without the prefix (`__atomic_thread_fence`)
 };
 
 struct Entry {
@@ -47,6 +49,10 @@ constexpr Entry math(std::string_view name, std::string_view signature, Origin o
 
 constexpr Entry generic(std::string_view name, GenericBuiltin kind, Origin origin) {
     return Entry{name, "", origin, kind, false, false};
+}
+
+constexpr Entry gnu(std::string_view name, std::string_view signature) {
+    return Entry{name, signature, Origin::Gnu, GenericBuiltin::None, false, false};
 }
 
 // Signatures use the C spelling of types plus size_t, uint16, uint32, uint64, va_list and FILE (as void).
@@ -177,13 +183,36 @@ constexpr Entry entries[] = {
     math("nan", "double (const char *)", Origin::Library),
     math("inf", "double (void)", Origin::Builtin),
     math("huge_val", "double (void)", Origin::Builtin),
-    // Type-generic floating-point classification and comparison.
+    math("acosh", "double (double)", Origin::Library),
+    math("asinh", "double (double)", Origin::Library),
+    math("atanh", "double (double)", Origin::Library),
+    math("expm1", "double (double)", Origin::Library),
+    math("log1p", "double (double)", Origin::Library),
+    math("logb", "double (double)", Origin::Library),
+    math("erf", "double (double)", Origin::Library),
+    math("erfc", "double (double)", Origin::Library),
+    math("lgamma", "double (double)", Origin::Library),
+    math("tgamma", "double (double)", Origin::Library),
+    math("ilogb", "int (double)", Origin::Library),
+    math("scalbn", "double (double, int)", Origin::Library),
+    math("scalbln", "double (double, long)", Origin::Library),
+    math("fma", "double (double, double, double)", Origin::Library),
+    math("remquo", "double (double, double, int *)", Origin::Library),
+    math("finite", "int (double)", Origin::Library),
+    // Type-generic floating-point classification and comparison, and their variants for one type.
     generic("isnan", GenericBuiltin::FloatClassify, Origin::Library),
     generic("isinf", GenericBuiltin::FloatClassify, Origin::Library),
     generic("isfinite", GenericBuiltin::FloatClassify, Origin::Library),
     generic("isnormal", GenericBuiltin::FloatClassify, Origin::Library),
     generic("signbit", GenericBuiltin::FloatClassify, Origin::Library),
     generic("isinf_sign", GenericBuiltin::FloatClassify, Origin::Builtin),
+    generic("fpclassify", GenericBuiltin::Fpclassify, Origin::Builtin),
+    library("isnanf", "int (float)"),
+    library("isnanl", "int (long double)"),
+    library("isinff", "int (float)"),
+    library("isinfl", "int (long double)"),
+    builtin("signbitf", "int (float)"),
+    builtin("signbitl", "int (long double)"),
     generic("isgreater", GenericBuiltin::FloatCompare, Origin::Library),
     generic("isgreaterequal", GenericBuiltin::FloatCompare, Origin::Library),
     generic("isless", GenericBuiltin::FloatCompare, Origin::Library),
@@ -198,6 +227,7 @@ constexpr Entry entries[] = {
     builtin("assume_aligned", "void *(const void *, size_t, ...)"),
     builtin("prefetch", "void (const void *, ...)"),
     builtin("object_size", "size_t (const void *, int)"),
+    builtin("dynamic_object_size", "size_t (const void *, int)"),
     builtin("frame_address", "void *(unsigned int)"),
     builtin("return_address", "void *(unsigned int)"),
     builtin("bswap16", "uint16 (uint16)"),
@@ -243,14 +273,82 @@ constexpr Entry entries[] = {
     generic("va_start", GenericBuiltin::VaStart, Origin::Builtin),
     generic("va_end", GenericBuiltin::VaEnd, Origin::Builtin),
     generic("va_copy", GenericBuiltin::VaCopy, Origin::Builtin),
+    // The checking functions of _FORTIFY_SOURCE, as glibc's headers call them (`__builtin___memcpy_chk`).
     builtin("__memcpy_chk", "void *(void *, const void *, size_t, size_t)"),
+    builtin("__mempcpy_chk", "void *(void *, const void *, size_t, size_t)"),
     builtin("__memmove_chk", "void *(void *, const void *, size_t, size_t)"),
     builtin("__memset_chk", "void *(void *, int, size_t, size_t)"),
     builtin("__strcpy_chk", "char *(char *, const char *, size_t)"),
+    builtin("__stpcpy_chk", "char *(char *, const char *, size_t)"),
     builtin("__strncpy_chk", "char *(char *, const char *, size_t, size_t)"),
+    builtin("__stpncpy_chk", "char *(char *, const char *, size_t, size_t)"),
     builtin("__strcat_chk", "char *(char *, const char *, size_t)"),
+    builtin("__strncat_chk", "char *(char *, const char *, size_t, size_t)"),
     builtin("__sprintf_chk", "int (char *, int, size_t, const char *, ...)"),
     builtin("__snprintf_chk", "int (char *, size_t, int, size_t, const char *, ...)"),
+    builtin("__vsprintf_chk", "int (char *, int, size_t, const char *, va_list)"),
+    builtin("__vsnprintf_chk", "int (char *, size_t, int, size_t, const char *, va_list)"),
+    builtin("__printf_chk", "int (int, const char *, ...)"),
+    builtin("__fprintf_chk", "int (FILE *, int, const char *, ...)"),
+    builtin("__vprintf_chk", "int (int, const char *, va_list)"),
+    builtin("__vfprintf_chk", "int (FILE *, int, const char *, va_list)"),
+    // The atomic builtins that are not type-generic (the others are in atomicShapes).
+    gnu("__atomic_thread_fence", "void (int)"),
+    gnu("__atomic_signal_fence", "void (int)"),
+    gnu("__atomic_test_and_set", "_Bool (volatile void *, int)"),
+    gnu("__atomic_clear", "void (volatile void *, int)"),
+    gnu("__atomic_always_lock_free", "_Bool (size_t, const volatile void *)"),
+    gnu("__atomic_is_lock_free", "_Bool (size_t, const volatile void *)"),
+    gnu("__sync_synchronize", "void (void)"),
+};
+
+using AtomicForm = AtomicSignature::Form;
+using AtomicResult = AtomicSignature::Result;
+
+struct AtomicShape {
+    std::string_view name;
+    AtomicSignature signature;
+};
+
+// GCC's type-generic atomic builtins ("Built-in Functions for Memory Model Aware Atomic Operations" and "Legacy __sync
+// Built-in Functions" in the GCC manual); the parameters are explained at AtomicSignature.
+constexpr AtomicShape atomicShapes[] = {
+    {"__atomic_load_n", {"Po", AtomicForm::Sized, AtomicResult::Operand}},
+    {"__atomic_load", {"Ppo", AtomicForm::Generic, AtomicResult::Void}},
+    {"__atomic_store_n", {"Pvo", AtomicForm::Sized, AtomicResult::Void}},
+    {"__atomic_store", {"Ppo", AtomicForm::Generic, AtomicResult::Void}},
+    {"__atomic_exchange_n", {"Pvo", AtomicForm::Sized, AtomicResult::Operand}},
+    {"__atomic_exchange", {"Pppo", AtomicForm::Generic, AtomicResult::Void}},
+    {"__atomic_compare_exchange_n", {"Ppvboo", AtomicForm::Sized, AtomicResult::Bool}},
+    {"__atomic_compare_exchange", {"Pppboo", AtomicForm::Generic, AtomicResult::Bool}},
+    {"__atomic_add_fetch", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__atomic_sub_fetch", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__atomic_and_fetch", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__atomic_xor_fetch", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__atomic_or_fetch", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__atomic_nand_fetch", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__atomic_fetch_add", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__atomic_fetch_sub", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__atomic_fetch_and", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__atomic_fetch_xor", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__atomic_fetch_or", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__atomic_fetch_nand", {"Pvo", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_fetch_and_add", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_fetch_and_sub", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_fetch_and_or", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_fetch_and_and", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_fetch_and_xor", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_fetch_and_nand", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_add_and_fetch", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_sub_and_fetch", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_or_and_fetch", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_and_and_fetch", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_xor_and_fetch", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_nand_and_fetch", {"Pv.", AtomicForm::Arithmetic, AtomicResult::Operand}},
+    {"__sync_bool_compare_and_swap", {"Pvv.", AtomicForm::Sized, AtomicResult::Bool}},
+    {"__sync_val_compare_and_swap", {"Pvv.", AtomicForm::Sized, AtomicResult::Operand}},
+    {"__sync_lock_test_and_set", {"Pv.", AtomicForm::Sized, AtomicResult::Operand}},
+    {"__sync_lock_release", {"P.", AtomicForm::Sized, AtomicResult::Void}},
 };
 
 // A parser for the signatures of the table; they are trusted, so a malformed one is a bug.
@@ -325,6 +423,8 @@ private:
             }
             if (next == "const") {
                 qualifiers.isConst = true;
+            } else if (next == "volatile") {
+                qualifiers.isVolatile = true;
             } else {
                 base += base.empty() ? "" : " ";
                 base += next;
@@ -395,11 +495,23 @@ std::optional<BuiltinInfo> infoFor(ast::AstContext& context, const Entry& entry,
 } // namespace
 
 std::optional<BuiltinInfo> lookupBuiltin(ast::AstContext& context, std::string_view name) {
+    if (atomicSignature(name)) {
+        return BuiltinInfo{
+            .generic = GenericBuiltin::Atomic, .signature = {}, .isLibraryFunction = false, .isNoreturn = false};
+    }
     constexpr std::string_view prefix = "__builtin_";
     const bool isBuiltinName = name.starts_with(prefix);
     const std::string_view base = isBuiltinName ? name.substr(prefix.size()) : name;
     const auto matches = [&](const Entry& entry) {
-        return isBuiltinName || entry.origin == Origin::Library;
+        switch (entry.origin) {
+        case Origin::Library:
+            return true;
+        case Origin::Builtin:
+            return isBuiltinName;
+        case Origin::Gnu:
+            return !isBuiltinName;
+        }
+        return false;
     };
     for (const Entry& entry : entries) {
         if (entry.name == base && matches(entry)) {
@@ -417,6 +529,129 @@ std::optional<BuiltinInfo> lookupBuiltin(ast::AstContext& context, std::string_v
     return std::nullopt;
 }
 
+std::optional<AtomicSignature> atomicSignature(std::string_view name) {
+    const auto* found = std::ranges::find(atomicShapes, name, &AtomicShape::name);
+    if (found == std::end(atomicShapes)) {
+        return std::nullopt;
+    }
+    return found->signature;
+}
+
+// GCC's resolve_overloaded_builtin (c-common.cc): T is the unqualified type the first argument points to. Value
+// arguments are converted to T as by a cast, without diagnostics, as GCC does; for arithmetic on a pointer, to the
+// unsigned integer type of its size instead, since GCC adds bytes, not elements. The interpreter does the operations
+// on memory, single-threaded; the memory orders do not matter there.
+void Sema::atomicCall(ast::CallExpr* call, std::string_view name) {
+    const AtomicSignature signature = *atomicSignature(name);
+    const std::span<ast::Expr*> arguments = call->arguments();
+    const bool isVariadic = signature.parameters.ends_with('.');
+    const std::size_t fixed = signature.parameters.size() - (isVariadic ? 1 : 0);
+    if (arguments.size() < fixed) {
+        error(call->rightParenLocation(), std::format("too few arguments to function '{}'", name));
+    }
+    if (arguments.size() > fixed && !isVariadic) {
+        error(arguments[fixed]->location(), std::format("too many arguments to function '{}'", name));
+    }
+    for (std::size_t i = 0; i < arguments.size(); ++i) {
+        expr(arguments[i]);
+        arguments[i] = rvalue(arguments[i]);
+    }
+
+    const ast::QualType objectPointer = arguments[0]->type();
+    const bool isObjectPointer = classify(context_, objectPointer) == TypeClass::Pointer
+                                 && classify(context_, pointeeOf(objectPointer)) != TypeClass::Void;
+    const bool isGeneric = signature.form == AtomicSignature::Form::Generic;
+    if (isGeneric && !isObjectPointer) {
+        error(arguments[0]->location(), std::format("argument 1 of '{}' must be a non-void pointer type", name));
+    }
+    const ast::QualType operand = isObjectPointer ? unqualified(context_, pointeeOf(objectPointer)) : ast::QualType();
+    const TypeClass operandClass = isObjectPointer ? classify(context_, operand) : TypeClass::Void;
+    if (isGeneric) {
+        if (operandClass == TypeClass::Function || !isComplete(operand) || isVariablySized(operand)
+            || sizeOf(context_, operand) == 0) {
+            error(arguments[0]->location(),
+                  std::format("argument 1 of '{}' must be a pointer to a nonzero size object", name));
+        }
+    } else {
+        const std::uint64_t size = isObjectPointer && isComplete(operand) ? sizeOf(context_, operand) : 0;
+        const bool isSizedScalar =
+            (operandClass == TypeClass::Integer || operandClass == TypeClass::Pointer
+             || (operandClass == TypeClass::Bool && signature.form != AtomicSignature::Form::Arithmetic))
+            && (size == 1 || size == 2 || size == 4 || size == 8 || size == 16);
+        if (!isSizedScalar) {
+            error(arguments[0]->location(), std::format("operand type '{}' is incompatible with argument 1 of '{}'",
+                                                        typeName(objectPointer), name));
+        }
+    }
+    const bool isLoad = name == "__atomic_load_n" || name == "__atomic_load";
+    if (!isLoad && isConstQualified(context_, pointeeOf(objectPointer))) {
+        warning(arguments[0]->location(),
+                std::format("passing argument 1 of '{}' discards 'const' qualifier from pointer target type", name));
+    }
+
+    const ast::QualType valueTarget =
+        signature.form == AtomicSignature::Form::Arithmetic && operandClass == TypeClass::Pointer
+            ? integerTypeForSize(context_, context_.target().pointerBits() / 8, false)
+            : operand;
+    for (std::size_t i = 1; i < arguments.size(); ++i) {
+        ast::Expr*& argument = arguments[i];
+        const char parameter = i < fixed ? signature.parameters[i] : '.';
+        const TypeClass argumentClass = classify(context_, argument->type());
+        switch (parameter) {
+        case 'p':
+            if (argumentClass != TypeClass::Pointer) {
+                error(argument->location(), std::format("argument {} of '{}' must be a pointer type", i + 1, name));
+            }
+            if (signature.form == AtomicSignature::Form::Generic) {
+                const ast::QualType pointee = pointeeOf(argument->type());
+                if (!isComplete(pointee) || isVariablySized(pointee)
+                    || sizeOf(context_, pointee) != sizeOf(context_, operand)) {
+                    error(argument->location(), std::format("size mismatch in argument {} of '{}'", i + 1, name));
+                }
+            }
+            break;
+        case 'v': {
+            const TypeClass targetClass = classify(context_, valueTarget);
+            if (argumentClass == TypeClass::Record) {
+                error(argument->location(),
+                      std::format("aggregate value used where {} was expected",
+                                  targetClass == TypeClass::Pointer ? "a pointer" : "an integer"));
+            }
+            if (!isScalarClass(argumentClass) || argumentClass == TypeClass::Complex
+                || (targetClass == TypeClass::Pointer && argumentClass == TypeClass::Floating)) {
+                error(argument->location(), std::format("incompatible type for argument {} of '{}'", i + 1, name));
+            }
+            argument = convert(argument, valueTarget);
+            break;
+        }
+        case 'b':
+            if (!isScalarClass(argumentClass)) {
+                error(argument->location(), std::format("incompatible type for argument {} of '{}'", i + 1, name));
+            }
+            argument = convert(argument, context_.builtin(BuiltinKind::Bool));
+            break;
+        case 'o':
+            // The _n forms convert a memory order like an argument of type int, the generic forms want an integer.
+            if (isGeneric ? !isIntegerClass(argumentClass) : !isArithmeticClass(argumentClass)) {
+                error(argument->location(), std::format("non-integer memory model argument {} of '{}'", i + 1, name));
+            }
+            argument = convert(argument, context_.builtin(BuiltinKind::Int));
+            break;
+        default:
+            break; // the variables of a __sync builtin
+        }
+    }
+
+    switch (signature.result) {
+    case AtomicSignature::Result::Operand:
+        return call->setType(operand, ast::ValueCategory::RValue);
+    case AtomicSignature::Result::Void:
+        return call->setType(context_.builtin(BuiltinKind::Void), ast::ValueCategory::RValue);
+    case AtomicSignature::Result::Bool:
+        return call->setType(context_.builtin(BuiltinKind::Bool), ast::ValueCategory::RValue);
+    }
+}
+
 } // namespace nitwit::sema::detail
 
 namespace nitwit::sema {
@@ -430,11 +665,16 @@ std::vector<std::string> builtinFunctionNames() {
             variants.push_back(std::string(entry.name) + "l");
         }
         for (const std::string& variant : variants) {
-            names.push_back("__builtin_" + variant);
-            if (entry.origin == detail::Origin::Library) {
+            if (entry.origin != detail::Origin::Gnu) {
+                names.push_back("__builtin_" + variant);
+            }
+            if (entry.origin != detail::Origin::Builtin) {
                 names.push_back(variant);
             }
         }
+    }
+    for (const detail::AtomicShape& shape : detail::atomicShapes) {
+        names.emplace_back(shape.name);
     }
     return names;
 }

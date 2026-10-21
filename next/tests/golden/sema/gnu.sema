@@ -35,7 +35,7 @@ FunctionDecl gnu 'int (int)' <7:5>
                   DeclRefExpr b (VarDecl at 10:20) 'int' lvalue <11:21>
     DeclarationStmt <13:5>
       VarDecl chosen 'long' <13:10>
-        ChooseExpr 'long' <13:19>
+        ChooseExpr selected first 'long' <13:19>
           BinaryExpr == 'int' <13:41>
             SizeOfAlignOfExpr sizeof (long) 'unsigned long' <13:41>
             ImplicitCastExpr IntegralCast 'unsigned long' <13:57>
@@ -48,7 +48,7 @@ FunctionDecl gnu 'int (int)' <7:5>
           DeclRefExpr y (VarDecl at 7:13) 'int' lvalue <14:29>
           GenericAssociation (long) <14:38>
             IntegerLiteral 1 'int' <14:38>
-          GenericAssociation (int) <14:46>
+          GenericAssociation (int) selected <14:46>
             IntegerLiteral 2 'int' <14:46>
           GenericAssociation default <14:58>
             IntegerLiteral 3 'int' <14:58>

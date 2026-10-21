@@ -11,6 +11,9 @@ FunctionDecl sizes 'unsigned long (int)' <6:15>
   CompoundStmt <6:28>
     DeclarationStmt <7:5>
       VarDecl vla 'int [n]' <7:9>
+        VariableArraySize <7:13>
+          ImplicitCastExpr LValueToRValue 'int' <7:13>
+            DeclRefExpr n (VarDecl at 6:25) 'int' lvalue <7:13>
     ReturnStmt <8:5>
       BinaryExpr + 'unsigned long' <8:12>
         BinaryExpr + 'unsigned long' <8:12>
@@ -36,6 +39,10 @@ FunctionDecl sizes 'unsigned long (int)' <6:15>
                   MemberExpr .d 'double' lvalue <8:102>
                     DeclRefExpr v (VarDecl at 3:10) 'struct s' lvalue <8:102>
             OffsetOfExpr (struct s) in.x[2] 'unsigned long' <9:14>
+              OffsetOfMember in (2:53) <9:14>
+              OffsetOfMember x (2:45) <9:14>
+              OffsetOfIndex <9:48>
+                IntegerLiteral 2 'int' <9:48>
           SizeOfAlignOfExpr sizeof 'unsigned long' <9:54>
             DeclRefExpr vla (VarDecl at 7:9) 'int [n]' lvalue <9:61>
         SizeOfAlignOfExpr sizeof 'unsigned long' <9:67>

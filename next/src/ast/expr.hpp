@@ -20,6 +20,7 @@
 namespace nitwit::ast {
 
 class CompoundStmt;
+class ExpressionStmt;
 
 enum class ExprKind : std::uint8_t {
     IntegerLiteral,
@@ -368,7 +369,8 @@ enum class CastKind : std::uint8_t {
     FloatingToIntegral,
     FloatingToBoolean,
     ToVoid,
-    ToUnion, // GNU cast to a union type that has a member of the operand's type
+    ToUnion, // GNU cast to a union, also a transparent-union argument: the operand initializes the first member whose
+             // type is compatible with the operand's (sema converts an argument to that member's type first)
 };
 
 /// A cast written in the source, `(T)e`. Sema sets the cast kind.
@@ -555,6 +557,9 @@ public:
     static bool classof(const Expr* expr) { return expr->kind() == ExprKind::StatementExpr; }
 
     [[nodiscard]] CompoundStmt* body() const { return body_; }
+    /// The statement whose expression gives the value: the last statement of the body if it is an expression
+    /// statement, also under labels (`({ ...; done: x; })`, as GCC); null if there is none.
+    [[nodiscard]] ExpressionStmt* valueStatement() const;
 
 private:
     CompoundStmt* body_;

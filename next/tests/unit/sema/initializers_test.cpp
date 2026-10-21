@@ -190,5 +190,34 @@ TEST_F(InitializersTest, FlexibleArrayMembersGetTheirInitializedSize) {
                                                                                   "    IntegerLiteral 4 'int'\n");
 }
 
+TEST_F(InitializersTest, OnlyStaticObjectsInitializeFlexibleArrayMembers) {
+    EXPECT_EQ(errorOf("struct F { int n; int a[]; }; void f(void) { struct F x = { 1, { 2 } }; }"),
+              "1:64: non-static initialization of a flexible array member");
+    EXPECT_EQ(errorOf("struct F { int n; int a[]; }; void f(void) { struct F x = { 1, {} }; }"),
+              "1:64: non-static initialization of a flexible array member");
+    EXPECT_EQ(errorOf("struct F { int n; int a[]; }; void f(void) { (struct F){ .a = { 1 } }; }"),
+              "1:63: non-static initialization of a flexible array member");
+    EXPECT_NE(analyze("struct F { int n; int a[]; }; struct F g = { 1, { 2 } };\n"
+                      "void f(void) { static struct F s = { 1, { 2, 3 } }; struct F z = { 1 }; }"),
+              nullptr)
+        << firstError();
+}
+
+TEST_F(InitializersTest, HugeDesignatorsAreRejectedBeforeTheirElementsAreMade) {
+    EXPECT_EQ(errorOf("int a[60000000] = { [59999999] = 1 };"),
+              "1:34: an array initializer with this many elements is not supported");
+    EXPECT_EQ(errorOf("int a[60000000] = { [0 ... 59999999] = 1 };"),
+              "1:40: an array initializer with this many elements is not supported");
+}
+
+TEST_F(InitializersTest, GapsShareOneZero) {
+    const ast::TranslationUnit* unit = analyze("int x[5] = { [4] = 1 };");
+    ASSERT_NE(unit, nullptr) << firstError();
+    const auto* list = ast::cast<ast::InitListExpr>(find<ast::VarDecl>(unit, "x")->initializer());
+    ASSERT_EQ(list->elements().size(), 5u);
+    EXPECT_TRUE(ast::isa<ast::ImplicitZeroExpr>(list->elements()[0]));
+    EXPECT_EQ(list->elements()[0], list->elements()[3]);
+}
+
 } // namespace
 } // namespace nitwit::sema

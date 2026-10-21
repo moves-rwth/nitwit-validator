@@ -1,0 +1,53 @@
+RecordDecl struct <anonymous> size 6 align 2 <2:30>
+  FieldDecl x 'short [3]' offset 0 <2:45>
+RecordDecl struct s size 20 align 4 <2:8>
+  FieldDecl c 'char' offset 0 <2:17>
+  FieldDecl d 'double' offset 4 <2:27>
+  FieldDecl in 'struct <anonymous>' offset 12 <2:53>
+VarDecl v 'struct s' <3:10>
+VarDecl a 'int [7]' <4:5>
+FunctionDecl sizes 'unsigned long (int)' <6:15>
+  VarDecl n 'int' parameter <6:25>
+  CompoundStmt <6:28>
+    DeclarationStmt <7:5>
+      VarDecl vla 'int [n]' <7:9>
+        VariableArraySize <7:13>
+          ImplicitCastExpr LValueToRValue 'int' <7:13>
+            DeclRefExpr n (VarDecl at 6:25) 'int' lvalue <7:13>
+    ReturnStmt <8:5>
+      ImplicitCastExpr IntegralCast 'unsigned long' <8:12>
+        BinaryExpr + 'unsigned int' <8:12>
+          BinaryExpr + 'unsigned int' <8:12>
+            BinaryExpr + 'unsigned int' <8:12>
+              BinaryExpr + 'unsigned int' <8:12>
+                BinaryExpr + 'unsigned int' <8:12>
+                  BinaryExpr + 'unsigned int' <8:12>
+                    BinaryExpr + 'unsigned int' <8:12>
+                      BinaryExpr + 'unsigned int' <8:12>
+                        SizeOfAlignOfExpr sizeof (int) 'unsigned int' <8:12>
+                        SizeOfAlignOfExpr sizeof 'unsigned int' <8:26>
+                          DeclRefExpr a (VarDecl at 4:5) 'int [7]' lvalue <8:33>
+                      SizeOfAlignOfExpr sizeof 'unsigned int' <8:37>
+                        ParenExpr 'int' lvalue <8:43>
+                          ArraySubscriptExpr 'int' lvalue <8:44>
+                            ImplicitCastExpr ArrayToPointerDecay 'int *' <8:44>
+                              DeclRefExpr a (VarDecl at 4:5) 'int [7]' lvalue <8:44>
+                            IntegerLiteral 0 'int' <8:46>
+                    SizeOfAlignOfExpr sizeof (struct s) 'unsigned int' <8:52>
+                  SizeOfAlignOfExpr _Alignof (double) 'unsigned int' <8:71>
+                SizeOfAlignOfExpr __alignof__ 'unsigned int' <8:90>
+                  ParenExpr 'double' lvalue <8:101>
+                    MemberExpr .d 'double' lvalue <8:102>
+                      DeclRefExpr v (VarDecl at 3:10) 'struct s' lvalue <8:102>
+              OffsetOfExpr (struct s) in.x[2] 'unsigned int' <9:14>
+                OffsetOfMember in (2:53) <9:14>
+                OffsetOfMember x (2:45) <9:14>
+                OffsetOfIndex <9:48>
+                  IntegerLiteral 2 'int' <9:48>
+            SizeOfAlignOfExpr sizeof 'unsigned int' <9:54>
+              DeclRefExpr vla (VarDecl at 7:9) 'int [n]' lvalue <9:61>
+          SizeOfAlignOfExpr sizeof 'unsigned int' <9:67>
+            ParenExpr 'int' <9:73>
+              UnaryExpr postfix ++ 'int' <9:74>
+                DeclRefExpr n (VarDecl at 6:25) 'int' lvalue <9:74>
+Locals of sizes: 0=n<6:25> 1=vla<7:9>

@@ -126,26 +126,40 @@ void Sema::rejectComplex(const ast::Expr* expr, SourceLocation location) {
     }
 }
 
-// C17 6.5.16p2, 6.3.2.1p1: the operand of an assignment or increment is a modifiable lvalue.
-void Sema::requireModifiableLvalue(const ast::Expr* expr, SourceLocation location) {
+// C17 6.5.16p2, 6.3.2.1p1: the operand of an assignment or increment is a modifiable lvalue. `operation` is
+// "assignment", "increment" or "decrement", for GCC's wording.
+void Sema::requireModifiableLvalue(const ast::Expr* expr, SourceLocation location, std::string_view operation) {
+    const std::string notAnLvalue = operation == "assignment"
+                                        ? std::string("lvalue required as left operand of assignment")
+                                        : std::format("lvalue required as {} operand", operation);
+    std::string readOnly = std::format("{} of read-only location", operation);
+    const ast::Expr* inner = ast::ignoreParens(expr);
+    if (const auto* reference = ast::dyn_cast<ast::DeclRefExpr>(inner)) {
+        readOnly = std::format("{} of read-only variable '{}'", operation, reference->name().text());
+    } else if (const auto* member = ast::dyn_cast<ast::MemberExpr>(inner);
+               member != nullptr && member->field() != nullptr) {
+        readOnly = isConstQualified(context_, member->field()->type())
+                       ? std::format("{} of read-only member '{}'", operation, member->member().text())
+                       : std::format("{} of member '{}' in read-only object", operation, member->member().text());
+    }
     if (!expr->isLValue()) {
-        error(location, "lvalue required as left operand of assignment");
+        error(location, notAnLvalue);
     }
     const TypeClass type = classify(context_, expr->type());
     if (type == TypeClass::Array) {
-        error(location, "assignment to expression with array type");
+        error(location, std::format("{} to expression with array type", operation));
     }
     if (type == TypeClass::Function || type == TypeClass::Void) {
-        error(location, "lvalue required as left operand of assignment");
+        error(location, notAnLvalue);
     }
     if (isConstQualified(context_, expr->type())) {
-        error(location, "assignment of read-only location");
+        error(location, readOnly);
     }
     if (type == TypeClass::Record) {
         requireComplete(expr->type(), location,
                         std::format("invalid use of undefined type '{}'", typeName(expr->type())));
         if (hasConstMember(context_, recordOf(expr->type()))) {
-            error(location, "assignment of read-only location");
+            error(location, readOnly);
         }
     }
 }
@@ -163,14 +177,13 @@ void Sema::unary(ast::UnaryExpr* unary) {
         // (or by the pointee's size) and converts the result back.
         rejectComplex(operand, location);
         const TypeClass type = classify(context_, operand->type());
+        const std::string_view operation =
+            unary->op() == UnaryOperator::PreIncrement || unary->op() == UnaryOperator::PostIncrement ? "increment"
+                                                                                                      : "decrement";
         if (!isArithmeticClass(type) && type != TypeClass::Pointer) {
-            error(location,
-                  std::format("wrong type argument to {}",
-                              unary->op() == UnaryOperator::PreIncrement || unary->op() == UnaryOperator::PostIncrement
-                                  ? "increment"
-                                  : "decrement"));
+            error(location, std::format("wrong type argument to {}", operation));
         }
-        requireModifiableLvalue(operand, location);
+        requireModifiableLvalue(operand, location, operation);
         if (type == TypeClass::Pointer) {
             const ast::QualType pointee = pointeeOf(operand->type());
             const TypeClass pointeeClass = classify(context_, pointee);
@@ -473,7 +486,7 @@ void Sema::logical(ast::BinaryExpr* binary) {
 // C17 6.5.16.1: the right operand is converted to the type of the left one; the result is the stored value.
 void Sema::assignment(ast::BinaryExpr* binary) {
     ast::Expr* lhs = binary->lhs();
-    requireModifiableLvalue(lhs, binary->operatorLocation());
+    requireModifiableLvalue(lhs, binary->operatorLocation(), "assignment");
     const AssignmentContext context{.kind = AssignmentContext::Kind::Assignment,
                                     .location = binary->operatorLocation(),
                                     .argumentIndex = 0,
@@ -490,7 +503,7 @@ void Sema::compoundAssignment(ast::BinaryExpr* binary) {
     const BinaryOperator op = arithmeticOperatorOf(binary->op());
     rejectComplex(lhs, binary->operatorLocation());
     rejectComplex(rhs, binary->operatorLocation());
-    requireModifiableLvalue(lhs, binary->operatorLocation());
+    requireModifiableLvalue(lhs, binary->operatorLocation(), "assignment");
     const TypeClass left = classify(context_, lhs->type());
     const TypeClass right = classify(context_, valueType(rhs));
     ast::QualType computation;

@@ -135,8 +135,33 @@ TEST_F(DeclarationsTest, EnumerationValues) {
     EXPECT_EQ(find<ast::EnumConstantDecl>(unit, "C")->value(), 6);
     EXPECT_EQ(find<ast::EnumConstantDecl>(unit, "D")->value(), -1);
     EXPECT_EQ(find<ast::EnumConstantDecl>(unit, "E")->value(), 0);
-    EXPECT_EQ(errorOf("enum e { A = 2147483647, B };"), "1:26: overflow in enumeration values");
     EXPECT_EQ(errorOf("enum e { A = 1.0 };"), "1:14: enumerator value for 'A' is not an integer constant");
+}
+
+TEST_F(DeclarationsTest, EnumerationValuesContinuePastTheTypeOfThePreviousOne) {
+    // GCC 14: the next value is computed in long long or unsigned long long when it overflows the previous type.
+    const ast::TranslationUnit* unit = analyze("enum e { A = 2147483647, B }; enum f { C = 0xffffffff, D };");
+    ASSERT_NE(unit, nullptr) << firstError();
+    EXPECT_EQ(find<ast::EnumConstantDecl>(unit, "B")->value(), 2147483648);
+    EXPECT_EQ(ast::typeToString(find<ast::EnumDecl>(unit, "e")->integerType()), "unsigned int");
+    EXPECT_EQ(ast::typeToString(find<ast::EnumConstantDecl>(unit, "B")->type()), "enum e");
+    EXPECT_EQ(find<ast::EnumConstantDecl>(unit, "D")->value(), 0x100000000);
+    EXPECT_EQ(ast::typeToString(find<ast::EnumDecl>(unit, "f")->integerType()), "unsigned long");
+    EXPECT_EQ(errorOf("enum e { A = 9223372036854775807, B };"), "1:35: overflow in enumeration values");
+    // Enumerations need __int128 for wider values where the target has it.
+    unit = analyze("enum e { A = (__int128)1 << 100 };");
+    ASSERT_NE(unit, nullptr) << firstError();
+    EXPECT_EQ(ast::typeToString(find<ast::EnumDecl>(unit, "e")->integerType()), "unsigned __int128");
+    EXPECT_EQ(errorOf("enum e { A = -1, B = 0xffffffffffffffffULL };", DataModel::ILP32),
+              "1:6: enumeration values exceed range of largest integer");
+}
+
+TEST_F(DeclarationsTest, EnumerationsOfIntSizePromoteToThemselves) {
+    // C17 6.7.6.3p15: a prototype is compatible with a declaration without one if its parameters are unchanged by
+    // the promotions, as an enumeration compatible with unsigned int is.
+    EXPECT_NE(analyze("enum e { A, B }; int f(); int f(enum e x); int g(enum e); int g(x) enum e x; { return x; }"),
+              nullptr)
+        << firstError();
 }
 
 TEST_F(DeclarationsTest, EnumerationIntegerTypesAsInGcc) {
@@ -184,6 +209,10 @@ TEST_F(DeclarationsTest, StaticAssertions) {
     EXPECT_EQ(errorOf("void f(void) { _Static_assert(0); }"), "1:16: static assertion failed");
     EXPECT_EQ(errorOf("int n; _Static_assert(n, \"\");"), "1:23: static assertion expression is not an integer "
                                                           "constant");
+    // The message is typed like any string literal.
+    const ast::TranslationUnit* unit = analyze("_Static_assert(1, \"ok\");");
+    ASSERT_NE(unit, nullptr) << firstError();
+    EXPECT_EQ(ast::typeToString(ast::cast<ast::StaticAssertDecl>(unit->decls.front())->message()->type()), "char [3]");
 }
 
 TEST_F(DeclarationsTest, AlignedAttributesOnVariablesAndTypedefs) {
@@ -193,6 +222,18 @@ TEST_F(DeclarationsTest, AlignedAttributesOnVariablesAndTypedefs) {
     EXPECT_EQ(find<ast::VarDecl>(unit, "x")->requestedAlignment(), 16u);
     EXPECT_EQ(find<ast::VarDecl>(unit, "y")->requestedAlignment(), 8u);
     EXPECT_EQ(find<ast::TypedefDecl>(unit, "T")->requestedAlignment(), 32u);
+}
+
+TEST_F(DeclarationsTest, AlignmentsOfZeroHaveNoEffectAndTheStrictestWins) {
+    const ast::TranslationUnit* unit =
+        analyze("_Alignas(0) int x; int y __attribute__((aligned(0))); _Alignas(4) _Alignas(16) char z;\n"
+                "struct t { _Alignas(0) char c; };");
+    ASSERT_NE(unit, nullptr) << firstError();
+    EXPECT_EQ(find<ast::VarDecl>(unit, "x")->requestedAlignment(), 0u);
+    EXPECT_EQ(find<ast::VarDecl>(unit, "y")->requestedAlignment(), 0u);
+    EXPECT_EQ(find<ast::VarDecl>(unit, "z")->requestedAlignment(), 16u);
+    EXPECT_EQ(layoutText("struct t { _Alignas(0) char c; };", "t"), "size 1 align 1 c@0");
+    EXPECT_EQ(errorOf("_Alignas(3) int x;"), "1:1: requested alignment is not a positive power of 2");
 }
 
 TEST_F(DeclarationsTest, AttributesAfterTheTagOfAReferenceApplyToTheDeclaration) {
@@ -220,6 +261,16 @@ TEST_F(DeclarationsTest, ModeAttribute) {
     EXPECT_EQ(ast::typeToString(find<ast::TypedefDecl>(unit, "word")->underlying()), "long");
     EXPECT_EQ(ast::typeToString(find<ast::VarDecl>(unit, "d")->type()), "long");
     EXPECT_EQ(errorOf("typedef float F __attribute__((mode(SF)));"), "1:32: the machine mode 'SF' is not supported");
+}
+
+TEST_F(DeclarationsTest, ModeAttributesOfParametersChangeThePrototype) {
+    const ast::TranslationUnit* unit = analyze("int f(int x __attribute__((mode(QI))));\n"
+                                               "int g(unsigned x __attribute__((mode(HI)))) { return x; }");
+    ASSERT_NE(unit, nullptr) << firstError();
+    EXPECT_EQ(ast::typeToString(find<ast::FunctionDecl>(unit, "f")->type()), "int (signed char)");
+    const auto* g = find<ast::FunctionDecl>(unit, "g");
+    EXPECT_EQ(ast::typeToString(g->type()), "int (unsigned short)");
+    EXPECT_EQ(ast::typeToString(g->parameters()[0]->type()), "unsigned short");
 }
 
 TEST_F(DeclarationsTest, FunctionAttributes) {
@@ -262,6 +313,21 @@ TEST_F(DeclarationsTest, KnrDefinitions) {
     const auto* f = find<ast::FunctionDecl>(unit, "f");
     EXPECT_EQ(ast::typeToString(f->type()), "int ()");
     EXPECT_EQ(f->locals().size(), 2u);
+}
+
+TEST_F(DeclarationsTest, KnrDefinitionsAfterAPrototypeKeepThePrototype) {
+    // GCC accepts a parameter whose declared type, not only its promoted type, is the prototype's.
+    const ast::TranslationUnit* unit = analyze("int f(char); int f(c) char c; { return c; }\n"
+                                               "int g(int); int g(c) char c; { return c; }\n"
+                                               "int h(double); int h(x) float x; { return x; }");
+    ASSERT_NE(unit, nullptr) << firstError();
+    EXPECT_EQ(ast::typeToString(find<ast::FunctionDecl>(unit, "f")->type()), "int (char)");
+    EXPECT_EQ(ast::typeToString(find<ast::FunctionDecl>(unit, "g")->type()), "int (int)");
+    EXPECT_EQ(ast::typeToString(find<ast::FunctionDecl>(unit, "g")->parameters()[0]->type()), "char");
+    EXPECT_EQ(ast::typeToString(find<ast::FunctionDecl>(unit, "h")->type()), "int (double)");
+    EXPECT_EQ(errorOf("int k(long); int k(c) char c; { return c; }"), "1:28: argument 'c' doesn't match prototype");
+    EXPECT_EQ(errorOf("int k(int, int); int k(c) char c; { return c; }"),
+              "1:22: number of arguments doesn't match prototype");
 }
 
 TEST_F(DeclarationsTest, BuiltinSignaturesForImplicitDeclarations) {

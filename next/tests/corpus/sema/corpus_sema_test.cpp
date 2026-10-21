@@ -5,6 +5,7 @@
 // witnesses for both is analyzed as 32 bit), 32 bit for the test files. Failures are grouped by the message of their
 // first error, and GCC decides for each whether the file is valid (`gcc-14 -fsyntax-only -w`, again with
 // -fpermissive if needed). The test passes if at least 99 % of the files that parse are analyzed without error.
+// The warnings of the analyzed files are counted and grouped the same way, the parser's apart from sema's.
 
 #include <algorithm>
 #include <atomic>
@@ -50,6 +51,7 @@ struct FileResult {
     std::string message; // the first error
     std::string where;
     GccVerdict gcc = GccVerdict::NotChecked;
+    std::vector<std::pair<std::string, std::string>> warnings; // "parse: message" or "sema: message", and where
 };
 
 struct Program {
@@ -155,9 +157,18 @@ FileResult analyzeOne(const Program& program) {
     if (!result.parsed) {
         return result;
     }
+    const std::size_t parserDiagnostics = diagnostics.diagnostics().size();
     const auto start = std::chrono::steady_clock::now();
     result.analyzed = analyze(*unit, context, diagnostics);
     result.semaTime = std::chrono::steady_clock::now() - start;
+    for (std::size_t i = 0; i < diagnostics.diagnostics().size(); ++i) {
+        const Diagnostic& diagnostic = diagnostics.diagnostics()[i];
+        if (diagnostic.severity == Severity::Warning) {
+            result.warnings.emplace_back(
+                std::format("{}: {}", i < parserDiagnostics ? "parse" : "sema", diagnostic.message),
+                std::format("{} ({})", diagnostics.format(diagnostic), program.is64Bit ? "64" : "32"));
+        }
+    }
     for (const Diagnostic& diagnostic : diagnostics.diagnostics()) {
         if (diagnostic.severity == Severity::Error) {
             result.message = diagnostic.message;
@@ -197,6 +208,52 @@ struct Group {
     std::size_t gccAccepts = 0;
     std::vector<std::string> examples;
 };
+
+struct WarningGroup {
+    std::size_t count = 0;
+    std::size_t files = 0;
+    std::string example;
+};
+
+constexpr std::size_t reportedWarningGroups = 30;
+
+// The warnings of the analyzed files by message, the most frequent first: count, files and an example.
+void reportWarnings(const std::vector<FileResult>& results) {
+    std::map<std::string, WarningGroup> groups;
+    std::size_t total = 0;
+    std::size_t filesWithWarnings = 0;
+    for (const FileResult& result : results) {
+        if (!result.analyzed || result.warnings.empty()) {
+            continue;
+        }
+        ++filesWithWarnings;
+        std::map<std::string, bool> seen;
+        for (const auto& [message, where] : result.warnings) {
+            ++total;
+            const std::string key = groupKey(message);
+            WarningGroup& group = groups[key];
+            ++group.count;
+            if (!std::exchange(seen[key], true)) {
+                ++group.files;
+            }
+            if (group.example.empty()) {
+                group.example = where;
+            }
+        }
+    }
+    std::vector<std::pair<const std::string*, const WarningGroup*>> sorted;
+    for (const auto& [message, group] : groups) {
+        sorted.emplace_back(&message, &group);
+    }
+    std::ranges::stable_sort(sorted, std::ranges::greater{}, [](const auto& item) { return item.second->count; });
+    std::println("warnings of the analyzed files: {} in {} files, {} messages; the {} most frequent (count, files):",
+                 total, filesWithWarnings, sorted.size(), std::min(sorted.size(), reportedWarningGroups));
+    for (std::size_t i = 0; i < sorted.size() && i < reportedWarningGroups; ++i) {
+        const auto& [message, group] = sorted[i];
+        std::println("  {:>7} {:>6}  {}", group->count, group->files, *message);
+        std::println("                  {}", group->example);
+    }
+}
 
 int run(const fs::path& datasetDir, const fs::path& repositoryRoot) {
     const auto start = std::chrono::steady_clock::now();
@@ -262,6 +319,8 @@ int run(const fs::path& datasetDir, const fs::path& repositoryRoot) {
             std::println("                 {}", example);
         }
     }
+
+    reportWarnings(results);
 
     const bool passed = analyzed > 0 && rate >= requiredRate;
     std::println("{}", passed ? "PASSED" : "FAILED");

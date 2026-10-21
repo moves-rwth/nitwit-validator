@@ -100,6 +100,10 @@ TEST_F(ExpressionsTest, BitFieldsPromoteByTheirWidth) {
     EXPECT_EQ(typeOf(s, "v.d + 0"), "unsigned int");
     EXPECT_EQ(typeOf(s, "v.e + 0"), "long long");
     EXPECT_EQ(typeOf(s, "(v.a = 1) - 2"), "int");
+    // Also through a statement expression, whose value has the bit-field's type in GCC.
+    EXPECT_EQ(typeOf(s, "({ v.a; })"), "unsigned int");
+    EXPECT_EQ(typeOf(s, "({ v.a; }) - 1"), "int");
+    EXPECT_EQ(typeOf(s, "({ int i = 0; v.b; }) - 1"), "unsigned int");
 }
 
 TEST_F(ExpressionsTest, ShiftsPromoteTheirOperandsSeparately) {
@@ -185,11 +189,21 @@ TEST_F(ExpressionsTest, AssignmentsConvertToTheLeftType) {
                                                       "  ImplicitCastExpr FloatingToIntegral 'char'\n"
                                                       "    ImplicitCastExpr LValueToRValue 'double'\n"
                                                       "      DeclRefExpr d (VarDecl at 1:16) 'double' lvalue\n");
-    EXPECT_EQ(errorOf("const int x; void f(void) { x = 1; }"), "1:31: assignment of read-only location");
+    EXPECT_EQ(errorOf("const int x; void f(void) { x = 1; }"), "1:31: assignment of read-only variable 'x'");
     EXPECT_EQ(errorOf("struct s { const int a; } v, w; void f(void) { v = w; }"),
-              "1:50: assignment of read-only location");
+              "1:50: assignment of read-only variable 'v'");
+    EXPECT_EQ(errorOf("struct s { const int a; } v; void f(void) { v.a = 1; }"),
+              "1:49: assignment of read-only member 'a'");
+    EXPECT_EQ(errorOf("const int *p; void f(void) { *p = 1; }"), "1:33: assignment of read-only location");
     EXPECT_EQ(errorOf("int a[2], b[2]; void f(void) { a = b; }"), "1:34: assignment to expression with array type");
     EXPECT_EQ(errorOf("void f(void) { 1 = 2; }"), "1:18: lvalue required as left operand of assignment");
+}
+
+TEST_F(ExpressionsTest, IncrementsNameTheirOperation) {
+    EXPECT_EQ(errorOf("const int x; void f(void) { x++; }"), "1:29: increment of read-only variable 'x'");
+    EXPECT_EQ(errorOf("const struct { int b; } s; void f(void) { --s.b; }"),
+              "1:43: decrement of member 'b' in read-only object");
+    EXPECT_EQ(errorOf("void f(void) { 1++; }"), "1:16: lvalue required as increment operand");
 }
 
 TEST_F(ExpressionsTest, CompoundAssignmentsHaveAComputationType) {
@@ -324,6 +338,21 @@ TEST_F(ExpressionsTest, StatementExpressionsHaveTheValueOfTheirLastStatement) {
     EXPECT_EQ(typeOf("", "({ int x = 1; x; })"), "int");
     EXPECT_EQ(typeOf("", "({ int a[2]; a; })"), "int *");
     EXPECT_EQ(typeOf("", "({ ; })"), "void");
+    // A labeled expression statement at the end gives the value too (GCC).
+    EXPECT_EQ(typeOf("long x;", "({ goto done; done: x; })"), "long");
+}
+
+TEST_F(ExpressionsTest, WideCharactersHaveTypeWcharT) {
+    EXPECT_EQ(typeOf("", "L'a'"), "int");
+    EXPECT_EQ(typeOf("", "L'a'", DataModel::ILP32), "long");
+    EXPECT_EQ(typeOf("", "L\"ab\"", DataModel::ILP32), "long [3] lvalue");
+    EXPECT_NE(analyze("long w[] = L\"ab\";", DataModel::ILP32), nullptr) << firstError();
+    EXPECT_EQ(errorOf("int w[] = L\"ab\";", DataModel::ILP32),
+              "1:11: array of inappropriate type initialized from string constant");
+}
+
+TEST_F(ExpressionsTest, FunctionPointersCannotBeSubscripted) {
+    EXPECT_EQ(errorOf("void (*fp)(void); void f(void) { fp[0]; }"), "1:34: subscripted value is pointer to function");
 }
 
 TEST_F(ExpressionsTest, GenericSelection) {

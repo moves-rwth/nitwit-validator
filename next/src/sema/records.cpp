@@ -106,9 +106,7 @@ void Sema::completeRecord(ast::RecordDecl* record) {
     if (findAttribute(record, "packed") != nullptr) {
         record->setPacked();
     }
-    if (const ast::Attribute* aligned = findAttribute(record, "aligned")) {
-        record->setRequestedAlignment(alignmentArgument(*aligned));
-    }
+    record->setRequestedAlignment(requestedAlignment(record));
     const std::span<ast::FieldDecl* const> fields = record->fields();
     for (std::size_t i = 0; i < fields.size(); ++i) {
         field(fields[i], i + 1 == fields.size());
@@ -127,9 +125,7 @@ void Sema::field(ast::FieldDecl* field, bool isLast) {
     if (const std::optional<ast::QualType> type = modeType(field, field->type())) {
         field->setType(*type);
     }
-    if (const ast::Attribute* aligned = findAttribute(field, "aligned")) {
-        field->setRequestedAlignment(alignmentArgument(*aligned));
-    }
+    field->setRequestedAlignment(requestedAlignment(field));
     if (findAttribute(field, "packed") != nullptr) {
         field->setPacked();
     }
@@ -209,7 +205,8 @@ void Sema::completeEnum(ast::EnumDecl* enumDecl, SourceLocation use) {
     const bool isPacked = findAttribute(enumDecl, "packed") != nullptr;
     std::uint64_t bytes = 4;
     if (isPacked || precision > 32) {
-        if (precision > 64) {
+        // c_common_type_for_size: __int128 where the target has it.
+        if (precision > (context_.target().hasInt128() ? 128u : 64u)) {
             error(enumDecl->location(), "enumeration values exceed range of largest integer");
         }
         bytes = std::bit_ceil(std::max(8u, precision)) / 8;
@@ -242,17 +239,21 @@ void Sema::enumConstant(ast::EnumConstantDecl* constant, const ast::EnumConstant
             type = promotedType(context_, valueType(init));
         }
     } else if (previous != nullptr) {
-        // GCC computes the next value in the type of the previous constant and rejects an overflow.
+        // GCC 14's build_enumerator: the next value is computed in the type of the previous constant; if it overflows
+        // there, in long long or unsigned long long by that type's signedness (C23 6.7.2.2p12), and only an overflow
+        // there is an error. `enum { A = 0x7fffffff, B }` gives B the value 0x80000000 of type long long.
         const value::IntegerFormat format = integerFormat(context_, previous->type());
         const UInt128 maximum =
             format.isSigned ? (UInt128{1} << (format.bits - 1)) - 1 : ~UInt128{0} >> (128 - format.bits);
         if (previous->value() >= 0 && static_cast<UInt128>(previous->value()) == maximum) {
-            error(constant->location(), "overflow in enumeration values");
-        }
-        value = previous->value() + 1;
-        if (!fitsInt(value)) {
+            if (format.bits >= 64) {
+                error(constant->location(), "overflow in enumeration values");
+            }
+            type = context_.builtin(format.isSigned ? ast::BuiltinKind::LongLong : ast::BuiltinKind::UnsignedLongLong);
+        } else if (!fitsInt(previous->value() + 1)) {
             type = previous->type();
         }
+        value = previous->value() + 1;
     }
     constant->setValue(value);
     constant->setType(type);

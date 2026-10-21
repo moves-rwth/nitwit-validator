@@ -4,6 +4,8 @@
 #include "sema/types.hpp"
 
 #include <algorithm>
+#include <iterator>
+#include <utility>
 #include <vector>
 
 #include "ast/casting.hpp"
@@ -18,47 +20,30 @@ namespace {
 
 using ast::BuiltinKind;
 
+// The builtin types whose representation the target defines (all but void and va_list).
+constexpr std::pair<BuiltinKind, ScalarType> scalarKinds[] = {
+    {BuiltinKind::Bool, ScalarType::Bool},
+    {BuiltinKind::Char, ScalarType::Char},
+    {BuiltinKind::SignedChar, ScalarType::SignedChar},
+    {BuiltinKind::UnsignedChar, ScalarType::UnsignedChar},
+    {BuiltinKind::Short, ScalarType::Short},
+    {BuiltinKind::UnsignedShort, ScalarType::UnsignedShort},
+    {BuiltinKind::Int, ScalarType::Int},
+    {BuiltinKind::UnsignedInt, ScalarType::UnsignedInt},
+    {BuiltinKind::Long, ScalarType::Long},
+    {BuiltinKind::UnsignedLong, ScalarType::UnsignedLong},
+    {BuiltinKind::LongLong, ScalarType::LongLong},
+    {BuiltinKind::UnsignedLongLong, ScalarType::UnsignedLongLong},
+    {BuiltinKind::Int128, ScalarType::Int128},
+    {BuiltinKind::UnsignedInt128, ScalarType::UnsignedInt128},
+    {BuiltinKind::Float, ScalarType::Float},
+    {BuiltinKind::Double, ScalarType::Double},
+    {BuiltinKind::LongDouble, ScalarType::LongDouble},
+};
+
 std::optional<ScalarType> scalarTypeOf(BuiltinKind kind) {
-    switch (kind) {
-    case BuiltinKind::Bool:
-        return ScalarType::Bool;
-    case BuiltinKind::Char:
-        return ScalarType::Char;
-    case BuiltinKind::SignedChar:
-        return ScalarType::SignedChar;
-    case BuiltinKind::UnsignedChar:
-        return ScalarType::UnsignedChar;
-    case BuiltinKind::Short:
-        return ScalarType::Short;
-    case BuiltinKind::UnsignedShort:
-        return ScalarType::UnsignedShort;
-    case BuiltinKind::Int:
-        return ScalarType::Int;
-    case BuiltinKind::UnsignedInt:
-        return ScalarType::UnsignedInt;
-    case BuiltinKind::Long:
-        return ScalarType::Long;
-    case BuiltinKind::UnsignedLong:
-        return ScalarType::UnsignedLong;
-    case BuiltinKind::LongLong:
-        return ScalarType::LongLong;
-    case BuiltinKind::UnsignedLongLong:
-        return ScalarType::UnsignedLongLong;
-    case BuiltinKind::Int128:
-        return ScalarType::Int128;
-    case BuiltinKind::UnsignedInt128:
-        return ScalarType::UnsignedInt128;
-    case BuiltinKind::Float:
-        return ScalarType::Float;
-    case BuiltinKind::Double:
-        return ScalarType::Double;
-    case BuiltinKind::LongDouble:
-        return ScalarType::LongDouble;
-    case BuiltinKind::Void:
-    case BuiltinKind::VaList:
-        return std::nullopt;
-    }
-    NITWIT_UNREACHABLE("unknown builtin kind");
+    const auto* found = std::ranges::find(scalarKinds, kind, &std::pair<BuiltinKind, ScalarType>::first);
+    return found != std::end(scalarKinds) ? std::optional(found->second) : std::nullopt;
 }
 
 bool isSignedKind(BuiltinKind kind) {
@@ -111,51 +96,59 @@ ast::QualType enumIntegerType(const ast::EnumDecl* decl) {
     return decl->integerType();
 }
 
-// _Alignof of a type, following its sugar: a typedef with an `aligned` attribute sets the alignment (GCC's
-// TYPE_USER_ALIGN, which ADJUST_FIELD_ALIGN leaves alone); the target's ABI alignment otherwise.
-std::uint64_t abiAlignment(ast::AstContext& context, ast::QualType type) {
+// The alignment of a type, following its sugar: a typedef with an `aligned` attribute sets it (GCC's
+// TYPE_USER_ALIGN, which ADJUST_FIELD_ALIGN leaves alone). Otherwise the target's ABI alignment (`_Alignof`) or, with
+// `preferred`, GCC's TYPE_ALIGN (`__alignof__`), which differ for 8-byte scalars on i386. A record's alignment is both.
+std::uint64_t alignment(ast::AstContext& context, ast::QualType type, bool preferred) {
     const TargetInfo& target = context.target();
+    const auto scalarAlignment = [&](ScalarType scalar) {
+        const ScalarLayout layout = target.layout(scalar);
+        return preferred ? layout.preferredAlign : layout.align;
+    };
     switch (type->kind()) {
     case ast::TypeKind::Typedef: {
         const ast::TypedefDecl* decl = ast::cast<ast::TypedefType>(type.type())->decl();
-        return decl->requestedAlignment() != 0 ? decl->requestedAlignment() : abiAlignment(context, decl->underlying());
+        return decl->requestedAlignment() != 0 ? decl->requestedAlignment()
+                                               : alignment(context, decl->underlying(), preferred);
     }
     case ast::TypeKind::Typeof:
-        return abiAlignment(context, ast::cast<ast::TypeofType>(type.type())->resolved());
+        return alignment(context, ast::cast<ast::TypeofType>(type.type())->resolved(), preferred);
     case ast::TypeKind::Array:
-        return abiAlignment(context, ast::cast<ast::ArrayType>(type.type())->element());
+        return alignment(context, ast::cast<ast::ArrayType>(type.type())->element(), preferred);
     case ast::TypeKind::Complex:
-        return abiAlignment(context, ast::cast<ast::ComplexType>(type.type())->element());
+        return alignment(context, ast::cast<ast::ComplexType>(type.type())->element(), preferred);
     case ast::TypeKind::Builtin: {
         const BuiltinKind kind = ast::cast<ast::BuiltinType>(type.type())->builtinKind();
         if (kind == BuiltinKind::VaList) {
             return vaListAlignment(target);
         }
         const std::optional<ScalarType> scalar = scalarTypeOf(kind);
-        return scalar ? target.layout(*scalar).align : 1;
+        return scalar ? scalarAlignment(*scalar) : 1;
     }
     case ast::TypeKind::Pointer:
-        return target.layout(ScalarType::Pointer).align;
+        return scalarAlignment(ScalarType::Pointer);
     case ast::TypeKind::Function:
         return 1;
     case ast::TypeKind::Record:
         return layoutOf(ast::cast<ast::RecordType>(type.type())->decl()).alignment;
     case ast::TypeKind::Enum:
-        return abiAlignment(context, enumIntegerType(ast::cast<ast::EnumType>(type.type())->decl()));
+        return alignment(context, enumIntegerType(ast::cast<ast::EnumType>(type.type())->decl()), preferred);
     }
     NITWIT_UNREACHABLE("unknown type kind");
 }
 
+// C17 6.7.6.3p15: a prototype is compatible with a declaration without one if it has no ellipsis and every parameter
+// type is compatible with its promoted type (int- and long-sized enumerations are).
 bool isPrototypeCompatibleWithPromotions(ast::AstContext& context, const ast::FunctionType* prototype) {
     if (prototype->isVariadic()) {
-        return false; // C17 6.7.6.3p15: no ellipsis
+        return false;
     }
     return std::ranges::all_of(prototype->parameters(), [&](ast::QualType parameter) {
         const ast::QualType canonical = context.canonical(parameter).unqualified();
         if (builtinKind(context, canonical) == BuiltinKind::Float) {
             return false;
         }
-        return context.canonical(promotedType(context, canonical)) == canonical;
+        return compatibleUnqualified(context, promotedType(context, canonical), canonical);
     });
 }
 
@@ -520,37 +513,7 @@ ast::QualType composite(ast::AstContext& context, ast::QualType lhs, ast::QualTy
 }
 
 std::uint64_t preferredAlignment(ast::AstContext& context, ast::QualType type) {
-    const TargetInfo& target = context.target();
-    switch (type->kind()) {
-    case ast::TypeKind::Typedef: {
-        const ast::TypedefDecl* decl = ast::cast<ast::TypedefType>(type.type())->decl();
-        return decl->requestedAlignment() != 0 ? decl->requestedAlignment()
-                                               : preferredAlignment(context, decl->underlying());
-    }
-    case ast::TypeKind::Typeof:
-        return preferredAlignment(context, ast::cast<ast::TypeofType>(type.type())->resolved());
-    case ast::TypeKind::Array:
-        return preferredAlignment(context, ast::cast<ast::ArrayType>(type.type())->element());
-    case ast::TypeKind::Complex:
-        return preferredAlignment(context, ast::cast<ast::ComplexType>(type.type())->element());
-    case ast::TypeKind::Builtin: {
-        const BuiltinKind kind = ast::cast<ast::BuiltinType>(type.type())->builtinKind();
-        if (kind == BuiltinKind::VaList) {
-            return vaListAlignment(target);
-        }
-        const std::optional<ScalarType> scalar = scalarTypeOf(kind);
-        return scalar ? target.layout(*scalar).preferredAlign : 1;
-    }
-    case ast::TypeKind::Pointer:
-        return target.layout(ScalarType::Pointer).preferredAlign;
-    case ast::TypeKind::Function:
-        return 1;
-    case ast::TypeKind::Record:
-        return layoutOf(ast::cast<ast::RecordType>(type.type())->decl()).alignment;
-    case ast::TypeKind::Enum:
-        return preferredAlignment(context, enumIntegerType(ast::cast<ast::EnumType>(type.type())->decl()));
-    }
-    NITWIT_UNREACHABLE("unknown type kind");
+    return alignment(context, type, true);
 }
 
 ast::QualType sizeType(ast::AstContext& context) {
@@ -561,46 +524,14 @@ ast::QualType ptrdiffType(ast::AstContext& context) {
     return context.builtin(builtinKindOf(context.target().ptrdiffType()));
 }
 
+ast::QualType wcharType(ast::AstContext& context) {
+    return context.builtin(builtinKindOf(context.target().wcharType()));
+}
+
 BuiltinKind builtinKindOf(ScalarType type) {
-    switch (type) {
-    case ScalarType::Bool:
-        return BuiltinKind::Bool;
-    case ScalarType::Char:
-        return BuiltinKind::Char;
-    case ScalarType::SignedChar:
-        return BuiltinKind::SignedChar;
-    case ScalarType::UnsignedChar:
-        return BuiltinKind::UnsignedChar;
-    case ScalarType::Short:
-        return BuiltinKind::Short;
-    case ScalarType::UnsignedShort:
-        return BuiltinKind::UnsignedShort;
-    case ScalarType::Int:
-        return BuiltinKind::Int;
-    case ScalarType::UnsignedInt:
-        return BuiltinKind::UnsignedInt;
-    case ScalarType::Long:
-        return BuiltinKind::Long;
-    case ScalarType::UnsignedLong:
-        return BuiltinKind::UnsignedLong;
-    case ScalarType::LongLong:
-        return BuiltinKind::LongLong;
-    case ScalarType::UnsignedLongLong:
-        return BuiltinKind::UnsignedLongLong;
-    case ScalarType::Int128:
-        return BuiltinKind::Int128;
-    case ScalarType::UnsignedInt128:
-        return BuiltinKind::UnsignedInt128;
-    case ScalarType::Float:
-        return BuiltinKind::Float;
-    case ScalarType::Double:
-        return BuiltinKind::Double;
-    case ScalarType::LongDouble:
-        return BuiltinKind::LongDouble;
-    case ScalarType::Pointer:
-        break;
-    }
-    NITWIT_UNREACHABLE("not a builtin scalar type");
+    const auto* found = std::ranges::find(scalarKinds, type, &std::pair<BuiltinKind, ScalarType>::second);
+    NITWIT_ASSERT(found != std::end(scalarKinds), "not a builtin scalar type");
+    return found->first;
 }
 
 ast::QualType integerTypeForSize(ast::AstContext& context, std::uint64_t bytes, bool isSigned) {
@@ -727,7 +658,7 @@ std::uint64_t sizeOf(ast::AstContext& context, ast::QualType type) {
 }
 
 std::uint64_t alignOf(ast::AstContext& context, ast::QualType type) {
-    return detail::abiAlignment(context, type);
+    return detail::alignment(context, type, false);
 }
 
 const ast::RecordLayout& layoutOf(const ast::RecordDecl* record) {

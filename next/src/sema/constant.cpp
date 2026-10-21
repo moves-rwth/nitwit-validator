@@ -8,6 +8,7 @@
 
 #include "sema/constant.hpp"
 
+#include <algorithm>
 #include <bit>
 #include <vector>
 
@@ -38,6 +39,7 @@ private:
     std::optional<Value> unary(const ast::UnaryExpr* unary);
     std::optional<Value> convert(ast::CastKind kind, const Value& operand, ast::QualType from, ast::QualType to);
     std::optional<Value> call(const ast::CallExpr* call);
+    bool isConstant(const ast::Expr* expr);
     std::optional<Value> sizeOrAlignment(const ast::SizeOfAlignOfExpr* sizeOf);
     std::optional<Value> offsetOf(const ast::OffsetOfExpr* offsetOf);
     std::optional<UInt128> address(const ast::Expr* expr);
@@ -364,8 +366,12 @@ std::optional<Value> Evaluator::convert(ast::CastKind kind, const Value& operand
         return operand;
     case ast::CastKind::IntegralCast:
     case ast::CastKind::IntegralToPointer:
-    case ast::CastKind::PointerToIntegral:
         return value::convertInteger(operand, format(to));
+    case ast::CastKind::PointerToIntegral: {
+        // GCC sign-extends a pointer converted to a wider integer type (GCC manual, "Arrays and pointers").
+        const Value pointer = Value::integer(operand.bits(), {format(from).bits, true});
+        return value::convertInteger(pointer, format(to));
+    }
     case ast::CastKind::NullToPointer:
         return integer(0, to);
     case ast::CastKind::IntegralToBoolean:
@@ -394,7 +400,18 @@ std::optional<Value> Evaluator::convert(ast::CastKind kind, const Value& operand
     NITWIT_UNREACHABLE("unknown cast kind");
 }
 
-// GCC folds some builtins with constant arguments.
+// Whether `__builtin_constant_p` is 1 for an operand: a constant scalar, or a string literal as in GCC.
+bool Evaluator::isConstant(const ast::Expr* expr) {
+    const ast::Expr* operand = ast::ignoreParens(expr);
+    if (const auto* decay = ast::dyn_cast<ast::ImplicitCastExpr>(operand);
+        decay != nullptr && decay->castKind() == ast::CastKind::ArrayToPointerDecay) {
+        operand = ast::ignoreParens(decay->operand());
+    }
+    return ast::isa<ast::StringLiteralExpr>(operand) || value(expr).has_value();
+}
+
+// GCC folds some builtins with constant arguments: __builtin_constant_p, __builtin_expect, and the bit operations on
+// one integer.
 std::optional<Value> Evaluator::call(const ast::CallExpr* call) {
     const ast::FunctionDecl* function = call->directCallee();
     if (function == nullptr || !function->name().text().starts_with("__builtin_")) {
@@ -404,17 +421,20 @@ std::optional<Value> Evaluator::call(const ast::CallExpr* call) {
     const std::span<ast::Expr*> arguments = call->arguments();
     const ast::QualType type = call->type();
     if (name == "constant_p") {
-        return integer(arguments.size() == 1 && value(arguments[0]) ? 1 : 0, type);
+        return integer(arguments.size() == 1 && isConstant(arguments[0]) ? 1 : 0, type);
     }
-    if (arguments.empty()) {
+    if ((name == "expect" || name == "expect_with_probability") && !arguments.empty()) {
+        return value(arguments[0]);
+    }
+    constexpr std::string_view bitOperations[] = {"bswap", "clz", "ctz", "popcount", "parity", "ffs"};
+    const bool isBitOperation =
+        std::ranges::any_of(bitOperations, [&](std::string_view operation) { return name.starts_with(operation); });
+    if (!isBitOperation || arguments.size() != 1 || !isInteger(context_, arguments[0]->type())) {
         return std::nullopt;
     }
     const std::optional<Value> argument = value(arguments[0]);
     if (!argument) {
         return std::nullopt;
-    }
-    if (name == "expect" || name == "expect_with_probability") {
-        return argument;
     }
     const value::IntegerFormat argumentFormat = format(arguments[0]->type());
     const UInt128 mask = argumentFormat.bits == 128 ? ~UInt128{0} : (UInt128{1} << argumentFormat.bits) - 1;
@@ -476,8 +496,11 @@ std::optional<Value> Evaluator::sizeOrAlignment(const ast::SizeOfAlignOfExpr* si
     } else {
         const ast::Expr* named = ast::ignoreParens(operand);
         if (const auto* reference = ast::dyn_cast<ast::DeclRefExpr>(named)) {
+            // GCC's DECL_ALIGN: an `aligned` attribute or _Alignas replaces the type's alignment, also by a smaller
+            // one.
             if (const auto* var = ast::dyn_cast<ast::VarDecl>(reference->decl())) {
-                result = std::max(detail::preferredAlignment(context_, var->type()), var->requestedAlignment());
+                result = var->requestedAlignment() != 0 ? var->requestedAlignment()
+                                                        : detail::preferredAlignment(context_, var->type());
             }
         } else if (const auto* member = ast::dyn_cast<ast::MemberExpr>(named)) {
             result = detail::fieldAlignment(context_, member->field());
@@ -555,7 +578,128 @@ std::optional<UInt128> Evaluator::address(const ast::Expr* expr) {
     return std::nullopt;
 }
 
+// An object type of known constant size.
+bool isCompleteObject(ast::AstContext& context, ast::QualType type) {
+    const ast::QualType canonical = context.canonical(type);
+    if (const auto* array = ast::dyn_cast<ast::ArrayType>(canonical.type())) {
+        return array->sizeKind() == ast::ArrayType::SizeKind::Constant && isCompleteObject(context, array->element());
+    }
+    if (const auto* record = ast::dyn_cast<ast::RecordType>(canonical.type())) {
+        return record->decl()->layout() != nullptr;
+    }
+    return !isVoid(context, canonical) && !ast::isa<ast::FunctionType>(canonical.type());
+}
+
+// The part of a declared object that an lvalue designates: its offset in the object, and the closest enclosing
+// subobject (a member, or the object itself), as __builtin_object_size sees them.
+struct ObjectPart {
+    std::uint64_t objectSize = 0;
+    std::uint64_t offset = 0;
+    std::uint64_t subobjectOffset = 0;
+    std::uint64_t subobjectSize = 0;
+};
+
+std::optional<ObjectPart> objectPart(ast::AstContext& context, const ast::Expr* lvalue) {
+    lvalue = ast::ignoreParens(lvalue);
+    if (const auto* reference = ast::dyn_cast<ast::DeclRefExpr>(lvalue)) {
+        const auto* var = ast::dyn_cast<ast::VarDecl>(reference->decl());
+        if (var == nullptr || detail::isVariablySized(var->type()) || !isCompleteObject(context, var->type())) {
+            return std::nullopt;
+        }
+        const std::uint64_t size = sizeOf(context, var->type());
+        return ObjectPart{.objectSize = size, .offset = 0, .subobjectOffset = 0, .subobjectSize = size};
+    }
+    if (const auto* member = ast::dyn_cast<ast::MemberExpr>(lvalue); member != nullptr && !member->isArrow()) {
+        std::optional<ObjectPart> part = objectPart(context, member->base());
+        const ast::FieldDecl* field = member->field();
+        if (!part || field->isBitField() || !isCompleteObject(context, field->type())) {
+            return std::nullopt;
+        }
+        part->offset += layoutOf(field->parent()).fieldOffsets[field->index()];
+        part->subobjectOffset = part->offset;
+        part->subobjectSize = sizeOf(context, field->type());
+        return part;
+    }
+    if (const auto* subscript = ast::dyn_cast<ast::ArraySubscriptExpr>(lvalue)) {
+        const auto* decay = ast::dyn_cast<ast::ImplicitCastExpr>(subscript->base());
+        const std::optional<Int128> index = evaluateIntegerConstant(context, subscript->index());
+        if (decay == nullptr || decay->castKind() != ast::CastKind::ArrayToPointerDecay || !index || *index < 0
+            || detail::isVariablySized(subscript->type())) {
+            return std::nullopt;
+        }
+        std::optional<ObjectPart> part = objectPart(context, decay->operand());
+        if (part) {
+            part->offset += static_cast<std::uint64_t>(*index) * sizeOf(context, subscript->type());
+        }
+        return part;
+    }
+    return std::nullopt;
+}
+
+// The part of a declared object a pointer value points to: the address of an lvalue (also through array decay),
+// converted between pointer types or moved by a constant number of elements.
+std::optional<ObjectPart> pointerPart(ast::AstContext& context, const ast::Expr* pointer) {
+    pointer = ast::ignoreParens(pointer);
+    if (const auto* implicit = ast::dyn_cast<ast::ImplicitCastExpr>(pointer)) {
+        switch (implicit->castKind()) {
+        case ast::CastKind::BitCast:
+        case ast::CastKind::NoOp:
+            return pointerPart(context, implicit->operand());
+        case ast::CastKind::ArrayToPointerDecay:
+            return objectPart(context, implicit->operand());
+        default:
+            return std::nullopt;
+        }
+    }
+    if (const auto* explicitCast = ast::dyn_cast<ast::CastExpr>(pointer)) {
+        const bool isPointerConversion =
+            explicitCast->castKind() == ast::CastKind::BitCast || explicitCast->castKind() == ast::CastKind::NoOp;
+        return isPointerConversion ? pointerPart(context, explicitCast->operand()) : std::nullopt;
+    }
+    if (const auto* address = ast::dyn_cast<ast::UnaryExpr>(pointer);
+        address != nullptr && address->op() == ast::UnaryOperator::AddressOf) {
+        return objectPart(context, address->operand());
+    }
+    if (const auto* binary = ast::dyn_cast<ast::BinaryExpr>(pointer);
+        binary != nullptr && (binary->op() == ast::BinaryOperator::Add || binary->op() == ast::BinaryOperator::Sub)) {
+        const bool isPointerFirst = isPointer(context, binary->lhs()->type());
+        const ast::Expr* base = isPointerFirst ? binary->lhs() : binary->rhs();
+        const ast::Expr* count = isPointerFirst ? binary->rhs() : binary->lhs();
+        const std::optional<Int128> elements = evaluateIntegerConstant(context, count);
+        std::optional<ObjectPart> part = pointerPart(context, base);
+        if (!elements || !part || (binary->op() == ast::BinaryOperator::Sub && !isPointerFirst)) {
+            return std::nullopt;
+        }
+        const Int128 bytes = (binary->op() == ast::BinaryOperator::Sub ? -*elements : *elements)
+                             * static_cast<Int128>(sizeOf(context, pointee(context, base->type())));
+        const Int128 offset = static_cast<Int128>(part->offset) + bytes;
+        if (offset < 0 || offset > static_cast<Int128>(part->objectSize)) {
+            return std::nullopt;
+        }
+        part->offset = static_cast<std::uint64_t>(offset);
+        return part;
+    }
+    return std::nullopt;
+}
+
 } // namespace
+
+std::optional<std::uint64_t> knownObjectSize(ast::AstContext& context, const ast::CallExpr* call) {
+    if (call->arguments().size() != 2) {
+        return std::nullopt;
+    }
+    const std::optional<Int128> type = evaluateIntegerConstant(context, call->arguments()[1]);
+    if (!type || *type < 0 || *type > 3) {
+        return std::nullopt;
+    }
+    const std::optional<ObjectPart> part = pointerPart(context, call->arguments()[0]);
+    if (!part) {
+        return std::nullopt;
+    }
+    // Types 1 and 3 measure up to the end of the closest subobject, 0 and 2 up to the end of the whole object.
+    const std::uint64_t end = (*type & 1) != 0 ? part->subobjectOffset + part->subobjectSize : part->objectSize;
+    return end > part->offset ? end - part->offset : 0;
+}
 
 std::optional<Int128> evaluateIntegerConstant(ast::AstContext& context, const ast::Expr* expr) {
     if (expr->type().isNull() || !isInteger(context, expr->type())) {

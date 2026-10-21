@@ -116,6 +116,20 @@ TEST_F(ConversionsTest, DiscardingQualifiersWarns) {
     EXPECT_TRUE(hasWarning("initialization discards 'const' qualifier from pointer target type"));
     EXPECT_NE(analyze("volatile int *s; void g(int *); void f(void) { g(s); }"), nullptr) << firstError();
     EXPECT_TRUE(hasWarning("passing argument 1 of 'g' discards 'volatile' qualifier from pointer target type"));
+    EXPECT_NE(analyze("const int *f(const int *p) { int *q = 0; return q; } int *g(const int *p) { return p; }"),
+              nullptr)
+        << firstError();
+    EXPECT_TRUE(hasWarning("return discards 'const' qualifier from pointer target type"));
+}
+
+TEST_F(ConversionsTest, ArraysHaveTheQualifiersOfTheirElements) {
+    // GCC applies C23 6.2.5p28 in all modes (-Wpedantic only): `const float (*)[5]` points to a const array.
+    EXPECT_EQ(castsOf("const float (*x)[5]; float (*p)[5];", "p"), "BitCast LValueToRValue");
+    EXPECT_TRUE(warnings().empty()) << warnings().front();
+    EXPECT_EQ(castsOf("float (*x)[5]; const float (*p)[5];", "p"), "BitCast LValueToRValue");
+    EXPECT_TRUE(hasWarning("assignment discards 'const' qualifier from pointer target type"));
+    EXPECT_EQ(castsOf("const float (*x)[2][5]; float (*p)[2][5];", "p"), "BitCast LValueToRValue");
+    EXPECT_TRUE(warnings().empty()) << warnings().front();
 }
 
 TEST_F(ConversionsTest, DiagnosticsNameTheirContext) {
@@ -150,6 +164,28 @@ TEST_F(ConversionsTest, TransparentUnionsAcceptTheirMembers) {
                       "void g(union u a); void f(void) { g(0); }"),
               nullptr)
         << firstError();
+}
+
+TEST_F(ConversionsTest, TransparentUnionArgumentsAreConvertedToTheirMemberFirst) {
+    const std::string_view declarations =
+        "typedef union { int *ip; const char *cp; } U __attribute__((transparent_union)); void g(U); int i;";
+    // A null pointer constant becomes a null pointer of the first pointer member's type.
+    std::string dump = dumpExpr(declarations, "g(0)");
+    EXPECT_TRUE(dump.contains("  ImplicitCastExpr ToUnion 'U'\n"
+                              "    ImplicitCastExpr NullToPointer 'int *'\n"
+                              "      IntegerLiteral 0 'int'\n"))
+        << dump;
+    // A pointer that converts to a member without a diagnostic converts to it.
+    dump = dumpExpr(declarations, "g((char *)0)");
+    EXPECT_TRUE(dump.contains("  ImplicitCastExpr ToUnion 'U'\n"
+                              "    ImplicitCastExpr NoOp 'const char *'\n"
+                              "      CastExpr (char *) NullToPointer 'char *'\n"))
+        << dump;
+    dump = dumpExpr(declarations, "g(&i)");
+    EXPECT_TRUE(dump.contains("  ImplicitCastExpr ToUnion 'U'\n"
+                              "    UnaryExpr & 'int *'\n"))
+        << dump;
+    EXPECT_TRUE(warnings().empty());
 }
 
 TEST_F(ConversionsTest, VaListAddressesOfCilStandForTheirVaList) {

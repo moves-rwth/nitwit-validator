@@ -641,6 +641,7 @@ private:
     [[nodiscard]] std::string position(SourceLocation location) const;
     [[nodiscard]] std::string reference(SourceLocation location) const;
     void attributes(const Decl* decl);
+    void variableSizes(QualType type);
     void varDecl(const VarDecl* var);
     void functionDecl(const FunctionDecl* function);
     void fieldDecl(const FieldDecl* field);
@@ -708,6 +709,26 @@ void Dumper::attributes(const Decl* decl) {
     }
 }
 
+// The size expressions of the variable length arrays a declared type is built from (not through typedefs, whose own
+// declaration shows them), once sema has converted them; the interpreter evaluates these.
+void Dumper::variableSizes(QualType type) {
+    while (!type.isNull()) {
+        if (const auto* pointer = dyn_cast<PointerType>(type.type())) {
+            type = pointer->pointee();
+        } else if (const auto* array = dyn_cast<ArrayType>(type.type())) {
+            if (array->sizeKind() == ArrayType::SizeKind::Variable && array->sizeExpression() != nullptr
+                && !array->sizeExpression()->type().isNull()) {
+                line("VariableArraySize", array->sizeExpression()->location());
+                const Nested nested(*this);
+                expr(array->sizeExpression());
+            }
+            type = array->element();
+        } else {
+            return;
+        }
+    }
+}
+
 void Dumper::decl(const Decl* decl) {
     switch (decl->kind()) {
     case DeclKind::Var:
@@ -736,6 +757,7 @@ void Dumper::decl(const Decl* decl) {
              typedefDecl->location());
         const Nested nested(*this);
         attributes(typedefDecl);
+        variableSizes(typedefDecl->underlying());
         return;
     }
     case DeclKind::Record:
@@ -776,6 +798,7 @@ void Dumper::varDecl(const VarDecl* var) {
     line(text, var->location());
     const Nested nested(*this);
     attributes(var);
+    variableSizes(var->type());
     if (var->initializer() != nullptr) {
         expr(var->initializer());
     }
@@ -1070,8 +1093,14 @@ std::string Dumper::exprLine(const Expr* expr) {
         const UnaryOperator op = cast<UnaryExpr>(expr)->op();
         return std::format("UnaryExpr {}{}", isPostfix(op) ? "postfix " : "", unaryOperatorName(op));
     }
-    case ExprKind::Binary:
-        return std::format("BinaryExpr {}", binaryOperatorName(cast<BinaryExpr>(expr)->op()));
+    case ExprKind::Binary: {
+        const auto* binary = cast<BinaryExpr>(expr);
+        std::string text = std::format("BinaryExpr {}", binaryOperatorName(binary->op()));
+        if (!binary->computationType().isNull()) {
+            append(text, std::format("computation '{}'", typeToString(binary->computationType())));
+        }
+        return text;
+    }
     case ExprKind::Conditional:
         return cast<ConditionalExpr>(expr)->trueExpr() == nullptr ? "ConditionalExpr ?:" : "ConditionalExpr";
     case ExprKind::Call:
@@ -1130,8 +1159,13 @@ std::string Dumper::exprLine(const Expr* expr) {
         return "StatementExpr";
     case ExprKind::GenericSelection:
         return "GenericSelectionExpr";
-    case ExprKind::ChooseExpr:
-        return "ChooseExpr";
+    case ExprKind::ChooseExpr: {
+        const auto* choose = cast<ChooseExpr>(expr);
+        if (choose->selected() == nullptr) {
+            return "ChooseExpr";
+        }
+        return choose->selected() == choose->first() ? "ChooseExpr selected first" : "ChooseExpr selected second";
+    }
     case ExprKind::TypesCompatible: {
         const auto* compatible = cast<TypesCompatibleExpr>(expr);
         return std::format("TypesCompatibleExpr ({}, {})", typeToString(compatible->first()),
@@ -1205,6 +1239,18 @@ void Dumper::exprChildren(const Expr* expr) {
         }
         return;
     case ExprKind::OffsetOf:
+        // After sema: the member each name resolves to and the converted indices.
+        for (const OffsetOfExpr::Component& component : cast<OffsetOfExpr>(expr)->components()) {
+            if (component.isField && component.field != nullptr) {
+                line(std::format("OffsetOfMember {} ({})", component.fieldName.text(),
+                                 reference(component.field->location())),
+                     expr->location());
+            } else if (!component.isField && !component.index->type().isNull()) {
+                line("OffsetOfIndex", component.index->location());
+                const Nested nested(*this);
+                this->expr(component.index);
+            }
+        }
         return;
     case ExprKind::VaArg:
         return this->expr(cast<VaArgExpr>(expr)->list());
@@ -1214,9 +1260,13 @@ void Dumper::exprChildren(const Expr* expr) {
         const auto* generic = cast<GenericSelectionExpr>(expr);
         this->expr(generic->controlling());
         for (const GenericSelectionExpr::Association& association : generic->associations()) {
-            line(association.type.isNull() ? "GenericAssociation default"
-                                           : std::format("GenericAssociation ({})", typeToString(association.type)),
-                 association.result->location());
+            std::string text = association.type.isNull()
+                                   ? std::string("GenericAssociation default")
+                                   : std::format("GenericAssociation ({})", typeToString(association.type));
+            if (association.result == generic->selected()) {
+                append(text, "selected");
+            }
+            line(text, association.result->location());
             const Nested nested(*this);
             this->expr(association.result);
         }

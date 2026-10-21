@@ -95,9 +95,10 @@ enum class TypeClass : std::uint8_t {
 /// The byte offset of a field in a laid-out record, also through anonymous members; nullopt if it is not a member.
 [[nodiscard]] std::optional<std::uint64_t> fieldOffset(const ast::RecordDecl* record, const ast::FieldDecl* field);
 
-/// The type `size_t`, `ptrdiff_t` and `int` of the target.
+/// The types `size_t`, `ptrdiff_t` and `wchar_t` of the target.
 [[nodiscard]] ast::QualType sizeType(ast::AstContext& context);
 [[nodiscard]] ast::QualType ptrdiffType(ast::AstContext& context);
+[[nodiscard]] ast::QualType wcharType(ast::AstContext& context);
 
 /// The builtin kind of a target scalar type.
 [[nodiscard]] ast::BuiltinKind builtinKindOf(ScalarType type);

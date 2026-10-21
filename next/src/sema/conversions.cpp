@@ -17,10 +17,18 @@ namespace {
 
 // The bit-field an expression designates or whose value it has, for GCC's promotion of bit-fields by their width:
 // GCC types such an expression with the bit-field's own integer type, also through parentheses, the comma operator,
-// assignments and increments.
+// assignments, increments and statement expressions.
 const ast::FieldDecl* bitFieldOf(const ast::Expr* expr) {
     while (true) {
         expr = ast::ignoreParens(expr);
+        if (const auto* statement = ast::dyn_cast<ast::StatementExpr>(expr)) {
+            const ast::ExpressionStmt* last = statement->valueStatement();
+            if (last == nullptr) {
+                return nullptr;
+            }
+            expr = last->expr();
+            continue;
+        }
         if (const auto* member = ast::dyn_cast<ast::MemberExpr>(expr)) {
             return member->field() != nullptr && member->field()->isBitField() ? member->field() : nullptr;
         }
@@ -62,6 +70,31 @@ bool qualifiersInclude(ast::Qualifiers outer, ast::Qualifiers inner) {
 
 std::string_view droppedQualifier(ast::Qualifiers target, ast::Qualifiers source) {
     return source.isConst && !target.isConst ? "const" : "volatile";
+}
+
+struct SplitPointee {
+    ast::QualType type;         // canonical, without the qualifiers below
+    ast::Qualifiers qualifiers; // of the pointee, or of the elements of an array pointee
+};
+
+// A pointer target for the assignment rules. GCC applies C23's rule that an array type has the qualifiers of its
+// elements (C23 6.2.5p28) in all modes, warning only with -pedantic, so `float (*)[5]` converts to
+// `const float (*)[5]` silently and back with a warning about the discarded qualifier.
+SplitPointee splitPointee(ast::AstContext& context, ast::QualType pointee) {
+    pointee = context.canonical(pointee);
+    const ast::ArrayType* array = arrayOf(pointee);
+    if (array == nullptr || array->sizeKind() == ast::ArrayType::SizeKind::Variable) {
+        return {.type = pointee.unqualified(), .qualifiers = pointee.qualifiers()};
+    }
+    const SplitPointee element = splitPointee(context, array->element());
+    const ast::Qualifiers qualifiers = pointee.qualifiers() | element.qualifiers;
+    if (element.qualifiers.empty()) {
+        return {.type = pointee.unqualified(), .qualifiers = qualifiers};
+    }
+    const ast::QualType stripped = array->sizeKind() == ast::ArrayType::SizeKind::Constant
+                                       ? context.constantArrayOf(element.type, array->size())
+                                       : context.arrayOf(element.type, nullptr);
+    return {.type = stripped, .qualifiers = qualifiers};
 }
 
 } // namespace
@@ -274,42 +307,93 @@ ast::Expr* Sema::condition(ast::Expr* expr, std::string_view what) {
     return value;
 }
 
-void Sema::warnPointerConversion(std::string_view problem, ast::QualType from, ast::QualType to,
-                                 const AssignmentContext& context) {
-    std::string subject;
+// GCC's wording of the diagnostics of a conversion as if by assignment, by where it happens.
+Sema::ConversionWording Sema::conversionWording(ast::QualType from, ast::QualType to,
+                                                const AssignmentContext& context) {
+    const std::string source = typeName(from);
+    const std::string target = typeName(to);
     switch (context.kind) {
     case AssignmentContext::Kind::Assignment:
-        subject = std::format("assignment to '{}' from '{}'", typeName(to), typeName(from));
-        break;
+        return {.subject = std::format("assignment to '{}' from '{}'", target, source),
+                .action = "assignment",
+                .incompatiblePointers =
+                    std::format("assignment to '{}' from incompatible pointer type '{}'", target, source),
+                .incompatibleTypes =
+                    std::format("incompatible types when assigning to type '{}' from type '{}'", target, source)};
     case AssignmentContext::Kind::Initialization:
-        subject = std::format("initialization of '{}' from '{}'", typeName(to), typeName(from));
-        break;
-    case AssignmentContext::Kind::Argument:
-        subject = std::format("passing argument {} of '{}'", context.argumentIndex,
-                              context.function != nullptr ? context.function->name().text() : "the called function");
-        break;
-    case AssignmentContext::Kind::Return:
-        subject = std::format("returning '{}' from a function with return type '{}'", typeName(from), typeName(to));
-        break;
+        return {.subject = std::format("initialization of '{}' from '{}'", target, source),
+                .action = "initialization",
+                .incompatiblePointers =
+                    std::format("initialization of '{}' from incompatible pointer type '{}'", target, source),
+                .incompatibleTypes =
+                    std::format("incompatible types when initializing type '{}' using type '{}'", target, source)};
+    case AssignmentContext::Kind::Argument: {
+        const std::string argument =
+            std::format("passing argument {} of '{}'", context.argumentIndex,
+                        context.function != nullptr ? context.function->name().text() : "the called function");
+        return {.subject = argument,
+                .action = argument,
+                .incompatiblePointers = argument + " from incompatible pointer type",
+                .incompatibleTypes =
+                    std::format("incompatible type for argument {} of '{}'", context.argumentIndex,
+                                context.function != nullptr ? context.function->name().text() : "the called function")};
     }
-    warning(context.location, std::format("{} {}", subject, problem));
+    case AssignmentContext::Kind::Return:
+        return {.subject = std::format("returning '{}' from a function with return type '{}'", source, target),
+                .action = "return",
+                .incompatiblePointers =
+                    std::format("returning '{}' from a function with incompatible return type '{}'", source, target),
+                .incompatibleTypes =
+                    std::format("incompatible types when returning type '{}' but '{}' was expected", source, target)};
+    }
+    NITWIT_UNREACHABLE("unknown assignment context");
 }
 
-void Sema::warnIncompatiblePointers(ast::QualType from, ast::QualType to, const AssignmentContext& context) {
-    switch (context.kind) {
-    case AssignmentContext::Kind::Assignment:
-        return warning(context.location, std::format("assignment to '{}' from incompatible pointer type '{}'",
-                                                     typeName(to), typeName(from)));
-    case AssignmentContext::Kind::Initialization:
-        return warning(context.location, std::format("initialization of '{}' from incompatible pointer type '{}'",
-                                                     typeName(to), typeName(from)));
-    case AssignmentContext::Kind::Argument:
-        return warnPointerConversion("from incompatible pointer type", from, to, context);
-    case AssignmentContext::Kind::Return:
-        return warning(context.location,
-                       std::format("returning '{}' from a function with incompatible return type '{}'", typeName(from),
-                                   typeName(to)));
+// The conversion of an argument to a GNU transparent union parameter, as GCC's convert_for_assignment does it: an
+// argument of a member's type, else a pointer that converts to a pointer member without a diagnostic (void pointers,
+// added qualifiers), else a null pointer constant for a pointer member is converted to that member's type and passed
+// as the union; the ToUnion cast's operand has the member's type. Null if the argument fits no member.
+ast::Expr* Sema::transparentUnionArgument(ast::Expr* expr, ast::QualType target) {
+    ast::RecordDecl* record = recordOf(target);
+    if (!record->isUnion() || !isTransparentUnion(target) || compatibleUnqualified(context_, expr->type(), target)) {
+        return nullptr;
     }
+    const bool isNull = isNullPointerConstant(expr);
+    ast::Expr* value = rvalue(expr);
+    const auto asMember = [&](ast::QualType memberType, ast::CastKind kind) {
+        return implicitCast(implicitCast(value, memberType, kind), target, ast::CastKind::ToUnion);
+    };
+    for (const ast::FieldDecl* member : record->fields()) {
+        const ast::QualType memberType = unqualified(context_, member->type());
+        if (compatibleUnqualified(context_, memberType, value->type())) {
+            return implicitCast(convert(value, memberType), target, ast::CastKind::ToUnion);
+        }
+    }
+    if (isPointer(context_, value->type())) {
+        const SplitPointee source = splitPointee(context_, pointeeOf(value->type()));
+        for (const ast::FieldDecl* member : record->fields()) {
+            const ast::QualType memberType = unqualified(context_, member->type());
+            if (!isPointer(context_, memberType)) {
+                continue;
+            }
+            const SplitPointee targetPointee = splitPointee(context_, pointeeOf(memberType));
+            const bool eitherVoid = classify(context_, targetPointee.type) == TypeClass::Void
+                                    || classify(context_, source.type) == TypeClass::Void;
+            if ((eitherVoid || compatibleUnqualified(context_, targetPointee.type, source.type))
+                && qualifiersInclude(targetPointee.qualifiers, source.qualifiers)) {
+                return asMember(memberType, castKind(value, value->type(), memberType));
+            }
+        }
+    }
+    if (isNull) {
+        for (const ast::FieldDecl* member : record->fields()) {
+            const ast::QualType memberType = unqualified(context_, member->type());
+            if (isPointer(context_, memberType)) {
+                return asMember(memberType, ast::CastKind::NullToPointer);
+            }
+        }
+    }
+    return nullptr;
 }
 
 // C17 6.5.16.1p1 with GCC's extensions: integer/pointer conversions and incompatible pointer types are accepted with
@@ -317,22 +401,13 @@ void Sema::warnIncompatiblePointers(ast::QualType from, ast::QualType to, const 
 ast::Expr* Sema::convertForAssignment(ast::Expr* expr, ast::QualType type, const AssignmentContext& context) {
     const ast::QualType target = unqualified(context_, type);
     const TypeClass targetClass = classify(context_, target);
-
-    // GNU transparent unions: an argument of a member's type is passed as the union.
     if (targetClass == TypeClass::Record && context.kind == AssignmentContext::Kind::Argument) {
-        ast::RecordDecl* record = recordOf(target);
-        if (record->isUnion() && isTransparentUnion(target) && !compatibleUnqualified(context_, expr->type(), target)) {
-            ast::Expr* value = rvalue(expr);
-            for (const ast::FieldDecl* member : record->fields()) {
-                if (compatibleUnqualified(context_, member->type(), value->type())
-                    || (isPointer(context_, member->type()) && isNullPointerConstant(expr))) {
-                    return implicitCast(value, target, ast::CastKind::ToUnion);
-                }
-            }
+        if (ast::Expr* argument = transparentUnionArgument(expr, target)) {
+            return argument;
         }
     }
 
-    const bool isNull = isNullPointerConstant(expr);
+    const bool isNull = targetClass == TypeClass::Pointer && isNullPointerConstant(expr);
     ast::Expr* value = targetClass == TypeClass::VaList ? vaListValue(expr) : rvalue(expr);
     const ast::QualType source = value->type();
     const TypeClass sourceClass = classify(context_, source);
@@ -351,29 +426,15 @@ ast::Expr* Sema::convertForAssignment(ast::Expr* expr, ast::QualType type, const
             return implicitCast(value, target, ast::CastKind::NullToPointer);
         }
         if (sourceClass == TypeClass::Pointer) {
-            const ast::QualType targetPointee = context_.canonical(pointeeOf(target));
-            const ast::QualType sourcePointee = context_.canonical(pointeeOf(source));
+            const auto [targetPointee, targetQualifiers] = splitPointee(context_, pointeeOf(target));
+            const auto [sourcePointee, sourceQualifiers] = splitPointee(context_, pointeeOf(source));
             const bool eitherVoid = classify(context_, targetPointee) == TypeClass::Void
                                     || classify(context_, sourcePointee) == TypeClass::Void;
             if (compatibleUnqualified(context_, targetPointee, sourcePointee) || eitherVoid) {
-                if (!qualifiersInclude(targetPointee.qualifiers(), sourcePointee.qualifiers())) {
-                    const std::string problem =
-                        std::format("discards '{}' qualifier from pointer target type",
-                                    droppedQualifier(targetPointee.qualifiers(), sourcePointee.qualifiers()));
-                    switch (context.kind) {
-                    case AssignmentContext::Kind::Assignment:
-                        warning(context.location, "assignment " + problem);
-                        break;
-                    case AssignmentContext::Kind::Initialization:
-                        warning(context.location, "initialization " + problem);
-                        break;
-                    case AssignmentContext::Kind::Return:
-                        warning(context.location, "return " + problem);
-                        break;
-                    case AssignmentContext::Kind::Argument:
-                        warnPointerConversion(problem, source, target, context);
-                        break;
-                    }
+                if (!qualifiersInclude(targetQualifiers, sourceQualifiers)) {
+                    warning(context.location, std::format("{} discards '{}' qualifier from pointer target type",
+                                                          conversionWording(source, target, context).action,
+                                                          droppedQualifier(targetQualifiers, sourceQualifiers)));
                 }
                 return convert(value, target);
             }
@@ -382,38 +443,25 @@ ast::Expr* Sema::convertForAssignment(ast::Expr* expr, ast::QualType type, const
                                           && isIntegerClass(classify(context_, sourcePointee))
                                           && sizeOf(context_, targetPointee) == sizeOf(context_, sourcePointee);
             if (!differInSignOnly) {
-                warnIncompatiblePointers(source, target, context);
+                warning(context.location, conversionWording(source, target, context).incompatiblePointers);
             }
             return implicitCast(value, target, ast::CastKind::BitCast);
         }
         if (isIntegerClass(sourceClass)) {
-            warnPointerConversion("makes pointer from integer without a cast", source, target, context);
+            warning(context.location,
+                    conversionWording(source, target, context).subject + " makes pointer from integer without a cast");
             return implicitCast(value, target, ast::CastKind::IntegralToPointer);
         }
     }
     if (targetClass == TypeClass::Integer && sourceClass == TypeClass::Pointer) {
-        warnPointerConversion("makes integer from pointer without a cast", source, target, context);
+        warning(context.location,
+                conversionWording(source, target, context).subject + " makes integer from pointer without a cast");
         return implicitCast(value, target, ast::CastKind::PointerToIntegral);
     }
     if (targetClass == TypeClass::Complex || sourceClass == TypeClass::Complex) {
         error(context.location, "complex arithmetic is not supported");
     }
-    switch (context.kind) {
-    case AssignmentContext::Kind::Assignment:
-        error(context.location, std::format("incompatible types when assigning to type '{}' from type '{}'",
-                                            typeName(target), typeName(source)));
-    case AssignmentContext::Kind::Initialization:
-        error(context.location, std::format("incompatible types when initializing type '{}' using type '{}'",
-                                            typeName(target), typeName(source)));
-    case AssignmentContext::Kind::Argument:
-        error(context.location,
-              std::format("incompatible type for argument {} of '{}'", context.argumentIndex,
-                          context.function != nullptr ? context.function->name().text() : "the called function"));
-    case AssignmentContext::Kind::Return:
-        error(context.location, std::format("incompatible types when returning type '{}' but '{}' was expected",
-                                            typeName(source), typeName(target)));
-    }
-    NITWIT_UNREACHABLE("unknown assignment context");
+    error(context.location, conversionWording(source, target, context).incompatibleTypes);
 }
 
 } // namespace nitwit::sema::detail

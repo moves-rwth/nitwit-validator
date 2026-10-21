@@ -3,6 +3,7 @@
 #include "ast/casting.hpp"
 #include "ast/decl.hpp"
 #include "ast/expr.hpp"
+#include "ast/stmt.hpp"
 #include "ast/type.hpp"
 #include "support/assert.hpp"
 
@@ -32,6 +33,24 @@ void RecordDecl::complete(std::span<FieldDecl* const> fields) {
     NITWIT_ASSERT(!isComplete_, "record completed twice");
     fields_ = fields;
     isComplete_ = true;
+}
+
+ExpressionStmt* StatementExpr::valueStatement() const {
+    if (body_->body().empty()) {
+        return nullptr;
+    }
+    Stmt* last = body_->body().back();
+    while (true) {
+        if (auto* label = dyn_cast<LabelStmt>(last)) {
+            last = label->subStmt();
+        } else if (auto* caseStmt = dyn_cast<CaseStmt>(last)) {
+            last = caseStmt->subStmt();
+        } else if (auto* defaultStmt = dyn_cast<DefaultStmt>(last)) {
+            last = defaultStmt->subStmt();
+        } else {
+            return dyn_cast<ExpressionStmt>(last);
+        }
+    }
 }
 
 FunctionDecl* CallExpr::directCallee() const {

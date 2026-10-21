@@ -50,7 +50,10 @@ public:
 
     [[nodiscard]] ScalarType sizeType() const; // size_t
     [[nodiscard]] ScalarType ptrdiffType() const;
-    [[nodiscard]] ScalarType wcharType() const { return ScalarType::Int; }
+    /// wchar_t, a signed 32-bit type: GCC's __WCHAR_TYPE__ is long on i386 Linux and int on x86-64.
+    [[nodiscard]] ScalarType wcharType() const {
+        return model_ == DataModel::ILP32 ? ScalarType::Long : ScalarType::Int;
+    }
 
     /// GCC accepts __int128 only for 64-bit targets.
     [[nodiscard]] bool hasInt128() const { return model_ == DataModel::LP64; }

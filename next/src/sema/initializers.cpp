@@ -19,14 +19,16 @@ namespace nitwit::sema::detail {
 
 namespace {
 
-// The number of array elements a designator may create; a guard against absurd indices like `[1000000000000] = 1`.
-constexpr std::uint64_t maxInitializedElements = std::uint64_t{1} << 26;
+// The number of array elements an initializer may reach. The semantic form has an element for each index up to the
+// last one initialized, so a designator like `[60000000] = 1` would need hundreds of megabytes; it is rejected
+// before any of them is made.
+constexpr std::uint64_t maxInitializedElements = std::uint64_t{1} << 20;
 
 } // namespace
 
 class InitializerBuilder {
 public:
-    explicit InitializerBuilder(Sema& sema) : sema_(sema), context_(sema.context_) {}
+    InitializerBuilder(Sema& sema, bool isStatic) : sema_(sema), context_(sema.context_), isStatic_(isStatic) {}
 
     ast::Expr* initialize(ast::QualType& type, ast::Expr* init);
 
@@ -96,6 +98,7 @@ private:
 
     Sema& sema_;
     ast::AstContext& context_;
+    bool isStatic_; // the initializer of an object with static storage duration
 };
 
 ast::Expr* InitializerBuilder::initialize(ast::QualType& type, ast::Expr* init) {
@@ -161,7 +164,7 @@ ast::Expr* InitializerBuilder::string(ast::QualType& type, ast::StringLiteralExp
         matches = isCharacterType(context_, element);
         break;
     case lex::CharEncoding::Wide:
-        matches = compatibleUnqualified(context_, element, context_.builtin(ast::BuiltinKind::Int));
+        matches = compatibleUnqualified(context_, element, wcharType(context_));
         break;
     case lex::CharEncoding::Utf16:
         matches = compatibleUnqualified(context_, element, context_.builtin(ast::BuiltinKind::UnsignedShort));
@@ -434,6 +437,11 @@ InitializerBuilder::Aggregate& InitializerBuilder::subAggregate(Aggregate& aggre
 InitializerBuilder::Slot& InitializerBuilder::slot(Aggregate& aggregate, std::uint64_t position,
                                                    SourceLocation location) {
     if (aggregate.record != nullptr) {
+        // GCC: only a static object can be made larger to hold the elements of a flexible array member.
+        if (const ast::ArrayType* array = arrayOf(aggregate.record->fields()[position]->type());
+            !isStatic_ && array != nullptr && array->sizeKind() == ast::ArrayType::SizeKind::Incomplete) {
+            sema_.error(location, "non-static initialization of a flexible array member");
+        }
         if (aggregate.isUnion()) {
             ast::FieldDecl* field = aggregate.record->fields()[position];
             if (aggregate.unionField != field) {
@@ -491,11 +499,21 @@ ast::Expr* InitializerBuilder::materialize(Aggregate& aggregate) {
         list = context_.create<ast::InitListExpr>(aggregate.range, std::span<ast::Expr*>());
     }
     std::vector<ast::Expr*> elements;
+    ast::Expr* gap = nullptr; // the gaps of an array share one zero, like the elements of a range designator
     const auto element = [&](Slot& slot, ast::QualType type) {
         if (slot.aggregate != nullptr) {
             return materialize(*slot.aggregate);
         }
-        return slot.value != nullptr ? slot.value : zero(unqualified(context_, type), aggregate.range);
+        if (slot.value != nullptr) {
+            return slot.value;
+        }
+        if (aggregate.record != nullptr) {
+            return zero(unqualified(context_, type), aggregate.range);
+        }
+        if (gap == nullptr) {
+            gap = zero(unqualified(context_, type), aggregate.range);
+        }
+        return gap;
     };
     if (aggregate.record != nullptr) {
         const std::span<ast::FieldDecl* const> fields = aggregate.record->fields();
@@ -527,8 +545,8 @@ ast::Expr* InitializerBuilder::materialize(Aggregate& aggregate) {
     return list;
 }
 
-ast::Expr* Sema::initializer(ast::QualType& type, ast::Expr* init) {
-    InitializerBuilder builder(*this);
+ast::Expr* Sema::initializer(ast::QualType& type, ast::Expr* init, bool isStatic) {
+    InitializerBuilder builder(*this, isStatic);
     return builder.initialize(type, init);
 }
 

@@ -58,7 +58,8 @@ TEST(LibraryDispatchTest, EveryFunctionSemaKnowsIsImplementedOrUnsupported) {
     const std::vector<std::string> names = sema::builtinFunctionNames();
     EXPECT_GT(names.size(), 300u);
     for (const std::string& name : names) {
-        if (evaluatorFunctions.contains(name)) {
+        // The atomic builtins work on the program's memory, which the evaluator owns.
+        if (evaluatorFunctions.contains(name) || name.starts_with("__atomic_") || name.starts_with("__sync_")) {
             EXPECT_EQ(findLibraryFunction(name), nullptr) << name;
         } else {
             EXPECT_NE(findLibraryFunction(name), nullptr) << name;

@@ -24,8 +24,11 @@ FunctionDecl locals 'int (int, char **)' <4:5>
       CompoundStmt <8:33>
         DeclarationStmt <9:9>
           VarDecl matrix 'int [n][2]' <9:13>
+            VariableArraySize <9:20>
+              ImplicitCastExpr LValueToRValue 'int' <9:20>
+                DeclRefExpr n (VarDecl at 4:16) 'int' lvalue <9:20>
         ExpressionStmt <10:9>
-          BinaryExpr += 'int' <10:9>
+          BinaryExpr += computation 'unsigned long' 'int' <10:9>
             DeclRefExpr total (VarDecl at 5:9) 'int' lvalue <10:9>
             SizeOfAlignOfExpr sizeof 'unsigned long' <10:18>
               DeclRefExpr matrix (VarDecl at 9:13) 'int [n][2]' lvalue <10:25>
@@ -35,12 +38,15 @@ FunctionDecl locals 'int (int, char **)' <4:5>
           ImplicitCastExpr LValueToRValue 'int' <13:26>
             DeclRefExpr n (VarDecl at 4:16) 'int' lvalue <13:26>
       ExpressionStmt <14:9>
-        BinaryExpr += 'int' <14:9>
+        BinaryExpr += computation 'int' 'int' <14:9>
           DeclRefExpr total (VarDecl at 5:9) 'int' lvalue <14:9>
           ImplicitCastExpr LValueToRValue 'int' <14:18>
             DeclRefExpr r (VarDecl at 13:22) 'int' lvalue <14:18>
     DeclarationStmt <16:5>
       TypedefDecl buffer 'char [n]' <16:18>
+        VariableArraySize <16:25>
+          ImplicitCastExpr LValueToRValue 'int' <16:25>
+            DeclRefExpr n (VarDecl at 4:16) 'int' lvalue <16:25>
     DeclarationStmt <17:5>
       VarDecl b 'buffer' <17:12>
     ReturnStmt <18:5>

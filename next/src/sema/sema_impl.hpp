@@ -42,10 +42,12 @@ enum class GenericBuiltin : std::uint8_t {
     Overflow,      // __builtin_add_overflow(a, b, &r) and friends: any integer types
     ConstantP,     // __builtin_constant_p(x): the operand is not evaluated
     FloatClassify, // __builtin_isnan(x) and friends: any real floating type, not promoted
+    Fpclassify,    // __builtin_fpclassify(nan, infinite, normal, subnormal, zero, x): x is not promoted
     FloatCompare,  // __builtin_isgreater(x, y) and friends
     VaStart,       // __builtin_va_start(ap, last): ap stays an lvalue
     VaEnd,         // __builtin_va_end(ap): ap stays an lvalue
     VaCopy,        // __builtin_va_copy(destination, source): the destination stays an lvalue
+    Atomic,        // __atomic_load_n(p, order), __sync_fetch_and_add(p, v) and friends: typed by what p points to
 };
 
 /// What the builtin table knows about a function name.
@@ -56,8 +58,26 @@ struct BuiltinInfo {
     bool isNoreturn = false;
 };
 
-/// The table entry for a name: `__builtin_x`, or a C library function `x` that GCC knows as a builtin.
+/// The table entry for a name: `__builtin_x`, a C library function `x` that GCC knows as a builtin, or a GNU builtin
+/// with a name of its own (`__atomic_x`, `__sync_x`).
 [[nodiscard]] std::optional<BuiltinInfo> lookupBuiltin(ast::AstContext& context, std::string_view name);
+
+/// The parameters of a type-generic atomic builtin (GenericBuiltin::Atomic), one letter each: 'P' the pointer to the
+/// atomic object (a T *), 'p' another pointer to a T, 'v' a value converted to T, 'b' the `weak` flag, 'o' a memory
+/// order; a final '.' accepts further arguments (the variables of the __sync builtins, ignored).
+struct AtomicSignature {
+    enum class Form : std::uint8_t {
+        Generic,    // __atomic_load(p, &result, order): T is any complete object type
+        Sized,      // __atomic_load_n(p, order): T is an integer or pointer type of 1, 2, 4, 8 or 16 bytes
+        Arithmetic, // __atomic_fetch_add(p, v, order): Sized, not _Bool; on pointers in bytes, not elements
+    };
+    enum class Result : std::uint8_t { Operand, Void, Bool };
+
+    std::string_view parameters;
+    Form form;
+    Result result;
+};
+[[nodiscard]] std::optional<AtomicSignature> atomicSignature(std::string_view name);
 
 class Sema {
 public:
@@ -90,14 +110,17 @@ private:
     void parameter(ast::VarDecl* parameter);
     [[nodiscard]] ast::QualType adjustedParameterType(ast::QualType type);
     void adjustParameterTypes(ast::FunctionDecl* function);
+    void applyParameterModes(ast::FunctionDecl* function);
     void mergeVariable(ast::VarDecl* var);
     void mergeFunction(ast::FunctionDecl* function);
+    bool mergeOldStyleDefinition(ast::FunctionDecl* function, const ast::FunctionDecl* previous);
     void applyBuiltinSignature(ast::FunctionDecl* function);
     /// Resolves the array sizes and typeofs a type refers to, without entering records (C17 6.7.6.2).
     void resolveType(ast::QualType type, SourceLocation location);
     void resolveArraySize(const ast::ArrayType* array, SourceLocation location);
-    /// The value of an `aligned` attribute or `_Alignas`: a power of two; GCC's biggest alignment without argument.
-    [[nodiscard]] std::uint64_t alignmentArgument(const ast::Attribute& attribute);
+    /// The alignment the `aligned` attributes and _Alignas specifiers of a declaration request: a power of two (GCC's
+    /// biggest alignment for `aligned` without argument), or 0 if they request none.
+    [[nodiscard]] std::uint64_t requestedAlignment(const ast::Decl* decl);
     /// The type that the `mode` attribute gives an integer type, or nullopt if the attribute is absent.
     [[nodiscard]] std::optional<ast::QualType> modeType(const ast::Decl* decl, ast::QualType type);
     /// Rejects attributes that change the meaning of a program in ways NITWIT does not model.
@@ -128,6 +151,7 @@ private:
     void declRef(ast::DeclRefExpr* reference);
     void call(ast::CallExpr* call);
     void genericBuiltinCall(ast::CallExpr* call, GenericBuiltin builtin);
+    void atomicCall(ast::CallExpr* call, std::string_view name); // builtins.cpp
     void member(ast::MemberExpr* member);
     void subscript(ast::ArraySubscriptExpr* subscript);
     void explicitCast(ast::CastExpr* castExpr);
@@ -156,7 +180,7 @@ private:
     void assignment(ast::BinaryExpr* binary);
     void compoundAssignment(ast::BinaryExpr* binary);
     void conditional(ast::ConditionalExpr* conditional);
-    void requireModifiableLvalue(const ast::Expr* expr, SourceLocation location);
+    void requireModifiableLvalue(const ast::Expr* expr, SourceLocation location, std::string_view operation);
     void rejectComplex(const ast::Expr* expr, SourceLocation location);
 
     // ---- conversions.cpp ----
@@ -178,9 +202,15 @@ private:
     /// Converts an analyzed expression as if by assignment to `type` (C17 6.5.16.1), with GCC's diagnostics.
     [[nodiscard]] ast::Expr* convertForAssignment(ast::Expr* expr, ast::QualType type,
                                                   const AssignmentContext& context);
-    void warnPointerConversion(std::string_view problem, ast::QualType from, ast::QualType to,
-                               const AssignmentContext& context);
-    void warnIncompatiblePointers(ast::QualType from, ast::QualType to, const AssignmentContext& context);
+    struct ConversionWording {
+        std::string subject;              // "assignment to 'T' from 'S'", for "... makes integer from pointer ..."
+        std::string action;               // "assignment", for "... discards 'const' qualifier ..."
+        std::string incompatiblePointers; // the whole warning
+        std::string incompatibleTypes;    // the whole error
+    };
+    [[nodiscard]] ConversionWording conversionWording(ast::QualType from, ast::QualType to,
+                                                      const AssignmentContext& context);
+    [[nodiscard]] ast::Expr* transparentUnionArgument(ast::Expr* expr, ast::QualType target);
     /// C17 6.3.2.3p3: an integer constant expression with the value 0, or one cast to void *.
     [[nodiscard]] bool isNullPointerConstant(const ast::Expr* expr);
     [[nodiscard]] bool isVaListAddress(ast::QualType type);
@@ -192,8 +222,9 @@ private:
 
     // ---- initializers.cpp ----
     /// Converts an initializer to its semantic form for an object of `type` (C17 6.7.9). An incomplete array type is
-    /// completed from the initializer and returned through `type`.
-    [[nodiscard]] ast::Expr* initializer(ast::QualType& type, ast::Expr* init);
+    /// completed from the initializer and returned through `type`. Only the initializer of an object with static
+    /// storage duration may initialize a flexible array member (GCC).
+    [[nodiscard]] ast::Expr* initializer(ast::QualType& type, ast::Expr* init, bool isStatic);
 
     // ---- statements.cpp ----
     void functionBody(ast::FunctionDecl* function);
