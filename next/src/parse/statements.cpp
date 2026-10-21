@@ -2,6 +2,10 @@
 
 #include <cstddef>
 #include <format>
+#include <ranges>
+#include <span>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -81,8 +85,12 @@ ast::Stmt* Parser::parseStatement() {
     return parseExpressionStatement();
 }
 
-// Each substatement of a selection or iteration statement is a block (C17 6.8.4p3, 6.8.5p5).
+// Each substatement of a selection or iteration statement is a block (C17 6.8.4p3, 6.8.5p5); a compound statement
+// opens its own scope.
 ast::Stmt* Parser::parseSubstatement() {
+    if (at(TokenKind::LeftBrace)) {
+        return parseStatement();
+    }
     pushScope(ScopeKind::Block);
     ast::Stmt* stmt = parseStatement();
     popScope();
@@ -118,90 +126,92 @@ bool Parser::startsLabel() const {
 }
 
 bool Parser::startsDeclarationStatement() const {
-    std::size_t ahead = 0;
-    while (peek(ahead).is(TokenKind::KwExtension)) {
-        ++ahead;
+    std::size_t index = pos_;
+    while (tokens_[index].is(TokenKind::KwExtension)) {
+        index = following(index);
     }
-    const lex::Token& first = peek(ahead);
+    const lex::Token& first = tokens_[index];
     if (first.is(TokenKind::KwAttribute)) {
-        return ahead > 0; // `__extension__ __attribute__((...)) int x;`
+        return index != pos_; // `__extension__ __attribute__((...)) int x;`
     }
-    return startsDeclaration(first) && !(first.is(TokenKind::Identifier) && peek(ahead + 1).is(TokenKind::Colon));
+    return startsDeclaration(first)
+           && !(first.is(TokenKind::Identifier) && tokens_[following(index)].is(TokenKind::Colon));
 }
 
 // A chain of labels, `case 1: case 2: L: statement`. It is parsed in a loop, since switches of generated programs
 // can have thousands of consecutive labels. A label may end a block or precede a declaration, as in C23 and GCC.
 ast::Stmt* Parser::parseLabeledStatement() {
-    struct PendingLabel {
-        TokenKind kind = TokenKind::Identifier;
-        SourceLocation begin;
-        ast::Expr* value = nullptr;
-        ast::Expr* rangeEnd = nullptr;
-        Symbol name;
-        std::size_t switchIndex = 0;
-        std::size_t caseSlot = 0;
-    };
     std::vector<PendingLabel> labels;
     while (startsLabel()) {
-        const lex::Token& first = consume();
-        PendingLabel label;
-        label.kind = first.kind;
-        label.begin = first.location;
-        if (first.is(TokenKind::Identifier)) {
-            label.name = first.identifier;
-            consume(); // :
-            std::vector<ast::Attribute> ignored;
-            parseAttributes(ignored);
-        } else {
-            if (switches_.empty()) {
-                fail(first.location, std::format("'{}' label not within a switch statement",
-                                                 first.is(TokenKind::KwCase) ? "case" : "default"));
-            }
-            label.switchIndex = switches_.size() - 1;
-            if (first.is(TokenKind::KwCase)) {
-                label.value = parseConditionalExpression();
-                if (tryConsume(TokenKind::Ellipsis)) {
-                    label.rangeEnd = parseConditionalExpression();
-                }
-                // Slots keep the cases in source order, also with cases in nested blocks of the same switch.
-                std::vector<ast::CaseStmt*>& cases = switches_[label.switchIndex].cases;
-                label.caseSlot = cases.size();
-                cases.push_back(nullptr);
-            } else {
-                SwitchContext& context = switches_[label.switchIndex];
-                if (context.hasDefault) {
-                    fail(first.location, "multiple default labels in one switch");
-                }
-                context.hasDefault = true;
-            }
-            expect(TokenKind::Colon);
-        }
-        labels.push_back(label);
+        labels.push_back(parseLabel());
     }
-
     ast::Stmt* stmt = nullptr;
     if (at(TokenKind::RightBrace)) {
         stmt = context_.create<ast::NullStmt>(SourceRange{previousEnd_, previousEnd_});
     } else {
         stmt = parseStatement();
     }
-    for (auto label = labels.rbegin(); label != labels.rend(); ++label) {
-        const SourceRange range = rangeFrom(label->begin);
-        switch (label->kind) {
+    return buildLabeledStatement(labels, stmt);
+}
+
+PendingLabel Parser::parseLabel() {
+    const lex::Token& first = consume();
+    PendingLabel label;
+    label.kind = first.kind;
+    label.begin = first.location;
+    if (first.is(TokenKind::Identifier)) {
+        label.name = first.identifier;
+        consume(); // :
+        std::vector<ast::Attribute> ignored;
+        parseAttributes(ignored);
+        return label;
+    }
+    // GCC: a switch outside a statement expression cannot jump to a label inside it.
+    const std::string_view keyword = first.is(TokenKind::KwCase) ? "case" : "default";
+    if (switches_.size() == switchBarrier_) {
+        fail(first.location, switchBarrier_ > 0 ? std::string("switch jumps into statement expression")
+                                                : std::format("'{}' label not within a switch statement", keyword));
+    }
+    label.switchIndex = switches_.size() - 1;
+    if (first.is(TokenKind::KwCase)) {
+        label.value = parseConditionalExpression();
+        if (tryConsume(TokenKind::Ellipsis)) {
+            label.rangeEnd = parseConditionalExpression();
+        }
+        // Slots keep the cases in source order, also with cases in nested blocks of the same switch.
+        std::vector<ast::CaseStmt*>& cases = switches_[label.switchIndex].cases;
+        label.caseSlot = cases.size();
+        cases.push_back(nullptr);
+    } else {
+        SwitchContext& context = switches_[label.switchIndex];
+        if (context.hasDefault) {
+            fail(first.location, "multiple default labels in one switch");
+        }
+        context.hasDefault = true;
+    }
+    expect(TokenKind::Colon);
+    return label;
+}
+
+// Wraps the statement in the labels, from the innermost; all of them end where the statement ends.
+ast::Stmt* Parser::buildLabeledStatement(std::span<const PendingLabel> labels, ast::Stmt* stmt) {
+    for (const PendingLabel& label : labels | std::views::reverse) {
+        const SourceRange range = rangeFrom(label.begin);
+        switch (label.kind) {
         case TokenKind::KwCase: {
-            auto* caseStmt = context_.create<ast::CaseStmt>(range, label->value, label->rangeEnd, stmt);
-            switches_[label->switchIndex].cases[label->caseSlot] = caseStmt;
+            auto* caseStmt = context_.create<ast::CaseStmt>(range, label.value, label.rangeEnd, stmt);
+            switches_[label.switchIndex].cases[label.caseSlot] = caseStmt;
             stmt = caseStmt;
             break;
         }
         case TokenKind::KwDefault: {
             auto* defaultStmt = context_.create<ast::DefaultStmt>(range, stmt);
-            switches_[label->switchIndex].defaultStmt = defaultStmt;
+            switches_[label.switchIndex].defaultStmt = defaultStmt;
             stmt = defaultStmt;
             break;
         }
         default: {
-            auto* labelStmt = context_.create<ast::LabelStmt>(range, label->name, stmt);
+            auto* labelStmt = context_.create<ast::LabelStmt>(range, label.name, stmt);
             defineLabel(labelStmt);
             stmt = labelStmt;
             break;
@@ -221,6 +231,9 @@ ast::Stmt* Parser::parseDeclarationStatement(SourceLocation begin, std::vector<a
     flushTagDefinitions(mark, decls);
     if (at(TokenKind::Semicolon)) {
         finishEmptyDeclaration(spec);
+        if (spec.tag != nullptr && !spec.definesTag) {
+            decls.push_back(spec.tag); // `struct S;` hides an outer S
+        }
     } else {
         Declarator first = parseDeclarator(DeclaratorMode::Named);
         parseDeclaratorTail(first);

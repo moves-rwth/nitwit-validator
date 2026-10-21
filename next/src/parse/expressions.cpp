@@ -4,6 +4,7 @@
 #include <format>
 #include <optional>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "ast/casting.hpp"
@@ -261,11 +262,10 @@ ast::Expr* Parser::parsePostfixSuffixes(ast::Expr* expr) {
         case TokenKind::LeftParen: {
             consume();
             std::vector<ast::Expr*> arguments;
-            while (!at(TokenKind::RightParen)) {
-                arguments.push_back(parseAssignmentExpression());
-                if (!tryConsume(TokenKind::Comma)) {
-                    break;
-                }
+            if (!at(TokenKind::RightParen)) {
+                do {
+                    arguments.push_back(parseAssignmentExpression());
+                } while (tryConsume(TokenKind::Comma));
             }
             const SourceLocation rightParen = expect(TokenKind::RightParen).location;
             expr = context_.create<ast::CallExpr>(rangeFrom(begin), expr, context_.copy<ast::Expr*>(arguments),
@@ -356,14 +356,7 @@ ast::Expr* Parser::parseIdentifierExpression() {
     const lex::Token& name = consume();
     const std::string_view text = name.identifier.text();
     if (text == "__func__" || text == "__FUNCTION__" || text == "__PRETTY_FUNCTION__") {
-        // C17 6.4.2.2: the name of the enclosing function, as if declared as a static char array.
-        if (currentFunction_ == nullptr) {
-            warning(name.location, std::format("'{}' is not defined outside of a function", text));
-        }
-        const std::string_view function = currentFunction_ != nullptr ? currentFunction_->name().text() : "";
-        const std::vector<std::uint32_t> codeUnits(function.begin(), function.end());
-        return context_.create<ast::StringLiteralExpr>(name.range(), lex::CharEncoding::Plain,
-                                                       context_.copy<std::uint32_t>(codeUnits));
+        return functionNameLiteral(name);
     }
     ast::Decl* decl = lookupOrdinary(name.identifier);
     if (decl == nullptr) {
@@ -376,6 +369,26 @@ ast::Expr* Parser::parseIdentifierExpression() {
         fail(name.location, std::format("unexpected type name '{}', expected an expression", text));
     }
     return context_.create<ast::DeclRefExpr>(name.range(), name.identifier, ast::cast<ast::ValueDecl>(decl));
+}
+
+// C17 6.4.2.2: `__func__` is the name of the enclosing function, as if declared as a static char array there, and GCC
+// makes `__FUNCTION__` and (in C) `__PRETTY_FUNCTION__` the same. All uses in a function share one literal, so that
+// they denote one object; its range is that of the first use.
+ast::Expr* Parser::functionNameLiteral(const lex::Token& name) {
+    if (currentFunction_ != nullptr && functionName_ != nullptr) {
+        return functionName_;
+    }
+    if (currentFunction_ == nullptr) {
+        warning(name.location, std::format("'{}' is not defined outside of a function", name.identifier.text()));
+    }
+    const std::string_view function = currentFunction_ != nullptr ? currentFunction_->name().text() : "";
+    const std::vector<std::uint32_t> codeUnits(function.begin(), function.end());
+    auto* literal = context_.create<ast::StringLiteralExpr>(name.range(), lex::CharEncoding::Plain,
+                                                            context_.copy<std::uint32_t>(codeUnits));
+    if (currentFunction_ != nullptr) {
+        functionName_ = literal;
+    }
+    return literal;
 }
 
 // Adjacent string literals form one string (C17 6.4.5p5).
@@ -398,13 +411,15 @@ ast::Expr* Parser::parseCompoundLiteral(SourceLocation begin, ast::QualType type
     return context_.create<ast::CompoundLiteralExpr>(rangeFrom(begin), type, initializer, currentFunction_ == nullptr);
 }
 
-// GNU `({ ... })`.
+// GNU `({ ... })`. A switch outside it cannot have case labels inside it, as in GCC; gotos into it are not detected.
 ast::Expr* Parser::parseStatementExpression() {
     const SourceLocation begin = consume().location;
     if (currentFunction_ == nullptr) {
         fail(begin, "a statement expression is only allowed inside a function");
     }
+    const std::size_t outerBarrier = std::exchange(switchBarrier_, switches_.size());
     ast::CompoundStmt* body = parseCompoundStatement(true);
+    switchBarrier_ = outerBarrier;
     expect(TokenKind::RightParen);
     return context_.create<ast::StatementExpr>(rangeFrom(begin), body);
 }

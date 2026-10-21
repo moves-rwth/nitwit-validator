@@ -171,6 +171,18 @@ TEST_F(DumpTest, EnumerationValuesAfterSema) {
                                         "  EnumConstantDecl A 'int' value -5 <3:10>\n");
 }
 
+TEST_F(DumpTest, IndentationStopsAtSixtyFourLevels) {
+    Expr* expr = integer(1);
+    for (int i = 0; i < 66; ++i) {
+        expr = context_.create<ParenExpr>(SourceRange{}, expr);
+    }
+    const std::string text = dump(expr, sources_);
+    const std::string indentation(128, ' ');
+    EXPECT_NE(text.find("\n" + indentation + "ParenExpr <invalid>\n" + indentation + "[65] ParenExpr <invalid>\n"
+                        + indentation + "[66] IntegerLiteral 1 <invalid>\n"),
+              std::string::npos);
+}
+
 TEST_F(DumpTest, InvalidLocations) {
     EXPECT_EQ(dump(integer(7), sources_), "IntegerLiteral 7 <invalid>\n");
 }

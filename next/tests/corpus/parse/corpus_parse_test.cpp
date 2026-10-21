@@ -34,7 +34,7 @@ namespace {
 
 namespace fs = std::filesystem;
 
-constexpr std::size_t stackBytes = std::size_t{512} << 20;
+constexpr std::size_t stackBytes = std::size_t{256} << 20;
 constexpr double requiredRate = 0.995;
 
 enum class GccVerdict : std::uint8_t { NotChecked, Accepted, AcceptedPermissive, Rejected };

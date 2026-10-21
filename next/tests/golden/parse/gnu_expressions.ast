@@ -89,4 +89,4 @@ FunctionDecl gnu 'void (void)' <7:6>
     ExpressionStmt <22:5>
       BinaryExpr = <22:5>
         DeclRefExpr function (VarDecl at 21:17) <22:5>
-        StringLiteral "gnu" <22:16>
+        StringLiteral "gnu" <21:28>

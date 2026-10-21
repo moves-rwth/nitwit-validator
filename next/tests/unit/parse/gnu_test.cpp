@@ -89,17 +89,53 @@ TEST_F(GnuTest, PragmaPackPushAndPopNest) {
                                              "#pragma pack(pop)\n"
                                              "struct C { char c; };\n"
                                              "#pragma pack(pop)\n"
-                                             "struct D { char c; };\n"
-                                             "#pragma pack(push, 8)\n"
-                                             "#pragma pack(pop, 2)\n"
-                                             "struct E { char c; };\n");
+                                             "struct D { char c; };\n");
     ASSERT_NE(unit, nullptr) << firstError();
     EXPECT_EQ(find<ast::RecordDecl>(unit, "A")->maxFieldAlignment(), 4u);
     EXPECT_EQ(find<ast::RecordDecl>(unit, "B")->maxFieldAlignment(), 1u);
     EXPECT_EQ(find<ast::RecordDecl>(unit, "C")->maxFieldAlignment(), 4u);
     EXPECT_EQ(find<ast::RecordDecl>(unit, "D")->maxFieldAlignment(), 0u);
-    EXPECT_EQ(find<ast::RecordDecl>(unit, "E")->maxFieldAlignment(), 2u);
     EXPECT_TRUE(messages().empty());
+}
+
+TEST_F(GnuTest, PragmaPackPopWithAnIdRestoresTheValueSavedByThatPush) {
+    const ast::TranslationUnit* unit = parse("#pragma pack(push, outer, 2)\n"
+                                             "#pragma pack(push, 4)\n"
+                                             "#pragma pack(push, inner)\n"
+                                             "#pragma pack(8)\n"
+                                             "#pragma pack(pop, outer)\n"
+                                             "struct A { char c; };\n"
+                                             "#pragma pack(pop)\n"
+                                             "struct B { char c; };\n");
+    ASSERT_NE(unit, nullptr) << firstError();
+    EXPECT_EQ(find<ast::RecordDecl>(unit, "A")->maxFieldAlignment(), 0u);
+    EXPECT_EQ(find<ast::RecordDecl>(unit, "B")->maxFieldAlignment(), 0u);
+    EXPECT_EQ(messages(), std::vector<std::string>{
+                              "test.c:7:1: warning: '#pragma pack(pop)' without a matching '#pragma pack(push)'"});
+}
+
+TEST_F(GnuTest, PragmaPackPopWithAnUnknownIdWarnsAndPopsOnce) {
+    const ast::TranslationUnit* unit = parse("#pragma pack(push, 2)\n"
+                                             "#pragma pack(push, 4)\n"
+                                             "#pragma pack(pop, missing)\n"
+                                             "struct A { char c; };\n");
+    ASSERT_NE(unit, nullptr) << firstError();
+    EXPECT_EQ(find<ast::RecordDecl>(unit, "A")->maxFieldAlignment(), 2u);
+    EXPECT_TRUE(hasWarning("'#pragma pack(pop, missing)' without a matching '#pragma pack(push, missing)'"));
+}
+
+TEST_F(GnuTest, MalformedPackPragmasAreIgnoredWithAWarning) {
+    for (const char* pragma :
+         {"#pragma pack(push, 4)\n#pragma pack(pop, 2)", "#pragma pack(push, 4)\n#pragma pack(push, 1, 2)",
+          "#pragma pack(push, 4)\n#pragma pack(push, a, b)", "#pragma pack(push, 4)\n#pragma pack(2, 4)",
+          "#pragma pack(push, 4)\n#pragma pack(frob)", "#pragma pack(push, 4)\n#pragma pack 2",
+          "#pragma pack(push, 4)\n#pragma pack(push, 2"}) {
+        const ast::TranslationUnit* unit = parse(std::string(pragma) + "\nstruct S { int i; };");
+        ASSERT_NE(unit, nullptr) << pragma;
+        EXPECT_EQ(find<ast::RecordDecl>(unit, "S")->maxFieldAlignment(), 4u) << pragma;
+        EXPECT_EQ(messages(), std::vector<std::string>{"test.c:2:1: warning: malformed '#pragma pack' - ignored"})
+            << pragma;
+    }
 }
 
 TEST_F(GnuTest, PragmaPackInsideAStructDefinitionAppliesWhereTheDefinitionEnds) {
@@ -135,12 +171,21 @@ TEST_F(GnuTest, InvalidPackAlignmentIsIgnoredWithAWarning) {
     const ast::TranslationUnit* unit = parse("#pragma pack(3)\nstruct S { int i; };");
     ASSERT_NE(unit, nullptr);
     EXPECT_EQ(find<ast::RecordDecl>(unit, "S")->maxFieldAlignment(), 0u);
-    EXPECT_TRUE(hasWarning("'#pragma pack' alignment must be 1, 2, 4, 8 or 16, not '3'"));
+    EXPECT_TRUE(hasWarning("'#pragma pack' alignment must be 1, 2, 4, 8 or 16, not 3"));
 }
 
-TEST_F(GnuTest, MalformedPackIsIgnoredWithAWarning) {
-    ASSERT_NE(parse("#pragma pack 2\nint x;"), nullptr);
-    EXPECT_TRUE(hasWarning("malformed '#pragma pack', ignored"));
+TEST_F(GnuTest, InvalidAlignmentInAPushIgnoresTheWholePragma) {
+    const ast::TranslationUnit* unit = parse("#pragma pack(push, 3)\n#pragma pack(pop)\nstruct S { int i; };");
+    ASSERT_NE(unit, nullptr);
+    EXPECT_TRUE(hasWarning("'#pragma pack(pop)' without a matching '#pragma pack(push)'"));
+}
+
+TEST_F(GnuTest, PragmaPackZeroAndEmptyResetTheAlignment) {
+    const ast::TranslationUnit* unit = parse("#pragma pack(1)\n#pragma pack(0)\nstruct A { int i; };\n"
+                                             "#pragma pack(1)\n#pragma pack()\nstruct B { int i; };");
+    ASSERT_NE(unit, nullptr);
+    EXPECT_EQ(find<ast::RecordDecl>(unit, "A")->maxFieldAlignment(), 0u);
+    EXPECT_EQ(find<ast::RecordDecl>(unit, "B")->maxFieldAlignment(), 0u);
 }
 
 TEST_F(GnuTest, PragmasBetweenStatementsAndInsideExpressions) {

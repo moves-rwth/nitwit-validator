@@ -165,6 +165,16 @@ TEST_F(AstContextTest, VariableLengthArrayIsItsOwnCanonicalType) {
     EXPECT_EQ(context_.canonical(array), array);
 }
 
+TEST_F(AstContextTest, VariableLengthArrayKeepsItsQualifiersAndElementSugar) {
+    const QualType element = context_.typedefType(typedefOf(type(BuiltinKind::Int)));
+    const QualType array = context_.arrayOf(element, integer(2));
+    cast<ArrayType>(array.type())->resolveVariableSize();
+    const QualType named = context_.typedefType(typedefOf(array)).withQualifiers(constQualifier());
+    const QualType canonical = context_.canonical(named);
+    EXPECT_EQ(canonical, array.withQualifiers(constQualifier()));
+    EXPECT_EQ(context_.canonical(cast<ArrayType>(canonical.type())->element()), type(BuiltinKind::Int));
+}
+
 TEST_F(AstContextTest, CanonicalFunctionTypeIgnoresParameterAndReturnQualifiers) {
     const std::vector<QualType> constParameter = {type(BuiltinKind::Int).withQualifiers(constQualifier())};
     const std::vector<QualType> plainParameter = {type(BuiltinKind::Int)};

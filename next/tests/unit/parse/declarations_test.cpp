@@ -359,6 +359,14 @@ TEST_F(DeclarationTest, ImplicitIntDeclarations) {
     EXPECT_TRUE(hasWarning("type defaults to 'int'"));
 }
 
+TEST_F(DeclarationTest, WarningsForPreC99Code) {
+    ASSERT_NE(parse("static x;\nmain() { return f(x); }\nint g(a) { return a; }"), nullptr) << firstError();
+    EXPECT_EQ(messages(), (std::vector<std::string>{"test.c:1:1: warning: type defaults to 'int'",
+                                                    "test.c:2:1: warning: type defaults to 'int'",
+                                                    "test.c:2:17: warning: implicit declaration of function 'f'",
+                                                    "test.c:3:7: warning: type of 'a' defaults to 'int'"}));
+}
+
 TEST_F(DeclarationTest, FunctionDeclaredThroughATypedef) {
     const ast::TranslationUnit* unit = parse("typedef int F(int); F f;");
     ASSERT_NE(unit, nullptr);

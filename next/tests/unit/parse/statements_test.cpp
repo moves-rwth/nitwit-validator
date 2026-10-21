@@ -276,7 +276,36 @@ TEST_F(StatementTest, DeclarationsInBlocks) {
               "      RecordDecl struct S\n"
               "        FieldDecl x 'int'\n"
               "      VarDecl s 'struct S'\n"
-              "    DeclarationStmt\n");
+              "    DeclarationStmt\n"
+              "      RecordDecl struct S\n"
+              "        FieldDecl x 'int'\n");
+}
+
+TEST_F(StatementTest, ForwardTagDeclarationInABlockIsListed) {
+    const ast::TranslationUnit* unit = parse("struct S { int a; }; void f(void) { struct S; struct S *p; }");
+    ASSERT_NE(unit, nullptr) << firstError();
+    const auto body = bodyOf(unit, "f");
+    const auto* forward = ast::cast<ast::DeclarationStmt>(body[0]);
+    ASSERT_EQ(forward->decls().size(), 1u);
+    const auto* inner = ast::cast<ast::RecordDecl>(forward->decls()[0]);
+    EXPECT_NE(inner, find<ast::RecordDecl>(unit, "S"));
+    EXPECT_FALSE(inner->isComplete());
+}
+
+TEST_F(StatementTest, CaseInAStatementExpressionCannotBelongToAnOuterSwitch) {
+    EXPECT_EQ(errorOf("void f(int a) { switch (a) { case 1: ({ case 2: ; }); } }"),
+              "test.c:1:41: error: switch jumps into statement expression");
+}
+
+TEST_F(StatementTest, SwitchInsideAStatementExpression) {
+    const ast::TranslationUnit* unit = parse(
+        "int f(int a) { switch (a) { case 1: return ({ int r = 0; switch (a) { case 1: r = 2; } r; }); } return 0; }");
+    ASSERT_NE(unit, nullptr) << firstError();
+    EXPECT_EQ(ast::cast<ast::SwitchStmt>(bodyOf(unit, "f")[0])->cases().size(), 1u);
+}
+
+TEST_F(StatementTest, BreakOutOfAStatementExpression) {
+    EXPECT_NE(parse("void f(int a) { switch (a) { case 1: ({ if (a) break; 0; }); } }"), nullptr) << firstError();
 }
 
 TEST_F(StatementTest, StatementRangesStartAtTheirFirstToken) {

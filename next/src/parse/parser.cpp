@@ -2,9 +2,15 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cstdint>
 #include <format>
+#include <optional>
+#include <ranges>
+#include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #include "ast/casting.hpp"
 #include "lex/lexer.hpp"
@@ -24,6 +30,10 @@ constexpr std::size_t maxDescribedLength = 40;
 
 bool isBlank(char c) {
     return c == ' ' || c == '\t' || c == '\r' || c == '\f' || c == '\v';
+}
+
+bool isDigit(char c) {
+    return c >= '0' && c <= '9';
 }
 
 bool isWordCharacter(char c) {
@@ -107,12 +117,20 @@ Parser::Parser(std::span<const lex::Token> tokens, ast::AstContext& context, con
 
 // ---- Tokens and diagnostics ----
 
+std::size_t Parser::following(std::size_t index) const {
+    if (tokens_[index].is(TokenKind::EndOfFile)) {
+        return index;
+    }
+    do {
+        ++index;
+    } while (tokens_[index].is(TokenKind::Pragma));
+    return index;
+}
+
 const lex::Token& Parser::peek(std::size_t ahead) const {
     std::size_t index = pos_;
-    for (; ahead > 0 && !tokens_[index].is(TokenKind::EndOfFile); --ahead) {
-        do {
-            ++index;
-        } while (tokens_[index].is(TokenKind::Pragma));
+    for (; ahead > 0; --ahead) {
+        index = following(index);
     }
     return tokens_[index];
 }
@@ -201,64 +219,81 @@ void Parser::handlePragma(const lex::Token& pragma) {
     }
 }
 
-// GCC's `#pragma pack`: `pack(N)`, `pack()`, `pack(push[, N])`, `pack(pop[, N])`; GCC also accepts an identifier after
-// push and pop, which is ignored here.
+// GCC's `#pragma pack`: `pack()` and `pack(N)` set the maximum field alignment (N = 0 or no N: none),
+// `pack(push[, id][, N])` saves it on a stack and then sets N, `pack(pop[, id])` restores the saved value (with an id,
+// the one saved by the matching push). Malformed pragmas are ignored with a warning, as in GCC.
 void Parser::handlePackPragma(std::string_view arguments, SourceLocation location) {
+    enum class Action : std::uint8_t { Set, Push, Pop };
+    Action action = Action::Set;
+    std::optional<std::uint64_t> alignment;
+    std::string_view id;
+    const auto malformed = [&] {
+        warning(location, "malformed '#pragma pack' - ignored");
+    };
+
     PragmaText text(arguments);
-    std::vector<std::string_view> items;
-    bool wellFormed = text.consume('(');
-    if (wellFormed && !text.consume(')')) {
-        while (true) {
-            const std::string_view item = text.word();
-            if (item.empty()) {
-                wellFormed = false;
-                break;
+    if (!text.consume('(')) {
+        return malformed();
+    }
+    if (!text.consume(')')) {
+        const std::string_view first = text.word();
+        if (first == "push" || first == "pop") {
+            action = first == "push" ? Action::Push : Action::Pop;
+            while (text.consume(',')) {
+                const std::string_view item = text.word();
+                const std::optional<std::uint64_t> number = parseNumber(item);
+                if (number && action == Action::Push && !alignment) {
+                    alignment = number;
+                } else if (!item.empty() && !number && !isDigit(item.front()) && id.empty()) {
+                    id = item;
+                } else {
+                    return malformed();
+                }
             }
-            items.push_back(item);
-            if (text.consume(')')) {
-                break;
-            }
-            if (!text.consume(',')) {
-                wellFormed = false;
-                break;
+        } else {
+            alignment = parseNumber(first);
+            if (!alignment) {
+                return malformed();
             }
         }
+        if (!text.consume(')')) {
+            return malformed();
+        }
     }
-    if (!wellFormed) {
-        return warning(location, "malformed '#pragma pack', ignored");
+
+    if (alignment
+        && !(*alignment == 0 || *alignment == 1 || *alignment == 2 || *alignment == 4 || *alignment == 8
+             || *alignment == 16)) {
+        return warning(location, std::format("'#pragma pack' alignment must be 1, 2, 4, 8 or 16, not {}", *alignment));
     }
-    if (items.empty()) {
-        packAlignment_ = 0;
+    switch (action) {
+    case Action::Set:
+        packAlignment_ = alignment.value_or(0);
         return;
-    }
-    const std::string_view action = items.front();
-    if (action != "push" && action != "pop") {
-        if (items.size() != 1) {
-            return warning(location, "malformed '#pragma pack', ignored");
-        }
-        return setPackAlignment(action, location);
-    }
-    if (action == "push") {
-        packStack_.push_back(packAlignment_);
-    } else if (packStack_.empty()) {
-        warning(location, "'#pragma pack(pop)' without a matching '#pragma pack(push)'");
-    } else {
-        packAlignment_ = packStack_.back();
-        packStack_.pop_back();
-    }
-    if (items.size() > 1 && parseNumber(items.back())) {
-        setPackAlignment(items.back(), location);
+    case Action::Push:
+        packStack_.push_back({packAlignment_, std::string(id)});
+        packAlignment_ = alignment.value_or(packAlignment_);
+        return;
+    case Action::Pop:
+        return popPackAlignment(id, location);
     }
 }
 
-void Parser::setPackAlignment(std::string_view value, SourceLocation location) {
-    const std::optional<std::uint64_t> alignment = parseNumber(value);
-    if (!alignment
-        || !(*alignment == 0 || *alignment == 1 || *alignment == 2 || *alignment == 4 || *alignment == 8
-             || *alignment == 16)) {
-        return warning(location, std::format("'#pragma pack' alignment must be 1, 2, 4, 8 or 16, not '{}'", value));
+void Parser::popPackAlignment(std::string_view id, SourceLocation location) {
+    if (packStack_.empty()) {
+        return warning(location, "'#pragma pack(pop)' without a matching '#pragma pack(push)'");
     }
-    packAlignment_ = *alignment;
+    if (!id.empty()) {
+        // GCC drops the entries above the one pushed with this id; without one, it pops the last entry.
+        const auto named = std::ranges::find(packStack_ | std::views::reverse, id, &PackEntry::id);
+        if (named == packStack_.rend()) {
+            warning(location, std::format("'#pragma pack(pop, {0})' without a matching '#pragma pack(push, {0})'", id));
+        } else {
+            packStack_.erase(named.base(), packStack_.end());
+        }
+    }
+    packAlignment_ = packStack_.back().alignment;
+    packStack_.pop_back();
 }
 
 void Parser::handleWeakPragma(std::string_view arguments, SourceLocation location) {

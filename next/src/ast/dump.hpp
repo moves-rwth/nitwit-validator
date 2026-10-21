@@ -20,7 +20,8 @@ namespace nitwit::ast {
 ///     CompoundStmt <3:16>
 ///       ReturnStmt <4:5>
 ///         IntegerLiteral 0 'int' <4:12>
-/// Line markers are ignored, so dumps of the same file are stable.
+/// Line markers are ignored, so dumps of the same file are stable. The indentation stops at 64 levels; deeper lines
+/// start with their level, e.g. "[65] ".
 [[nodiscard]] std::string dump(const TranslationUnit& unit, const SourceManager& sources);
 [[nodiscard]] std::string dump(const Decl* decl, const SourceManager& sources);
 [[nodiscard]] std::string dump(const Stmt* stmt, const SourceManager& sources);
