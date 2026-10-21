@@ -410,10 +410,9 @@ std::expected<LiteralText, Error> splitLiteral(std::string_view spelling, char q
     return text;
 }
 
-// The code units of a literal body.
-std::expected<std::vector<std::uint32_t>, Error> decodeBody(std::string_view body, CharEncoding encoding, char quote) {
-    std::vector<std::uint32_t> units;
-    units.reserve(body.size());
+// Appends the code units of a literal body, decoded in `encoding`, to `units`.
+std::expected<void, Error> decodeBody(std::string_view body, CharEncoding encoding, char quote,
+                                      std::vector<std::uint32_t>& units) {
     std::size_t i = 0;
     while (i < body.size()) {
         const char c = body[i];
@@ -441,7 +440,7 @@ std::expected<std::vector<std::uint32_t>, Error> decodeBody(std::string_view bod
             appendCodePoint(units, *codePoint, encoding);
         }
     }
-    return units;
+    return {};
 }
 
 } // namespace
@@ -540,11 +539,11 @@ std::expected<CharacterLiteral, Error> decodeCharacterLiteral(std::string_view s
     if (!text) {
         return std::unexpected(text.error());
     }
-    const auto units = decodeBody(text->body, text->encoding, '\'');
-    if (!units) {
-        return std::unexpected(units.error());
+    std::vector<std::uint32_t> units;
+    if (const auto decoded = decodeBody(text->body, text->encoding, '\'', units); !decoded) {
+        return std::unexpected(decoded.error());
     }
-    if (units->empty()) {
+    if (units.empty()) {
         return failure("empty character constant");
     }
 
@@ -552,76 +551,57 @@ std::expected<CharacterLiteral, Error> decodeCharacterLiteral(std::string_view s
     literal.encoding = text->encoding;
     switch (text->encoding) {
     case CharEncoding::Plain:
-        if (units->size() == 1) {
-            literal.value = static_cast<std::int8_t>(units->front()); // plain char is signed on x86
+        if (units.size() == 1) {
+            literal.value = static_cast<std::int8_t>(units.front()); // plain char is signed on x86
         } else {
             // GCC: an int whose bytes are the chars, the first one most significant; beyond four chars, it warns
             // and keeps the last four.
             std::uint32_t value = 0;
-            for (const std::uint32_t unit : *units) {
+            for (const std::uint32_t unit : units) {
                 value = (value << 8) | unit;
             }
             literal.value = static_cast<std::int32_t>(value);
         }
         break;
     case CharEncoding::Utf8:
-        if (units->size() > 1) {
+        if (units.size() > 1) {
             return failure("u8 character constant does not fit in one code unit");
         }
-        literal.value = units->front();
+        literal.value = units.front();
         break;
     case CharEncoding::Utf16:
     case CharEncoding::Utf32:
         // GCC warns about more than one code unit and uses the last one.
-        literal.value = units->back();
+        literal.value = units.back();
         break;
     case CharEncoding::Wide:
-        literal.value = static_cast<std::int32_t>(units->back()); // wchar_t is int
+        literal.value = static_cast<std::int32_t>(units.back()); // wchar_t is int
         break;
     }
     return literal;
 }
 
-std::expected<StringLiteral, Error> decodeStringLiteral(std::string_view spelling) {
-    auto text = splitLiteral(spelling, '"');
-    if (!text) {
-        return std::unexpected(text.error());
-    }
-    auto units = decodeBody(text->body, text->encoding, '"');
-    if (!units) {
-        return std::unexpected(units.error());
-    }
-    return StringLiteral{.encoding = text->encoding, .codeUnits = std::move(*units)};
-}
-
-std::expected<StringLiteral, Error> concatenateStrings(const std::vector<StringLiteral>& parts) {
+std::expected<StringLiteral, Error> decodeStringLiteral(std::span<const std::string_view> spellings) {
     StringLiteral result;
-    for (const StringLiteral& part : parts) {
-        if (part.encoding == CharEncoding::Plain) {
-            continue;
+    std::vector<LiteralText> parts;
+    parts.reserve(spellings.size());
+    for (const std::string_view spelling : spellings) {
+        auto part = splitLiteral(spelling, '"');
+        if (!part) {
+            return std::unexpected(part.error());
         }
-        if (result.encoding != CharEncoding::Plain && result.encoding != part.encoding) {
-            return failure("concatenation of string literals with different encoding prefixes");
-        }
-        result.encoding = part.encoding;
-    }
-
-    for (const StringLiteral& part : parts) {
-        if (part.encoding == result.encoding || isNarrow(result.encoding)) {
-            result.codeUnits.insert(result.codeUnits.end(), part.codeUnits.begin(), part.codeUnits.end());
-            continue;
-        }
-        // A plain part of a wide string: its bytes are taken as UTF-8 and converted to the wide encoding.
-        std::string bytes;
-        for (const std::uint32_t unit : part.codeUnits) {
-            bytes += static_cast<char>(unit);
-        }
-        for (std::size_t i = 0; i < bytes.size();) {
-            const auto codePoint = decodeUtf8(bytes, i);
-            if (!codePoint) {
-                return failure("cannot convert a string literal that is not valid UTF-8 to a wide encoding");
+        // C17 6.4.5p5: a prefix applies to the whole string. GCC rejects different prefixes.
+        if (part->encoding != CharEncoding::Plain) {
+            if (result.encoding != CharEncoding::Plain && result.encoding != part->encoding) {
+                return failure("concatenation of string literals with different encoding prefixes");
             }
-            appendCodePoint(result.codeUnits, *codePoint, result.encoding);
+            result.encoding = part->encoding;
+        }
+        parts.push_back(std::move(*part));
+    }
+    for (const LiteralText& part : parts) {
+        if (const auto decoded = decodeBody(part.body, result.encoding, '"', result.codeUnits); !decoded) {
+            return std::unexpected(decoded.error());
         }
     }
     return result;

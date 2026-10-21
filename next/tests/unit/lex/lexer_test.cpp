@@ -99,13 +99,17 @@ TEST_F(LexerTest, EveryKeywordLexesToItsKind) {
 
 TEST_F(LexerTest, GnuKeywordSpellingsMapToTheirKinds) {
     const std::pair<std::string_view, TokenKind> cases[] = {
-        {"__const", K::KwConst},         {"__const__", K::KwConst},       {"__inline", K::KwInline},
-        {"__inline__", K::KwInline},     {"__restrict", K::KwRestrict},   {"__restrict__", K::KwRestrict},
-        {"__signed", K::KwSigned},       {"__signed__", K::KwSigned},     {"__volatile", K::KwVolatile},
-        {"__volatile__", K::KwVolatile}, {"__alignof", K::KwAlignof},     {"__alignof__", K::KwAlignof},
-        {"__complex__", K::KwComplex},   {"__thread", K::KwThreadLocal},  {"__asm", K::KwAsm},
-        {"__asm__", K::KwAsm},           {"__attribute", K::KwAttribute}, {"__typeof", K::KwTypeof},
-        {"__typeof__", K::KwTypeof},     {"__float128", K::KwFloat128},   {"__real", K::KwReal},
+        {"__const", K::KwConst},        {"__const__", K::KwConst},
+        {"__inline", K::KwInline},      {"__inline__", K::KwInline},
+        {"__restrict", K::KwRestrict},  {"__restrict__", K::KwRestrict},
+        {"__signed", K::KwSigned},      {"__signed__", K::KwSigned},
+        {"__volatile", K::KwVolatile},  {"__volatile__", K::KwVolatile},
+        {"__alignof", K::KwAlignof},    {"__alignof__", K::KwAlignof},
+        {"__complex", K::KwComplex},    {"__complex__", K::KwComplex},
+        {"__thread", K::KwThreadLocal}, {"__asm", K::KwAsm},
+        {"__asm__", K::KwAsm},          {"__attribute", K::KwAttribute},
+        {"__typeof", K::KwTypeof},      {"__typeof__", K::KwTypeof},
+        {"__float128", K::KwFloat128},  {"__real", K::KwReal},
         {"__imag", K::KwImag},
     };
     for (const auto& [text, kind] : cases) {

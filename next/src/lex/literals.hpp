@@ -5,7 +5,7 @@
 
 #include <cstdint>
 #include <expected>
-#include <string>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -57,11 +57,9 @@ struct StringLiteral {
     std::vector<std::uint32_t> codeUnits;
 };
 
-/// Decodes one string literal token. Concatenating adjacent literals is the parser's job (concatenateStrings).
-[[nodiscard]] std::expected<StringLiteral, Error> decodeStringLiteral(std::string_view spelling);
-
-/// Concatenates adjacent string literals (C17 6.4.5p5): a prefixed literal determines the encoding; mixing different
-/// prefixes is an error.
-[[nodiscard]] std::expected<StringLiteral, Error> concatenateStrings(const std::vector<StringLiteral>& parts);
+/// Decodes one or more adjacent string literal tokens into one string (C17 6.4.5p5). The prefixed tokens determine
+/// the encoding, and mixing different prefixes is an error. Every token is then decoded in that encoding, as GCC
+/// does: in `L"a" "\xff"`, the escape gives the wide code unit 0xFF.
+[[nodiscard]] std::expected<StringLiteral, Error> decodeStringLiteral(std::span<const std::string_view> spellings);
 
 } // namespace nitwit::lex

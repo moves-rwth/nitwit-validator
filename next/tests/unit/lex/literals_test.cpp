@@ -1,7 +1,9 @@
 #include "lex/literals.hpp"
 
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <expected>
 #include <limits>
 #include <string_view>
 #include <tuple>
@@ -297,125 +299,135 @@ TEST(CharacterLiteralTest, BackslashNewlinesAreRemoved) {
 
 // ---- String literals
 
+// Decodes string literal tokens that are adjacent in the source.
+template <typename... Spellings>
+std::expected<StringLiteral, Error> decode(Spellings... spellings) {
+    const std::array<std::string_view, sizeof...(Spellings)> parts{spellings...};
+    return decodeStringLiteral(parts);
+}
+
 std::vector<std::uint32_t> units(std::string_view text) {
     return std::vector<std::uint32_t>(text.begin(), text.end());
 }
 
 TEST(StringLiteralTest, DecodesPlainStrings) {
-    const auto literal = decodeStringLiteral(R"("abc")");
+    const auto literal = decode(R"("abc")");
     ASSERT_TRUE(literal.has_value());
     EXPECT_EQ(literal->encoding, CharEncoding::Plain);
     EXPECT_THAT(literal->codeUnits, ElementsAre('a', 'b', 'c'));
-    EXPECT_TRUE(decodeStringLiteral(R"("")")->codeUnits.empty());
-    EXPECT_THAT(decodeStringLiteral(R"("it's")")->codeUnits, ElementsAre('i', 't', '\'', 's'));
+    EXPECT_TRUE(decode(R"("")")->codeUnits.empty());
+    EXPECT_THAT(decode(R"("it's")")->codeUnits, ElementsAre('i', 't', '\'', 's'));
 }
 
 TEST(StringLiteralTest, DecodesEscapes) {
-    EXPECT_THAT(decodeStringLiteral(R"("a\0b")")->codeUnits, ElementsAre('a', 0, 'b'));
-    EXPECT_THAT(decodeStringLiteral(R"("\xff\377")")->codeUnits, ElementsAre(0xFF, 0xFF));
-    EXPECT_THAT(decodeStringLiteral(R"("\1234")")->codeUnits, ElementsAre(0x53, '4'));
-    EXPECT_THAT(decodeStringLiteral(R"("\x41g")")->codeUnits, ElementsAre(0x41, 'g'));
-    EXPECT_THAT(decodeStringLiteral(R"("\"\\\n\e")")->codeUnits, ElementsAre('"', '\\', '\n', 0x1B));
-    EXPECT_THAT(decodeStringLiteral(R"("100\%")")->codeUnits, ElementsAre('1', '0', '0', '%'));
+    EXPECT_THAT(decode(R"("a\0b")")->codeUnits, ElementsAre('a', 0, 'b'));
+    EXPECT_THAT(decode(R"("\xff\377")")->codeUnits, ElementsAre(0xFF, 0xFF));
+    EXPECT_THAT(decode(R"("\1234")")->codeUnits, ElementsAre(0x53, '4'));
+    EXPECT_THAT(decode(R"("\x41g")")->codeUnits, ElementsAre(0x41, 'g'));
+    EXPECT_THAT(decode(R"("\"\\\n\e")")->codeUnits, ElementsAre('"', '\\', '\n', 0x1B));
+    EXPECT_THAT(decode(R"("100\%")")->codeUnits, ElementsAre('1', '0', '0', '%'));
 }
 
 TEST(StringLiteralTest, UniversalCharactersInNarrowStringsBecomeUtf8) {
-    EXPECT_THAT(decodeStringLiteral("\"\\u00e9\"")->codeUnits, ElementsAre(0xC3, 0xA9));
-    EXPECT_THAT(decodeStringLiteral("\"\\u20AC\"")->codeUnits, ElementsAre(0xE2, 0x82, 0xAC));
-    EXPECT_THAT(decodeStringLiteral("\"\\U0001F600\"")->codeUnits, ElementsAre(0xF0, 0x9F, 0x98, 0x80));
-    EXPECT_THAT(decodeStringLiteral("u8\"\\u00e9\"")->codeUnits, ElementsAre(0xC3, 0xA9));
+    EXPECT_THAT(decode("\"\\u00e9\"")->codeUnits, ElementsAre(0xC3, 0xA9));
+    EXPECT_THAT(decode("\"\\u20AC\"")->codeUnits, ElementsAre(0xE2, 0x82, 0xAC));
+    EXPECT_THAT(decode("\"\\U0001F600\"")->codeUnits, ElementsAre(0xF0, 0x9F, 0x98, 0x80));
+    EXPECT_THAT(decode("u8\"\\u00e9\"")->codeUnits, ElementsAre(0xC3, 0xA9));
 }
 
 TEST(StringLiteralTest, NarrowStringsKeepUtf8Bytes) {
-    EXPECT_THAT(decodeStringLiteral("\"\xC3\xA9\"")->codeUnits, ElementsAre(0xC3, 0xA9));
-    const auto literal = decodeStringLiteral("u8\"\xC3\xA9\"");
+    EXPECT_THAT(decode("\"\xC3\xA9\"")->codeUnits, ElementsAre(0xC3, 0xA9));
+    const auto literal = decode("u8\"\xC3\xA9\"");
     EXPECT_EQ(literal->encoding, CharEncoding::Utf8);
     EXPECT_THAT(literal->codeUnits, ElementsAre(0xC3, 0xA9));
 }
 
 TEST(StringLiteralTest, WideStringsHoldCodePoints) {
-    const auto wide = decodeStringLiteral("L\"\xC3\xA9\\U0001F600\"");
+    const auto wide = decode("L\"\xC3\xA9\\U0001F600\"");
     EXPECT_EQ(wide->encoding, CharEncoding::Wide);
     EXPECT_THAT(wide->codeUnits, ElementsAre(0xE9, 0x1F600));
 
-    const auto utf32 = decodeStringLiteral("U\"\xF0\x9F\x98\x80\"");
+    const auto utf32 = decode("U\"\xF0\x9F\x98\x80\"");
     EXPECT_EQ(utf32->encoding, CharEncoding::Utf32);
     EXPECT_THAT(utf32->codeUnits, ElementsAre(0x1F600));
 
-    EXPECT_THAT(decodeStringLiteral(R"(L"\xffffffff")")->codeUnits, ElementsAre(0xFFFFFFFF));
+    EXPECT_THAT(decode(R"(L"\xffffffff")")->codeUnits, ElementsAre(0xFFFFFFFF));
 }
 
 TEST(StringLiteralTest, Utf16StringsUseSurrogatePairs) {
-    const auto literal = decodeStringLiteral("u\"a\xF0\x9F\x98\x80\\U0001F600\"");
+    const auto literal = decode("u\"a\xF0\x9F\x98\x80\\U0001F600\"");
     EXPECT_EQ(literal->encoding, CharEncoding::Utf16);
     EXPECT_THAT(literal->codeUnits, ElementsAre('a', 0xD83D, 0xDE00, 0xD83D, 0xDE00));
-    EXPECT_THAT(decodeStringLiteral(R"(u"\xffff")")->codeUnits, ElementsAre(0xFFFF));
+    EXPECT_THAT(decode(R"(u"\xffff")")->codeUnits, ElementsAre(0xFFFF));
 }
 
 TEST(StringLiteralTest, RejectsEscapesOutOfRange) {
-    EXPECT_FALSE(decodeStringLiteral(R"("\x100")").has_value());
-    EXPECT_FALSE(decodeStringLiteral(R"("\400")").has_value());
-    EXPECT_FALSE(decodeStringLiteral(R"(u8"\x100")").has_value());
-    EXPECT_FALSE(decodeStringLiteral(R"(u"\x10000")").has_value());
-    EXPECT_FALSE(decodeStringLiteral(R"(U"\x100000000")").has_value());
+    EXPECT_FALSE(decode(R"("\x100")").has_value());
+    EXPECT_FALSE(decode(R"("\400")").has_value());
+    EXPECT_FALSE(decode(R"(u8"\x100")").has_value());
+    EXPECT_FALSE(decode(R"(u"\x10000")").has_value());
+    EXPECT_FALSE(decode(R"(U"\x100000000")").has_value());
 }
 
 TEST(StringLiteralTest, RejectsMalformedLiterals) {
-    EXPECT_FALSE(decodeStringLiteral(R"("a"b")").has_value());
-    EXPECT_FALSE(decodeStringLiteral(R"("abc)").has_value());
-    EXPECT_FALSE(decodeStringLiteral(R"("abc\")").has_value());
-    EXPECT_FALSE(decodeStringLiteral("'a'").has_value());
-    EXPECT_FALSE(decodeStringLiteral("\"a\nb\"").has_value());
-    EXPECT_FALSE(decodeStringLiteral("L\"\xFF\"").has_value());         // not UTF-8
-    EXPECT_FALSE(decodeStringLiteral("U\"\xC0\x80\"").has_value());     // overlong
-    EXPECT_FALSE(decodeStringLiteral("u\"\xED\xA0\x80\"").has_value()); // a surrogate
+    EXPECT_FALSE(decode(R"("a"b")").has_value());
+    EXPECT_FALSE(decode(R"("abc)").has_value());
+    EXPECT_FALSE(decode(R"("abc\")").has_value());
+    EXPECT_FALSE(decode("'a'").has_value());
+    EXPECT_FALSE(decode("\"a\nb\"").has_value());
+    EXPECT_FALSE(decode("L\"\xFF\"").has_value());         // not UTF-8
+    EXPECT_FALSE(decode("U\"\xC0\x80\"").has_value());     // overlong
+    EXPECT_FALSE(decode("u\"\xED\xA0\x80\"").has_value()); // a surrogate
 }
 
 TEST(StringLiteralTest, BackslashNewlinesAreRemoved) {
-    EXPECT_EQ(decodeStringLiteral("\"ab\\\ncd\"")->codeUnits, units("abcd"));
-    EXPECT_EQ(decodeStringLiteral("\"ab\\\r\ncd\\\n\"")->codeUnits, units("abcd"));
-    EXPECT_EQ(decodeStringLiteral("\"\\\\\n\"\"")->codeUnits, units("\""));
+    EXPECT_EQ(decode("\"ab\\\ncd\"")->codeUnits, units("abcd"));
+    EXPECT_EQ(decode("\"ab\\\r\ncd\\\n\"")->codeUnits, units("abcd"));
+    EXPECT_EQ(decode("\"\\\\\n\"\"")->codeUnits, units("\""));
 }
 
-// ---- Concatenation
-
-StringLiteral decoded(std::string_view spelling) {
-    return decodeStringLiteral(spelling).value();
-}
-
-TEST(ConcatenateStringsTest, JoinsPlainStrings) {
-    const auto result = concatenateStrings({decoded(R"("ab")"), decoded(R"("")"), decoded(R"("c")")});
+TEST(StringLiteralTest, JoinsAdjacentLiterals) {
+    const auto result = decode(R"("ab")", R"("")", R"("c")");
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result->encoding, CharEncoding::Plain);
     EXPECT_EQ(result->codeUnits, units("abc"));
 }
 
-TEST(ConcatenateStringsTest, PrefixedPartDeterminesTheEncoding) {
-    const auto wide = concatenateStrings({decoded(R"("a")"), decoded(R"(L"b")"), decoded("\"\xC3\xA9\"")});
+TEST(StringLiteralTest, PrefixedPartDeterminesTheEncoding) {
+    const auto wide = decode(R"("a")", R"(L"b")", "\"\xC3\xA9\"");
     ASSERT_TRUE(wide.has_value());
     EXPECT_EQ(wide->encoding, CharEncoding::Wide);
     EXPECT_THAT(wide->codeUnits, ElementsAre('a', 'b', 0xE9));
 
-    const auto utf16 = concatenateStrings({decoded("\"\xF0\x9F\x98\x80\""), decoded(R"(u"")")});
+    const auto utf16 = decode("\"\xF0\x9F\x98\x80\"", R"(u"")");
+    EXPECT_EQ(utf16->encoding, CharEncoding::Utf16);
     EXPECT_THAT(utf16->codeUnits, ElementsAre(0xD83D, 0xDE00));
 
-    const auto utf8 = concatenateStrings({decoded("\"\xC3\xA9\""), decoded(R"(u8"x")")});
+    const auto utf8 = decode("\"\xC3\xA9\"", R"(u8"x")");
     EXPECT_EQ(utf8->encoding, CharEncoding::Utf8);
     EXPECT_THAT(utf8->codeUnits, ElementsAre(0xC3, 0xA9, 'x'));
 }
 
-TEST(ConcatenateStringsTest, RejectsDifferentPrefixes) {
-    EXPECT_FALSE(concatenateStrings({decoded(R"(L"a")"), decoded(R"(u"b")")}).has_value());
-    EXPECT_FALSE(concatenateStrings({decoded(R"(u8"a")"), decoded(R"(U"b")")}).has_value());
-    EXPECT_TRUE(concatenateStrings({decoded(R"(U"a")"), decoded(R"(U"b")")}).has_value());
+TEST(StringLiteralTest, EscapesInPlainPartsGiveCodeUnitsOfTheCommonEncoding) {
+    EXPECT_THAT(decode(R"(L"a")", R"("\xff")")->codeUnits, ElementsAre('a', 0xFF));
+    EXPECT_THAT(decode(R"(L"")", R"("\xc3\xa9")")->codeUnits, ElementsAre(0xC3, 0xA9));
+    EXPECT_THAT(decode(R"("\x100")", R"(u"")")->codeUnits, ElementsAre(0x100));
+    EXPECT_FALSE(decode(R"("\x10000")", R"(u"")").has_value());
 }
 
-TEST(ConcatenateStringsTest, RejectsPlainPartsThatAreNotUtf8InWideStrings) {
-    EXPECT_FALSE(concatenateStrings({decoded(R"(L"a")"), decoded(R"("\xff")")}).has_value());
+TEST(StringLiteralTest, RejectsDifferentPrefixes) {
+    EXPECT_FALSE(decode(R"(L"a")", R"(u"b")").has_value());
+    EXPECT_FALSE(decode(R"(u8"a")", R"("b")", R"(U"c")").has_value());
+    EXPECT_TRUE(decode(R"(U"a")", R"(U"b")").has_value());
 }
 
-TEST(ConcatenateStringsTest, NoPartsGiveAnEmptyPlainString) {
-    const auto result = concatenateStrings({});
+TEST(StringLiteralTest, RejectsAnyMalformedPart) {
+    EXPECT_FALSE(decode(R"("a")", R"("b)").has_value());
+    EXPECT_FALSE(decode(R"("a")", "'b'").has_value());
+}
+
+TEST(StringLiteralTest, NoPartsGiveAnEmptyPlainString) {
+    const auto result = decode();
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ(result->encoding, CharEncoding::Plain);
     EXPECT_TRUE(result->codeUnits.empty());

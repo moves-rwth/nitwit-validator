@@ -3,8 +3,9 @@
 //
 // For every file it checks that the tokens are ordered and do not overlap, that only whitespace, comments,
 // backslash-newlines and the directives the lexer handles lie between them, that identifiers, keywords and
-// punctuators match their spelling, and that every literal decodes. It reports the files that need the preprocessor
-// and the throughput of lexFile. The exit code is 1 if any check fails or any file has a lexer error.
+// punctuators match their spelling, and that every literal decodes (adjacent string literals together). It reports
+// the files that need the preprocessor and the throughput of lexFile. The exit code is 1 if any check fails or any
+// file has a lexer error.
 
 #include <algorithm>
 #include <atomic>
@@ -155,8 +156,6 @@ std::optional<std::string> decodeLiteral(const Token& token, std::string_view te
         return message(decodeFloatingLiteral(text));
     case TokenKind::CharacterLiteral:
         return message(decodeCharacterLiteral(text));
-    case TokenKind::StringLiteral:
-        return message(decodeStringLiteral(text));
     default:
         return std::nullopt;
     }
@@ -171,6 +170,21 @@ void checkTokens(const SourceManager& sources, FileId file, const LexResult& lex
         result.checkFailures.push_back({"token vector does not end with EndOfFile", std::string(sources.name(file))});
         return;
     }
+    // Adjacent string literals are decoded together, as the parser does.
+    std::vector<std::string_view> strings;
+    std::size_t stringsStart = 0;
+    const auto decodeStrings = [&] {
+        if (strings.empty()) {
+            return;
+        }
+        if (const auto decoded = decodeStringLiteral(strings); !decoded) {
+            result.decodeFailures.push_back(
+                {std::format("{}: {}", spelling(TokenKind::StringLiteral), decoded.error().message),
+                 describe(stringsStart)});
+        }
+        strings.clear();
+    };
+
     std::size_t previousEnd = text.starts_with("\xEF\xBB\xBF") ? 3 : 0;
     bool atLineStart = true;
     for (const Token& token : lexed.tokens) {
@@ -182,10 +196,18 @@ void checkTokens(const SourceManager& sources, FileId file, const LexResult& lex
         if (const auto unexpected = findUnexpectedText(text, previousEnd, offset, atLineStart)) {
             result.checkFailures.push_back({"unexpected text between tokens", describe(*unexpected)});
         }
+        const std::string_view spelled = text.substr(offset, token.length);
+        if (token.is(TokenKind::StringLiteral)) {
+            if (strings.empty()) {
+                stringsStart = offset;
+            }
+            strings.push_back(spelled);
+        } else {
+            decodeStrings();
+        }
         if (token.is(TokenKind::EndOfFile)) {
             break;
         }
-        const std::string_view spelled = text.substr(offset, token.length);
         if (auto failure = checkSpelling(token, spelled)) {
             result.checkFailures.push_back({std::move(*failure), describe(offset)});
         }

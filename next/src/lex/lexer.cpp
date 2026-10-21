@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <format>
+#include <span>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -113,6 +114,7 @@ constexpr Keyword keywords[] = {
     {"_Atomic", TokenKind::KwAtomic},
     {"_Bool", TokenKind::KwBool},
     {"_Complex", TokenKind::KwComplex},
+    {"__complex", TokenKind::KwComplex},
     {"__complex__", TokenKind::KwComplex},
     {"_Generic", TokenKind::KwGeneric},
     {"_Imaginary", TokenKind::KwImaginary},
@@ -444,7 +446,8 @@ void Lexer::lineMarker(bool isLineDirective) {
         if (!literal.terminated) {
             return invalidLineMarker(pos_, "missing terminating '\"' character");
         }
-        const auto decoded = decodeStringLiteral(text_.substr(pos_, literal.end - pos_));
+        const std::string_view quotedName = text_.substr(pos_, literal.end - pos_);
+        const auto decoded = decodeStringLiteral(std::span(&quotedName, 1));
         if (!decoded) {
             return invalidLineMarker(pos_, decoded.error().message);
         }

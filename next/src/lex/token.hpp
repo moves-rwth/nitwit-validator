@@ -59,7 +59,7 @@ enum class TokenKind : std::uint8_t {
     KwAlignof,      // _Alignof, also __alignof, __alignof__
     KwAtomic,       // _Atomic
     KwBool,         // _Bool
-    KwComplex,      // _Complex, also __complex__
+    KwComplex,      // _Complex, also __complex, __complex__
     KwGeneric,      // _Generic
     KwImaginary,    // _Imaginary
     KwNoreturn,     // _Noreturn
