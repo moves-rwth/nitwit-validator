@@ -1,9 +1,12 @@
 # Module `interp`
 
-Executes the typed AST. Built in steps: first the memory model, later lowering, evaluation and builtins (stage 4).
+Executes the typed AST: memory model, lowering of function bodies, expression evaluation, library functions.
 
 - `memory.hpp`: `Memory`, the flat virtual address space with an allocation table, initialization tracking and
   origins of nondeterministic values.
+- `interpreter.hpp`: `buildProgram` (lowering, done once per program) and `Interpreter` (one run).
+- `oracle.hpp`: `InputOracle`, the source of nondeterministic values.
+- `observer.hpp`: `ExecutionObserver`, the events the validation layer follows, and `EvaluationContext`.
 
 ## Memory: behaviour to keep
 
@@ -17,10 +20,62 @@ Executes the typed AST. Built in steps: first the memory model, later lowering, 
 - **Lookup:** finding the allocation of an address is on the hot path of every load and store. Keep the last
   allocation found as a cache.
 
+## Execution: behaviour to keep
+
+- **Lowering:** each function body becomes a flat instruction list: evaluate, declare, branch, jump, switch, return,
+  end scope. So `goto`, `switch` into nested blocks, `break` and `continue` are plain jumps. Expressions stay trees.
+- **Events:** each instruction knows the statement and locations it comes from, so the observer gets exactly the
+  events of `observer.hpp`. In particular:
+  - a `ConditionEvent` for every evaluation of a controlling expression, including `for` loops without a condition
+    (outcome true);
+  - one `CallEvent` and one `ReturnEvent` per call, including library functions and nondet functions.
+- **Objects:**
+  - Globals and string literals are allocated and initialized before `main`, in declaration order. Global
+    initializers are evaluated by the evaluator itself; C guarantees that they are constant.
+  - Automatic variables are allocated at function entry and released at return, except variable length arrays, which
+    are allocated at their declaration and released at the end of their scope.
+  - A declaration without an initializer leaves its object uninitialized. A read of an uninitialized scalar becomes an
+    `UninitializedRead` input request. The value is then written to the object, so later reads agree.
+- **Origins:** a value read from memory carries the origin stored for exactly its range. Copies keep the origin
+  (assignment, argument passing, return, conversions that preserve the value, such as int to long). Arithmetic drops
+  it.
+- **Calls:**
+  - Through function designators and function pointers. Variadic functions, with `va_start`/`va_arg`/`va_end`/
+    `va_copy` over the interpreter's own argument list.
+  - Struct arguments and struct return values by value.
+  - Recursion depth is limited by `RunOptions::maxCallDepth`.
+- **Library functions:** a function without a definition is first looked up in the interpreter's library:
+  - SV-COMP: `__VERIFIER_nondet_*`, `__VERIFIER_assume`, `__VERIFIER_error`, `__assert_fail`, `abort`, `exit`,
+    `_Exit`;
+  - memory: `malloc`, `calloc`, `realloc`, `free`, `alloca`;
+  - strings: `memcpy`, `memmove`, `memset`, `memcmp`, `strlen`, `strcpy`, `strncpy`, `strcmp`, `strncmp`, `strcat`,
+    `strchr`, `strrchr`, `strdup`;
+  - output: `printf`, `fprintf` to stdout/stderr, `puts`, `putchar`, `sprintf`, `snprintf`;
+  - math (`fabs`, `sqrt`, `floor`, `ceil`, `fmod`, the `isnan`/`isinf` family, ...);
+  - GCC builtins such as `__builtin_expect`, `__builtin_unreachable`, `__builtin_bswap*`, `__builtin_clz/ctz/popcount`,
+    `__builtin_*_overflow`, `__builtin_memcpy`.
+
+  A function found neither as a definition nor in the library returns a value from the oracle (`UndefinedFunction`),
+  and its arguments have no effect.
+- **Undefined behaviour:**
+  - Operations without a defined result end the run with `Termination::UndefinedBehavior` and a message: memory
+    errors, integer division by zero, a call through a pointer to no function, a non-void function falling off its
+    end whose value is used.
+  - Signed overflow and invalid shifts are reported through `onUndefinedBehavior` and continue with the hardware
+    result.
+
 ## Tests
 
-- `tests/unit/interp/memory_test.cpp`: allocation in every region with sizes 0, 1 and large; alignment; null page;
-  gaps between allocations; reads and writes inside, across the end, one past the end; dead heap blocks; double free;
-  free of non-base and non-heap addresses; LIFO stack reuse; read-only and code protection; initialization tracking per
-  byte; origins set, read, overwritten partly, copied with `copy` (overlapping ranges too); determinism of addresses;
-  32-bit address space limits; a 1 GiB global that is written at two places only.
+- `tests/unit/interp/memory_test.cpp`: the memory behaviour above:
+  - allocation in every region with sizes 0, 1 and large; alignment; the null page; gaps between allocations;
+  - accesses inside, across the end and one past the end; dead heap blocks; double free; freeing non-base and
+    non-heap addresses; LIFO stack reuse;
+  - read-only and code protection; initialization per byte;
+  - origins set, read, partly overwritten and copied (overlapping ranges too);
+  - deterministic addresses; the limits of the 32-bit address space; a 1 GiB global written at two places only.
+- `tests/unit/interp/`: interpreter tests on small programs (source text → output and termination), with a test
+  oracle and a recording observer for the event sequences.
+- `tests/semantics/`: the programs of the semantics suite (see `tools/difftest/README.md`) must print the expected
+  output under `-32` and `-64` (CTest label `semantics`).
+- `tools/difftest/`: Csmith programs and corpus programs with random inputs; the interpreter must agree with the
+  native runs.
