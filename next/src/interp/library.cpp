@@ -40,8 +40,9 @@ FunctionTable buildFunctionTable() {
         const bool added = table.emplace(name, function).second;
         NITWIT_ASSERT(added, "a library function is defined twice");
     };
-    for (const auto part : {library::heapFunctions(), library::stringFunctions(), library::stdlibFunctions(),
-                            library::stdioFunctions()}) {
+    for (const auto part :
+         {library::heapFunctions(), library::stringFunctions(), library::stdlibFunctions(), library::stdioFunctions(),
+          library::ctypeFunctions(), library::mathFunctions(), library::builtinFunctions()}) {
         for (const FunctionEntry& entry : part) {
             add(entry.name, entry.function);
         }
@@ -75,7 +76,7 @@ LibraryFunction findLibraryFunction(std::string_view name) {
 }
 
 std::optional<LibraryObject> libraryObject(std::string_view name, const TargetInfo& target) {
-    for (const auto part : {library::stdlibObjects(), library::stdioObjects()}) {
+    for (const auto part : {library::stdlibObjects(), library::stdioObjects(), library::ctypeObjects()}) {
         for (const ObjectEntry& entry : part) {
             if (entry.name == name) {
                 return entry.describe(target);

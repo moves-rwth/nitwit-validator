@@ -47,10 +47,6 @@ LibraryResult bsdAssert(const Call& call) {
                   std::format("{}:{}: Assertion `{}' failed.", file, call.intArgument(2), assertion));
 }
 
-LibraryResult nothing(const Call& /*call*/) {
-    return Call::returnVoid();
-}
-
 // ---- errno (C17 7.5) ----
 
 LibraryResult errnoLocation(const Call& call) {
@@ -393,8 +389,8 @@ LibraryResult srand(const Call& call) {
 
 constexpr FunctionEntry functions[] = {
     {"__VERIFIER_error", entryPoint<abort>},
-    {"__VERIFIER_atomic_begin", entryPoint<nothing>},
-    {"__VERIFIER_atomic_end", entryPoint<nothing>},
+    {"__VERIFIER_atomic_begin", entryPoint<doNothing>},
+    {"__VERIFIER_atomic_end", entryPoint<doNothing>},
     {"__assert_fail", entryPoint<assertFail>},
     {"__assert", entryPoint<bsdAssert>},
     {"__assert_perror_fail", entryPoint<abort>},

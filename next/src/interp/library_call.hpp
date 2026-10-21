@@ -120,6 +120,9 @@ private:
 
 using Implementation = LibraryResult (*)(const Call& call);
 
+/// The implementation of functions without effect in the interpreter (__VERIFIER_atomic_begin, ...).
+LibraryResult doNothing(const Call& call);
+
 /// The LibraryFunction for an implementation: catches Stop, so that no exception leaves the library.
 template <Implementation implementation>
 LibraryResult entryPoint(LibraryContext& context, const LibraryCall& libraryCall) {
@@ -150,11 +153,15 @@ void initializeZero(LibraryContext& context, Address address);
 void initializePointer(LibraryContext& context, Address address, Address value);
 
 // The parts of the library, one per file.
-[[nodiscard]] std::span<const FunctionEntry> heapFunctions();   // library_heap.cpp
-[[nodiscard]] std::span<const FunctionEntry> stringFunctions(); // library_string.cpp
-[[nodiscard]] std::span<const FunctionEntry> stdlibFunctions(); // library_stdlib.cpp
-[[nodiscard]] std::span<const ObjectEntry> stdlibObjects();     // library_stdlib.cpp
-[[nodiscard]] std::span<const FunctionEntry> stdioFunctions();  // library_stdio.cpp
-[[nodiscard]] std::span<const ObjectEntry> stdioObjects();      // library_stdio.cpp
+[[nodiscard]] std::span<const FunctionEntry> heapFunctions();    // library_heap.cpp
+[[nodiscard]] std::span<const FunctionEntry> stringFunctions();  // library_string.cpp
+[[nodiscard]] std::span<const FunctionEntry> stdlibFunctions();  // library_stdlib.cpp
+[[nodiscard]] std::span<const ObjectEntry> stdlibObjects();      // library_stdlib.cpp
+[[nodiscard]] std::span<const FunctionEntry> stdioFunctions();   // library_stdio.cpp
+[[nodiscard]] std::span<const ObjectEntry> stdioObjects();       // library_stdio.cpp
+[[nodiscard]] std::span<const FunctionEntry> ctypeFunctions();   // library_ctype.cpp
+[[nodiscard]] std::span<const ObjectEntry> ctypeObjects();       // library_ctype.cpp
+[[nodiscard]] std::span<const FunctionEntry> mathFunctions();    // library_math.cpp
+[[nodiscard]] std::span<const FunctionEntry> builtinFunctions(); // library_builtins.cpp
 
 } // namespace nitwit::interp::library

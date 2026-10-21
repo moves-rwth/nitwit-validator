@@ -229,6 +229,10 @@ void Call::setErrno(int value) const {
     writeInteger(objectAddress("errno"), static_cast<UInt128>(Int128{value}), ScalarType::Int);
 }
 
+LibraryResult doNothing(const Call& /*call*/) {
+    return Call::returnVoid();
+}
+
 void initializeObject(LibraryContext& context, Address address, std::span<const std::byte> bytes) {
     const auto written = context.memory().write(address, bytes);
     NITWIT_ASSERT(written.has_value(), "library objects must be allocated in writable memory");

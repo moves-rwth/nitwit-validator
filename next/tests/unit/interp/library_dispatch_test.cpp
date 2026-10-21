@@ -12,7 +12,8 @@ class DispatchTest : public LibraryTest {};
 INSTANTIATE_TEST_SUITE_P(DataModels, DispatchTest, testing::Values(DataModel::ILP32, DataModel::LP64), modelName);
 
 TEST(LibraryDispatchTest, FindsFunctionsByName) {
-    for (const std::string_view name : {"malloc", "printf", "strlen", "__assert_fail", "rand", "__errno_location"}) {
+    for (const std::string_view name : {"malloc", "printf", "strlen", "__assert_fail", "__ctype_b_loc", "sinl",
+                                        "__builtin_clz", "__isnanf", "rand", "__errno_location"}) {
         EXPECT_NE(findLibraryFunction(name), nullptr) << name;
     }
     EXPECT_EQ(findLibraryFunction("strlen"), findLibraryFunction("strlen"));
@@ -29,6 +30,9 @@ TEST(LibraryDispatchTest, KnowsNoOtherFunctions) {
 TEST(LibraryDispatchTest, BuiltinFormsOfLibraryFunctions) {
     EXPECT_EQ(findLibraryFunction("__builtin_memcpy"), findLibraryFunction("memcpy"));
     EXPECT_EQ(findLibraryFunction("__builtin_alloca"), findLibraryFunction("alloca"));
+    EXPECT_EQ(findLibraryFunction("__builtin_fabsf"), findLibraryFunction("fabsf"));
+    // __builtin_isnan is type-generic, unlike glibc's isnan(double).
+    EXPECT_NE(findLibraryFunction("__builtin_isnan"), findLibraryFunction("isnan"));
 }
 
 TEST_P(DispatchTest, UnsupportedFunctionsEndTheRun) {
@@ -53,7 +57,8 @@ TEST_P(DispatchTest, ExtraArgumentsAreIgnored) {
 }
 
 TEST_P(DispatchTest, LibraryObjects) {
-    for (const std::string_view name : {"stdin", "stdout", "stderr", "errno", "__random_state", "_IO_2_1_stdout_"}) {
+    for (const std::string_view name : {"stdin", "stdout", "stderr", "errno", "__random_state", "__ctype_b",
+                                        "__ctype_tolower", "__ctype_toupper", "_IO_2_1_stdout_"}) {
         EXPECT_TRUE(libraryObject(name, context.target()).has_value()) << name;
     }
     EXPECT_FALSE(libraryObject("environ", context.target()).has_value());
