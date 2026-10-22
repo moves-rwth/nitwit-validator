@@ -195,6 +195,21 @@ int main(void) {
     EXPECT_EQ(result.runs, 2u);
 }
 
+TEST_F(EndToEndTest, ABranchingOnABoolInputChangesItThroughItsConversionToBool) {
+    // The input of b has a conversion to _Bool over it, which the search inverts.
+    build(R"(void reach_error(void);
+int main(void) {
+    _Bool b;
+    if (b) reach_error();
+    return 0;
+}
+)");
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 4, 5, "true")}, {target(4, 12)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+}
+
 TEST_F(EndToEndTest, AConstraintOnAComputedValueIsSolvedThroughTheComputation) {
     // As validation-crafted/while.3A1: `a == 10` after `a = a - n`.
     build(R"(extern int __VERIFIER_nondet_int(void);

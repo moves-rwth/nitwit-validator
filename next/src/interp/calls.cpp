@@ -442,7 +442,9 @@ value::Value Execution::requestInput(InputRequest::Kind kind, const ast::Expr* s
         input.setTerm(terms_.input(request.id, input, info.scalarFormat()));
         if (info.representation == Representation::Bool && input.term()) {
             // The term of a conversion to _Bool, which tells that the input is 0 or 1, and which conversions to _Bool
-            // keep (toBool).
+            // keep (toBool). Not strict, also when a constraint reads an uninitialized _Bool first: the program reads
+            // the stored input later.
+            const value::TermTable::StrictScope programTerm(terms_, false);
             attach(input, terms_.toBool(input, info.scalarFormat()), site);
         }
     }

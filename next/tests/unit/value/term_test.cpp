@@ -1143,6 +1143,21 @@ TEST(TermStrictTest, AScopeRestoresThePreviousMode) {
     EXPECT_FALSE(table.term(*negated).strict);
 }
 
+TEST(TermStrictTest, ANonStrictScopeSuspendsAStrictOne) {
+    TermTable table(lp64);
+    const Value x = registered(table, firstInput, integer(1, s32), s32);
+    const TermTable::StrictScope strict(table);
+    {
+        const TermTable::StrictScope program(table, false);
+        const std::optional<TermId> negated = table.integerNegate(x, s32);
+        ASSERT_TRUE(negated.has_value());
+        EXPECT_FALSE(table.term(*negated).strict);
+    }
+    const std::optional<TermId> negated = table.integerNegate(x, s32);
+    ASSERT_TRUE(negated.has_value());
+    EXPECT_TRUE(table.term(*negated).strict);
+}
+
 TEST(TermStrictTest, AnyUndefinedBehaviourOfAStrictTermEndsTheRun) {
     TermTable table(lp64);
     const Value x = registered(table, firstInput, integer(5, s32), s32);

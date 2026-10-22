@@ -98,10 +98,13 @@ class TermTable {
 public:
     /// While a scope is alive, the table records strict terms: the terms of a witness constraint, whose evaluation
     /// stops at any undefined behaviour, where the program continues after some (interp/README.md, "Undefined
-    /// behaviour").
+    /// behaviour"). A scope with `isStrict` false suspends an outer one, for terms that belong to the program although
+    /// a constraint records them, such as those of an input that a constraint reads first.
     class StrictScope {
     public:
-        explicit StrictScope(TermTable& table) : table_(table), previous_(table.strict_) { table.strict_ = true; }
+        explicit StrictScope(TermTable& table, bool isStrict = true) : table_(table), previous_(table.strict_) {
+            table.strict_ = isStrict;
+        }
         ~StrictScope() { table_.strict_ = previous_; }
         StrictScope(const StrictScope&) = delete;
         StrictScope& operator=(const StrictScope&) = delete;

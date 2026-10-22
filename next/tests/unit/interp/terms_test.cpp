@@ -557,10 +557,15 @@ int main(void) {
     _Bool d = down(n, 40);
     _Bool u;
     _Bool v = u;
+    signed char s = (signed char)(_Bool)(long)b;
+    _Bool e = s; // through the narrowing to the conversion to _Bool
     return 0;
 })",
-                        16, {variable("b"), variable("r"), variable("n"), variable("d"), variable("v")}),
-                ElementsAre("(u8)x0", "(bool)(u8)x0", "(bool)x1", "(bool)x1", "(bool)x2"));
+                        18,
+                        {variable("b"), variable("r"), variable("n"), variable("d"), variable("v"), variable("s"),
+                         variable("e")}),
+                ElementsAre("(u8)x0", "(bool)(u8)x0", "(bool)x1", "(bool)x1", "(bool)x2", "(s8)(bool)(s64)(u8)x0",
+                            "(bool)(s64)(u8)x0"));
 }
 
 TEST_F(TermsTest, AtomicReadModifyWritesAreRecorded) {
@@ -746,6 +751,33 @@ int main(void) {
     EXPECT_EQ(isConstraintStrict, true);
     // The program computes x + 1 after the constraint was evaluated: its term is not strict.
     EXPECT_EQ(isProgramStrict, false);
+}
+
+TEST_F(TermsTest, TheInputThatAConstraintReadsFirstHasTheTermsOfTheProgram) {
+    // A constraint reads the uninitialized b first: the program stores the input with its conversion to _Bool, which
+    // must not be strict, and reads it later.
+    oracle_.answers = {1};
+    std::vector<std::string> terms;
+    std::vector<bool> areStrict;
+    observer_.onStatement = [&](const StatementEvent& event, EvaluationContext& context) {
+        const std::uint32_t line = sources_.lineColumn(event.stmt->location()).line;
+        if (line == 3 || line == 5) {
+            const auto value = context.evaluate(analyzed(ref(line == 3 ? "b" : "c", context.function())));
+            if (value && value->term()) {
+                terms.push_back(termText(context.terms(), value->term()));
+                areStrict.push_back(context.terms().term(*value->term()).strict);
+            }
+        }
+        return Directive::Continue;
+    };
+    runChecked(R"(int main(void) {
+    _Bool b;
+    int y = 0;
+    _Bool c = b;
+    return c;
+})");
+    EXPECT_THAT(terms, ElementsAre("(bool)x0", "(bool)x0"));
+    EXPECT_THAT(areStrict, ElementsAre(false, false));
 }
 
 // ---- The consistency check ----
