@@ -30,9 +30,6 @@ protected:
 };
 
 TEST_F(EndToEndTest, AssumptionsFixInputsOfEveryType) {
-    // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
-    GTEST_SKIP() << "needs the terms of the interpreter";
-
     // testfiles/sv-comp-2019/06.nondet.c, as CPAchecker writes the witness.
     build(R"(extern void __VERIFIER_error(void);
 extern unsigned short __VERIFIER_nondet_ushort(void);
@@ -94,9 +91,6 @@ int main(void) {
 }
 
 TEST_F(EndToEndTest, ConditionalExpressionsAndSwitches) {
-    // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
-    GTEST_SKIP() << "needs the terms of the interpreter";
-
     build(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
 int main(void) {
@@ -141,9 +135,6 @@ int main(void) {
 }
 
 TEST_F(EndToEndTest, UninitializedVariablesAreInputs) {
-    // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
-    GTEST_SKIP() << "needs the terms of the interpreter";
-
     build(R"(void reach_error(void);
 int main(void) {
     int x;
@@ -187,8 +178,6 @@ int main(void) {
 // ---- The search (validate/README.md, "Search") ----
 
 TEST_F(EndToEndTest, ABranchingOnAnInputGetsItsOutcome) {
-    // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
-    GTEST_SKIP() << "needs the terms of the interpreter";
     build(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
 int main(void) {
@@ -204,8 +193,6 @@ int main(void) {
 }
 
 TEST_F(EndToEndTest, AConstraintOnAComputedValueIsSolvedThroughTheComputation) {
-    // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
-    GTEST_SKIP() << "needs the terms of the interpreter";
     // As validation-crafted/while.3A1: `a == 10` after `a = a - n`.
     build(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
@@ -226,8 +213,6 @@ int main(void) {
 }
 
 TEST_F(EndToEndTest, ALoopCounterBoundedByAnInput) {
-    // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
-    GTEST_SKIP() << "needs the terms of the interpreter";
     build(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
 int main(void) {
@@ -250,8 +235,6 @@ int main(void) {
 }
 
 TEST_F(EndToEndTest, TheInputCheckOfRersAndThenTheInput) {
-    // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
-    GTEST_SKIP() << "needs the terms of the interpreter";
     build(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
 int main(void) {
@@ -269,8 +252,6 @@ int main(void) {
 }
 
 TEST_F(EndToEndTest, TheResultOfADefinedFunctionIsSolvedThroughItsBody) {
-    // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
-    GTEST_SKIP() << "needs the terms of the interpreter";
     // 2 * x + 1 == 7 is inverted through the factor 2, which divides 6.
     build(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
@@ -302,10 +283,8 @@ int main(void) {
 }
 )";
 
-// The witnesses of the next six tests avoid the condition of the error, so no run confirms them. Without the
-// interpreter's terms, the avoid waypoint passes and rejects the execution (LeftWitness, as in stage 6); with them,
-// the search changes the input so that it fails, and the run ends without error (TargetWithoutError). The first test
-// of each pair checks what holds in both cases.
+// The witnesses of the next three tests avoid the condition of the error, so no run may confirm them. The default
+// input passes the avoid waypoint, the search changes it so that the waypoint fails, and the run ends without error.
 
 constexpr std::string_view avoidedCaseProgram = R"(extern int __VERIFIER_nondet_int(void);
 extern void reach_error(void);
@@ -335,17 +314,6 @@ TEST_F(EndToEndTest, AnAvoidWaypointOnTheDefaultOfAnInputIsEvaluatedOnIt) {
     for (const auto& [line, column] : {std::pair{5u, 3u}, std::pair{6u, 5u}}) {
         const ValidationResult result =
             validate(sequence({{avoid(WaypointType::Assumption, line, column, "x == 0"), target(6, 5)}}));
-        EXPECT_NE(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
-    }
-}
-
-TEST_F(EndToEndTest, AnAvoidWaypointOnTheDefaultOfAnInputChangesTheInput) {
-    // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
-    GTEST_SKIP() << "needs the terms of the interpreter";
-    build(std::string(avoidProgram));
-    for (const auto& [line, column] : {std::pair{5u, 3u}, std::pair{6u, 5u}}) {
-        const ValidationResult result =
-            validate(sequence({{avoid(WaypointType::Assumption, line, column, "x == 0"), target(6, 5)}}));
         EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
         EXPECT_EQ(result.runs, 2u);
     }
@@ -354,28 +322,11 @@ TEST_F(EndToEndTest, AnAvoidWaypointOnTheDefaultOfAnInputChangesTheInput) {
 TEST_F(EndToEndTest, AnAvoidedCaseOfTheDefaultOfAnInputIsEvaluatedOnIt) {
     build(std::string(avoidedCaseProgram));
     const ValidationResult result = validate(sequence({{avoid(WaypointType::Branching, 5, 3, "0"), target(6, 11)}}));
-    EXPECT_NE(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
-}
-
-TEST_F(EndToEndTest, AnAvoidedCaseOfTheDefaultOfAnInputChangesTheInput) {
-    // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
-    GTEST_SKIP() << "needs the terms of the interpreter";
-    build(std::string(avoidedCaseProgram));
-    const ValidationResult result = validate(sequence({{avoid(WaypointType::Branching, 5, 3, "0"), target(6, 11)}}));
     EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
     EXPECT_EQ(result.runs, 2u);
 }
 
-TEST_F(EndToEndTest, AnAvoidWaypointOnANarrowedInputIsEvaluatedOnIt) {
-    build(std::string(narrowingProgram));
-    const ValidationResult result =
-        validate(sequence({{avoid(WaypointType::Assumption, 6, 3, "c == 0"), target(6, 15)}}));
-    EXPECT_NE(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
-}
-
 TEST_F(EndToEndTest, AnAvoidWaypointChangesAnInputThroughANarrowingConversion) {
-    // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
-    GTEST_SKIP() << "needs the terms of the interpreter";
     build(std::string(narrowingProgram));
     const ValidationResult result =
         validate(sequence({{avoid(WaypointType::Assumption, 6, 3, "c == 0"), target(6, 15)}}));
