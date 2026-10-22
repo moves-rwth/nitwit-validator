@@ -173,8 +173,9 @@ one prediction.
     false. A loop that passes one waypoint a million times on the same term keeps one clause.
   - The kept clauses are indexed by the inputs they depend on, so a value is checked against the clauses that
     mention its input only.
-  - A run keeps at most 100,000 clauses (about 100 bytes each); later ones are not kept, which the log says once.
-    Values may then break them, which costs a restart, never soundness.
+  - A run keeps clauses with at most 1,000,000 atoms in all (`ValidationOptions::maxKeptAtoms`): an atom takes 32
+    bytes, and a clause about 50 more, so at most about 80 MB, for clauses of one atom each. Later clauses are not
+    kept, which the log says once. Values may then break them, which costs a restart, never soundness.
 - **Changeable inputs:** inputs of the run of arithmetic types with the default value or a value fixed by an earlier
   run; not hinted inputs (the witness gave their value). Inputs with the default value are tried first, then fixed
   ones; within each group, later requests first: a later input changes less of the path to the waypoint.
@@ -187,16 +188,17 @@ one prediction.
     the run did not evaluate (`a && b` where `a` was false) is unknown: making `a` hold is all the search can do there.
     `c ? x : y` is solved through the operand the run evaluated, with `c` keeping its value, else by changing `c`: the
     other operand is unknown then, like a missing operand of `&&`. A goal that failed is not decomposed again for the
-    same atom, so that shared subterms (`c = c || c` in a loop) cost no more than the term's size; a pass decomposes
-    at most 20,000 goals.
+    same atom while the same guards hold (one that failed under a conjunct solved before may hold without it); this
+    only saves cost on shared subterms (`c = c || c` in a loop), and a pass decomposes at most 20,000 goals
+    (`SearchLimits`).
   - **Inversion:** if a changeable input occurs once in one side of the relation, the value for the side is chosen as
     for hints (`values.hpp`, `choose`: `x < c` gives `c - 1`, `x != c` gives 0, or 1 if `c` is 0) with the other side's
     value as the constant, and inverted down the path to the input, the other operand of each operation keeping its
     value:
     - conversions, where the value converts back unchanged (`(int)c == 300` has no `char` c);
     - integer `+`, `-` (either operand), `^`, `~`, unary `-`, wrapping around as the run does;
-    - integer `*` by a factor that divides the value, and in an unsigned format by any odd factor (its inverse modulo
-      2^bits);
+    - integer `*` by a factor that divides the value, and in an unsigned format by a factor 2^k · f with f odd where
+      the value has k trailing zero bits: the value shifted right by k times the inverse of f modulo 2^bits;
     - integer `/` of the dividend by a non-zero divisor: the value times the divisor;
     - floating `+`, `-` (either operand) and unary `-`.
 
@@ -205,8 +207,7 @@ one prediction.
     value + 1 and − 1, 0, 1, −1, then the constant of the atom and the constants of the terms, each with its
     neighbours − 1 and + 1. A clause that blocks a value adds its constants and their neighbours. The non-negative
     candidates come before the negative ones, each in this order: programs often reject negative inputs. At most 8
-    inputs per relation, and 8 constants of the relation and 8 of blocking clauses per input, keep the cost a small
-    multiple of evaluating the terms.
+    inputs per relation, and 8 constants of the relation and 8 of blocking clauses per input, are tried.
   - **A value is taken** only if, evaluated with all values chosen so far, it is a value of the input's type (a
     `_Bool` is 0 or 1), makes the relation hold, makes no kept clause and no earlier clause of the requirement that
     mentions the input false, and makes neither them nor the clause being solved end the run (`NoValue::EndsRun`:
@@ -218,6 +219,10 @@ one prediction.
   - **Values of earlier runs:** the whole requirement is first solved without any value an input was fixed to in an
     earlier run, so that two waypoints do not take turns changing one input; only if that fails are those values
     allowed, after all others.
+  - **Cost:** each value tried is evaluated against the relation and the clauses that mention its input, and a
+    repair solves a clause for each value it repairs, so the kept clauses of an input and repairs multiply the work.
+    A search therefore evaluates at most 300,000 terms, both passes and repairs included, well under a second; beyond
+    that it ends without values, and the log says that it stopped (`SearchLimits`).
   - If every clause of the requirement then holds or is unknown, and at least one input has a new value, the new
     values become fixed inputs and the run restarts (`fixing input 3 (...) to 5 (inversion)` in the log); otherwise
     the waypoint fails as before (exit 241). The log (`-v`) says what the waypoint needed and what was chosen, e.g.
@@ -227,13 +232,20 @@ one prediction.
   run's value is a case value: the candidates put the case values' neighbours before negative values. An avoid
   waypoint at `default` that passes gets the first case label that the kept clauses allow, so that the avoid waypoints
   evaluated before it at the `switch` keep failing; one at a case value gets another value (0, or 1 for the case 0,
-  else the next value no kept clause excludes). An avoid waypoint after it in the segment that the new value makes
-  pass costs another restart (`validation-crafted/switch.3A1` avoids two cases and `default` at one `switch`).
+  else the next value no kept clause excludes), and one at a range `lo ... hi` leaves it, to `lo - 1` if that is not
+  negative, else to `hi + 1`, as the candidates prefer non-negative values. An avoid waypoint after it in the segment
+  that the new value makes pass costs another restart (`validation-crafted/switch.3A1` avoids two cases and `default`
+  at one `switch`).
 - **Restarts** happen only when at least one input gets a new value. Fixed inputs may get another value in a later
   run when the search needs it and the kept clauses allow it.
-  - Runs are deterministic, so a run with the fixed inputs of an earlier run would end as that run did: if the
-    search proposes them, the execution is rejected (exit 241), with "the search proposes the inputs of run n again".
-    The oracle finds such a run by a fingerprint of the fixed values, compared exactly where it matches.
+  - Runs are deterministic, and so is the search, which depends on the run and on the values each input was fixed
+    to before. The values fixed before only grow, so the state that can repeat is the fixed inputs together with the
+    number of distinct values fixed before. If the search proposes the fixed inputs of an earlier run and no input
+    was fixed to a new value since that run, the next run and its search would repeat it: the execution is rejected
+    (exit 241), with "the search proposes the inputs of run n again". With a new value fixed since, the same inputs
+    may lead elsewhere: the search after the repeated run knows more values to avoid. The oracle finds such a run by
+    a fingerprint of the fixed values (the sum of their hashes) and the number of distinct values, and compares the
+    values exactly where both agree.
   - The limit is `min(ValidationOptions::maxRestarts, 16 + 2 · waypoints)` (`restartLimit`). A waypoint can need a
     restart for each prediction that fails, and a loop counter one per iteration; 16 cover witnesses with few
     waypoints. The cap of 10,000 bounds long witnesses, whose runs would exceed the time limit before.
@@ -268,9 +280,10 @@ one prediction.
   `end_to_end_test.cpp` with the interpreter; `search_test.cpp` the search on term tables built by hand, one test
   per rule (inversion through every invertible operation, candidates and their order, kept clauses and their index,
   repairs, unknown atoms, `&&`, `||` and `?:`, shared subterms, switches, avoid waypoints, the order of inputs and
-  values, the two passes) and the examples above (the input check of RERS, a loop counter, `if (tmp)`); monitor tests
-  of the search over several runs: an input that two waypoints would change back and forth, a run that would repeat
-  an earlier one, case ranges, avoided cases of a switch, a repaired clause.
+  values, the two passes, the memo under guards, the budgets of goals and evaluations) and the examples above (the
+  input check of RERS, a loop counter, `if (tmp)`); monitor tests of the search over several runs: an input that two
+  waypoints would change back and forth, a run that would repeat an earlier one and one that repeats its inputs with
+  a value tried since, case ranges, avoided cases of a switch, a repaired clause, the limit of kept clauses.
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness and checks the stage's exit criteria on
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`;
   - `validation-crafted` (expected results in `*.witness-validation.yml`);

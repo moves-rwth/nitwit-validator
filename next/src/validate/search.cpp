@@ -34,11 +34,10 @@ using value::TermId;
 using value::TermKind;
 using value::Value;
 
-// Bounds that keep the cost of a search a small multiple of evaluating the terms.
+// What one relation tries; SearchLimits bounds the whole search.
 constexpr std::size_t maxInputsPerRelation = 8; // the inputs tried for one relation, in the order of preference
-constexpr std::size_t maxConstants = 8;  // the constants of a relation, and those of clauses blocking values, per input
-constexpr std::size_t maxGoals = 20'000; // the goals one pass decomposes; failed goals are not decomposed again
-constexpr int textDepth = 5;             // the levels of a term in the log
+constexpr std::size_t maxConstants = 8; // the constants of a relation, and those of clauses blocking values, per input
+constexpr int textDepth = 5;            // the levels of a term in the log
 
 /// The value of an atom or clause with some input values.
 enum class Truth : std::uint8_t { False, True, Unknown, EndsRun };
@@ -168,8 +167,11 @@ public:
         if (isOld && !allowsHistory_) {
             return;
         }
-        const std::size_t queue = isOld ? 3 : method == Change::Method::Inversion ? 0 : isNegative(value) ? 2 : 1;
-        queues_[queue].push_back({.value = std::move(value), .method = method});
+        const Queue queue = isOld                                 ? Queue::EarlierRuns
+                            : method == Change::Method::Inversion ? Queue::Inverted
+                            : isNegative(value)                   ? Queue::Negative
+                                                                  : Queue::NonNegative;
+        queues_[std::to_underlying(queue)].push_back({.value = std::move(value), .method = method});
     }
 
     std::optional<Choice> next() {
@@ -182,6 +184,9 @@ public:
     }
 
 private:
+    /// The queues of values, in the order they are tried.
+    enum class Queue : std::uint8_t { Inverted, NonNegative, Negative, EarlierRuns };
+
     [[nodiscard]] bool isNegative(const Value& value) const {
         if (sema::isSignedInteger(context_, input_.type)) {
             return value.signedBits() < 0;
@@ -194,7 +199,7 @@ private:
     ast::AstContext& context_;
     const SearchInput& input_;
     bool allowsHistory_;
-    std::array<std::vector<Choice>, 4> queues_; // inverted, non-negative, negative, values of earlier runs
+    std::array<std::vector<Choice>, 4> queues_; // by Queue
     std::array<std::size_t, 4> next_{};
     std::vector<Value> seen_;
 };
@@ -203,8 +208,8 @@ private:
 class Solver {
 public:
     Solver(ast::AstContext& context, const value::TermTable& terms, const KeptClauses& kept,
-           std::span<const SearchInput> inputs)
-        : context_(context), terms_(terms), kept_(kept), inputs_(inputs) {}
+           std::span<const SearchInput> inputs, SearchLimits limits)
+        : context_(context), terms_(terms), kept_(kept), inputs_(inputs), limits_(limits) {}
 
     SearchResult solve(std::span<const Clause> requirement);
 
@@ -293,6 +298,30 @@ private:
         std::erase_if(methods_, [&](const auto& entry) { return entry.first == input; });
         methods_.emplace_back(input, method);
     }
+    /// Pushes a guard; returns what popGuard needs.
+    std::size_t pushGuard(Guard guard) {
+        guards_.push_back(std::move(guard));
+        return failedOrder_.size();
+    }
+    /// Pops the last guard, and forgets the goals that failed under it: they may hold without it. The memo only saves
+    /// cost.
+    void popGuard(std::size_t failedBefore) {
+        guards_.pop_back();
+        for (std::size_t i = failedBefore; i < failedOrder_.size(); ++i) {
+            failed_.erase(failedOrder_[i]);
+        }
+        failedOrder_.resize(failedBefore);
+    }
+    void forgetFailures() {
+        failed_.clear();
+        failedOrder_.clear();
+    }
+    /// A term's value with these inputs, counted against the budget of the search.
+    [[nodiscard]] std::expected<Value, NoValue> evaluate(TermId id, const value::Substitution& substitution) const {
+        ++evaluations_;
+        return terms_.evaluate(id, substitution);
+    }
+    [[nodiscard]] bool isExhausted() const { return evaluations_ > limits_.evaluations; }
 
     [[nodiscard]] std::string textOf(TermId id, int depth, bool isTop) const;
     [[nodiscard]] std::string textOf(const Clause& clause) const;
@@ -301,14 +330,18 @@ private:
     const value::TermTable& terms_;
     const KeptClauses& kept_;
     std::span<const SearchInput> inputs_;
+    SearchLimits limits_;
     bool allowsHistory_ = false; // whether values inputs were fixed to in earlier runs may be chosen
     value::Substitution chosen_;
     std::vector<std::pair<InputId, Change::Method>> methods_; // how each input in chosen_ got its value
     std::vector<Guard> guards_;
-    std::vector<InputId> pinned_; // while a kept clause is repaired: the input whose value broke it
-    bool isRepairing_ = false;
-    std::unordered_set<std::uint64_t> failed_; // the goals that failed for the atom being solved, as term * 2 + want
-    std::size_t goals_ = 0;                    // the goals decomposed in this pass
+    std::optional<InputId> pinned_; // while a kept clause is repaired: the input whose value broke it
+    // The goals that failed for the atom being solved under the guards now, as term * 2 + want, and in the order they
+    // failed, so that those that failed under a guard are forgotten with it.
+    std::unordered_set<std::uint64_t> failed_;
+    std::vector<std::uint64_t> failedOrder_;
+    std::size_t goals_ = 0;               // the goals decomposed in this pass
+    mutable std::size_t evaluations_ = 0; // of terms in this search, counted by evaluate()
 };
 
 // Two passes: the first never chooses a value an input was fixed to in an earlier run, so that two waypoints do not
@@ -332,6 +365,9 @@ SearchResult Solver::solve(std::span<const Clause> requirement) {
         guards_.clear();
         goals_ = 0;
         if (!solvePass(requirement)) {
+            if (isExhausted()) {
+                break;
+            }
             continue;
         }
         SearchResult result;
@@ -355,18 +391,26 @@ SearchResult Solver::solve(std::span<const Clause> requirement) {
         }
         return result;
     }
+    if (isExhausted()) {
+        return {.changes = {},
+                .explanation =
+                    std::format("needs {}: the search stopped after {} evaluations", needs, limits_.evaluations)};
+    }
     return {.changes = {}, .explanation = std::format("needs {}: no input values found", needs)};
 }
 
 bool Solver::solvePass(std::span<const Clause> requirement) {
     for (const Clause& clause : requirement) {
+        if (isExhausted()) {
+            return false;
+        }
         if (truthOf(clause, chosen_) != Truth::True) {
             // While the clause is solved, no value may make it end the run.
-            guards_.push_back(guardOf(clause, true));
+            const std::size_t failedBefore = pushGuard(guardOf(clause, true));
             bool isSolved = false;
             for (const Atom& atom : clause) {
                 Snapshot before = snapshot();
-                failed_.clear();
+                forgetFailures();
                 if (solveAtom(atom) != Outcome::Fails) {
                     const Truth after = truthOf(clause, chosen_);
                     isSolved = after == Truth::True || after == Truth::Unknown;
@@ -376,7 +420,7 @@ bool Solver::solvePass(std::span<const Clause> requirement) {
                 }
                 restore(std::move(before));
             }
-            guards_.pop_back();
+            popGuard(failedBefore);
             if (!isSolved && truthOf(clause, chosen_) != Truth::Unknown) {
                 return false;
             }
@@ -392,7 +436,7 @@ Truth Solver::truthOf(const Atom& atom, const value::Substitution& substitution)
     if (!atom.term || terms_.isOpaque(*atom.term)) {
         return Truth::Unknown;
     }
-    const std::expected<Value, NoValue> value = terms_.evaluate(*atom.term, substitution);
+    const std::expected<Value, NoValue> value = evaluate(*atom.term, substitution);
     if (!value) {
         return missingTruth(value.error());
     }
@@ -420,9 +464,8 @@ Truth Solver::truthOf(std::span<const Atom> clause, const value::Substitution& s
 }
 
 Truth Solver::truthOf(const Relation& relation, const value::Substitution& substitution) const {
-    const std::expected<Value, NoValue> lhs = terms_.evaluate(relation.lhs, substitution);
-    const std::expected<Value, NoValue> rhs =
-        relation.rhs ? terms_.evaluate(*relation.rhs, substitution) : relation.constant;
+    const std::expected<Value, NoValue> lhs = evaluate(relation.lhs, substitution);
+    const std::expected<Value, NoValue> rhs = relation.rhs ? evaluate(*relation.rhs, substitution) : relation.constant;
     if (!lhs || !rhs) {
         const bool endsRun = (!lhs && lhs.error() == NoValue::EndsRun) || (!rhs && rhs.error() == NoValue::EndsRun);
         return endsRun ? Truth::EndsRun : Truth::Unknown;
@@ -459,18 +502,18 @@ Solver::Outcome Solver::solveAtom(const Atom& atom) {
 Solver::Outcome Solver::solveGoal(TermId term, bool wantTrue) {
     const std::uint64_t key = (std::uint64_t{std::to_underlying(term)} << 1) | (wantTrue ? 1 : 0);
     // Shared subterms (`c = c || c` in a loop) would make the decomposition exponential.
-    if (failed_.contains(key) || ++goals_ > maxGoals) {
+    if (failed_.contains(key) || ++goals_ > limits_.goals || isExhausted()) {
         return Outcome::Fails;
     }
     const Outcome outcome = decompose(term, wantTrue);
-    if (outcome == Outcome::Fails) {
-        failed_.insert(key);
+    if (outcome == Outcome::Fails && failed_.insert(key).second) {
+        failedOrder_.push_back(key);
     }
     return outcome;
 }
 
 Solver::Outcome Solver::decompose(TermId term, bool wantTrue) {
-    const std::expected<Value, NoValue> now = terms_.evaluate(term, chosen_);
+    const std::expected<Value, NoValue> now = evaluate(term, chosen_);
     if (now && isTrue(*now) == wantTrue) {
         return Outcome::Holds;
     }
@@ -519,9 +562,9 @@ Solver::Outcome Solver::decompose(TermId term, bool wantTrue) {
             return Outcome::Unknown;
         }
         const Atom firstHolds{.term = first, .op = wantTrue ? Comparison::NotEqual : Comparison::Equal, .constant = 0};
-        guards_.push_back(guardOf(std::span(&firstHolds, 1), false));
+        const std::size_t failedBefore = pushGuard(guardOf(std::span(&firstHolds, 1), false));
         const Outcome second = solveGoal(current.operands[1], wantTrue);
-        guards_.pop_back();
+        popGuard(failedBefore);
         if (second == Outcome::Fails) {
             return second;
         }
@@ -548,9 +591,9 @@ Solver::Outcome Solver::solveConditional(const Term& conditional, SolveSelected 
     Snapshot before = snapshot();
     const Atom keepsChoice{
         .term = condition, .op = selectsFirst ? Comparison::NotEqual : Comparison::Equal, .constant = 0};
-    guards_.push_back(guardOf(std::span(&keepsChoice, 1), false));
+    const std::size_t failedBefore = pushGuard(guardOf(std::span(&keepsChoice, 1), false));
     const Outcome outcome = solveSelected(conditional.operands[1]);
-    guards_.pop_back();
+    popGuard(failedBefore);
     if (outcome != Outcome::Fails) {
         return outcome;
     }
@@ -579,8 +622,8 @@ bool Solver::solveRelation(const Relation& relation) {
         const bool isLeft = std::ranges::binary_search(lhsInputs, input);
         if (isLeft != std::ranges::binary_search(rhsInputs, input)) {
             const TermId side = isLeft ? relation.lhs : *relation.rhs;
-            const std::expected<Value, NoValue> bound = !isLeft        ? terms_.evaluate(relation.lhs, chosen_)
-                                                        : relation.rhs ? terms_.evaluate(*relation.rhs, chosen_)
+            const std::expected<Value, NoValue> bound = !isLeft        ? evaluate(relation.lhs, chosen_)
+                                                        : relation.rhs ? evaluate(*relation.rhs, chosen_)
                                                                        : relation.constant;
             if (bound) {
                 if (std::optional<Value> inverted =
@@ -604,6 +647,9 @@ bool Solver::solveRelation(const Relation& relation) {
 }
 
 bool Solver::tryValue(InputId input, const Choice& choice, const Relation& relation, Clause& blocker) {
+    if (isExhausted()) {
+        return false;
+    }
     const SearchInput& info = inputs_[std::to_underlying(input)];
     // A value of the input's type: a _Bool is 0 or 1.
     const std::optional<Value> converted = convert(context_, choice.value, info.type, info.type);
@@ -644,7 +690,10 @@ bool Solver::tryValue(InputId input, const Choice& choice, const Relation& relat
     }
     if (broken) {
         blocker.assign(kept_[*broken].begin(), kept_[*broken].end());
-        return !isRepairing_ && repair(std::move(trial), input, choice.method, kept_[*broken], relation);
+        return !pinned_ && repair(std::move(trial), input, choice.method, kept_[*broken], relation);
+    }
+    if (isExhausted()) {
+        return false;
     }
     chosen_ = std::move(trial);
     setMethod(input, choice.method);
@@ -658,14 +707,16 @@ bool Solver::repair(value::Substitution trial, InputId pinned, Change::Method me
     Snapshot before = snapshot();
     chosen_ = std::move(trial);
     setMethod(pinned, method);
-    isRepairing_ = true;
-    pinned_.push_back(pinned);
-    guards_.push_back(guardOf(std::span(&relation.atom, 1), false));
+    pinned_ = pinned;
+    // The goals that failed outside the repair, with other values, may hold in it, and the other way round.
     std::unordered_set<std::uint64_t> outerFailed = std::exchange(failed_, {});
+    std::vector<std::uint64_t> outerFailedOrder = std::exchange(failedOrder_, {});
+    const std::size_t failedBefore = pushGuard(guardOf(std::span(&relation.atom, 1), false));
     bool isRepaired = false;
     for (const Atom& atom : clause) {
         Snapshot attempt = snapshot();
-        if (solveAtom(atom) != Outcome::Fails) {
+        forgetFailures();
+        if (solveAtom(atom) != Outcome::Fails && !isExhausted()) {
             const Truth truth = truthOf(clause, chosen_);
             isRepaired = (truth == Truth::True || truth == Truth::Unknown) && truthOf(relation, chosen_) == Truth::True;
         }
@@ -674,10 +725,10 @@ bool Solver::repair(value::Substitution trial, InputId pinned, Change::Method me
         }
         restore(std::move(attempt));
     }
+    popGuard(failedBefore);
     failed_ = std::move(outerFailed);
-    guards_.pop_back();
-    pinned_.pop_back();
-    isRepairing_ = false;
+    failedOrder_ = std::move(outerFailedOrder);
+    pinned_.reset();
     if (!isRepaired) {
         restore(std::move(before));
     }
@@ -764,7 +815,7 @@ std::optional<Value> Solver::preimage(TermId term, std::size_t operand, const Va
     if (current.kind != TermKind::IntegerBinary && current.kind != TermKind::FloatBinary) {
         return std::nullopt;
     }
-    const std::expected<Value, NoValue> other = terms_.evaluate(current.operands[1 - operand], chosen_);
+    const std::expected<Value, NoValue> other = evaluate(current.operands[1 - operand], chosen_);
     if (!other) {
         return std::nullopt;
     }
@@ -798,8 +849,8 @@ std::optional<Value> Solver::preimage(TermId term, std::size_t operand, const Va
     case value::IntegerOperator::Xor:
         return wrapped(value::IntegerOperator::Xor, wanted, *other);
     case value::IntegerOperator::Mul: {
-        // A factor that divides the wanted value gives the quotient; an odd one in an unsigned format its inverse
-        // modulo 2^bits.
+        // A factor that divides the wanted value gives the quotient. In an unsigned format, a factor 2^k * odd
+        // gives (wanted / 2^k) * odd^-1 modulo 2^bits where wanted has k trailing zero bits.
         if (other->bits() == 0) {
             return std::nullopt;
         }
@@ -807,10 +858,18 @@ std::optional<Value> Solver::preimage(TermId term, std::size_t operand, const Va
         if (remainder && remainder->bits() == 0) {
             return exact(value::IntegerOperator::Div, wanted, *other);
         }
-        if (format.isSigned || (other->bits() & 1) == 0) {
+        if (format.isSigned) {
             return std::nullopt;
         }
-        return wrapped(value::IntegerOperator::Mul, wanted, Value::integer(inverseOfOdd(other->bits()), format));
+        UInt128 odd = other->bits();
+        unsigned twos = 0;
+        for (; (odd & 1) == 0; odd >>= 1) {
+            ++twos;
+        }
+        if ((wanted.bits() & ((UInt128{1} << twos) - 1)) != 0) {
+            return std::nullopt;
+        }
+        return Value::integer((wanted.bits() >> twos) * inverseOfOdd(odd), format);
     }
     case value::IntegerOperator::Div:
         // x / c == w for x = w * c, unless the product overflows.
@@ -910,8 +969,7 @@ std::vector<InputId> Solver::changeable(std::span<const InputId> ids) const {
         NITWIT_ASSERT(std::to_underlying(id) < inputs_.size(), "a term has an input the run did not request");
         const SearchInput& input = inputs_[std::to_underlying(id)];
         // Hinted inputs have the witness's values; pointers are not chosen.
-        if (input.source != InputSource::Hinted && isArithmetic(context_, input.type)
-            && !std::ranges::contains(pinned_, id)) {
+        if (input.source != InputSource::Hinted && isArithmetic(context_, input.type) && id != pinned_) {
             result.push_back(id);
         }
     }
@@ -1046,7 +1104,7 @@ KeptClauses::Outcome KeptClauses::keep(const value::TermTable& terms, std::span<
             return Outcome::Ignored;
         }
     }
-    if (size() >= limit_) {
+    if (atoms_.size() + clause.size() > atomLimit_) {
         return Outcome::Full;
     }
     const auto index = static_cast<std::uint32_t>(size());
@@ -1101,8 +1159,8 @@ std::string_view nameOf(Change::Method method) {
 }
 
 SearchResult search(ast::AstContext& context, const value::TermTable& terms, std::span<const Clause> requirement,
-                    const KeptClauses& kept, std::span<const SearchInput> inputs) {
-    return Solver(context, terms, kept, inputs).solve(requirement);
+                    const KeptClauses& kept, std::span<const SearchInput> inputs, SearchLimits limits) {
+    return Solver(context, terms, kept, inputs, limits).solve(requirement);
 }
 
 } // namespace nitwit::validate

@@ -66,7 +66,7 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
     ConstraintCompiler constraints(program, diagnostics);
     WitnessOracle oracle(program.context, options.defaultInput);
     SegmentMonitor monitor(witness.violationSequences.front(), program, options.errorFunction, constraints, oracle,
-                           options.log);
+                           options.log, options.maxKeptAtoms);
     if (const std::optional<std::string>& inconsistency = monitor.inconsistency()) {
         return {.verdict = Verdict::Unsupported,
                 .message = "the witness does not fit the program: " + *inconsistency,

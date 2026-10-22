@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 
 #include "sema/types.hpp"
+#include "validate/validator.hpp"
 #include "validate/values.hpp"
 
 namespace nitwit::validate {
@@ -133,11 +134,11 @@ protected:
     }
 
     SearchResult solve(const std::vector<Clause>& requirement, const std::vector<Clause>& kept = {}) {
-        KeptClauses keptClauses;
+        KeptClauses keptClauses(ValidationOptions{}.maxKeptAtoms);
         for (const Clause& clause : kept) {
             (void)keptClauses.keep(terms_, clause);
         }
-        return search(context_, terms_, requirement, keptClauses, inputs_);
+        return search(context_, terms_, requirement, keptClauses, inputs_, limits_);
     }
 
     /// The changes as "input := value (method)", or "none".
@@ -158,6 +159,7 @@ protected:
     value::TermTable terms_{DataModel::ILP32};
     std::vector<SearchInput> inputs_;
     std::map<std::uint32_t, std::vector<Value>> histories_;
+    SearchLimits limits_;
 };
 
 // ---- Inversion ----
@@ -207,7 +209,9 @@ TEST_F(SearchTest, InvertsMultiplicationByAnOddFactorInAnUnsignedFormat) {
     const Value x = input(0, 0, InputSource::Default, BuiltinKind::UnsignedInt);
     const Value odd = arithmetic(IntegerOperator::Mul, x, constant(3, BuiltinKind::UnsignedInt), u32);
     EXPECT_EQ(changes({{atom(odd, Comparison::Equal, 22)}}), "0 := 2863311538 (inversion)"); // 3 * that wraps to 22
-    // An even factor that does not divide the value has no inverse.
+    // An even factor 2^k * odd needs k trailing zero bits in the value: 6 * x == 4 for x = 2 * 3^-1.
+    const Value six = arithmetic(IntegerOperator::Mul, x, constant(6, BuiltinKind::UnsignedInt), u32);
+    EXPECT_EQ(changes({{atom(six, Comparison::Equal, 4)}}), "0 := 1431655766 (inversion)");
     const Value even = arithmetic(IntegerOperator::Mul, x, constant(2, BuiltinKind::UnsignedInt), u32);
     EXPECT_EQ(changes({{atom(even, Comparison::Equal, 5)}}), "none");
 }
@@ -368,7 +372,7 @@ TEST_F(SearchTest, ClausesAreKeptOnceAndIndexedByTheirInputs) {
     const Value y = input(1, 0);
     const Clause onX{atom(x, Comparison::NotEqual, 1)};
     const Clause onBoth{holds(compare(Comparison::Equal, arithmetic(IntegerOperator::Add, x, y), constant(0)))};
-    KeptClauses kept;
+    KeptClauses kept(ValidationOptions{}.maxKeptAtoms);
     EXPECT_EQ(kept.keep(terms_, onX), KeptClauses::Outcome::Kept);
     EXPECT_EQ(kept.keep(terms_, onX), KeptClauses::Outcome::Ignored);
     EXPECT_EQ(kept.keep(terms_, onBoth), KeptClauses::Outcome::Kept);
@@ -389,10 +393,11 @@ TEST_F(SearchTest, ClausesAreKeptOnceAndIndexedByTheirInputs) {
 
 TEST_F(SearchTest, ClausesAreKeptUpToALimit) {
     const Value x = input(0, 0);
-    KeptClauses kept(2);
+    KeptClauses kept(3); // atoms
     EXPECT_EQ(kept.keep(terms_, Clause{atom(x, Comparison::NotEqual, 1)}), KeptClauses::Outcome::Kept);
-    EXPECT_EQ(kept.keep(terms_, Clause{atom(x, Comparison::NotEqual, 2)}), KeptClauses::Outcome::Kept);
-    EXPECT_EQ(kept.keep(terms_, Clause{atom(x, Comparison::NotEqual, 3)}), KeptClauses::Outcome::Full);
+    EXPECT_EQ(kept.keep(terms_, Clause{atom(x, Comparison::Equal, 2), atom(x, Comparison::Equal, 3)}),
+              KeptClauses::Outcome::Kept);
+    EXPECT_EQ(kept.keep(terms_, Clause{atom(x, Comparison::NotEqual, 4)}), KeptClauses::Outcome::Full);
     EXPECT_EQ(kept.keep(terms_, Clause{atom(x, Comparison::NotEqual, 1)}), KeptClauses::Outcome::Ignored);
     EXPECT_EQ(kept.size(), 2u);
 }
@@ -548,6 +553,15 @@ TEST_F(SearchTest, ValuesTheInputWasFixedToBeforeComeLast) {
     EXPECT_EQ(changes({{atom(x, Comparison::Equal, 0)}}), "0 := 0 (inversion)");
 }
 
+TEST_F(SearchTest, AValueTriedBeforeIsAvoidedInFavourOfANewOne) {
+    // x was 1, 0, then 1 again; the kept `x == 1 || ok` holds, unknown for x != 1 since the run did not evaluate
+    // `ok`. x != 1 gives 0, tried before, so the next candidate 2.
+    const Value x = input(0, 1, InputSource::Fixed);
+    fixedBefore(0, {1, 0});
+    const Value either = logical(false, compare(Comparison::Equal, x, constant(1)), constant(0));
+    EXPECT_EQ(changes({{atom(x, Comparison::NotEqual, 1)}}, {{holds(either)}}), "0 := 2 (candidate)");
+}
+
 TEST_F(SearchTest, TheWholeRequirementIsSolvedWithoutValuesOfEarlierRunsFirst) {
     // x == 1 || x == 5 with x = 0, which was 1 before: the first disjunct would give 1 again.
     const Value x = input(0, 0, InputSource::Fixed);
@@ -597,6 +611,43 @@ TEST_F(SearchTest, SharedSubtermsAreDecomposedOnce) {
     }
     EXPECT_EQ(terms_.term(*c.term()).kind, TermKind::LogicalOr);
     EXPECT_EQ(changes({{holds(c)}}), "none");
+}
+
+TEST_F(SearchTest, AGoalThatFailedUnderAGuardIsTriedWithoutIt) {
+    // (x > 5 && g) || g with g = x == 3 and x = 6: g fails while x > 5 must hold, and holds alone.
+    const Value x = input(0, 6);
+    const Value g = compare(Comparison::Equal, x, constant(3));
+    const Value shared = logical(false, logical(true, compare(Comparison::Greater, x, constant(5)), g), g);
+    EXPECT_EQ(changes({{holds(shared)}}), "0 := 3 (inversion)");
+}
+
+TEST_F(SearchTest, APassDecomposesALimitedNumberOfGoals) {
+    // x == 1 || x == 2 || ... || x == 31 || y == 7 with a hinted x: y == 7 is the 63rd goal.
+    const Value x = input(0, 0, InputSource::Hinted);
+    const Value y = input(1, 0);
+    Value either = compare(Comparison::Equal, x, constant(1));
+    for (int k = 2; k <= 31; ++k) {
+        either = logical(false, either, compare(Comparison::Equal, x, constant(k)));
+    }
+    either = logical(false, either, compare(Comparison::Equal, y, constant(7)));
+    EXPECT_EQ(changes({{holds(either)}}), "1 := 7 (inversion)");
+    limits_.goals = 62;
+    EXPECT_EQ(changes({{holds(either)}}), "none");
+}
+
+TEST_F(SearchTest, TheSearchStopsAfterItsEvaluations) {
+    // Each value of x breaks a kept clause whose repair tries values of y, each checked against the kept clauses of y.
+    const Value x = input(0, 0);
+    const Value y = input(1, 10);
+    std::vector<Clause> kept{{atom(x, Comparison::Equal, 0), atom(y, Comparison::NotEqual, 10)}};
+    for (int k = 0; k < 100; ++k) {
+        kept.push_back({holds(compare(Comparison::LessEqual, y, constant(1000 + k)))});
+    }
+    kept.push_back({atom(y, Comparison::Equal, 10)});
+    EXPECT_EQ(solve({{atom(x, Comparison::NotEqual, 0)}}, kept).explanation, "needs `in0 != 0`: no input values found");
+    limits_.evaluations = 1000;
+    EXPECT_EQ(solve({{atom(x, Comparison::NotEqual, 0)}}, kept).explanation,
+              "needs `in0 != 0`: the search stopped after 1000 evaluations");
 }
 
 TEST_F(SearchTest, AConditionalChangesItsConditionToTheOperandTheRunDidNotEvaluate) {

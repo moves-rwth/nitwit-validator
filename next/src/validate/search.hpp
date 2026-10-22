@@ -39,17 +39,14 @@ using Clause = std::vector<Atom>;
 /// inputs it depends on, so that the search checks a new value of an input against the clauses that mention it only.
 class KeptClauses {
 public:
-    /// The default limit: a kept clause takes about 100 bytes, and the search evaluates the clauses of an input for
-    /// each value it tries.
-    static constexpr std::size_t defaultLimit = 100'000;
-
     enum class Outcome : std::uint8_t {
         Kept,
         Ignored, // kept already, or no atom on a term other than the opaque term: no input can make it false
-        Full,    // the limit is reached
+        Full,    // it would exceed the limit
     };
 
-    explicit KeptClauses(std::size_t limit = defaultLimit) : limit_(limit) {}
+    /// Keeps clauses with at most `atomLimit` atoms in all (ValidationOptions::maxKeptAtoms).
+    explicit KeptClauses(std::size_t atomLimit) : atomLimit_(atomLimit) {}
 
     /// Keeps a clause whose terms are in `terms`, the table of the run.
     Outcome keep(const value::TermTable& terms, std::span<const Atom> clause);
@@ -60,7 +57,7 @@ public:
     [[nodiscard]] std::span<const std::uint32_t> mentioning(value::InputId input) const;
 
 private:
-    std::size_t limit_;
+    std::size_t atomLimit_;
     std::vector<Atom> atoms_;
     std::vector<std::uint32_t> starts_;                            // the index of each clause's first atom
     std::vector<std::vector<std::uint32_t>> byInput_;              // by InputId: the clauses that mention it
@@ -89,11 +86,17 @@ struct SearchResult {
     std::string explanation;     // for the log: what the requirement needs, and the values chosen for it
 };
 
+/// The work one search may do; beyond it, the search ends without values.
+struct SearchLimits {
+    std::size_t goals = 20'000;        // decompositions of `!`, `&&`, `||`, `?:` and comparisons, per pass
+    std::size_t evaluations = 300'000; // of terms, by both passes and repairs: well under a second
+};
+
 /// New values of inputs with which every clause of `requirement` holds or is unknown, while no clause of `kept` becomes
 /// false or ends the run. `inputs` are the inputs of the run, indexed by InputId; `terms` must be the table of the run.
 [[nodiscard]] SearchResult search(ast::AstContext& context, const value::TermTable& terms,
                                   std::span<const Clause> requirement, const KeptClauses& kept,
-                                  std::span<const SearchInput> inputs);
+                                  std::span<const SearchInput> inputs, SearchLimits limits = {});
 
 /// "inversion" or "candidate", for the log.
 [[nodiscard]] std::string_view nameOf(Change::Method method);

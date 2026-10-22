@@ -694,6 +694,19 @@ TEST_F(MonitorTest, ALoopCounterNeedsARestartPerIterationThatFails) {
     EXPECT_EQ(result.runs, 3u); // a becomes 1, then 2
 }
 
+TEST_F(MonitorTest, ARunKeepsClausesUpToALimit) {
+    // With a = 100, the loop passes `i <= a` 4 times; one atom is kept, which the log says once.
+    program(std::string(countingProgram));
+    options_.defaultInput = 100;
+    options_.maxKeptAtoms = 1;
+    const ValidationResult result = validate(countingWitness(4), runCounting);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
+    EXPECT_EQ(result.runs, 2u);
+    const std::string message = "run 1: the kept clauses reach the limit of their atoms; no more in this run";
+    EXPECT_TRUE(log().contains(message)) << log();
+    EXPECT_EQ(log().find(message), log().rfind(message)) << log();
+}
+
 TEST_F(MonitorTest, TheInputCheckOfRersAndThenTheInput) {
     program(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
@@ -841,8 +854,9 @@ int main(void) {
 }
 
 TEST_F(MonitorTest, ARunWithTheInputsOfAnEarlierRunIsNotMade) {
-    // y is hinted 0; x == 1 || y == 1 needs x == 1, which x != 1 excludes. After x = 1 and x = 0, the search can only
-    // propose x = 1 again, whose run ended at x != 1.
+    // y is hinted 0; x == 1 || y == 1 needs x == 1, which x != 1 excludes. x becomes 1 between other values the search
+    // tries for x != 1: 0, 2, -1, then 0 again, which is no new value. The run with x = 1 after it would be run 8
+    // again, and so would the search after it.
     program(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
 int main(void) {
@@ -876,9 +890,53 @@ int main(void) {
                                                        {target(7, 21)}}),
                                              script);
     EXPECT_EQ(result.verdict, Verdict::LeftWitness) << result.message << "\n" << log();
-    EXPECT_EQ(result.runs, 3u);
+    EXPECT_EQ(result.runs, 9u) << log();
     EXPECT_EQ(result.message, "the execution left the witness: the follow waypoint of segment 2 (branching at 6:5) "
-                              "failed at 6:5; the search proposes the inputs of run 2 again");
+                              "failed at 6:5; the search proposes the inputs of run 8 again");
+}
+
+TEST_F(MonitorTest, ARunWithTheInputsOfAnEarlierRunIsMadeIfValuesWereTriedSince) {
+    // ok depends on x through control flow only, so x = 2 is no prediction, but the third candidate of the search
+    // once 1 and 0 were tried. x becomes 1, 0, 1 (as in run 2, but with 0 tried since), then 2.
+    program(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int ok = 0;
+    if (x == 2) ok = 1;
+    if (x == 1 || ok) {
+        if (x != 1) reach_error();
+    }
+    return 0;
+}
+)");
+    const auto script = [](FakeExecution& x) {
+        x.statement(4, 5);
+        x.assign("x", x.nondet(4, 35));
+        x.statement(5, 5);
+        x.assign("ok", x.number("ok", 0));
+        x.statement(6, 5);
+        if (x.branch(6, 5)) {
+            x.statement(6, 17);
+            x.assign("ok", x.number("ok", 1));
+        }
+        x.statement(7, 5);
+        if (x.branch(7, 5)) {
+            x.statement(8, 9);
+            if (x.branch(8, 9)) {
+                x.statement(8, 21);
+                x.call(8, 33);
+            }
+        }
+        x.statement(10, 5);
+        return returned(0);
+    };
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Branching, 7, 5, "true")},
+                                                       {follow(WaypointType::Branching, 8, 9, "true")},
+                                                       {target(8, 21)}}),
+                                             script);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 5u);
 }
 
 TEST_F(MonitorTest, ABlockingKeptClauseIsRepairedThroughAnotherInput) {

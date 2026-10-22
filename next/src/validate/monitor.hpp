@@ -34,10 +34,11 @@ public:
         Unknown,     // an avoid constraint has no value (undefined behaviour, an invalid read)
     };
 
-    /// `witness` must have passed unsupportedFeature(). The monitor keeps references to all arguments.
+    /// `witness` must have passed unsupportedFeature(). The monitor keeps references to all arguments. A run keeps
+    /// clauses with at most `keptAtoms` atoms for the search.
     SegmentMonitor(const witness::ViolationSequence& witness, const ProgramInput& program,
                    const std::string& errorFunction, ConstraintCompiler& constraints, WitnessOracle& oracle,
-                   std::ostream* log);
+                   std::ostream* log, std::size_t keptAtoms);
 
     /// Why the witness cannot be followed in this program, found when the monitor was built (validate/README.md,
     /// "Evaluation points"): a waypoint other than the target without evaluation point of its type, or in another

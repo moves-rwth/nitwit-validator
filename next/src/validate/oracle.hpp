@@ -51,9 +51,11 @@ public:
 
     /// Answers the request with this key with `value` in later runs, until it is fixed to another value.
     void fix(InputKey key, value::Value value);
-    /// The values the request with this key was fixed to, oldest first; the last one is its value now.
+    /// The values the request with this key was fixed to, each once, in the order they were first fixed.
     [[nodiscard]] std::span<const value::Value> fixedValues(InputKey key) const;
-    /// The earlier run in which every fixed input had the value it has now: the next run would repeat it.
+    /// The earlier run whose fixed inputs had the values they have now, with no value fixed since that had not been
+    /// fixed before it. The next run would repeat it, and the search after it, which depends on the run and the values
+    /// fixed before, would propose what it proposed then (validate/README.md, "Search").
     [[nodiscard]] std::optional<std::uint32_t> repeatedRun() const;
 
     value::Value provide(const interp::InputRequest& request) override;
@@ -76,24 +78,28 @@ private:
         const ast::CallExpr* call = nullptr;
         value::Value value;
     };
-    /// The values a key was fixed to, and the first run each answered.
+    /// The values a key was fixed to: each fix with the first run it answered, and each value once.
     struct History {
         std::vector<value::Value> values;
         std::vector<std::uint32_t> runs;
+        std::vector<value::Value> distinct;
     };
-
-    /// A hash of a key and its value; the fingerprint of the fixed inputs is the sum of these hashes, so that it does
-    /// not depend on the order of the keys and is updated in constant time.
-    [[nodiscard]] static std::uint64_t hashOf(const InputKey& key, const value::Value& value);
+    /// What a run starts with besides its inputs: a fingerprint of the fixed values, the sum of their hashes, which
+    /// does not depend on the order of the keys and is updated in constant time (runs with the same fingerprint are
+    /// compared exactly); and the number of distinct values the keys were fixed to.
+    struct RunStart {
+        std::uint64_t fingerprint = 0;
+        std::size_t distinctValues = 0;
+    };
 
     ast::AstContext& context_;
     Int128 defaultValue_;
     // Iterated only where the order does not matter: it is by address.
     std::map<InputKey, History, KeyLess> fixed_;
     std::uint32_t run_ = 0;
-    std::uint64_t fingerprint_ = 0;           // of the values fixed now
-    std::vector<std::uint64_t> fingerprints_; // of the values each run had, by run - 1
-    std::vector<ProvidedInput> inputs_;       // of the current run, indexed by InputId
+    RunStart next_;                     // of the run after the current one, as far as values are fixed now
+    std::vector<RunStart> runStarts_;   // by run - 1
+    std::vector<ProvidedInput> inputs_; // of the current run, indexed by InputId
     std::optional<Hint> hint_;
 };
 

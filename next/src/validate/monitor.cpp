@@ -69,9 +69,10 @@ std::string_view nameOf(witness::WaypointType type) {
 
 SegmentMonitor::SegmentMonitor(const witness::ViolationSequence& witness, const ProgramInput& program,
                                const std::string& errorFunction, ConstraintCompiler& constraints, WitnessOracle& oracle,
-                               std::ostream* log)
+                               std::ostream* log, std::size_t keptAtoms)
     : segments_(witness.segments), program_(program), errorFunction_(errorFunction), constraints_(constraints),
-      oracle_(oracle), log_(log), locations_(program.sources, program.file, program.originalFile, program.unit) {
+      oracle_(oracle), log_(log), locations_(program.sources, program.file, program.originalFile, program.unit),
+      kept_(keptAtoms) {
     NITWIT_ASSERT(!segments_.empty(), "a violation sequence without segments");
     for (const witness::Segment& segment : segments_) {
         std::unordered_map<std::uint64_t, std::vector<std::uint32_t>>& index = waypointIndex_.emplace_back();
@@ -409,8 +410,10 @@ std::vector<Clause> SegmentMonitor::caseRequirement(std::optional<value::TermId>
         return {{{.term = term, .op = value::Comparison::GreaterEqual, .constant = label->low()}},
                 {{.term = term, .op = value::Comparison::LessEqual, .constant = label->high()}}};
     }
-    return {{{.term = term, .op = value::Comparison::Less, .constant = label->low()},
-             {.term = term, .op = value::Comparison::Greater, .constant = label->high()}}};
+    // Leaving the range gives lo - 1 or hi + 1: the non-negative one first, as with candidates.
+    const Atom below{.term = term, .op = value::Comparison::Less, .constant = label->low()};
+    const Atom above{.term = term, .op = value::Comparison::Greater, .constant = label->high()};
+    return {label->low() > 0 ? Clause{below, above} : Clause{above, below}};
 }
 
 interp::Directive SegmentMonitor::searchOrReject(WaypointId id, const std::vector<Clause>& requirement,
@@ -441,7 +444,8 @@ void SegmentMonitor::keep(const std::vector<Clause>& requirement, const value::T
         if (kept_.keep(terms, clause) == KeptClauses::Outcome::Full && !isKeptFull_) {
             isKeptFull_ = true;
             if (log_ != nullptr) {
-                std::println(*log_, "run {}: {} clauses are kept, no more in this run", run_, kept_.size());
+                std::println(*log_, "run {}: the kept clauses reach the limit of their atoms; no more in this run",
+                             run_);
             }
         }
     }

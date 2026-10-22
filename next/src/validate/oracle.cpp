@@ -16,7 +16,7 @@ void WitnessOracle::beginRun() {
     inputs_.clear();
     hint_.reset();
     ++run_;
-    fingerprints_.push_back(fingerprint_);
+    runStarts_.push_back(next_);
 }
 
 void WitnessOracle::hint(const ast::CallExpr* call, value::Value value) {
@@ -26,22 +26,29 @@ void WitnessOracle::hint(const ast::CallExpr* call, value::Value value) {
 void WitnessOracle::fix(InputKey key, value::Value value) {
     History& history = fixed_[key];
     if (!history.values.empty()) {
-        fingerprint_ -= hashOf(key, history.values.back());
+        next_.fingerprint -= hashOf(history.values.back());
     }
-    fingerprint_ += hashOf(key, value);
+    next_.fingerprint += hashOf(value);
+    if (std::ranges::none_of(history.distinct, [&](const value::Value& old) { return isSame(old, value); })) {
+        history.distinct.push_back(value);
+        ++next_.distinctValues;
+    }
     history.values.push_back(std::move(value));
     history.runs.push_back(run_ + 1);
 }
 
 std::span<const value::Value> WitnessOracle::fixedValues(InputKey key) const {
     const auto found = fixed_.find(key);
-    return found != fixed_.end() ? std::span<const value::Value>(found->second.values)
+    return found != fixed_.end() ? std::span<const value::Value>(found->second.distinct)
                                  : std::span<const value::Value>();
 }
 
+// The number of distinct values only grows: if it is the same as at an earlier run, the keys were fixed to the same
+// values before both runs.
 std::optional<std::uint32_t> WitnessOracle::repeatedRun() const {
-    for (std::uint32_t run = 1; run <= fingerprints_.size(); ++run) {
-        if (fingerprints_[run - 1] != fingerprint_) {
+    for (std::uint32_t run = 1; run <= runStarts_.size(); ++run) {
+        const RunStart& start = runStarts_[run - 1];
+        if (start.fingerprint != next_.fingerprint || start.distinctValues != next_.distinctValues) {
             continue;
         }
         // Keys are never unfixed, so the run had the same values if each key had its value now then.
@@ -56,12 +63,6 @@ std::optional<std::uint32_t> WitnessOracle::repeatedRun() const {
         }
     }
     return std::nullopt;
-}
-
-std::uint64_t WitnessOracle::hashOf(const InputKey& key, const value::Value& value) {
-    const SourceLocation location = key.site->location();
-    const std::uint64_t site = (std::uint64_t{std::to_underlying(location.file)} << 32) | location.offset;
-    return validate::hashOf(value) ^ (site * 0x9e3779b97f4a7c15ULL) ^ (std::uint64_t{key.occurrence} << 17);
 }
 
 value::Value WitnessOracle::provide(const interp::InputRequest& request) {

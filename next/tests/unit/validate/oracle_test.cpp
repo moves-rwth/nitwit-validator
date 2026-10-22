@@ -102,23 +102,52 @@ TEST_F(OracleTest, AFixedInputMayBeFixedAgainAndKeepsItsHistory) {
     EXPECT_EQ(toString(context(), oracle.fixedValues(key)[0], intType), "9");
 }
 
-TEST_F(OracleTest, ARunWithTheFixedValuesOfAnEarlierRunIsFound) {
+TEST_F(OracleTest, ARunIsRepeatedWithTheSameFixedValuesAndNoNewOnes) {
     WitnessOracle oracle(context());
-    const ast::QualType intType = context().builtin(ast::BuiltinKind::Int);
+    const auto number = [&](Int128 n) {
+        return valueOf(context(), n, context().builtin(ast::BuiltinKind::Int));
+    };
     const InputKey first{.site = callAt(6, 35), .occurrence = 0};
     const InputKey second{.site = callAt(6, 35), .occurrence = 1};
     oracle.beginRun(); // run 1: nothing fixed
-    oracle.fix(first, valueOf(context(), 1, intType));
+    oracle.fix(first, number(1));
     EXPECT_EQ(oracle.repeatedRun(), std::nullopt);
     oracle.beginRun(); // run 2: first = 1
-    oracle.fix(first, valueOf(context(), 2, intType));
+    oracle.fix(first, number(2));
+    oracle.beginRun(); // run 3: first = 2, with the value 2 new since run 2
+    oracle.fix(first, number(1));
+    EXPECT_EQ(oracle.repeatedRun(), std::nullopt); // as run 2, but the search after it knows the value 2 now
+    oracle.beginRun();                             // run 4: first = 1
+    oracle.fix(first, number(2));
+    EXPECT_EQ(oracle.repeatedRun(), 3u);
+    // Run 3 had no fixed value for the second request.
+    oracle.fix(second, number(0));
     EXPECT_EQ(oracle.repeatedRun(), std::nullopt);
-    oracle.beginRun(); // run 3: first = 2
-    oracle.fix(first, valueOf(context(), 1, intType));
-    EXPECT_EQ(oracle.repeatedRun(), 2u);
-    // Run 2 had no fixed value for the second request.
-    oracle.fix(second, valueOf(context(), 0, intType));
-    EXPECT_EQ(oracle.repeatedRun(), std::nullopt);
+    EXPECT_EQ(oracle.fixedValues(first).size(), 2u); // each value once
+}
+
+TEST_F(OracleTest, RunsWhoseFingerprintsAgreeAreComparedExactly) {
+    // The fingerprint sums the hashes of the values: swapping the values of two requests keeps it.
+    WitnessOracle oracle(context());
+    const auto number = [&](Int128 n) {
+        return valueOf(context(), n, context().builtin(ast::BuiltinKind::Int));
+    };
+    const InputKey first{.site = callAt(6, 35), .occurrence = 0};
+    const InputKey second{.site = callAt(6, 35), .occurrence = 1};
+    oracle.beginRun(); // run 1: nothing fixed
+    oracle.fix(first, number(1));
+    oracle.fix(second, number(2));
+    oracle.beginRun(); // run 2: 1 and 2
+    oracle.fix(first, number(2));
+    oracle.fix(second, number(1));
+    oracle.beginRun(); // run 3: 2 and 1, each request fixed to both values by now
+    oracle.fix(first, number(1));
+    oracle.fix(second, number(2));
+    EXPECT_EQ(oracle.repeatedRun(), std::nullopt); // run 3 agrees in fingerprint and values tried, not in values
+    oracle.beginRun();                             // run 4: 1 and 2
+    oracle.fix(first, number(2));
+    oracle.fix(second, number(1));
+    EXPECT_EQ(oracle.repeatedRun(), 3u);
 }
 
 TEST_F(OracleTest, TheRunKeepsTheAnswers) {
