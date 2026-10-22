@@ -291,15 +291,16 @@ one prediction.
 
 - `tests/unit/validate/`: each rule above, with small programs, witnesses built in code, and scripted runs
   (`validate_test_support.hpp`, whose `FakeExecution` records terms as the interpreter does);
-  `end_to_end_test.cpp` with the interpreter and the terms it records, so with the search: a constraint on a computed
-  value, a loop counter, the input check of RERS, the result of a defined function, avoided switch cases and narrowing
-  conversions; `search_test.cpp` the search on term tables built by hand, one test per rule (inversion through every
-  invertible operation, candidates and their order, kept clauses and their index, repairs, unknown atoms, `&&`, `||`
-  and `?:`, shared subterms, switches, avoid waypoints, the order of inputs and values, the two passes, the memo under
-  guards, the budgets of goals and evaluations, the explanation) and the examples above (the input check of RERS, a
-  loop counter, `if (tmp)`); monitor tests of the search over several runs: an input that two waypoints would change
-  back and forth, a run that would repeat an earlier one and one that repeats its inputs with a value tried since,
-  case ranges, avoided cases of a switch, a repaired clause, the limit of kept clauses.
+  `end_to_end_test.cpp` with the interpreter and the terms it records (checked, also in constraints:
+  `RunOptions::checkTerms`), so with the search: a constraint on a computed value, a loop counter, the input check of
+  RERS, the result of a defined function, avoided switch cases and narrowing conversions; `search_test.cpp` the search
+  on term tables built by hand, one test per rule (inversion through every invertible operation, candidates and their
+  order, kept clauses and their index, repairs, unknown atoms, `&&`, `||` and `?:`, shared subterms, switches, avoid
+  waypoints, the order of inputs and values, the two passes, the memo under guards, the budgets of goals and
+  evaluations, the explanation) and the examples above (the input check of RERS, a loop counter, `if (tmp)`); monitor
+  tests of the search over several runs: an input that two waypoints would change back and forth, a run that would
+  repeat an earlier one and one that repeats its inputs with a value tried since, case ranges, avoided cases of a
+  switch, a repaired clause, the limit of kept clauses.
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness and checks the exit criteria of stage 6 (which
   stage 7 keeps: 0 wrong confirmations, at least the results of 3.x) on
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`;

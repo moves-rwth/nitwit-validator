@@ -29,6 +29,9 @@ std::string_view describe(value::UndefinedBehavior kind) {
 }
 
 void Execution::obey(Directive directive, SourceLocation location) const {
+    if (termMismatch_) {
+        throw *termMismatch_; // found while the observer evaluated a constraint (checkTerm)
+    }
     if (directive == Directive::Stop) {
         stop(Termination::Stopped, "the observer stopped the run", location);
     }

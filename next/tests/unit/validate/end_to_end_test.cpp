@@ -25,6 +25,9 @@ protected:
     ValidationResult validate(const witness::YamlWitness& witness) {
         ValidationOptions options = options_;
         options.log = &log_;
+        // Checks every term against its value, also the strict terms of the constraints the monitor evaluates: a
+        // mismatch ends the run as unsupported, which no test expects.
+        options.run.checkTerms = true;
         return nitwit::validate::validate(witness, *input_, options, diagnostics_);
     }
 };

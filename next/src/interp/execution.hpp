@@ -374,7 +374,7 @@ private:
             checkTerm(value, where);
         }
     }
-    void checkTerm(const value::Value& value, const ast::Expr* where) const;
+    void checkTerm(const value::Value& value, const ast::Expr* where);
     /// The term of a value computed by an operation without a term kind: opaque if the value depends on inputs.
     [[nodiscard]] std::optional<value::TermId> opaqueIf(bool dependsOnInputs) const {
         return dependsOnInputs ? terms_.opaque() : std::nullopt;
@@ -418,6 +418,9 @@ private:
     std::optional<HostStack> hostStack_;        // of the thread that runs
     const value::Value* returnValue_ = nullptr; // \result during a ReturnEvent
     SourceLocation location_;                   // of the statement being executed, for messages
+    /// The end of the run for a term that does not give its value (RunOptions::checkTerms), kept for a mismatch found
+    /// while the observer evaluates a constraint.
+    std::optional<RunEnd> termMismatch_;
 };
 
 /// What the undefined behaviour is, for messages (events.cpp).

@@ -576,14 +576,17 @@ int main(void) {
     EXPECT_EQ(terms, 0u);
 }
 
-TEST_F(TermsTest, TheTermsOfConstraintsAreStrict) {
-    std::optional<bool> isStrict;
+TEST_F(TermsTest, TheTermsOfConstraintsAreStrictAndThoseOfTheProgramNot) {
+    std::optional<bool> isConstraintStrict;
+    std::optional<bool> isProgramStrict;
     observer_.onStatement = [&](const StatementEvent& event, EvaluationContext& context) {
-        if (sources_.lineColumn(event.stmt->location()).line == 4) {
-            const ast::Expr* sum = analyzed(binary(ast::BinaryOperator::Add, ref("x", context.function()), integer(1)));
-            const auto value = context.evaluate(sum);
+        const std::uint32_t line = sources_.lineColumn(event.stmt->location()).line;
+        ast::Expr* expr = line == 4 ? binary(ast::BinaryOperator::Add, ref("x", context.function()), integer(1))
+                                    : ref("y", context.function());
+        if (line == 4 || line == 5) {
+            const auto value = context.evaluate(analyzed(expr));
             if (value && value->term()) {
-                isStrict = context.terms().term(*value->term()).strict;
+                (line == 4 ? isConstraintStrict : isProgramStrict) = context.terms().term(*value->term()).strict;
             }
         }
         return Directive::Continue;
@@ -591,9 +594,12 @@ TEST_F(TermsTest, TheTermsOfConstraintsAreStrict) {
     runChecked(R"(int __VERIFIER_nondet_int(void);
 int main(void) {
     int x = __VERIFIER_nondet_int();
-    return x + 1 > 0;
+    int y = x + 1;
+    return y > 0;
 })");
-    EXPECT_EQ(isStrict, true);
+    EXPECT_EQ(isConstraintStrict, true);
+    // The program computes x + 1 after the constraint was evaluated: its term is not strict.
+    EXPECT_EQ(isProgramStrict, false);
 }
 
 // ---- The consistency check ----
