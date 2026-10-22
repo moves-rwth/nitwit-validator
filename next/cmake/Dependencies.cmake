@@ -1,4 +1,5 @@
-# Third-party libraries, pinned by URL and SHA-256.
+# Third-party libraries, pinned by URL and SHA-256. The release archive names the versions of those linked into nitwit
+# in release/THIRD-PARTY.md.
 include(FetchContent)
 
 if(NITWIT_BUILD_TESTS)

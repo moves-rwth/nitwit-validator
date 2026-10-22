@@ -6,7 +6,7 @@ NITWIT 4 keeps the exit codes of NITWIT 3.x, because BenchExec's tool-info modul
 |---|---|---|
 | 0 | witness confirmed: the error function was called and the witness was followed to its target | FALSE |
 | 2 | the witness cannot be parsed | ERROR |
-| 3 | wrong command line | ERROR |
+| 3 | wrong command line, or a file cannot be read | ERROR |
 | 4 | UNKNOWN: unsupported program or witness feature, or an interpreter error | UNKNOWN |
 | 5 | deprecated (3.x: the witness reached its target, but the error function was not called; now 250) | UNKNOWN |
 | 240 | no witness given | ERROR |
@@ -17,7 +17,7 @@ NITWIT 4 keeps the exit codes of NITWIT 3.x, because BenchExec's tool-info modul
 | 250 | the witness reached its target, but the error function was not called | UNKNOWN |
 | 251 | out of memory | OUT OF MEMORY |
 | 252 | format 2.x: the error function was called, but the witness was not followed to its target | UNKNOWN |
-| 255 | wrapper script `nitwit.sh`: unsupported property, missing files | ERROR |
+| 255 | wrapper script `nitwit.sh`: the executable is missing (3.x's also: unsupported property, missing files) | ERROR |
 
 3.x also used 244, 246 to 249 for specific interpreter errors; NITWIT 4 reports those cases as 4 with a message.
 NITWIT 4 adds no new codes until the BenchExec module knows them. NITWIT's own limits (restarts, call depth, the host

@@ -8,4 +8,5 @@ interpreter with a precise memory model, and a witness layer that observes the e
 - [`docs/guidelines.md`](docs/guidelines.md): coding guidelines and review checklist
 - [`docs/development.md`](docs/development.md): building and testing
 - [`docs/exit-codes.md`](docs/exit-codes.md): exit codes (compatible with NITWIT 3.x)
+- [`docs/release.md`](docs/release.md): the release archive for BenchExec and fm-tools
 - [`docs/status.md`](docs/status.md): progress per stage
