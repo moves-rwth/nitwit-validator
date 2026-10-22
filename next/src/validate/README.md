@@ -269,7 +269,8 @@ one prediction.
   per rule (inversion through every invertible operation, candidates and their order, kept clauses and their index,
   repairs, unknown atoms, `&&`, `||` and `?:`, shared subterms, switches, avoid waypoints, the order of inputs and
   values, the two passes) and the examples above (the input check of RERS, a loop counter, `if (tmp)`); monitor tests
-  of the review's probes: an input changed back and forth, a repeated run, case ranges, avoided cases, a repair.
+  of the search over several runs: an input that two waypoints would change back and forth, a run that would repeat
+  an earlier one, case ranges, avoided cases of a switch, a repaired clause.
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness and checks the stage's exit criteria on
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`;
   - `validation-crafted` (expected results in `*.witness-validation.yml`);
