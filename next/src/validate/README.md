@@ -269,9 +269,21 @@ one prediction.
 
 ## Known gaps
 
-- The interpreter does not record terms yet (stage 7, in progress): until it does, the search changes no input of a
-  real run, and only hints give inputs values. Witnesses without values (most of Automizer, Taipan, Kojak, Goblint
-  and Mopsa) and constraints on computed values (`a == 10` after `a = a - n`, `validation-crafted/while.3A1`) need it.
+- **Values the search does not find** ("Limits of the search"); on the sample, no witness reaches a limit of the
+  search (goals, evaluations, restarts, kept atoms), and with all of them raised a hundredfold every witness ends as
+  before. The waypoints that fail there need:
+  - values that depend on inputs only through control flow, or through memory, pointers or library functions that
+    terms do not follow: requirements without a term or on the opaque term (the `aws` `byte_buf` programs, the
+    `v_FIFO` of btor2c);
+  - a relation that no inversion and no candidate satisfies: overflow checks with an input on both sides
+    (`(x + 10) < x` needs a value near the maximum of the type), constraints over `&` and `|` of truth values (the
+    xcsp programs encode SAT problems), polynomials (`bresenham`), `?:` over `signed char` (pals).
+- **Paths between waypoints:** the search knows the requirements of waypoints only. Where values change the path at a
+  condition no waypoint covers, the run leaves the witness without a failing waypoint: an `assume_abort_if_not` aborts
+  or a null pointer is read (exit 4), or the program ends before the target segment or in it without calling the error
+  function (exit 242, 250). Keeping the conditions of all branchings of a run, or a concolic search with an SMT solver
+  (`docs/plan.md`, "later"), would cover them.
+- **Unsupported constructs** of the interpreter end a run with exit 4: threads (`pthread_create`) and `setjmp`.
 - Long runs can exhaust the host's memory before the interpreter's memory limit, probably through the memory model's
   growing table of dead heap allocations; the driver then reports exit code 251.
 
@@ -279,14 +291,17 @@ one prediction.
 
 - `tests/unit/validate/`: each rule above, with small programs, witnesses built in code, and scripted runs
   (`validate_test_support.hpp`, whose `FakeExecution` records terms as the interpreter does);
-  `end_to_end_test.cpp` with the interpreter; `search_test.cpp` the search on term tables built by hand, one test
-  per rule (inversion through every invertible operation, candidates and their order, kept clauses and their index,
-  repairs, unknown atoms, `&&`, `||` and `?:`, shared subterms, switches, avoid waypoints, the order of inputs and
-  values, the two passes, the memo under guards, the budgets of goals and evaluations) and the examples above (the
-  input check of RERS, a loop counter, `if (tmp)`); monitor tests of the search over several runs: an input that two
-  waypoints would change back and forth, a run that would repeat an earlier one and one that repeats its inputs with
-  a value tried since, case ranges, avoided cases of a switch, a repaired clause, the limit of kept clauses.
-- `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness and checks the stage's exit criteria on
+  `end_to_end_test.cpp` with the interpreter and the terms it records, so with the search: a constraint on a computed
+  value, a loop counter, the input check of RERS, the result of a defined function, avoided switch cases and narrowing
+  conversions; `search_test.cpp` the search on term tables built by hand, one test per rule (inversion through every
+  invertible operation, candidates and their order, kept clauses and their index, repairs, unknown atoms, `&&`, `||`
+  and `?:`, shared subterms, switches, avoid waypoints, the order of inputs and values, the two passes, the memo under
+  guards, the budgets of goals and evaluations, the explanation) and the examples above (the input check of RERS, a
+  loop counter, `if (tmp)`); monitor tests of the search over several runs: an input that two waypoints would change
+  back and forth, a run that would repeat an earlier one and one that repeats its inputs with a value tried since,
+  case ranges, avoided cases of a switch, a repaired clause, the limit of kept clauses.
+- `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness and checks the exit criteria of stage 6 (which
+  stage 7 keeps: 0 wrong confirmations, at least the results of 3.x) on
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`;
   - `validation-crafted` (expected results in `*.witness-validation.yml`);
   - the 250-witness sample, compared per witness with the 3.x results in `results/2026-10-20-nitwit-strict-v3-*`.
