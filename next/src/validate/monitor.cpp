@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <format>
+#include <optional>
 #include <print>
 #include <utility>
 
@@ -37,6 +38,11 @@ std::string_view nameOf(interp::ConditionEvent::Construct construct) {
         return "switch";
     }
     std::unreachable();
+}
+
+/// The input a value is derived from through conversions only (value::TermTable::origin), if any.
+std::optional<value::InputId> originOf(const value::Value& value, const value::TermTable& terms) {
+    return value.term() ? terms.origin(*value.term()) : std::nullopt;
 }
 
 } // namespace
@@ -356,7 +362,7 @@ SegmentMonitor::Evaluation SegmentMonitor::evaluateBranching(WaypointId id, cons
     const auto* switchStmt = ast::cast<ast::SwitchStmt>(condition.stmt);
     const ast::QualType type = switchStmt->condition()->type();
     const auto addFix = [&](const Bound& bound) {
-        std::optional<Fix> fix = fixFor(condition.switchValue, type, bound);
+        std::optional<Fix> fix = fixFor(condition.switchValue, type, bound, context.terms());
         if (fix) {
             evaluation.fixes.push_back(std::move(*fix));
         }
@@ -372,7 +378,7 @@ SegmentMonitor::Evaluation SegmentMonitor::evaluateBranching(WaypointId id, cons
             addFix({.op = value::Comparison::Equal, .constant = expected, .type = type});
         }
     }
-    if (passes && !isFollow && isUnfixedInput(condition.switchValue)) {
+    if (passes && !isFollow && isUnfixedInput(condition.switchValue, context.terms())) {
         for (const value::Value& candidate : unavoidedValues(event, context)) {
             if (addFix({.op = value::Comparison::Equal, .constant = candidate, .type = type})) {
                 break;
@@ -442,21 +448,24 @@ std::optional<Fix> SegmentMonitor::resolve(const Conjunct& conjunct, const value
             return std::nullopt;
         }
         const value::Comparison op = makeTrue ? conjunct.op : negated(conjunct.op);
-        return fixFor(*subject, conjunct.subject->type(), {.op = op, .constant = *constant, .type = conjunct.type});
+        return fixFor(*subject, conjunct.subject->type(), {.op = op, .constant = *constant, .type = conjunct.type},
+                      context.terms());
     }
     const ast::QualType type = conjunct.expr->type();
     if (!isArithmetic(program_.context, type)) {
         return std::nullopt;
     }
     const value::Comparison op = makeTrue ? value::Comparison::NotEqual : value::Comparison::Equal;
-    return fixFor(value, type, {.op = op, .constant = valueOf(program_.context, 0, type), .type = type});
+    return fixFor(value, type, {.op = op, .constant = valueOf(program_.context, 0, type), .type = type},
+                  context.terms());
 }
 
-std::optional<Fix> SegmentMonitor::fixFor(const value::Value& subject, ast::QualType subjectType, const Bound& bound) {
-    if (!isUnfixedInput(subject)) {
+std::optional<Fix> SegmentMonitor::fixFor(const value::Value& subject, ast::QualType subjectType, const Bound& bound,
+                                          const value::TermTable& terms) {
+    if (!isUnfixedInput(subject, terms)) {
         return std::nullopt;
     }
-    const value::InputId input = *subject.origin();
+    const value::InputId input = *originOf(subject, terms);
     std::optional<value::Value> chosen =
         chooseInput(program_.context, std::span(&bound, 1), subjectType, oracle_.input(input).type);
     if (!chosen) {
@@ -465,8 +474,9 @@ std::optional<Fix> SegmentMonitor::fixFor(const value::Value& subject, ast::Qual
     return Fix{.input = input, .value = std::move(*chosen)};
 }
 
-bool SegmentMonitor::isUnfixedInput(const value::Value& value) const {
-    return value.origin().has_value() && oracle_.input(*value.origin()).source == InputSource::Default;
+bool SegmentMonitor::isUnfixedInput(const value::Value& value, const value::TermTable& terms) const {
+    const std::optional<value::InputId> origin = originOf(value, terms);
+    return origin.has_value() && oracle_.input(*origin).source == InputSource::Default;
 }
 
 // validate/README.md, "Values": `\result op constant` of a function_return waypoint at this call. A follow waypoint

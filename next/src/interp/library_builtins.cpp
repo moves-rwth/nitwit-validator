@@ -13,13 +13,12 @@ namespace nitwit::interp::library {
 
 namespace {
 
-/// __builtin_expect(value, expected) returns `value`, a converted copy, so it keeps the origin. Also
-/// __builtin_expect_with_probability and __builtin_assume_aligned (pointer, alignment, ...).
+/// __builtin_expect(value, expected) returns `value`, converted. Also __builtin_expect_with_probability and
+/// __builtin_assume_aligned (pointer, alignment, ...). The evaluator handles calls of them itself, with the term of the
+/// argument (Builtin::PassThrough).
 template <ScalarType type>
 LibraryResult passThrough(const Call& call) {
-    value::Value result = value::Value::integer(call.integerArgument(0, type), call.format(type));
-    result.setOrigin(call.argument(0).origin());
-    return LibraryResult::returning(std::move(result));
+    return LibraryResult::returning(value::Value::integer(call.integerArgument(0, type), call.format(type)));
 }
 
 LibraryResult unreachable(const Call& call) {

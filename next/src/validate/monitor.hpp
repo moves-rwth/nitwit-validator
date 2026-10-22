@@ -107,12 +107,13 @@ private:
                                interp::EvaluationContext& context);
     /// The fix of the input that is the origin of `subject` (of type `subjectType`), so that the subject satisfies the
     /// bound; none if the origin is no unfixed input or no value of the input's type gives such a subject.
-    std::optional<Fix> fixFor(const value::Value& subject, ast::QualType subjectType, const Bound& bound);
+    std::optional<Fix> fixFor(const value::Value& subject, ast::QualType subjectType, const Bound& bound,
+                              const value::TermTable& terms);
     /// For a switch event: the values of the switched value that no avoid waypoint of the current segment at the
     /// switch avoids, in the order fixes try them.
     [[nodiscard]] std::vector<value::Value> unavoidedValues(const Event& event, interp::EvaluationContext& context);
     /// Whether a value's origin is an input that is neither fixed nor hinted.
-    [[nodiscard]] bool isUnfixedInput(const value::Value& value) const;
+    [[nodiscard]] bool isUnfixedInput(const value::Value& value, const value::TermTable& terms) const;
     /// Hands the oracle the value that the function_return waypoints of the current segment at this call ask for.
     void offerHint(const interp::CallEvent& event, interp::EvaluationContext& context);
 

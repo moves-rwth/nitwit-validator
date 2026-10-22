@@ -2,6 +2,7 @@
 // node of the typed AST (conversions.cpp); the operands of an operator already have the types it computes in.
 
 #include <format>
+#include <optional>
 #include <utility>
 
 #include "ast/casting.hpp"
@@ -238,35 +239,20 @@ void Execution::effect(const ast::Expr* expr) {
     }
 }
 
-bool Execution::test(const ast::Expr* condition) {
-    const value::Value value = rvalue(condition);
-    switch (value.kind()) {
-    case value::Value::Kind::Integer:
-        return value.bits() != 0;
-    case value::Value::Kind::Float:
-    case value::Value::Kind::Double:
-    case value::Value::Kind::LongDouble:
-        return value::toBool(value).bits() != 0;
-    case value::Value::Kind::None:
-    case value::Value::Kind::Bytes:
-        break;
+value::Value Execution::condition(const ast::Expr* expr) {
+    value::Value value = rvalue(expr);
+    if (value.kind() == value::Value::Kind::None || value.kind() == value::Value::Kind::Bytes) {
+        stop(Termination::Unsupported, "a condition that is not a scalar", expr->location());
     }
-    stop(Termination::Unsupported, "a condition that is not a scalar", condition->location());
+    return value;
 }
 
 value::Value Execution::checked(value::Result result, const ast::Expr* where) {
-    switch (result.undefinedBehavior) {
-    case value::UndefinedBehavior::None:
-        break;
-    case value::UndefinedBehavior::DivisionByZero:
-        undefined("division by zero", where);
-    case value::UndefinedBehavior::SignedOverflow:
-    case value::UndefinedBehavior::ShiftCountOutOfRange:
-    case value::UndefinedBehavior::ShiftOfNegative:
-    case value::UndefinedBehavior::ShiftOverflow:
-    case value::UndefinedBehavior::FloatToIntegerOverflow:
+    if (result.undefinedBehavior != value::UndefinedBehavior::None) {
+        if (value::endsRun(result.undefinedBehavior)) {
+            undefined(std::string(describe(result.undefinedBehavior)), where);
+        }
         reportUndefined(result.undefinedBehavior, where);
-        break;
     }
     return std::move(result.value);
 }
@@ -314,30 +300,65 @@ value::Value Execution::unary(const ast::UnaryExpr* expr) {
         return increment(expr);
     case UnaryOperator::AddressOf:
         // C17 6.5.3.2p3: &*p and &a[i] compute the address without accessing the object.
-        return value::Value::integer(lvalue(operand).address, types_.pointerFormat());
+        return pointerTo(lvalue(operand));
     case UnaryOperator::Dereference:
         return load(lvalue(expr), expr->type(), expr);
     case UnaryOperator::Plus:
     case UnaryOperator::Extension:
         return rvalue(operand);
-    case UnaryOperator::Minus: {
-        const value::Value value = rvalue(operand);
-        const TypeInfo type = types_.describe(expr->type());
-        if (type.representation == Representation::Floating) {
-            return value::floatNegate(value, type.floating);
-        }
-        return checked(value::integerNegate(value, type.integer), expr);
-    }
+    case UnaryOperator::Minus:
+        return negation(expr);
     case UnaryOperator::BitwiseNot:
-        return value::integerComplement(rvalue(operand), types_.describe(expr->type()).integer);
+        return complement(expr);
     case UnaryOperator::LogicalNot:
-        // C17 6.5.3.3p5: !E is 0 == E.
-        return value::Value::integer(test(operand) ? 0 : 1, types_.intFormat());
+        return logicalNot(expr);
     case UnaryOperator::Real:
     case UnaryOperator::Imag:
         break;
     }
     stop(Termination::Unsupported, "complex arithmetic is not supported", expr->location());
+}
+
+// The operations below return one named value each, so that it is constructed in place (NRVO): values are not moved,
+// which matters on the hot path.
+
+value::Value Execution::pointerTo(const LValue& object) {
+    value::Value address = value::Value::integer(object.address, types_.pointerFormat());
+    address.setTerm(object.addressTerm());
+    return address;
+}
+
+value::Value Execution::negation(const ast::UnaryExpr* expr) {
+    const value::Value value = rvalue(expr->operand());
+    const TypeInfo type = types_.describe(expr->type());
+    const bool isFloating = type.representation == Representation::Floating;
+    value::Value result = isFloating ? value::floatNegate(value, type.floating)
+                                     : checked(value::integerNegate(value, type.integer), expr);
+    if (value.term()) {
+        attach(result,
+               isFloating ? terms_.floatNegate(value, type.floating) : terms_.integerNegate(value, type.integer), expr);
+    }
+    return result;
+}
+
+value::Value Execution::complement(const ast::UnaryExpr* expr) {
+    const value::Value value = rvalue(expr->operand());
+    const value::IntegerFormat format = types_.describe(expr->type()).integer;
+    value::Value result = value::integerComplement(value, format);
+    if (value.term()) {
+        attach(result, terms_.integerComplement(value, format), expr);
+    }
+    return result;
+}
+
+// C17 6.5.3.3p5: !E is 0 == E.
+value::Value Execution::logicalNot(const ast::UnaryExpr* expr) {
+    const value::Value value = condition(expr->operand());
+    value::Value result = value::Value::integer(isNonZero(value) ? 0 : 1, types_.intFormat());
+    if (value.term()) {
+        attach(result, terms_.logicalNot(value, types_.describe(expr->operand()->type()).scalarFormat()), expr);
+    }
+    return result;
 }
 
 value::Value Execution::binary(const ast::BinaryExpr* expr) {
@@ -378,15 +399,7 @@ value::Value Execution::arithmetic(BinaryOperator op, const value::Value& lhs, c
     if (op == BinaryOperator::Add || op == BinaryOperator::Sub) {
         const TypeInfo right = types_.describe(rhsType);
         if (left.representation == Representation::Pointer && right.representation == Representation::Pointer) {
-            // C17 6.5.6p9: the difference of the subscripts; the pointers must point into the same array.
-            const std::uint64_t size = sizeOf(TypeTable::pointee(lhsType), where);
-            if (size == 0) {
-                undefined("subtraction of pointers to objects of size 0", where);
-            }
-            const value::IntegerFormat difference = types_.ptrdiffFormat();
-            const Int128 bytes = value::Value::integer(lhs.bits() - rhs.bits(), difference).signedBits();
-            return value::Value::integer(static_cast<UInt128>(bytes / static_cast<Int128>(size)),
-                                         types_.describe(resultType).integer);
+            return pointerDifference(lhs, rhs, lhsType, resultType, where);
         }
         if (left.representation == Representation::Pointer) {
             return pointerOffset(lhs, rhs, lhsType, op == BinaryOperator::Sub, where);
@@ -397,45 +410,115 @@ value::Value Execution::arithmetic(BinaryOperator op, const value::Value& lhs, c
     }
     const TypeInfo result = types_.describe(resultType);
     if (op == BinaryOperator::Shl || op == BinaryOperator::Shr) {
-        return checked(
-            value::shift(op == BinaryOperator::Shl ? value::ShiftOperator::Left : value::ShiftOperator::Right, lhs,
-                         left.integer, rhs, types_.describe(rhsType).integer),
-            where);
+        return shiftOperation(op == BinaryOperator::Shl ? value::ShiftOperator::Left : value::ShiftOperator::Right, lhs,
+                              left.integer, rhs, types_.describe(rhsType).integer, where);
     }
     if (result.representation == Representation::Floating) {
-        return value::floatBinary(floatOperatorOf(op), lhs, rhs, result.floating);
+        return floatOperation(floatOperatorOf(op), lhs, rhs, result.floating, where);
     }
-    return checked(value::integerBinary(integerOperatorOf(op), lhs, rhs, result.integer), where);
+    return integerOperation(integerOperatorOf(op), lhs, rhs, result.integer, where);
+}
+
+value::Value Execution::integerOperation(value::IntegerOperator op, const value::Value& lhs, const value::Value& rhs,
+                                         value::IntegerFormat format, const ast::Expr* where) {
+    value::Value result = checked(value::integerBinary(op, lhs, rhs, format), where);
+    if (lhs.term() || rhs.term()) {
+        attach(result, terms_.integerBinary(op, lhs, rhs, format), where);
+    }
+    return result;
+}
+
+value::Value Execution::floatOperation(value::FloatOperator op, const value::Value& lhs, const value::Value& rhs,
+                                       value::FloatFormat format, const ast::Expr* where) {
+    value::Value result = value::floatBinary(op, lhs, rhs, format);
+    if (lhs.term() || rhs.term()) {
+        attach(result, terms_.floatBinary(op, lhs, rhs, format), where);
+    }
+    return result;
+}
+
+value::Value Execution::shiftOperation(value::ShiftOperator op, const value::Value& lhs, value::IntegerFormat lhsFormat,
+                                       const value::Value& rhs, value::IntegerFormat rhsFormat,
+                                       const ast::Expr* where) {
+    value::Value result = checked(value::shift(op, lhs, lhsFormat, rhs, rhsFormat), where);
+    if (lhs.term() || rhs.term()) {
+        attach(result, terms_.shift(op, lhs, lhsFormat, rhs, rhsFormat), where);
+    }
+    return result;
+}
+
+// C17 6.5.6p9: the difference of the subscripts; the pointers must point into the same array.
+value::Value Execution::pointerDifference(const value::Value& lhs, const value::Value& rhs, ast::QualType pointerType,
+                                          ast::QualType resultType, const ast::Expr* where) {
+    bool isSizeDerived = false;
+    const std::uint64_t size = sizeOf(TypeTable::pointee(pointerType), where, &isSizeDerived);
+    if (size == 0) {
+        undefined("subtraction of pointers to objects of size 0", where);
+    }
+    const Int128 bytes = value::Value::integer(lhs.bits() - rhs.bits(), types_.ptrdiffFormat()).signedBits();
+    value::Value result = value::Value::integer(static_cast<UInt128>(bytes / static_cast<Int128>(size)),
+                                                types_.describe(resultType).integer);
+    if (lhs.term() || rhs.term() || isSizeDerived) {
+        result.setTerm(terms_.opaque()); // pointer arithmetic has no term kind
+    }
+    return result;
 }
 
 // C17 6.5.6p8: pointer plus integer moves by whole elements. The index is canonical, i.e. sign-extended if its type
 // is signed. The address wraps around like the hardware's; only an access through an invalid pointer is an error.
 value::Value Execution::pointerOffset(const value::Value& pointer, const value::Value& index, ast::QualType pointerType,
                                       bool subtract, const ast::Expr* where) {
+    bool isSizeDerived = false;
     // Modulo 2^128, which the truncation to the pointer width keeps correct for negative indexes.
-    const UInt128 offset = index.bits() * UInt128{sizeOf(TypeTable::pointee(pointerType), where)};
+    const UInt128 offset = index.bits() * UInt128{sizeOf(TypeTable::pointee(pointerType), where, &isSizeDerived)};
     const UInt128 address = subtract ? pointer.bits() - offset : pointer.bits() + offset;
-    return value::Value::integer(address, types_.pointerFormat());
+    value::Value result = value::Value::integer(address, types_.pointerFormat());
+    if (pointer.term() || index.term() || isSizeDerived) {
+        result.setTerm(terms_.opaque()); // pointer arithmetic has no term kind (interp/README.md, "Terms")
+    }
+    return result;
 }
 
 value::Value Execution::comparison(BinaryOperator op, const ast::BinaryExpr* expr) {
     const value::Value lhs = rvalue(expr->lhs());
     const value::Value rhs = rvalue(expr->rhs());
     const TypeInfo type = types_.describe(expr->lhs()->type());
-    const bool holds = type.representation == Representation::Floating
-                           ? value::floatCompare(comparisonOf(op), lhs, rhs, type.floating)
-                           : value::integerCompare(comparisonOf(op), lhs, rhs, type.integer);
-    return value::Value::integer(holds ? 1 : 0, types_.intFormat());
+    const value::Comparison comparison = comparisonOf(op);
+    const bool isFloating = type.representation == Representation::Floating;
+    const bool holds = isFloating ? value::floatCompare(comparison, lhs, rhs, type.floating)
+                                  : value::integerCompare(comparison, lhs, rhs, type.integer);
+    value::Value result = value::Value::integer(holds ? 1 : 0, types_.intFormat());
+    if (lhs.term() || rhs.term()) {
+        attach(result,
+               isFloating ? terms_.floatCompare(comparison, lhs, rhs, type.floating)
+                          : terms_.integerCompare(comparison, lhs, rhs, type.integer),
+               expr);
+    }
+    return result;
 }
 
 // C17 6.5.13-14: the right operand is evaluated only if the left one does not decide the result.
 value::Value Execution::logical(const ast::BinaryExpr* expr) {
     const bool isAnd = expr->op() == BinaryOperator::LogicalAnd;
-    bool holds = test(expr->lhs());
+    const value::Value lhs = condition(expr->lhs());
+    bool holds = isNonZero(lhs);
+    std::optional<value::Value> rhs;
     if (holds == isAnd) {
-        holds = test(expr->rhs());
+        rhs = condition(expr->rhs());
+        holds = isNonZero(*rhs);
     }
-    return value::Value::integer(holds ? 1 : 0, types_.intFormat());
+    value::Value result = value::Value::integer(holds ? 1 : 0, types_.intFormat());
+    if (!lhs.term() && !(rhs && rhs->term())) {
+        return result; // the operands' formats are needed only for a term
+    }
+    const value::ScalarFormat lhsFormat = types_.describe(expr->lhs()->type()).scalarFormat();
+    const value::ScalarFormat rhsFormat = types_.describe(expr->rhs()->type()).scalarFormat();
+    const value::Value* evaluated = rhs ? &*rhs : nullptr;
+    attach(result,
+           isAnd ? terms_.logicalAnd(lhs, lhsFormat, evaluated, rhsFormat)
+                 : terms_.logicalOr(lhs, lhsFormat, evaluated, rhsFormat),
+           expr);
+    return result;
 }
 
 // C17 6.5.16.1: the right operand, converted by sema, replaces the value of the object; the result is the value the
@@ -551,13 +634,17 @@ value::Value Execution::increment(const ast::UnaryExpr* expr) {
     value::Value updated;
     switch (type.representation) {
     case Representation::Pointer: {
-        const auto size = static_cast<UInt128>(sizeOf(TypeTable::pointee(target->type()), expr));
+        bool isSizeDerived = false;
+        const auto size = static_cast<UInt128>(sizeOf(TypeTable::pointee(target->type()), expr, &isSizeDerived));
         updated = value::Value::integer(isIncrement ? old.bits() + size : old.bits() - size, type.integer);
+        if (old.term() || isSizeDerived) {
+            updated.setTerm(terms_.opaque()); // pointer arithmetic
+        }
         break;
     }
     case Representation::Floating:
-        updated = value::floatBinary(isIncrement ? value::FloatOperator::Add : value::FloatOperator::Sub, old,
-                                     one(type), type.floating);
+        updated = floatOperation(isIncrement ? value::FloatOperator::Add : value::FloatOperator::Sub, old, one(type),
+                                 type.floating, expr);
         break;
     case Representation::Integer:
     case Representation::Bool: {
@@ -568,13 +655,11 @@ value::Value Execution::increment(const ast::UnaryExpr* expr) {
         } else if (object.isBitField() && width == 32) {
             promoted = {.bits = 32, .isSigned = type.integer.isSigned};
         }
-        const value::Value operand = value::convertInteger(old, promoted);
-        const value::Value result =
-            checked(value::integerBinary(isIncrement ? value::IntegerOperator::Add : value::IntegerOperator::Sub,
-                                         operand, value::Value::integer(1, promoted), promoted),
-                    expr);
-        updated = type.representation == Representation::Bool ? value::toBool(result)
-                                                              : value::convertInteger(result, type.integer);
+        const value::Value result = integerOperation(
+            isIncrement ? value::IntegerOperator::Add : value::IntegerOperator::Sub,
+            convertInteger(old, type.integer, promoted, expr), value::Value::integer(1, promoted), promoted, expr);
+        updated = type.representation == Representation::Bool ? toBool(result, promoted, expr)
+                                                              : convertInteger(result, promoted, type.integer, expr);
         break;
     }
     default:
@@ -589,27 +674,39 @@ value::Value Execution::increment(const ast::UnaryExpr* expr) {
 value::Value Execution::conditional(const ast::ConditionalExpr* expr, bool isValueUsed) {
     value::Value condition;
     const ast::Expr* selected = selectOperand(expr, condition);
+    const TypeInfo type = types_.describe(expr->type());
     if (selected == nullptr) {
+        if (condition.term()) {
+            const value::ScalarFormat format = type.scalarFormat();
+            attach(condition, terms_.conditional(condition, format, condition, format), expr);
+        }
         return condition;
     }
-    if (!isValueUsed || types_.describe(expr->type()).representation == Representation::Void) {
+    if (!isValueUsed || type.representation == Representation::Void) {
         effect(selected);
         return {};
     }
-    return rvalue(selected);
+    // For a struct or union, which object the condition selects is not recorded.
+    if (!condition.term() || !type.isScalar()) {
+        return rvalue(selected);
+    }
+    value::Value result = rvalue(selected);
+    const value::ScalarFormat conditionFormat = types_.describe(expr->condition()->type()).scalarFormat();
+    attach(result, terms_.conditional(condition, conditionFormat, result, type.scalarFormat()), expr);
+    return result;
 }
 
 const ast::Expr* Execution::selectOperand(const ast::ConditionalExpr* expr, value::Value& condition) {
-    condition = rvalue(expr->condition());
-    const bool outcome =
-        condition.kind() == value::Value::Kind::Integer ? condition.bits() != 0 : value::toBool(condition).bits() != 0;
+    condition = this->condition(expr->condition());
+    const bool outcome = isNonZero(condition);
     afterCondition({.construct = ConditionEvent::Construct::Conditional,
                     .stmt = nullptr,
                     .conditional = expr,
                     .location = expr->questionLocation(),
                     .outcome = outcome,
                     .switchValue = {},
-                    .switchLabel = nullptr});
+                    .switchLabel = nullptr,
+                    .term = condition.term()});
     if (expr->trueExpr() == nullptr && outcome) {
         return nullptr;
     }
@@ -651,7 +748,10 @@ value::Value Execution::sizeOrAlignment(const ast::SizeOfAlignOfExpr* expr) {
         effect(expr->operand());
     }
     if (expr->op() == ast::SizeOfAlignOfExpr::Operator::SizeOf) {
-        return value::Value::integer(sizeOf(type, expr), format);
+        bool isSizeDerived = false;
+        value::Value size = value::Value::integer(sizeOf(type, expr, &isSizeDerived), format);
+        size.setTerm(opaqueIf(isSizeDerived)); // computed in the size type, without a term
+        return size;
     }
     ast::QualType element = type;
     while (const auto* array = ast::dyn_cast<ast::ArrayType>(desugared(element))) {

@@ -33,6 +33,9 @@ struct RunOptions {
     std::uint64_t memoryLimit = 4ull << 30; // bytes of live heap and stack objects
     std::ostream* output = nullptr;         // where printf and puts write; null discards the output
     value::TermLimits terms{};              // maxTerms 0 records no terms (replay)
+    /// For testing the recording of terms: evaluates every term the run records or reads from memory with the run's
+    /// inputs, and ends the run (Unsupported, "internal error: ...") if it does not give the value the run computed.
+    bool checkTerms = false;
 };
 
 enum class Termination : std::uint8_t {

@@ -8,8 +8,6 @@
 namespace nitwit::interp::test {
 namespace {
 
-using value::InputId;
-
 class BuiltinsTest : public LibraryTest {
 protected:
     /// Calls an overflow builtin; returns whether it reported overflow, and stores the result in `result`.
@@ -23,12 +21,9 @@ protected:
 
 INSTANTIATE_TEST_SUITE_P(DataModels, BuiltinsTest, testing::Values(DataModel::ILP32, DataModel::LP64), modelName);
 
-TEST_P(BuiltinsTest, ExpectReturnsItsArgumentWithItsOrigin) {
-    TypedValue argument = integer(5, ScalarType::Long);
-    argument.value.setOrigin(InputId{2});
-    const LibraryResult result = call("__builtin_expect", {argument, integer(0, ScalarType::Long)});
+TEST_P(BuiltinsTest, ExpectReturnsItsArgument) {
+    const LibraryResult result = call("__builtin_expect", {integer(5, ScalarType::Long), integer(0, ScalarType::Long)});
     EXPECT_EQ(returned(result), 5);
-    EXPECT_EQ(result.value.origin(), InputId{2});
     EXPECT_EQ(callInteger("__builtin_expect_with_probability",
                           {integer(-1, ScalarType::Long), integer(1, ScalarType::Long), value::Value::ofDouble(0.9)}),
               -1);

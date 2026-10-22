@@ -61,7 +61,7 @@ LibraryResult free(const Call& call) {
 
 /// realloc when the old and the new block do not fit under the memory limit at the same time, as when a block grows
 /// close to the limit. The kept contents and their initialization state pass through host memory, so that the old
-/// block can be freed first; their origins are lost, which only costs the validation layer a hint for its inputs.
+/// block can be freed first; the evaluator makes them opaque if they depend on inputs (interp/README.md, "Terms").
 Address reallocateAtLimit(const Call& call, Address old, std::uint64_t oldSize, std::uint64_t size) {
     const std::uint64_t kept = std::min(oldSize, size);
     std::vector<std::byte> bytes(kept);
@@ -94,7 +94,7 @@ LibraryResult realloc(const Call& call) {
         freeBlock(call, old);
         return call.returnPointer(0);
     }
-    // The contents up to the smaller size move to a new block, with their initialization state and origins
+    // The contents up to the smaller size move to a new block, with their initialization state and terms
     // (C17 7.22.3.5p2). A new block also for a smaller size, so that the old one dies and stale pointers are caught.
     const std::uint64_t oldSize = call.memory().find(old)->size;
     const std::optional<Address> block = call.tryAllocateHeap(size, false);

@@ -11,7 +11,10 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <utility>
+#include <vector>
 
+#include "value/term.hpp"
 #include "value/value.hpp"
 
 namespace nitwit::interp {
@@ -51,6 +54,31 @@ struct AllocationInfo {
     std::string_view name; // the name given to allocate: the variable's name, "malloc", "string literal", ...
 };
 
+/// The term of a scalar that was written to memory, and the format it was written in (interp/README.md, "Terms").
+struct StoredTerm {
+    value::TermId term{};
+    value::ScalarFormat format{};
+};
+
+/// What memory knows about the inputs that the bytes of a range depend on.
+struct RangeTerm {
+    enum class Kind : std::uint8_t {
+        None,   // no input
+        Stored, // the range is exactly that of a scalar written with a term, `stored`
+        Opaque, // inputs, in a way that no term written for exactly this range describes
+    };
+
+    Kind kind = Kind::None;
+    StoredTerm stored{}; // for Stored
+};
+
+/// The accesses of raw bytes between Memory::beginRawAccesses and endRawAccesses.
+struct RawAccesses {
+    bool readsInputs = false; // whether read() read bytes that depend on inputs
+    /// The ranges written by write() without a term and by fill(), as address and size.
+    std::vector<std::pair<Address, std::uint64_t>> writes{};
+};
+
 class Memory {
 public:
     /// `pointerBits` is 32 or 64. Addresses are deterministic: the same sequence of operations gives the same
@@ -82,36 +110,50 @@ public:
 
     /// What readScalar tells besides the bytes.
     struct ScalarRead {
-        bool isInitialized = true;            // every byte of the range has been written
-        std::optional<value::InputId> origin; // the origin of exactly this range
+        bool isInitialized = true; // every byte of the range has been written
+        RangeTerm term;            // of exactly this range
     };
-    /// read, isInitialized and origin in one lookup, for the loads of the evaluator.
+    /// read, isInitialized and term in one lookup, for the loads of the evaluator.
     [[nodiscard]] std::expected<ScalarRead, MemoryError> readScalar(Address address, std::span<std::byte> out) const;
 
-    /// Writes bytes, marks them initialized, and removes the origins of the overwritten bytes.
+    // Terms of the bytes (interp/README.md, "Terms"): a write records the term of the scalar it writes for exactly
+    // its range. Writing bytes removes the terms of other ranges that overlap them; the parts of those ranges outside
+    // the written bytes still hold parts of a value that depends on inputs, so they become opaque.
+
+    /// Writes bytes that depend on no input and marks them initialized.
     [[nodiscard]] std::expected<void, MemoryError> write(Address address, std::span<const std::byte> bytes);
+    /// The same for the bytes of a scalar with the term `term`.
+    [[nodiscard]] std::expected<void, MemoryError> write(Address address, std::span<const std::byte> bytes,
+                                                         const StoredTerm& term);
     /// Writes into a ReadOnly allocation, to set up string literals. Precondition: a valid range.
     void initialize(Address address, std::span<const std::byte> bytes);
 
-    /// memmove semantics; copies the bytes, their initialization state and the origins inside the range.
+    /// memmove semantics; copies the bytes, their initialization state and their terms. A range with a term that lies
+    /// only partly in the source becomes opaque where it is copied.
     [[nodiscard]] std::expected<void, MemoryError> copy(Address destination, Address source, std::uint64_t size);
-    /// memset semantics; marks the bytes initialized and removes the origins of the overwritten bytes.
+    /// memset semantics; marks the bytes initialized. They depend on no input.
     [[nodiscard]] std::expected<void, MemoryError> fill(Address address, std::byte value, std::uint64_t size);
 
     /// Whether every byte of the range has been written. Global and ReadOnly bytes and those of allocateZeroed count as
     /// written, unless copy brought uninitialized bytes in. Precondition: the range is readable.
     [[nodiscard]] bool isInitialized(Address address, std::uint64_t size) const;
-    /// Makes the bytes uninitialized again and removes their origins: an automatic object whose declaration is reached
+    /// Makes the bytes uninitialized again and removes their terms: an automatic object whose declaration is reached
     /// again holds an indeterminate value (C17 6.2.4p6). The range must be writable.
     [[nodiscard]] std::expected<void, MemoryError> markUninitialized(Address address, std::uint64_t size);
 
     /// The allocation that contains `address` or ends exactly at it (a one-past-the-end pointer), alive or dead.
     [[nodiscard]] std::optional<AllocationInfo> find(Address address) const;
 
-    /// Marks the range as derived from `input` (interp/README.md, "Origins"); read back with origin().
-    void setOrigin(Address address, std::uint64_t size, value::InputId input);
-    /// The origin of exactly this range, if one was set for exactly this range and not overwritten since.
-    [[nodiscard]] std::optional<value::InputId> origin(Address address, std::uint64_t size) const;
+    /// What is known about the inputs the bytes of the range depend on.
+    [[nodiscard]] RangeTerm term(Address address, std::uint64_t size) const;
+    /// Marks the bytes of the range, which must lie inside one allocation, as depending on inputs in a way that no
+    /// term records.
+    void markOpaque(Address address, std::uint64_t size);
+
+    /// Records the accesses of raw bytes until endRawAccesses, for an operation that moves bytes without knowing their
+    /// terms, such as a library function. copy() is not recorded: it carries the terms itself.
+    void beginRawAccesses();
+    [[nodiscard]] RawAccesses endRawAccesses();
 
     /// Total size of the live Heap and Stack allocations, for the memory limit.
     [[nodiscard]] std::uint64_t liveBytes() const;

@@ -123,7 +123,8 @@ waypoint of the current segment is evaluated first, then its avoid waypoints the
 ### Values
 
 An input is *fixed* by an earlier run, *hinted* by a function_return waypoint, or else gets the *default*. The origin
-of a value is the input it is derived from only through copies and conversions (`interp/README.md`, "Origins").
+of a value is the input it is derived from only through copies and conversions (`TermTable::origin`,
+`value/README.md`, "Terms").
 
 - **Hints:** a `function_return` waypoint of the current segment at a call whose result is an input. Its relations of
   `\result` with a constant (`==`, `!=`, `<`, `<=`, `>`, `>=`, either side) give the value of the call's input request.
@@ -152,7 +153,7 @@ of a value is the input it is derived from only through copies and conversions (
   inputs than the one before. The number of restarts is limited (`ValidationOptions::maxRestarts`).
 - **Every confirmation comes from one complete run** in which all follow waypoints passed and no avoid waypoint passed,
   on the inputs of that run. A fix only chooses the inputs of the next run, so a fix that does not have the intended
-  effect (an origin through type punning, `interp/README.md`, "Origins") costs a restart, never soundness.
+  effect (an origin through a conversion that changes the value) costs a restart, never soundness.
 - **Defaults:** `ValidationOptions::defaultInput`, 0, converted to the requested type; pointers get null. NITWIT 3.x
   effectively used 1; on the sample, 1 confirms one witness more, on `validation-crafted` six fewer.
 - **Escapes:** producer escapes like `"\result"` in double quotes are repaired by the witness parser.

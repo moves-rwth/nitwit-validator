@@ -8,8 +8,6 @@
 
 namespace nitwit::interp {
 
-namespace {
-
 std::string_view describe(value::UndefinedBehavior kind) {
     switch (kind) {
     case value::UndefinedBehavior::None:
@@ -29,8 +27,6 @@ std::string_view describe(value::UndefinedBehavior kind) {
     }
     return "undefined behaviour";
 }
-
-} // namespace
 
 void Execution::obey(Directive directive, SourceLocation location) const {
     if (directive == Directive::Stop) {
@@ -69,6 +65,8 @@ std::expected<value::Value, std::string> Execution::evaluate(const ast::Expr* ex
     const bool wasReporting = std::exchange(isReporting_, false);
     std::expected<value::Value, std::string> result;
     try {
+        // Undefined behaviour ends the evaluation (reportUndefined), so the terms of the constraint are strict.
+        const value::TermTable::StrictScope strict(terms_);
         result = rvalue(expr);
     } catch (const RunEnd& end) {
         result = std::unexpected(end.message);

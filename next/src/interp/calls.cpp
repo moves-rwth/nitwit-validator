@@ -123,7 +123,14 @@ value::Value Execution::call(const ast::CallExpr* expr, bool isValueUsed, Addres
 
     const TypeInfo type = types_.describe(expr->type());
     if (result.has_value()) {
-        result = inCallType(std::move(*result), callee->name.text(), type, expr);
+        // The type of the result, for the term of its conversion: known for functions of the program.
+        std::optional<TypeInfo> resultType;
+        if (result->term() && callee->kind == FunctionKind::Defined) {
+            if (const ast::FunctionType* function = TypeTable::function(callee->code->definition->type())) {
+                resultType = types_.describe(function->returnType());
+            }
+        }
+        result = inCallType(std::move(*result), callee->name.text(), resultType ? &*resultType : nullptr, type, expr);
     }
     if (isReporting_) {
         returnValue_ = result.has_value() ? &*result : nullptr;
@@ -146,22 +153,33 @@ value::Value Execution::call(const ast::CallExpr* expr, bool isValueUsed, Addres
 
 // A function called through a pointer of another type (C17 6.5.2.2p9), or a library function the program declares
 // with another type, returns another representation. Integers and floating values are taken as the registers that
-// hold them would be; a struct where a scalar is expected, or the other way round, is undefined.
-std::optional<value::Value> Execution::inCallType(value::Value result, std::string_view callee, const TypeInfo& type,
-                                                  const ast::Expr* where) {
+// hold them would be; a struct where a scalar is expected, or the other way round, is undefined. The conversion has a
+// term only if the type of the result is known; otherwise the result keeps its term only if it stays the same.
+std::optional<value::Value> Execution::inCallType(value::Value result, std::string_view callee, const TypeInfo* from,
+                                                  const TypeInfo& type, const ast::Expr* where) {
     if (type.representation == Representation::Void) {
         return std::nullopt;
     }
+    const bool isIntegralFrom = from != nullptr && from->isIntegral();
     switch (result.kind()) {
     case value::Value::Kind::Integer:
         if (type.representation == Representation::Bool) {
-            return result.bits() <= 1 ? result : value::toBool(result);
+            if (isIntegralFrom && from->representation != Representation::Bool) {
+                value::Value converted = value::toBool(result);
+                attach(converted, terms_.toBool(result, from->integer), where);
+                return converted;
+            }
+            value::Value converted = result.bits() <= 1 ? result : value::toBool(result);
+            converted.setTerm(result.bits() <= 1 ? result.term() : opaqueIf(result.term().has_value()));
+            return converted;
         }
         if (type.isIntegral()) {
-            value::Value converted = value::Value::integer(result.bits(), type.integer);
-            if (converted.bits() == result.bits()) {
-                converted.setOrigin(result.origin());
+            // The register's bits: also a pointer is zero-extended here.
+            if (isIntegralFrom) {
+                return convertInteger(result, from->integer, type.integer, where);
             }
+            value::Value converted = value::Value::integer(result.bits(), type.integer);
+            converted.setTerm(converted.bits() == result.bits() ? result.term() : opaqueIf(result.term().has_value()));
             return converted;
         }
         break;
@@ -170,7 +188,12 @@ std::optional<value::Value> Execution::inCallType(value::Value result, std::stri
     case value::Value::Kind::LongDouble:
         if (type.representation == Representation::Floating) {
             const value::FloatFormat format = formatOf(result.kind());
-            return format == type.floating ? result : value::convertFloat(result, format, type.floating);
+            if (format == type.floating) {
+                return result;
+            }
+            value::Value converted = value::convertFloat(result, format, type.floating);
+            attach(converted, terms_.convertFloat(result, format, type.floating), where);
+            return converted;
         }
         break;
     case value::Value::Kind::Bytes:
@@ -208,12 +231,12 @@ void Execution::evaluateArguments(const ast::CallExpr* call, Arguments& argument
             continue;
         }
         // A struct or union is copied when the argument is evaluated (later arguments may change the original),
-        // with the initialization state and origins of its bytes.
+        // with the initialization state and terms of its bytes.
         const Address source = recordObject(argument);
         const Address object = temporary(type.size, nullptr, argument);
         copyObject(object, source, type.size, argument);
         arguments.objects[i] = object;
-        arguments.values[i] = value::Value::ofBytes(readBytes(object, type.size, argument));
+        arguments.values[i] = loadRecord(object, type.size, argument);
     }
 }
 
@@ -277,7 +300,7 @@ void Execution::enterFrame(Frame& frame, const FunctionEntity& function, Argumen
             if (i < arguments.objects.size() && arguments.objects[i] != 0) {
                 copyObject(slot, arguments.objects[i], to.size, site);
             } else {
-                writeBytes(slot, arguments.values[i].asBytes(), site);
+                writeRecord(slot, arguments.values[i].asBytes(), arguments.values[i].term(), site);
             }
         } else {
             (void)store({.address = slot}, parameter->type(), convert(arguments.values[i], from, to, site), site);
@@ -343,7 +366,34 @@ std::optional<value::Value> Execution::callLibrary(const FunctionEntity& functio
         argumentTypes.push_back(types_.describe(type).scalar);
     }
     const LibraryCall call{.name = function.name.text(), .arguments = arguments.values, .argumentTypes = argumentTypes};
+    if (!recordsTerms()) {
+        return libraryResult(function, function.library(*this, call), site);
+    }
+    // Library functions have no term kind (interp/README.md, "Terms"): the result is opaque if it depends on inputs,
+    // through an argument or through bytes the function reads. So are the bytes it writes, except that a pointer
+    // argument only tells where they are, as the address of a store does.
+    memory_.beginRawAccesses();
     LibraryResult result = function.library(*this, call);
+    const RawAccesses accesses = memory_.endRawAccesses();
+    bool isResultDerived = accesses.readsInputs;
+    bool areBytesDerived = accesses.readsInputs;
+    for (std::size_t i = 0; i < arguments.values.size(); ++i) {
+        if (arguments.values[i].term()) {
+            isResultDerived = true;
+            areBytesDerived = areBytesDerived || argumentTypes[i] != ScalarType::Pointer;
+        }
+    }
+    if (areBytesDerived) {
+        for (const auto& [address, size] : accesses.writes) {
+            memory_.markOpaque(address, size);
+        }
+    }
+    result.value.setTerm(opaqueIf(isResultDerived));
+    return libraryResult(function, std::move(result), site);
+}
+
+std::optional<value::Value> Execution::libraryResult(const FunctionEntity& function, LibraryResult result,
+                                                     const ast::CallExpr* site) {
     switch (result.kind) {
     case LibraryResult::Kind::Return:
         // In the C library's type; call() converts it to the type the program declared.
@@ -390,7 +440,9 @@ value::Value Execution::requestInput(InputRequest::Kind kind, const ast::Expr* s
                && provided.kind() != value::Value::Kind::Bytes && provided.kind() != value::Value::Kind::None) {
         input = value::convertFloat(provided, formatOf(provided.kind()), info.floating);
     }
-    input.setOrigin(request.id);
+    if (info.isScalar()) {
+        input.setTerm(terms_.input(request.id, input, info.scalarFormat()));
+    }
     return input;
 }
 

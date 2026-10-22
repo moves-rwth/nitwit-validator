@@ -2,8 +2,8 @@
 
 Executes the typed AST: memory model, lowering of function bodies, expression evaluation, library functions.
 
-- `memory.hpp`: `Memory`, the flat virtual address space with an allocation table, initialization tracking and
-  origins of nondeterministic values.
+- `memory.hpp`: `Memory`, the flat virtual address space with an allocation table, initialization tracking and the
+  terms of the bytes (see "Terms").
 - `interpreter.hpp`: `buildProgram` (lowering, done once per program) and `Interpreter` (one run).
 - `oracle.hpp`: `InputOracle`, the source of nondeterministic values.
 - `observer.hpp`: `ExecutionObserver`, the events the validation layer follows, and `EvaluationContext`.
@@ -47,7 +47,8 @@ to:
 Behaviour choices of the library:
 - **Allocation failure** (memory limit, `calloc` size overflow) ends the run with `OutOfMemory` instead of returning
   NULL, as SV-COMP assumes that allocation succeeds. `realloc` that cannot hold the old and the new block at once moves
-  the contents through host memory and frees the old block first; the origins of the moved bytes are lost then.
+  the contents through host memory and frees the old block first; the moved bytes are opaque then if they depend on
+  inputs (see "Terms").
 - **Uninitialized bytes** are read as stored by library functions (zero); they do not ask the oracle.
 - **Known library functions are never inputs:** every library function in sema's builtin table is implemented or ends
   the run as `Unsupported` (the `scanf` family, files, `qsort`, the `_chk` functions of `_FORTIFY_SOURCE`, ...).
@@ -92,8 +93,8 @@ appear in the log.
   addresses are never reused, so use-after-free is always detected.
 - **Lazy commit:** a large global array (sv-benchmarks has arrays of hundreds of MB) costs host memory only for the
   pages that are written. `calloc`-backed buffers achieve that on Linux.
-- **Origins:** a sparse map from address ranges to input ids. `write` and `fill` drop origins overlapping the range;
-  `copy` moves them along with the bytes.
+- **Terms:** a sparse map from address ranges to the terms of the scalars written there, or to "opaque" (see "Terms").
+  Lookups cost nothing while the map is empty, as in programs without inputs.
 - **Lookup:** finding the allocation of an address is on the hot path of every load and store. Keep the last
   allocation found as a cache.
 
@@ -128,15 +129,7 @@ after that, the access reaches the new object, as in a native run.
     are allocated at their declaration and released at the end of their scope.
   - A declaration without an initializer leaves its object uninitialized. A read of an uninitialized scalar becomes an
     `UninitializedRead` input request. The value is then written to the object, so later reads agree.
-- **Origins:** an origin means that a value is derived from that input only through copies and conversions. A value
-  read from memory carries the origin stored for exactly its range. Copies keep the origin (assignment, argument
-  passing, return), and so do conversions between arithmetic types, also those that change the value (`char c = x;`,
-  `float f = d;`, `(int)d`): the validation layer chooses inputs through them and confirms only by a complete run.
-  Every operation (arithmetic, comparison, logical) drops it.
-  - Known imprecision: memory keeps origins by address and size, not by type. A read of the same bytes through
-    another type of the same size (a union member, a cast pointer) keeps the origin, although its value reinterprets
-    the input's bytes instead of converting them. A value chosen through such a read may then not give the value the
-    validation wanted; soundness is unaffected, since the next run is checked like any other.
+- **Terms:** every value derived from an input carries a term (see "Terms").
 - **Calls:**
   - Through function designators and function pointers. Variadic functions, with `va_start`/`va_arg`/`va_end`/
     `va_copy` over the interpreter's own argument list.
@@ -204,19 +197,18 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
   - Struct and union rvalues that are not objects (arguments, results, values whose member is addressed as in
     `f().a[1]`) live in heap temporaries of the frame, which end with the full expression, i.e. after the instruction
     that made them (C17 6.2.4p8).
-- **Records** keep the initialization state and the origins of their bytes when they are copied: assignment and
+- **Records** keep the initialization state and the terms of their bytes when they are copied: assignment and
   initialization from another record, arguments (copied into a temporary when the argument is evaluated, then into the
   parameter), results (copied into a temporary of the caller before the callee's frame ends), `?:` and the comma
   operator (which select an object). An assignment between partly overlapping objects is undefined
   (C17 6.5.16.1p3). Known limitation: copying an uninitialized record copies its uninitialized state, so reading the
   same member of both copies asks for two independent inputs, while a native run reads equal values.
 - **Uninitialized reads:** a scalar with uninitialized bytes is answered by the oracle; bytes that were written keep
-  their values (then the value has no origin). Every answer is normalized to the requested type (`_Bool` 0 or 1,
+  their values (then the value is opaque). Every answer is normalized to the requested type (`_Bool` 0 or 1,
   integers truncated). A bit-field whose storage has uninitialized bytes asks for those bytes (as `unsigned char`
   inputs), stores them, and reads the field from them; neighbouring fields in the same bytes read the same input.
-- **Conversions:** a pointer converted to a wider integer is sign-extended (GCC, "Arrays and pointers"). Origins
-  survive every conversion between arithmetic types (see "Origins"); conversions to or from pointers keep them only
-  where every value is preserved.
+- **Conversions:** a pointer converted to a wider integer is sign-extended (GCC, "Arrays and pointers"). Every
+  conversion between scalar types records its term (see "Terms").
 - **va_list:** the object holds a handle (a number in its first four bytes) of a cursor over the variadic arguments of
   the frame that called `va_start`. A copy of the object (passing a va_list) shares the cursor, as on x86-64;
   `va_copy` makes an independent one. `va_arg` with a type of another kind or size than the argument's (C17
@@ -226,7 +218,7 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
 - **Calls through a pointer of another type** (C17 6.5.2.2p9) convert scalar arguments and results like the
   registers that pass them; a struct where a scalar is expected, or the other way round, is undefined.
 - **Pass-through builtins** (`__builtin_expect`, `__builtin_expect_with_probability`, `__builtin_assume_aligned`)
-  return their first argument converted to the result type, with its origin.
+  return their first argument converted to the result type, with the term of the conversion.
 - **Statement expressions** are lowered in place, behind a jump over them, and run as a range of the function's
   instructions; `break`, `continue`, `goto` and `return` out of them abandon the enclosing expression (GNU). Their
   value is that of `StatementExpr::valueStatement()`.
@@ -238,6 +230,77 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
   undefined behaviour; uninitialized reads ask the oracle. The evaluation reports no events.
 - **`sizeof`** of an expression of variable length array type evaluates the expression (C17 6.5.3.4p2).
 
+## Terms
+
+Every value the interpreter derives from an input carries a term (`value/README.md`, "Terms") in the run's
+`TermTable` (`EvaluationContext::terms()`), so that the validator can predict values for other inputs. Replay records
+none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its result and attaches it
+(`Execution::attach`); `terms.cpp` has the consistency check.
+
+- **Inputs:** every input request (`__VERIFIER_nondet_*`, a function without definition, an uninitialized read)
+  registers its answer, normalized to the requested type, as an input (`TermTable::input`).
+- **Operations:** where the evaluator applies an operation of arithmetic.hpp, it calls the `TermTable` function of
+  the same name: unary and binary arithmetic, shifts, comparisons, compound assignments, `++` and `--` (with the
+  promotion and the conversion back), and every conversion between scalar types, also to `_Bool`. `!`, `&&`, `||` and
+  `?:` record their own kinds with the operands the run evaluated (GNU `c ?: b` is `c ? c : b`); pass-through builtins
+  record the conversion of their argument; atomic read-modify-writes their operation. Undefined behaviour that the
+  run continues after gives the value the run continues with, which is also what the term gives; division by zero
+  ends the run before a term is recorded.
+- **Pointers converted to wider integers** are sign-extended (see "Conversions"): the term converts to the signed
+  integer of the pointer's width first, and then to the target, so that it gives the run's value.
+- **Copies keep the term:** assignment, initialization, arguments, results, `va_arg` (with a conversion between the
+  signed and the unsigned type), and memory (below).
+- **Conditions:** every `ConditionEvent` (`if`, loops, `?:`, `switch`) carries the term of the controlling
+  expression's value, for a `switch` that of the promoted value, which `switchValue` carries too. A `for` without
+  condition has none.
+- **Constraints** of the observer are evaluated in a `TermTable::StrictScope`.
+- **Opaque values:** a value computed from an operand with a term by an operation without a term kind gets
+  `TermTable::opaque()`, so that it never becomes a constant of a later term:
+  - library functions: the result, if an argument has a term or the function reads bytes that depend on inputs
+    (`Memory::beginRawAccesses`). The bytes the function writes with `write` and `fill` become opaque if it reads such
+    bytes or if an argument other than a pointer has a term (also a size: `memset(p, 0, n)` with an input-derived `n`
+    makes the zeros opaque); a pointer argument only tells where the bytes are, as the address of a store does.
+    Functions that copy bytes (`memcpy`, `memmove`, `strcpy`, `strdup`, `realloc`, ...) copy their terms
+    (`Memory::copy`); `memset` with arguments without terms clears them;
+  - pointer arithmetic (`p + i`, `&a[i]`, `p - q`, `++p`, `&p->member` past offset 0) with a pointer, an index or an
+    element size (a variable length array) that depends on inputs, and `sizeof` of such an array;
+  - bit-fields: a field read from storage that depends on inputs, and the storage after it got a value with a term or
+    input bytes, or after another field of such storage was written;
+  - the overflow builtins, `alloca` with an argument with a term, and the comparisons of atomic compare-and-swap;
+  - a struct or union value whose bytes depend on inputs, when it is written as bytes (`loadRecord`, `writeRecord`; a
+    value from `va_arg` or a statement expression, a GNU cast to a union); copies of objects keep the exact terms;
+  - a scalar read from memory whose bytes are not exactly those of one value written with a term (below), or read
+    partly from uninitialized bytes (the input fills only those bytes).
+- **Memory** keeps terms per address range (`Memory::term`). A scalar written with a term records it with the format
+  it was written in. A read of exactly that range gets the term back: through the same format as it is, through
+  another integer format of the same size (signed and unsigned, a pointer) with the conversion, through a floating
+  type where an integer was written (or the other way round: type punning) as opaque. A read of a part of the range,
+  or of a range that contains it, is opaque. A write that overwrites only a part of a range leaves the rest opaque.
+  `copy` carries the terms; a range that lies only partly in the copied bytes is opaque in the copy. Bytes written
+  without term (`fill`, string literals, initializers) have none; the end of an object's lifetime and
+  `markUninitialized` remove them.
+- **The consistency check** (`RunOptions::checkTerms`, the hidden replay option `--check-terms`) evaluates every term
+  the run records or reads from memory with the run's inputs and compares the result with the value bit for bit; a
+  mismatch ends the run with "internal error: the term of <operation> gives ...". The semantics suite runs with it.
+- **Known imprecisions:** these dependencies are not recorded.
+  - Implicit flows: a value assigned under a condition that depends on an input (`if (x > 0) y = 1;`) does not depend
+    on that input. Which branch the run takes is the waypoints' business, not the terms'.
+  - Addresses: a value read from or written to an object does not depend on the object's address. `a[i]` with an
+    input-derived `i` has the term that `a[i]` holds in this run (none for constant elements), although another `i`
+    reads another element; the pointer `&a[i]` is opaque. Equally, which object a struct `?:` selects is not
+    recorded.
+  - Over-approximations, which make values opaque that the inputs do not change: opaque bit-field storage stays
+    opaque until it is overwritten as a whole without term; all bytes a library function writes are opaque if one
+    depends on inputs.
+  - The limits of the table (`value/README.md`, "Terms"): results beyond the depth or the size limit are opaque.
+- **Cost:** operations ask the `TermTable` only if an operand has a term, and memory looks up terms only if it holds
+  any, so that values without terms (programs without inputs) cost nothing measurable. Two details matter on this
+  path: the operations return one named value each, so that it is constructed in place, and `LValue` fits into two
+  registers. Measured with `gcc-release`, CPU time, best of 9 runs on one core, against the interpreter before terms:
+  Csmith programs without inputs from 6 % faster to 3 % slower (+0.4 % in all); input-heavy corpus programs from 12 %
+  faster (their origins cost more) to 7 % slower; Csmith programs whose globals all depend on inputs 13 % to 19 %
+  slower, with up to 124 MiB for a full table.
+
 ## Tests
 
 - `tests/unit/interp/memory_test.cpp`: the memory behaviour above:
@@ -245,14 +308,24 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
   - accesses inside, across the end and one past the end; dead heap blocks; double free; freeing non-base and
     non-heap addresses; LIFO stack reuse;
   - read-only and code protection; initialization per byte;
-  - origins set, read, partly overwritten and copied (overlapping ranges too);
+  - terms written, read back for exactly their range (with their format) and for parts of it (opaque), partly
+    overwritten (the rest opaque), marked opaque, copied (overlapping ranges too, parts of ranges opaque), dropped at
+    the end of a lifetime; the raw accesses of library functions;
   - deterministic addresses; the limits of the 32-bit address space; a 1 GiB global written at two places only.
 - `tests/unit/interp/`: interpreter tests on small programs (source text → output and termination), with a test
   oracle and a recording observer for the event sequences (`interpreter_test_support.hpp`): `lowering_test.cpp`
   (statements, conditions, jumps and calls as events), `evaluator_test.cpp` (operators, conversions, objects and
   calls in both data models, outputs confirmed with GCC), `termination_test.cpp` (how runs end, undefined behaviour,
-  limits), `inputs_test.cpp` (oracle requests, uninitialized reads, origins) and `evaluation_context_test.cpp`.
+  limits), `inputs_test.cpp` (oracle requests, uninitialized reads) and `evaluation_context_test.cpp`.
+- `tests/unit/interp/terms_test.cpp`, every run with the consistency check: input terms; copies (assignment,
+  arguments, results, pointers, records, `?:` of records); conversions (also pointers sign-extended to wider
+  integers); integer and floating arithmetic, shifts, `++`, `--` and compound assignments (also with signed overflow);
+  comparisons, `!`, `&&`, `||` (with the operand the run did not evaluate) and `?:` (also GNU `?:`); opaque values from
+  partial overwrites, partly initialized reads, type punning, library functions (and that copying functions keep
+  terms), pointer arithmetic, bit-fields and variable length array sizes; the terms of condition events; the depth
+  limit and runs without terms; strict terms of constraints; the check's comparison (`termMismatch`) with wrong
+  terms, formats and floating values.
 - `tests/semantics/`: the programs of the semantics suite (see `tools/difftest/README.md`) must print the expected
-  output under `-32` and `-64` (CTest label `semantics`).
+  output under `-32` and `-64`, also with the consistency check of the terms (CTest label `semantics`).
 - `tools/difftest/`: Csmith programs and corpus programs with random inputs; the interpreter must agree with the
   native runs.
