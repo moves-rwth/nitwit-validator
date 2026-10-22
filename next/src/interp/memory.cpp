@@ -386,7 +386,7 @@ struct Memory::State {
     /// partly in the source becomes opaque in the destination.
     void copyTerms(Address destination, Address source, std::uint64_t size);
 
-    /// write and fill: the bytes, their initialization and `term`, or none if the bytes depend on no input.
+    /// Memory::write: the bytes, their initialization and `term`, or none if the bytes depend on no input.
     std::expected<void, MemoryError> write(Address address, std::span<const std::byte> bytes, const StoredTerm* term) {
         if (bytes.empty()) {
             return {};
@@ -398,7 +398,8 @@ struct Memory::State {
         });
     }
 
-    /// The term of bytes just written: `term` for exactly the range, or none. Writes without term are raw accesses.
+    /// The term of bytes just written (write and fill): `term` for exactly the range, or none. Writes without term are
+    /// raw accesses.
     void setWrittenTerm(Address address, std::uint64_t size, const StoredTerm* term) {
         if (term != nullptr) {
             replaceTerms(address, size, *term);

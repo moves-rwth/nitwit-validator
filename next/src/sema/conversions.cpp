@@ -211,7 +211,7 @@ ast::CastKind Sema::castKind(const ast::Expr* expr, ast::QualType from, ast::Qua
     if (target == TypeClass::Record
         && (source != TypeClass::Record
             || context_.canonical(from).unqualified() != context_.canonical(to).unqualified())) {
-        return ast::CastKind::ToUnion; // from a scalar or from a structure member
+        return ast::CastKind::ToUnion; // from a scalar or from a record of another type
     }
     return ast::CastKind::NoOp;
 }
