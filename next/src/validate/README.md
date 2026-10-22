@@ -156,11 +156,60 @@ of a value is the input it is derived from only through copies and conversions (
 - **Defaults:** `ValidationOptions::defaultInput`, 0, converted to the requested type; pointers get null. NITWIT 3.x
   effectively used 1; on the sample, 1 confirms one witness more, on `validation-crafted` six fewer.
 - **Escapes:** producer escapes like `"\result"` in double quotes are repaired by the witness parser.
-- **Stage 7 adds value search for `branching` waypoints:**
-  - a condition that is an input (`if (__VERIFIER_nondet_int())`);
-  - relations between such an input and a constant;
-  - then a general search over unfixed inputs when a follow waypoint fails.
-  Every confirmation still comes from one concrete run.
+- **Stage 7 replaces the fixes by the search below.**
+
+### Search (stage 7, being implemented)
+
+The witness says where the execution must go: at each waypoint, which outcome it needs. The run says how the outcome
+depends on the inputs: values derived from inputs carry terms (`value/README.md`, "Terms"). When a waypoint does not
+have the outcome it needs, the validator solves for inputs that give it, without running the program, and restarts
+with them. It never tries values by running the program, so each restart costs one run and comes from one prediction.
+
+- **Requirements:** what a waypoint evaluation needs, as clauses of atoms `term op constant`, every clause needing one
+  atom that holds:
+
+  | Waypoint | Requirement |
+  |---|---|
+  | follow `branching` at `if`, a loop or `?:`, outcome b | `t != 0` if b, else `t == 0`, for the condition's term `t` |
+  | follow `branching` at `switch`, case value v | `t == v` |
+  | follow `branching` at `switch`, `default` | `t != v` for every case value v, one clause each |
+  | follow `assumption`, `function_return` | `c != 0` for each conjunct c, one clause each |
+  | avoid `branching`, outcome b | `t == 0` if b, else `t != 0` |
+  | avoid `branching` at `switch` | `t != v` for an avoided case value v; `t == v` for one of the case values if `default` is avoided |
+  | avoid `assumption`, `function_return` | one clause: `c == 0` for one of the conjuncts c |
+
+  A conjunct or condition without a term depends on no input the validator can change: if it does not hold, no input
+  is changed for it.
+- **Kept clauses:** the requirements of every waypoint evaluation of the run that had its outcome (a follow waypoint
+  that passed, an avoid waypoint that did not), as far as they have terms. New input values must keep them, so that
+  the next run passes the same waypoints again.
+- **Changeable inputs:** inputs of the run with the default value or a value fixed by an earlier run; not hinted
+  inputs (the witness gave their value). Inputs with the default value are tried first, then fixed ones; within each
+  group, later requests first.
+- **Solving** a requirement that does not hold, greedily and without backtracking across clauses: each clause that
+  does not hold gets its first atom that can be made to hold; the values chosen for earlier clauses stay.
+  - An atom `t op c` is first decomposed: `t != 0` of `a && b` needs both, of `a || b` one of them (tried in order),
+    of `!a` needs `a == 0`; `t == 0` the negations; a comparison `a op' b` whose value must be non-zero is the atom
+    `a op' b`, with the side that has no changeable input evaluated as the constant.
+  - **Inversion:** if a changeable input occurs once in the side that has changeable inputs, and the path to it has
+    only invertible operations (conversions; `+`, `-`, `^` and `~` with the other operand fixed; unary `-`; `*` by an
+    odd constant in an unsigned format), the value for the side is chosen as for hints (`values.hpp`, `choose`) and
+    inverted down to the input.
+  - **Candidates** otherwise, and for any input of the atom that inversion cannot reach: the input's run value ± 1,
+    0, 1, −1, and each constant of the term ± 1, in this order, each checked by evaluating the term.
+  - A value is taken only if, evaluated with all values chosen so far, it makes the atom hold, keeps every kept clause
+    that mentions the input (a clause whose value becomes unknown does not count against it), and converts back
+    unchanged from the input's type. Values an input was fixed to in earlier runs are tried after all others.
+  - If every clause of the requirement then holds (or is unknown, because the run did not evaluate an operand), the
+    chosen values become fixed inputs and the run restarts; otherwise the waypoint fails as before (exit 241).
+- **Restarts** happen only when at least one input gets a new value. Fixed inputs may get another value in a later
+  run when the search needs it and the kept clauses allow it. The number of restarts is limited
+  (`ValidationOptions::maxRestarts`, scaled with the number of waypoints).
+- **Limits of the search:** it cannot predict values through operations without terms (pointer arithmetic, library
+  functions, bit-fields, dependencies through control flow that no waypoint covers), relations where an input occurs
+  more than once and candidates do not help (`x * x == 49`), and witnesses without waypoints between the start and
+  the target. Searching the program's paths for those would cost runs per candidate, which NITWIT does not do. An SMT
+  solver can later replace the candidates behind the same requirements.
 
 ## Known gaps
 

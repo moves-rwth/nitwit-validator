@@ -87,8 +87,9 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
   use-after-free and the like are detected and reported as memory errors.
 - **Values** are bit patterns plus a representation: integers and pointers up to 128 bits, `float`, `double`,
   `long double` (x87, as on the target), and byte blobs for structs and unions. The C type is not part of the value; it
-  comes from the AST node. A value can carry an *origin*: the id of the nondeterministic input it is derived from only
-  through copies and conversions. Memory keeps origins for stored scalars in a shadow map.
+  comes from the AST node. A value derived from nondeterministic inputs carries a *term*: the arithmetic operations
+  that computed it from them (`value/README.md`, "Terms"; stage 7, before that only the input it was copied from).
+  Memory keeps the terms of stored scalars in a shadow map.
 - **Lowering:** each function body is lowered to a flat list of instructions:
   - `Evaluate`, `Declare` (initializer, VLA allocation), `Branch`, `Jump`, `Switch`, `Return`, `EndScope`;
   - each instruction carries its source construct.
@@ -123,11 +124,12 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
   1. inputs fixed by earlier runs;
   2. hints from the monitor, e.g. a `function_return` waypoint with `\result == 5` at this call site;
   3. a default.
-- **Restarts:** suppose a follow constraint like `x == 5` fails, and `x` has as its origin an input that took its
-  default. The validator then fixes that input to 5 and restarts the run from the beginning. Likewise, an avoid
-  constraint `x == 0` that holds on the default fixes the input to another value. Runs are deterministic, so every
-  confirmation comes from one concrete execution, in which every waypoint was evaluated on that run's values. The
-  number of restarts is bounded.
+- **Restarts:** suppose a follow waypoint like `x == 5` or the branching `if (n - x <= 0)` fails, and the value
+  depends on an input through its term. The validator then solves for an input value that gives the waypoint its
+  outcome without breaking the waypoints the run already passed, fixes it, and restarts the run from the beginning
+  (`validate/README.md`, "Search"). Likewise, an avoid constraint that holds makes the validator change an input so
+  that it does not. Runs are deterministic, so every confirmation comes from one concrete execution, in which every
+  waypoint was evaluated on that run's values. The number of restarts is bounded.
 - **The verdict** is computed from:
   - whether the error function was called;
   - the monitor's state: target reached, waiting, or rejected;

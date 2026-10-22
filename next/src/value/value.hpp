@@ -18,6 +18,9 @@ namespace nitwit::value {
 /// One nondeterministic input of a run, numbered from 0 in the order the inputs were requested.
 enum class InputId : std::uint32_t {};
 
+/// A term of the run's TermTable (term.hpp): how a value was computed from inputs.
+enum class TermId : std::uint32_t {};
+
 /// The representation of an integer or pointer: width in bits (8, 16, 32, 64 or 128) and signedness. _Bool is
 /// {8, false}; that it only holds 0 and 1 is ensured by the conversion to _Bool (C17 6.3.1.2).
 struct IntegerFormat {
