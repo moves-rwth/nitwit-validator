@@ -38,6 +38,14 @@ std::string describeInput(value::InputId id, const ProvidedInput& input, const P
 constexpr std::uint32_t baseRestarts = 16;
 constexpr std::uint32_t restartsPerWaypoint = 2;
 
+/// Whether the run ended by itself or at the error function elsewhere, with every waypoint it evaluated passing: the
+/// search had nothing to solve, and only the inputs between the waypoints decided its path (validate/README.md,
+/// "Defaults").
+bool endedWithoutFailedWaypoint(const SegmentMonitor& monitor) {
+    return monitor.state() == SegmentMonitor::State::Following
+           || (monitor.state() == SegmentMonitor::State::ErrorCalled && !monitor.isAtTarget());
+}
+
 } // namespace
 
 std::uint32_t restartLimit(const ValidationOptions& options, std::size_t waypoints) {
@@ -86,6 +94,32 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
         if (monitor.state() != SegmentMonitor::State::Restart) {
             ValidationResult verdict = verdictOf(result, monitor, program, options);
             verdict.runs = runs;
+            if (verdict.verdict == Verdict::Confirmed || !options.retryDefaultInput
+                || *options.retryDefaultInput == options.defaultInput || !endedWithoutFailedWaypoint(monitor)) {
+                return verdict;
+            }
+            // One more run with other defaults, never more: it confirms, or the verdict is that of this run. Its
+            // fixed inputs stay, and a waypoint that fails in it ends it without a search.
+            if (options.log != nullptr) {
+                std::println(*options.log, "run {}: no waypoint failed; one more run with inputs {} by default", runs,
+                             *options.retryDefaultInput);
+            }
+            oracle.setDefault(*options.retryDefaultInput);
+            oracle.beginRun();
+            monitor.beginRun(runs + 1);
+            const interp::RunResult retried = run(oracle, monitor);
+            if (monitor.state() == SegmentMonitor::State::ErrorCalled && monitor.isAtTarget()) {
+                ValidationResult confirmed = verdictOf(retried, monitor, program, options);
+                confirmed.runs = runs + 1;
+                return confirmed;
+            }
+            if (options.log != nullptr) {
+                std::println(*options.log,
+                             "run {}: with inputs {} by default, the witness was not confirmed either; "
+                             "the verdict is that of run {}",
+                             runs + 1, *options.retryDefaultInput, runs);
+            }
+            verdict.runs = runs + 1;
             return verdict;
         }
         if (runs > maxRestarts) {

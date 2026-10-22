@@ -48,6 +48,8 @@ public:
 
     /// Forgets the requests and the hint of the previous run; fixed inputs stay. Runs are numbered from 1.
     void beginRun();
+    /// Answers the requests that are neither fixed nor hinted with `defaultValue` from now on.
+    void setDefault(Int128 defaultValue) { defaultValue_ = defaultValue; }
 
     /// Answers the next request made at `call` with `value`, a value of the call's type (validate/README.md,
     /// "Values": hints of function_return waypoints). A later hint replaces an unused one.

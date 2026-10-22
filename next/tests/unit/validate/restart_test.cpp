@@ -342,5 +342,64 @@ TEST_F(RestartTest, NoRestartsAtAll) {
     EXPECT_EQ(result.runs, 1u);
 }
 
+// ---- One more run with other defaults ----
+
+constexpr std::string_view ifInputProgram = R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    if (a) reach_error();
+    return 0;
+}
+)";
+
+interp::RunResult runIfInput(FakeExecution& x) {
+    x.statement(4, 5);
+    x.assign("a", x.nondet(4, 35));
+    x.statement(5, 5);
+    if (x.branch(5, 5)) {
+        x.statement(5, 12);
+        x.call(5, 24);
+    }
+    x.statement(6, 5);
+    return returned(0);
+}
+
+TEST_F(RestartTest, ARunWithoutFailedWaypointIsRetriedWithOtherDefaults) {
+    // A witness with the target only: the search has nothing to solve, and only the default decides the path.
+    program(std::string(ifInputProgram));
+    options_.retryDefaultInput = 1;
+    const ValidationResult result = validate(sequence({{target(5, 12)}}), runIfInput);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: no waypoint failed; one more run with inputs 1 by default")) << log();
+}
+
+TEST_F(RestartTest, ARetryThatDoesNotConfirmKeepsTheVerdictOfTheRunBefore) {
+    program(std::string(inputsProgram));
+    options_.retryDefaultInput = 1;
+    const ValidationResult result = validate(sequence({{target(7, 9)}}), [](FakeExecution& x) { return runInputs(x); });
+    EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message;
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_EQ(scriptRuns_, 2);
+}
+
+TEST_F(RestartTest, NoRetryAfterAWaypointFailed) {
+    program(std::string(ifInputProgram));
+    options_.retryDefaultInput = 1;
+    // The follow waypoint fails with a = 0, and the search cannot change the constant.
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Assumption, 5, 5, "0")}, {target(5, 12)}}), runIfInput);
+    EXPECT_EQ(result.verdict, Verdict::LeftWitness) << result.message;
+    EXPECT_EQ(scriptRuns_, 1);
+}
+
+TEST_F(RestartTest, NoRetryWithoutOtherDefaults) {
+    program(std::string(ifInputProgram));
+    const ValidationResult result = validate(sequence({{target(5, 12)}}), runIfInput);
+    EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message;
+    EXPECT_EQ(scriptRuns_, 1);
+}
+
 } // namespace
 } // namespace nitwit::validate::test

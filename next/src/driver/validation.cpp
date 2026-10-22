@@ -120,6 +120,7 @@ int runSteps(const ValidationCommand& command, std::ostream& out, std::ostream& 
                                        .program = program.program};
     validate::ValidationOptions options;
     options.errorFunction = errorFunction;
+    options.retryDefaultInput = 1;
     options.log = command.verbose ? &log : nullptr;
     const validate::ValidationResult result = validate::validate(*witness, input, options, diagnostics);
     for (const Diagnostic& diagnostic : diagnostics.diagnostics()) {

@@ -139,6 +139,12 @@ gets the *default*.
   (the program takes another path, a term is not what the program computes) costs a restart, never soundness.
 - **Defaults:** `ValidationOptions::defaultInput`, 0, converted to the requested type; pointers get null. NITWIT 3.x
   effectively used 1; on the sample, 1 confirms one witness more, on `validation-crafted` six fewer.
+- **One more run with defaults of 1** (`ValidationOptions::retryDefaultInput`, which the driver sets): a final run that
+  ends without confirmation and without a waypoint that failed (the program ended or aborted, or called the error
+  function elsewhere) leaves nothing to the search; only the inputs between the waypoints decided its path, as in
+  witnesses with the target only. One more run then gives those inputs 1, the fixed inputs keeping their values. It
+  confirms, or the verdict is that of the run before: a waypoint that fails in it ends it without a search. Its
+  confirmation comes from one complete run like any other.
 - **Escapes:** producer escapes like `"\result"` in double quotes are repaired by the witness parser.
 
 ### Search

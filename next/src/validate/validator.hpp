@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 
@@ -41,6 +42,9 @@ struct ValidationOptions {
     std::size_t maxKeptAtoms = 1'000'000;
     /// The value of inputs that are neither fixed nor hinted, converted to the requested type (pointers get null).
     std::int64_t defaultInput = 0;
+    /// The default of one more run after a final run that ended without confirmation and without a waypoint that
+    /// failed (validate/README.md, "Defaults"); none for no such run.
+    std::optional<std::int64_t> retryDefaultInput;
     /// Progress of the validation (segments reached, restarts, why a run ended); null for none.
     std::ostream* log = nullptr;
 };
