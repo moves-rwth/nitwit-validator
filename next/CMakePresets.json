@@ -23,6 +23,10 @@
     {
       "name": "asan", "inherits": "clang",
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "NITWIT_SANITIZE": "address,undefined" }
+    },
+    {
+      "name": "release-static", "inherits": "gcc",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "NITWIT_STATIC": "ON", "NITWIT_BUILD_TESTS": "OFF" }
     }
   ],
   "buildPresets": [
@@ -30,7 +34,8 @@
     { "name": "gcc-release", "configurePreset": "gcc-release" },
     { "name": "clang-debug", "configurePreset": "clang-debug" },
     { "name": "clang-release", "configurePreset": "clang-release" },
-    { "name": "asan", "configurePreset": "asan" }
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "release-static", "configurePreset": "release-static", "targets": [ "nitwit" ] }
   ],
   "testPresets": [
     { "name": "base", "hidden": true, "output": { "outputOnFailure": true }, "execution": { "jobs": 8 } },
