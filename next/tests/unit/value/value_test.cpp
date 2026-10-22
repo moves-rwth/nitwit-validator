@@ -85,6 +85,17 @@ TEST(ValueTest, OriginCanBeSetAndCleared) {
     EXPECT_FALSE(value.origin().has_value());
 }
 
+TEST(ValueTest, TermCanBeSetAndCleared) {
+    Value value = Value::ofDouble(1.0);
+    EXPECT_FALSE(value.term().has_value());
+    value.setTerm(TermId{4});
+    EXPECT_EQ(value.term(), TermId{4});
+    const Value copy = value;
+    EXPECT_EQ(copy.term(), TermId{4});
+    value.setTerm(std::nullopt);
+    EXPECT_FALSE(value.term().has_value());
+}
+
 TEST(ValueDeathTest, AccessorOfAnotherKindAsserts) {
     EXPECT_DEATH((void)Value::integer(1, s32).asDouble(), "another kind");
     EXPECT_DEATH((void)Value::ofFloat(1.0F).bits(), "another kind");

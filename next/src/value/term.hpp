@@ -6,7 +6,9 @@
 // "Search").
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <optional>
 #include <span>
 #include <utility>
@@ -52,8 +54,8 @@ struct Term {
     std::uint16_t depth = 0; // the length of the longest path to an input or a constant
     std::uint8_t operandCount = 0;
     std::array<TermId, 3> operands{}; // the first operandCount are valid
-    ScalarFormat format;
-    ScalarFormat secondFormat;
+    ScalarFormat format{};
+    ScalarFormat secondFormat{};
     std::uint32_t payload = 0; // Input: the InputId; Constant: the index of its value in the table
 };
 
@@ -140,11 +142,20 @@ public:
     [[nodiscard]] std::optional<Value> evaluate(TermId id, const Substitution& substitution) const;
 
 private:
+    [[nodiscard]] bool hasRoomFor(std::size_t count) const { return terms_.size() + count <= limits_.maxTerms; }
+    /// Adds `term` with `operands`, recording those without a term as constants; nullopt as for the functions above.
+    [[nodiscard]] std::optional<TermId> record(Term term, std::initializer_list<const Value*> operands);
+    TermId add(const Term& term);
+    /// The value of `term` from the values of its operands, which are empty where an operand has none.
+    [[nodiscard]] std::optional<Value> evaluateTerm(const Term& term,
+                                                    std::span<const std::optional<Value>* const> operands,
+                                                    const Substitution& substitution) const;
+
     DataModel model_;
     TermLimits limits_;
     std::vector<Term> terms_;
     std::vector<Value> constants_;   // by Term::payload
-    std::vector<Value> inputValues_; // by InputId: the values of the run
+    std::vector<Value> inputValues_; // by InputId: the values of the run; void for inputs without a term
 };
 
 } // namespace nitwit::value

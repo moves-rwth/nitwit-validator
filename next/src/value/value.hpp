@@ -62,6 +62,10 @@ public:
     [[nodiscard]] std::optional<InputId> origin() const { return origin_; }
     void setOrigin(std::optional<InputId> origin) { origin_ = origin; }
 
+    /// How this value was computed from the inputs of the run, if it depends on any (term.hpp).
+    [[nodiscard]] std::optional<TermId> term() const { return term_; }
+    void setTerm(std::optional<TermId> term) { term_ = term; }
+
 private:
     // The alternatives are in the order of Kind.
     using Payload = std::variant<std::monostate, UInt128, float, double, long double, std::vector<std::byte>>;
@@ -78,6 +82,7 @@ private:
 
     Payload payload_;
     std::optional<InputId> origin_;
+    std::optional<TermId> term_;
 };
 
 // Object representations on x86: little-endian; integers take format.bits / 8 bytes. A long double takes the 10 bytes
