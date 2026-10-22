@@ -5,6 +5,7 @@ nitwit_add_module(validate
         monitor.cpp
         oracle.cpp
         restart.cpp
+        search.cpp
         support_check.cpp
         validator.cpp
         values.cpp
