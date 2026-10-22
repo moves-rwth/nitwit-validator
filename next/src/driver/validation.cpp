@@ -25,7 +25,8 @@ std::optional<std::string> readFile(const std::string& path) {
     return std::string(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
 }
 
-// The result line, as in 3.x: VALIDATED, FAILED or UNKNOWN, then the reason (driver/README.md, "Output").
+// The result line, as in 3.x: VALIDATED, FAILED, UNKNOWN or ERROR (the exit codes BenchExec maps to ERROR), then the
+// reason (driver/README.md, "Output").
 int finish(std::ostream& out, std::string_view outcome, std::string_view reason, int exitCode) {
     std::println(out, "{}: {}", outcome, reason);
     return exitCode;
@@ -68,13 +69,13 @@ int runSteps(const ValidationCommand& command, std::ostream& out, std::ostream& 
     // Step 1: the files; the program is read by the front end.
     const std::optional<std::string> witnessText = readFile(command.witness);
     if (!witnessText) {
-        return finish(out, "UNKNOWN", std::format("cannot read the witness '{}'", command.witness), 3);
+        return finish(out, "ERROR", std::format("cannot read the witness '{}'", command.witness), 3);
     }
     std::string errorFunction = command.errorFunction;
     if (errorFunction.empty() && !command.propertyFile.empty()) {
         const std::optional<std::string> property = readFile(command.propertyFile);
         if (!property) {
-            return finish(out, "UNKNOWN", std::format("cannot read the property file '{}'", command.propertyFile), 3);
+            return finish(out, "ERROR", std::format("cannot read the property file '{}'", command.propertyFile), 3);
         }
         const std::optional<std::string> function = errorFunctionOf(*property);
         if (!function) {
@@ -94,7 +95,7 @@ int runSteps(const ValidationCommand& command, std::ostream& out, std::ostream& 
             std::println(out, "{}", message);
         }
         if (loaded.error().kind == FrontendError::Kind::Unreadable) {
-            return finish(out, "UNKNOWN", std::format("cannot read the program '{}'", command.program), 3);
+            return finish(out, "ERROR", std::format("cannot read the program '{}'", command.program), 3);
         }
         return finish(out, "UNKNOWN", "NITWIT cannot analyze the program", 4);
     }
@@ -105,7 +106,7 @@ int runSteps(const ValidationCommand& command, std::ostream& out, std::ostream& 
     }
     const std::expected<witness::YamlWitness, Error> witness = witness::parseYamlWitness(*witnessText);
     if (!witness) {
-        return finish(out, "UNKNOWN", std::format("the witness cannot be parsed: {}", witness.error().message), 2);
+        return finish(out, "ERROR", std::format("the witness cannot be parsed: {}", witness.error().message), 2);
     }
 
     // Step 5: validation.

@@ -1,6 +1,8 @@
 // validate() with the interpreter: the events of real runs at the locations producers write.
 
 #include <string>
+#include <string_view>
+#include <utility>
 
 #include <gtest/gtest.h>
 
@@ -171,6 +173,100 @@ int main(void) {
     EXPECT_EQ(ending(3).message, "__VERIFIER_assume failed at test.c:10:5, the execution is infeasible in segment 2 "
                                  "of 2");
     EXPECT_EQ(ending(4).verdict, Verdict::TargetWithoutError);
+}
+
+// ---- Invalid witnesses that an earlier version confirmed ----
+
+constexpr std::string_view avoidProgram = R"(extern int __VERIFIER_nondet_int(void);
+extern void reach_error(void);
+int main(void) {
+  int x = __VERIFIER_nondet_int();
+  if (x == 0) {
+    reach_error();
+  }
+  return 0;
+}
+)";
+
+TEST_F(EndToEndTest, AnAvoidWaypointOnTheDefaultOfAnInputIsEvaluatedOnIt) {
+    // The error needs x == 0, which the witness avoids: the default 0 passes the avoid waypoint, and x is fixed to 1.
+    build(std::string(avoidProgram));
+    for (const auto& [line, column] : {std::pair{5u, 3u}, std::pair{6u, 5u}}) {
+        const ValidationResult result =
+            validate(sequence({{avoid(WaypointType::Assumption, line, column, "x == 0"), target(6, 5)}}));
+        EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
+        EXPECT_EQ(result.runs, 2u);
+    }
+}
+
+TEST_F(EndToEndTest, AnAvoidedCaseOfTheDefaultOfAnInputIsEvaluatedOnIt) {
+    build(R"(extern int __VERIFIER_nondet_int(void);
+extern void reach_error(void);
+int main(void) {
+  int x = __VERIFIER_nondet_int();
+  switch (x) {
+  case 0: reach_error(); break;
+  default: break;
+  }
+  return 0;
+}
+)");
+    const ValidationResult result = validate(sequence({{avoid(WaypointType::Branching, 5, 3, "0"), target(6, 11)}}));
+    EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+}
+
+TEST_F(EndToEndTest, AnAvoidWaypointFixesAnInputThroughANarrowingConversion) {
+    build(R"(extern int __VERIFIER_nondet_int(void);
+extern void reach_error(void);
+int main(void) {
+  int x = __VERIFIER_nondet_int();
+  unsigned char c = x;
+  if (c == 0) reach_error();
+  return 0;
+}
+)");
+    const ValidationResult result =
+        validate(sequence({{avoid(WaypointType::Assumption, 6, 3, "c == 0"), target(6, 15)}}));
+    EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+}
+
+TEST_F(EndToEndTest, CascadedWaypointsReferToTheSameExecutionOfTheStatement) {
+    build(R"(extern void reach_error(void);
+int main(void) {
+  int b = 1;
+  for (int i = 0; i < 2; i++) {
+    i = i;
+  }
+  reach_error();
+  return 0;
+}
+)");
+    // The avoid waypoint of the target segment holds where the segment becomes current.
+    ValidationResult result = validate(sequence({{follow(WaypointType::Assumption, 7, 3, "1")},
+                                                 {avoid(WaypointType::Assumption, 7, 3, "b == 1"), target(7, 3)}}));
+    EXPECT_EQ(result.verdict, Verdict::LeftWitness) << result.message << "\n" << log();
+    // i == 1 holds only at the second execution of line 5.
+    result = validate(sequence({{follow(WaypointType::Assumption, 5, 5, "1")},
+                                {follow(WaypointType::Assumption, 5, 5, "i == 0")},
+                                {follow(WaypointType::Assumption, 5, 5, "i == 1")},
+                                {target(7, 3)}}));
+    EXPECT_EQ(result.verdict, Verdict::LeftWitness) << result.message << "\n" << log();
+    // Identical assumptions, as CPAchecker writes them, pass together.
+    result = validate(sequence({{follow(WaypointType::Assumption, 5, 5, "1")},
+                                {follow(WaypointType::Assumption, 5, 5, "1")},
+                                {follow(WaypointType::Assumption, 5, 5, "i == 0")},
+                                {target(7, 3)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+}
+
+TEST_F(EndToEndTest, AHugeColumnDoesNotWrapAroundToAnEarlierLine) {
+    // Line 6 plus column 4294967283 would be the if at 5:3 in 32-bit offsets.
+    build(std::string(avoidProgram));
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 6, 4294967283u, "true")}, {target(6, 5)}}));
+    EXPECT_EQ(result.verdict, Verdict::ErrorBeforeTarget) << result.message << "\n" << log();
 }
 
 } // namespace

@@ -133,6 +133,10 @@ after that, the access reaches the new object, as in a native run.
   passing, return), and so do conversions between arithmetic types, also those that change the value (`char c = x;`,
   `float f = d;`, `(int)d`): the validation layer chooses inputs through them and confirms only by a complete run.
   Every operation (arithmetic, comparison, logical) drops it.
+  - Known imprecision: memory keeps origins by address and size, not by type. A read of the same bytes through
+    another type of the same size (a union member, a cast pointer) keeps the origin, although its value reinterprets
+    the input's bytes instead of converting them. A value chosen through such a read may then not give the value the
+    validation wanted; soundness is unaffected, since the next run is checked like any other.
 - **Calls:**
   - Through function designators and function pointers. Variadic functions, with `va_start`/`va_arg`/`va_end`/
     `va_copy` over the interpreter's own argument list.

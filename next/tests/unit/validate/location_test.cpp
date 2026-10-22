@@ -3,6 +3,7 @@
 #include "validate/location.hpp"
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 
@@ -91,6 +92,15 @@ TEST_F(ProgramLocationTest, AColumnBeyondItsLineMatchesNothing) {
     EXPECT_TRUE(isEmpty(place(WaypointType::Assumption, 2, 30)));
 }
 
+TEST_F(ProgramLocationTest, ColumnsThatWouldWrapAroundMatchNothing) {
+    // The start of line 5 plus this column, as a 32-bit offset, is the declaration at 4:5.
+    const std::uint32_t wrapping = position(4, 5).offset - position(5, 1).offset + 1;
+    EXPECT_TRUE(place(WaypointType::Assumption, 4, 5).contains(position(4, 5)));
+    EXPECT_TRUE(isEmpty(place(WaypointType::Assumption, 5, wrapping)));
+    EXPECT_TRUE(isEmpty(place(WaypointType::Assumption, 5, std::numeric_limits<std::uint32_t>::max())));
+    EXPECT_TRUE(isEmpty(place(WaypointType::Assumption, 5, 0)));
+}
+
 TEST_F(ProgramLocationTest, LinesBeyondTheFileMatchNothing) {
     EXPECT_TRUE(isEmpty(place(WaypointType::Assumption, 99)));
     EXPECT_TRUE(isEmpty(place(WaypointType::Target, 99)));
@@ -163,6 +173,50 @@ TEST_F(PreprocessedLocationTest, ColumnsBeyondTheOriginalLineMatchNothing) {
 
 TEST_F(PreprocessedLocationTest, DescribeGivesPresumedLines) {
     EXPECT_EQ(LocationMap(sources_, file_, original_, unit()).describe(position(6, 16)), "3:16");
+    EXPECT_EQ(LocationMap(sources_, file_, original_, unit()).describe(position(3, 18)), "h.h:1:18");
+}
+
+// A line that cpp changed: the tab became a blank, the macro its value, and the run of blanks one blank. Line 3 agrees
+// with the original up to column 23, before `ONE`.
+class ChangedLineLocationTest : public LocationTest {
+protected:
+    void SetUp() override {
+        original_ = sources_.addFile("prog.c", "#define ONE 1\n"
+                                               "int main(void) {\n"
+                                               "\tint a = 0; if (a) a = ONE;   if (a) a = 2;\n"
+                                               "\treturn a;\n"
+                                               "}\n");
+        program("# 1 \"prog.c\"\n"
+                "\n"
+                "int main(void) {\n"
+                " int a = 0; if (a) a = 1; if (a) a = 2;\n"
+                " return a;\n"
+                "}\n",
+                DataModel::ILP32, "prog.c");
+    }
+};
+
+TEST_F(ChangedLineLocationTest, ColumnsBeforeTheChangeMatchAndATabAgreesWithABlank) {
+    const Place place = this->place(WaypointType::Branching, 3, 13);
+    EXPECT_TRUE(place.contains(position(4, 13)));
+    EXPECT_FALSE(place.isAfterPreprocessorChange());
+}
+
+TEST_F(ChangedLineLocationTest, ColumnsAfterTheChangeMatchNothing) {
+    // Column 27 of the cpp output is the second if, but column 27 of the original line is the `;` after ONE.
+    const Place place = this->place(WaypointType::Branching, 3, 27);
+    EXPECT_TRUE(isEmpty(place));
+    EXPECT_TRUE(place.isAfterPreprocessorChange());
+    // The second if of the original line.
+    EXPECT_TRUE(isEmpty(this->place(WaypointType::Branching, 3, 31)));
+    // Without a column, the first branching of the line still counts.
+    EXPECT_TRUE(this->place(WaypointType::Branching, 3).contains(position(4, 13)));
+}
+
+TEST_F(ChangedLineLocationTest, DescribeGivesOriginalColumnsOnly) {
+    const LocationMap map(sources_, file_, original_, unit());
+    EXPECT_EQ(map.describe(position(4, 13)), "3:13");
+    EXPECT_EQ(map.describe(position(4, 27)), "3 (column 27 after preprocessing)");
 }
 
 } // namespace

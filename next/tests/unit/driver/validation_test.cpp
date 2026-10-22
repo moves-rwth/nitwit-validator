@@ -126,6 +126,7 @@ TEST_F(ValidationTest, OtherPropertiesAreUnknown) {
 TEST_F(ValidationTest, UnreadableFilesAreErrorsOfTheCommandLine) {
     command_.witness = (directory_ / "missing.yml").string();
     EXPECT_EQ(run(), 3);
+    EXPECT_TRUE(resultLine().starts_with("ERROR: cannot read the witness")) << resultLine();
     command_.witness = write("witness.yml", witness);
     command_.program = (directory_ / "missing.c").string();
     EXPECT_EQ(run(), 3);
@@ -144,7 +145,7 @@ TEST_F(ValidationTest, ProgramsTheFrontEndRejectsAreUnknown) {
 TEST_F(ValidationTest, MalformedWitnessesAreErrors) {
     command_.witness = write("witness.yml", "- entry_type: violation_sequence\n  content: 5\n");
     EXPECT_EQ(run(), 2);
-    EXPECT_TRUE(resultLine().starts_with("UNKNOWN: the witness cannot be parsed:")) << resultLine();
+    EXPECT_TRUE(resultLine().starts_with("ERROR: the witness cannot be parsed:")) << resultLine();
 }
 
 TEST_F(ValidationTest, GraphmlWitnessesAreNotSupportedYet) {
@@ -173,6 +174,41 @@ TEST_F(ValidationTest, WitnessLinesOfPreprocessedProgramsArePresumedLines) {
     text.replace(text.find("a == FIVE - 0"), 13, "a == 5");
     command_.witness = write("witness.yml", text);
     EXPECT_EQ(run(), 0) << output_.str();
+}
+
+TEST_F(ValidationTest, ColumnsAfterAChangeByThePreprocessorMatchNothing) {
+    // cpp collapses the blanks before the second if of line 6, so that column 25 of its output is the third if, whose
+    // condition holds; in the original line, it is the second if, whose condition does not.
+    command_.program = write("program.c", "#define ZERO 0\n"
+                                          "extern int __VERIFIER_nondet_int(void);\n"
+                                          "extern void reach_error(void);\n"
+                                          "int main(void) {\n"
+                                          "    int a = __VERIFIER_nondet_int(); int b = ZERO;\n"
+                                          "    if (a) {}           if (b) {} if (!b) reach_error();\n"
+                                          "    return 0;\n"
+                                          "}\n");
+    command_.witness = write("witness.yml", R"(- entry_type: violation_sequence
+  content:
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        location: {file_name: program.c, line: 6, column: 25}
+        constraint: {value: "true", format: c_expression}
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location: {file_name: program.c, line: 6}
+)");
+    command_.verbose = true;
+    EXPECT_EQ(run(), 252) << output_.str();
+    EXPECT_TRUE(resultLine().starts_with("FAILED: the target was not reached: 'reach_error' was called at 6 (column "))
+        << resultLine();
+    EXPECT_TRUE(resultLine().ends_with(" after preprocessing) in segment 1 of 2")) << resultLine();
+    EXPECT_TRUE(log_.str().contains("the follow waypoint of segment 1 (branching at 6:25) matches nothing in a line "
+                                    "that the preprocessor changed before the column"))
+        << log_.str();
 }
 
 } // namespace

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <format>
+#include <string_view>
 #include <utility>
 
 #include "ast/casting.hpp"
@@ -162,6 +163,21 @@ void pushChildren(const ast::Expr* expr, std::vector<Node>& pending) {
     std::unreachable();
 }
 
+bool isBlank(char c) {
+    return c == ' ' || c == '\t' || c == '\v' || c == '\f';
+}
+
+// The number of leading bytes in which a line of the preprocessor's output agrees with its original line; blanks agree
+// with blanks.
+std::uint32_t agreeingPrefix(std::string_view physical, std::string_view original) {
+    std::uint32_t length = 0;
+    while (length < physical.size() && length < original.size()
+           && (physical[length] == original[length] || (isBlank(physical[length]) && isBlank(original[length])))) {
+        ++length;
+    }
+    return length;
+}
+
 } // namespace
 
 bool Place::contains(SourceLocation location) const {
@@ -189,10 +205,17 @@ LocationMap::LocationMap(const SourceManager& sources, FileId file, FileId origi
     }
     // A line marker applies to whole physical lines, so the presumed line of a line's first byte holds for the line.
     const std::string_view originalName = sources_.name(originalFile_);
+    agreeing_.assign(sources_.lineCount(file_), 0);
     for (std::uint32_t line = 1; line <= sources_.lineCount(file_); ++line) {
+        // GCC's cpp begins with `# 0 "file.c"`: line 0 holds no code.
         const PresumedLocation presumed = sources_.presumed(*sources_.location(file_, {line, 1}));
-        if (presumed.fileName == originalName) {
-            physicalLines_[presumed.line].push_back(line);
+        if (presumed.fileName != originalName || presumed.line == 0) {
+            continue;
+        }
+        physicalLines_[presumed.line].push_back(line);
+        if (presumed.line <= sources_.lineCount(originalFile_)) {
+            agreeing_[line - 1] =
+                agreeingPrefix(sources_.lineText(file_, line), sources_.lineText(originalFile_, presumed.line));
         }
     }
 }
@@ -230,30 +253,23 @@ void LocationMap::collectPoints(const ast::FunctionDecl& function) {
     }
 }
 
-std::vector<Place::Line> LocationMap::linesOf(const witness::Location& location) const {
-    std::vector<std::uint32_t> physical;
+std::vector<std::uint32_t> LocationMap::physicalLinesOf(std::uint32_t line) const {
     if (originalFile_ == FileId::None) {
-        if (location.line >= 1 && location.line <= sources_.lineCount(file_)) {
-            physical.push_back(location.line);
+        if (line >= 1 && line <= sources_.lineCount(file_)) {
+            return {line};
         }
-    } else if (const auto found = physicalLines_.find(location.line); found != physicalLines_.end()) {
-        const bool isInOriginalLine =
-            !location.column
-            || (location.line <= sources_.lineCount(originalFile_)
-                && *location.column <= sources_.lineText(originalFile_, location.line).size());
-        if (isInOriginalLine) {
-            physical = found->second;
-        }
+        return {};
     }
-    std::vector<Place::Line> lines;
+    const auto found = physicalLines_.find(line);
+    return found != physicalLines_.end() ? found->second : std::vector<std::uint32_t>();
+}
+
+Place::Line LocationMap::rangeOf(std::uint32_t physicalLine) const {
     const auto fileSize = static_cast<std::uint32_t>(sources_.contents(file_).size());
-    for (const std::uint32_t line : physical) {
-        const std::uint32_t begin = sources_.location(file_, {line, 1})->offset;
-        const std::uint32_t end =
-            line < sources_.lineCount(file_) ? sources_.location(file_, {line + 1, 1})->offset : fileSize;
-        lines.push_back({.begin = begin, .end = end});
-    }
-    return lines;
+    const std::uint32_t begin = sources_.location(file_, {physicalLine, 1})->offset;
+    const std::uint32_t end =
+        physicalLine < sources_.lineCount(file_) ? sources_.location(file_, {physicalLine + 1, 1})->offset : fileSize;
+    return {.begin = begin, .end = end};
 }
 
 const std::vector<LocationMap::Point>& LocationMap::pointsOf(witness::WaypointType type) const {
@@ -273,26 +289,41 @@ const std::vector<LocationMap::Point>& LocationMap::pointsOf(witness::WaypointTy
 Place LocationMap::place(const witness::Location& location, witness::WaypointType type) const {
     Place place;
     place.file_ = file_;
-    const std::vector<Place::Line> lines = linesOf(location);
-    if (type == witness::WaypointType::Target && !location.column) {
-        place.lines_ = lines;
-        return place;
-    }
+    const std::vector<std::uint32_t> physical = physicalLinesOf(location.line);
     const std::vector<Point>& points = pointsOf(type);
-    for (const Place::Line& line : lines) {
-        const auto first = std::ranges::lower_bound(points, line.begin, {}, &Point::offset);
+    for (const std::uint32_t line : physical) {
+        const Place::Line range = rangeOf(line);
         if (!location.column) {
+            if (type == witness::WaypointType::Target) {
+                place.lines_.push_back(range);
+                continue;
+            }
             // The first evaluation point of the type in the line.
-            if (first != points.end() && first->offset < line.end) {
+            const auto first = std::ranges::lower_bound(points, range.begin, {}, &Point::offset);
+            if (first != points.end() && first->offset < range.end) {
                 place.offsets_.push_back(first->evaluated);
                 break;
             }
             continue;
         }
-        const std::uint32_t offset = line.begin + *location.column - 1;
-        if (offset >= line.end) {
+        // Columns count from 1 and may be one past the line's text; compared without forming an offset that could
+        // wrap around.
+        const std::uint32_t column = *location.column;
+        if (column == 0 || column - 1 >= range.end - range.begin) {
             continue;
         }
+        if (originalFile_ != FileId::None) {
+            const bool isInOriginalLine = location.line >= 1 && location.line <= sources_.lineCount(originalFile_)
+                                          && column <= sources_.lineText(originalFile_, location.line).size();
+            if (!isInOriginalLine) {
+                continue;
+            }
+            if (column > agreeing_[line - 1]) {
+                place.isAfterPreprocessorChange_ = true;
+                continue;
+            }
+        }
+        const std::uint32_t offset = range.begin + column - 1;
         const auto at = std::ranges::lower_bound(points, offset, {}, &Point::offset);
         const bool isPoint = at != points.end() && at->offset == offset;
         place.offsets_.push_back(isPoint && type == witness::WaypointType::Assumption ? at->evaluated : offset);
@@ -301,12 +332,20 @@ Place LocationMap::place(const witness::Location& location, witness::WaypointTyp
 }
 
 std::string LocationMap::describe(SourceLocation location) const {
-    if (originalFile_ != FileId::None) {
-        const PresumedLocation presumed = sources_.presumed(location);
-        return std::format("{}:{}", presumed.line, presumed.column);
-    }
     const LineColumn position = sources_.lineColumn(location);
-    return std::format("{}:{}", position.line, position.column);
+    if (originalFile_ == FileId::None) {
+        return std::format("{}:{}", position.line, position.column);
+    }
+    const PresumedLocation presumed = sources_.presumed(location);
+    if (presumed.fileName != sources_.name(originalFile_)) {
+        return std::format("{}:{}:{}", presumed.fileName, presumed.line, presumed.column);
+    }
+    const bool isUnchanged =
+        position.line >= 1 && position.line <= agreeing_.size() && position.column <= agreeing_[position.line - 1];
+    if (!isUnchanged) {
+        return std::format("{} (column {} after preprocessing)", presumed.line, position.column);
+    }
+    return std::format("{}:{}", presumed.line, position.column);
 }
 
 } // namespace nitwit::validate

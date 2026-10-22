@@ -1,5 +1,6 @@
 nitwit_add_module(driver
     SOURCES
+        command_line.cpp
         frontend.cpp
         preprocess.cpp
         replay.cpp

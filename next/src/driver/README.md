@@ -15,6 +15,9 @@ nitwit --version
   `__VERIFIER_error` variant are supported; any other property is reported as UNKNOWN (exit 4). Without `-p` and
   `-e`, it is `reach_error`. Giving both is a wrong command line (exit 3).
 - **Without `-w`:** a program without witness and without `--replay` gives exit code 240.
+- **Wrong command lines** give exit code 3: unknown options, an option without its value, an option given twice
+  (also `-32` with `-64`), a second program, no program, `--replay` with validation options, `--input-log` without
+  `--replay`. `command_line.hpp` parses it.
 - **`-v`:** prints the validation log (segments reached, restarts, why each run ended) to stderr.
 - **`--replay`:** the differential-testing mode (`tools/difftest/README.md`): runs `main` with the inputs file, without
   a witness. The program's output goes to stdout, and the exit status is the program's (or the harness codes).
@@ -47,6 +50,8 @@ sema and the interpreter all recurse on it.
 - **Result:** one final line starts with the verdict, as in 3.x:
   - `VALIDATED:` for a confirmed witness;
   - `FAILED:` when the witness was not confirmed;
-  - `UNKNOWN:` for unsupported input and limits.
+  - `UNKNOWN:` for unsupported input and limits;
+  - `ERROR:` for a witness that cannot be parsed (exit code 2) and files that cannot be read (3), which BenchExec
+    reports as ERROR.
   The reason follows.
 - **Exit code:** BenchExec reads only the exit code (`docs/exit-codes.md`).

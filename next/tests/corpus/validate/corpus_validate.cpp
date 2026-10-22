@@ -4,7 +4,9 @@
 // - crafted: validation-crafted with the expected verdicts of its *.witness-validation.yml; at least as many right as
 //   NITWIT 3.x and no invalid witness confirmed;
 // - sample: samples/unreach-call-25-per-producer.tsv; no witness of a correct program confirmed, and at least as many
-//   witnesses of buggy programs (without the crafted witnesses of Paulina) confirmed as 3.x.
+//   witnesses of buggy programs (without the crafted witnesses of Paulina) confirmed as 3.x. The dataset names programs
+//   by hash; they run under their names at SV-COMP, which witnesses use in location.file_name, through symbolic links
+//   in the log directory.
 // Each run is a process of its own with a timeout of 30 s (as the 3.x results) and a 10 GB address space, at most 8 at
 // a time. Every difference to the 3.x results is printed. The dataset is untrusted input: it is only read, and its
 // programs only run inside NITWIT.
@@ -305,6 +307,42 @@ bool checkCrafted(const fs::path& dataset, const fs::path& logs) {
 
 // ---- sample ----
 
+/// The file name of the program at SV-COMP: the last component of "programfile" in the witness's metadata
+/// (info/<sha256>.json); nullopt if it is missing or not a plain file name (the dataset is untrusted input).
+std::optional<std::string> originalProgramName(const fs::path& dataset, const std::string& witness) {
+    const bool isHash = witness.size() == 64 && std::ranges::all_of(witness, [](char c) {
+                            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+                        });
+    if (!isHash) {
+        return std::nullopt;
+    }
+    const std::string info = readFile(dataset / "info" / (witness + ".json"));
+    constexpr std::string_view key = "\"programfile\": \"";
+    const std::size_t begin = info.find(key);
+    const std::size_t end = begin == std::string::npos ? begin : info.find('"', begin + key.size());
+    if (end == std::string::npos) {
+        return std::nullopt;
+    }
+    const std::string path = info.substr(begin + key.size(), end - begin - key.size());
+    std::string name = path.substr(path.rfind('/') + 1);
+    const bool isPlain =
+        !name.empty() && name.size() <= 200 && name != "." && name != ".." && std::ranges::all_of(name, [](char c) {
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '.' || c == '_'
+                   || c == '-' || c == '+';
+        });
+    return isPlain ? std::optional(std::move(name)) : std::nullopt;
+}
+
+/// A symbolic link `directory/name` to the program.
+fs::path linked(const fs::path& program, const std::string& name, const fs::path& directory) {
+    fs::create_directories(directory);
+    const fs::path link = directory / name;
+    std::error_code ignored;
+    fs::remove(link, ignored);
+    fs::create_symlink(fs::absolute(program), link);
+    return link;
+}
+
 bool checkSample(const fs::path& dataset, const fs::path& logs) {
     std::map<std::string, int> v3;
     const fs::path v3Results =
@@ -331,6 +369,11 @@ bool checkSample(const fs::path& dataset, const fs::path& logs) {
                 .v3Exit = std::nullopt};
         if (const auto found = v3.find(job.name); found != v3.end()) {
             job.v3Exit = found->second;
+        }
+        if (const std::optional<std::string> name = originalProgramName(dataset, job.name)) {
+            job.program = linked(job.program, *name, logs / "sample-programs" / job.name);
+        } else {
+            std::println("no original program name for {}; it runs under its hash", job.name);
         }
         jobs.push_back(std::move(job));
     }

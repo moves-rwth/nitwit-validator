@@ -123,9 +123,11 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
   1. inputs fixed by earlier runs;
   2. hints from the monitor, e.g. a `function_return` waypoint with `\result == 5` at this call site;
   3. a default.
-- **Restarts:** suppose a constraint like `x == 5` fails, and `x` has as its origin an input that took its
-  default. The validator then fixes that input to 5 and restarts the run from the beginning. Runs are deterministic,
-  so every confirmation comes from one concrete execution. The number of restarts is bounded.
+- **Restarts:** suppose a follow constraint like `x == 5` fails, and `x` has as its origin an input that took its
+  default. The validator then fixes that input to 5 and restarts the run from the beginning. Likewise, an avoid
+  constraint `x == 0` that holds on the default fixes the input to another value. Runs are deterministic, so every
+  confirmation comes from one concrete execution, in which every waypoint was evaluated on that run's values. The
+  number of restarts is bounded.
 - **The verdict** is computed from:
   - whether the error function was called;
   - the monitor's state: target reached, waiting, or rejected;

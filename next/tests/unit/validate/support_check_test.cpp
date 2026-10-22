@@ -83,7 +83,42 @@ TEST(SupportCheckTest, RejectsOtherConstraintFormats) {
     EXPECT_EQ(unsupportedFeature(witness), "constraints of format 'smtlib' in segment 1");
 }
 
+TEST(SupportCheckTest, RejectsConstraintsOnFunctionEnterAndTargetWaypoints) {
+    EXPECT_EQ(unsupportedFeature(sequence({{follow(WaypointType::FunctionEnter, 4, 9, "x == 1")}, {target(5, 9)}})),
+              "a constraint on a function_enter waypoint, which the format does not allow, in segment 1");
+    witness::YamlWitness witness = wellFormed();
+    witness.violationSequences[0].segments[1].waypoints[0].constraint =
+        witness::Constraint{.value = "1", .format = "c_expression"};
+    EXPECT_EQ(unsupportedFeature(witness),
+              "a constraint on a target waypoint, which the format does not allow, in segment 2");
+    EXPECT_EQ(unsupportedFeature(sequence({{follow(WaypointType::FunctionEnter, 4, 9)}, {target(5, 9)}})),
+              std::nullopt);
+}
+
+TEST(SupportCheckTest, WaypointsMustBeInTheProgramFile) {
+    // The test helpers write file_name test.c; directories do not count.
+    witness::YamlWitness witness = wellFormed();
+    EXPECT_EQ(waypointInOtherFile(witness.violationSequences[0], "test.c"), std::nullopt);
+    EXPECT_EQ(waypointInOtherFile(witness.violationSequences[0], "/tmp/x/test.c"), std::nullopt);
+    witness.violationSequences[0].segments[1].waypoints[0].location.fileName = "../sv-benchmarks/c/test.c";
+    EXPECT_EQ(waypointInOtherFile(witness.violationSequences[0], "test.c"), std::nullopt);
+    witness.violationSequences[0].segments[1].waypoints[0].location.fileName = "include/test.h";
+    EXPECT_EQ(waypointInOtherFile(witness.violationSequences[0], "dir/test.c"),
+              "a waypoint in 'include/test.h', not in the program 'test.c' (segment 2)");
+}
+
 class UnsupportedWitnessTest : public ValidateTest {};
+
+TEST_F(UnsupportedWitnessTest, AWaypointInAnotherFileIsUnknown) {
+    program("int main(void) { return 0; }\n");
+    witness::YamlWitness witness = sequence({{follow(WaypointType::Assumption, 1, 18, "1")}, {target(1, 18)}});
+    witness.violationSequences[0].segments[0].waypoints[0].location.fileName = "other.c";
+    const ValidationResult result = validate(witness, [](FakeExecution&) { return returned(0); });
+    EXPECT_EQ(result.verdict, Verdict::Unsupported);
+    EXPECT_EQ(result.message,
+              "NITWIT does not support a waypoint in 'other.c', not in the program 'test.c' (segment 1)");
+    EXPECT_EQ(scriptRuns_, 0);
+}
 
 TEST_F(UnsupportedWitnessTest, IsUnknownWithoutRunningTheProgram) {
     program("int main(void) { return 0; }\n");

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <format>
+#include <string_view>
 
 namespace nitwit::validate {
 
@@ -24,6 +25,13 @@ std::optional<std::string> unsupportedSegment(const witness::Segment& segment, s
         if (waypoint.constraint && !isSupportedConstraintFormat(waypoint.constraint->format)) {
             return std::format("constraints of format '{}' in segment {}", waypoint.constraint->format, number);
         }
+        // The format has no constraints for these types; no witness of SV-COMP 2026 writes one.
+        if (waypoint.constraint
+            && (waypoint.type == witness::WaypointType::FunctionEnter
+                || waypoint.type == witness::WaypointType::Target)) {
+            return std::format("a constraint on a {} waypoint, which the format does not allow, in segment {}",
+                               waypoint.type == witness::WaypointType::Target ? "target" : "function_enter", number);
+        }
         if (waypoint.action == witness::WaypointAction::Follow) {
             ++follows;
         }
@@ -40,6 +48,22 @@ std::optional<std::string> unsupportedSegment(const witness::Segment& segment, s
 }
 
 } // namespace
+
+std::optional<std::string> waypointInOtherFile(const witness::ViolationSequence& sequence, std::string_view program) {
+    const auto lastComponent = [](std::string_view path) {
+        return path.substr(path.rfind('/') + 1);
+    };
+    const std::string_view name = lastComponent(program);
+    for (std::size_t i = 0; i < sequence.segments.size(); ++i) {
+        for (const witness::Waypoint& waypoint : sequence.segments[i].waypoints) {
+            if (lastComponent(waypoint.location.fileName) != name) {
+                return std::format("a waypoint in '{}', not in the program '{}' (segment {})",
+                                   waypoint.location.fileName, name, i + 1);
+            }
+        }
+    }
+    return std::nullopt;
+}
 
 bool isSupportedConstraintFormat(const std::string& format) {
     return format.empty() || format == "c_expression" || format == "acsl_expression" || format == "ext_c_expression";

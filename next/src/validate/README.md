@@ -17,8 +17,10 @@ with other inputs where that can help. It decides the verdict and the exit code 
 ## Semantics of witness format 2.x
 
 The rules of NITWIT 3.x after its P1/P2 fixes (77 of 100 right on `validation-crafted`, no invalid witness
-confirmed), made precise where the test witnesses and `validation-crafted` required it. The format's own description is
-in sv-witnesses (`README.md`, "violation witnesses").
+confirmed), made precise where the test witnesses and `validation-crafted` required it. Where 3.x confirmed invalid
+witnesses, NITWIT 4 deviates: avoid waypoints are evaluated on the inputs of the run, cascaded waypoints refer to the
+same execution, and columns of preprocessed programs must point to unchanged text. The format's own description is in
+sv-witnesses (`README.md`, "violation witnesses").
 
 ### Structure
 
@@ -33,12 +35,17 @@ in sv-witnesses (`README.md`, "violation witnesses").
     waypoint at its end;
   - constraint formats other than none, `c_expression`, `acsl_expression` and `ext_c_expression`. Constraints of these
     formats are parsed as C plus `\result`; one that is not C makes the verdict UNKNOWN when it is compiled;
+  - a constraint on a `function_enter` or `target` waypoint, which the format does not have (no SV-COMP 2026
+    unreach-call witness writes one);
+  - a waypoint whose `location.file_name` names another file than the program, compared by the last path component.
+    Its line would be matched against the program's lines. All 13 million waypoints of the SV-COMP 2026 unreach-call
+    witnesses name the program;
   - no or more than one `violation_sequence`.
 
 ### Evaluation points
 
 Only the waypoints of the current segment are evaluated. A location is a line and, if given, a column; both count bytes
-from 1.
+from 1. A column 0 or beyond the end of the line (one past its text still counts) matches nothing.
 
 | Type | Evaluated | Location | Passes when |
 |---|---|---|---|
@@ -54,8 +61,13 @@ from 1.
 - **Blocks** have no evaluation point of their own (the interpreter reports no event for them). An assumption at a `{`,
   where CPAchecker puts some, is evaluated before the first statement in the block, which runs in the same state.
 - **Labels:** the interpreter reports a statement event for a label (or `case`) and again for the statement it labels.
-- **Preprocessed programs** (NITWIT ran `cpp`): lines are presumed lines of the original file, and a column beyond the
-  end of the original line matches nothing (it points into a macro expansion, as in `testfiles/sv-comp-2019/09.assert.c`).
+- **Preprocessed programs** (NITWIT ran `cpp`): lines are presumed lines of the original file. `cpp` expands macros,
+  replaces comments by a blank and collapses runs of blanks, which moves the text after them. A column is therefore
+  only used where the `cpp` line and the original line agree byte for byte up to and including it, a blank agreeing
+  with any blank (`cpp` writes a tab of the indentation as a space). A column after a change matches nothing in that
+  line (the verbose log says so), and so does a column beyond the end of the original line (into a macro expansion,
+  as in `testfiles/sv-comp-2019/09.assert.c`). Messages give original columns; a location after a change is given as
+  "line (column c after preprocessing)".
 - **Branching values:** `true`, `false` and `default` in any case and with blanks around them; a case value is an
   integer constant expression. An outcome at a `switch`, or a case value elsewhere, is UNKNOWN.
 - **Constraints** are compiled at their first evaluation and kept for later runs (so that the sites of input requests
@@ -64,19 +76,21 @@ from 1.
 
 ### Follow, avoid and progress
 
-- **Follow:** a follow waypoint must pass at its first evaluation point. If it does not, the execution has left the
-  witness and is rejected (exit 241). A passing follow waypoint makes the next segment current.
-- **Avoid:** avoid waypoints of the current segment are evaluated at their evaluation points. If one passes, the
-  execution is rejected. At an event where both a follow and an avoid waypoint are evaluated, a passing avoid
-  waypoint wins. Avoid constraints never fix inputs: an input that is not fixed yet counts as "not passing". That is
-  decided per conjunct: one whose value, or the subject of whose relation with a constant, has an input as its origin
-  that is neither fixed nor hinted does not hold. For a `switch` case or `default`, the switched value decides.
-  Outcomes of other branchings are taken as they are.
-- **Cascading:** one event can complete several segments only through `assumption` waypoints at the same statement.
-  CPAchecker writes several identical assumptions, often `1`, at one location. Each of them passes non-strictly: a
-  cascaded assumption that fails is evaluated again at the next execution of the statement (unless its failure fixes
-  inputs, which restarts the run). As in 3.x, the avoid waypoints of a segment are not evaluated at the event that
-  made the segment current.
+All waypoints are evaluated in the state of the run, on the values the inputs have in it. At an event, the follow
+waypoint of the current segment is evaluated first, then its avoid waypoints there.
+
+- **Follow:** a follow waypoint must pass at its first evaluation point. If it fails and its failure fixes inputs
+  ("Values"), the run restarts; otherwise the execution has left the witness and is rejected (exit 241). A passing
+  follow waypoint makes the next segment current.
+- **Avoid:** an avoid waypoint of the current segment that passes rejects the execution (exit 241), also where the
+  follow waypoint passed at the same event, unless fixing an input may make it fail ("Values"): then the run
+  restarts, and the next run evaluates it again on the fixed input.
+- **Cascading:** one event can complete several segments only through `assumption` waypoints at the same statement,
+  and they all refer to the same execution of the statement: CPAchecker writes several identical assumptions, often
+  `1`, at one location. After a follow assumption passed, the waypoints of the next segment are evaluated at the same
+  event: its follow waypoint, if it is an assumption at this statement, must pass there, and its avoid waypoints there
+  are evaluated. Other waypoint types do not cascade: a waypoint of the next segment at the same `if` or loop refers to
+  its next execution.
 - **Verdict:**
 
   | Outcome | Exit code |
@@ -101,16 +115,27 @@ of a value is the input it is derived from only through copies and conversions (
   - The value is chosen in the type of the comparison and must survive the conversion to the call's type and back
     (`\result >= 255U` for an `unsigned char` gives 255; `== 300` for a `char` gives no hint).
   - Hints are computed at the call event, where constants are evaluated in the current frame.
-- **Fixes:** a conjunct `x op c` of a follow `assumption` or `function_return` constraint that fails, where `x`'s
-  value has an unfixed input as its origin, fixes that input and restarts the run.
+- **Fixes of follow waypoints:** a conjunct `x op c` of a follow `assumption` or `function_return` constraint that
+  fails, where `x`'s value has an unfixed input as its origin, fixes that input and restarts the run.
   - `x` is taken without the conversions sema inserts for the comparison (promotions, usual arithmetic conversions).
     The value is chosen for `x` as for hints (`x < c` gives `c - 1`, `x != c` gives 0, or 1 if `c` is 0), then
     converted to the input's type, from which it must convert back to the same value.
+  - A conjunct that is no relation with a constant (`flag`, `(char)x`) counts as `conjunct != 0` when its own value has
+    an unfixed input as its origin.
   - The case value of a follow `branching` waypoint at a `switch` fixes the switched value in the same way, as 3.x
     did by turning it into the assumption `condition == value`.
   - `&&`-conjunctions are split. The failing conjuncts of one constraint fix all their inputs before one restart.
-  - A restart is only made when at least one input gets fixed, and fixed inputs stay fixed, so every run fixes more
-    inputs than the one before. The number of restarts is limited (`ValidationOptions::maxRestarts`).
+- **Fixes of avoid waypoints:** a passing avoid constraint fixes the input of its first conjunct that a fix may make
+  false, in the same way: `x op c` gets a value for the negated relation (`x == c` gives 0, or 1 if `c` is 0), another
+  conjunct the value 0. At a `switch`, a passing avoid waypoint fixes the switched value to the first value that no
+  avoid waypoint of the segment at this `switch` avoids: a case value in source order, else (unless `default` is
+  avoided) the smallest non-negative value that matches no case label. `validation-crafted/switch.3A1` avoids two cases
+  and `default` at one `switch`. Outcomes of other branchings are taken as they are (stage 7).
+- **Restarts** are only made when at least one input gets fixed, and fixed inputs stay fixed, so every run fixes more
+  inputs than the one before. The number of restarts is limited (`ValidationOptions::maxRestarts`).
+- **Every confirmation comes from one complete run** in which all follow waypoints passed and no avoid waypoint passed,
+  on the inputs of that run. A fix only chooses the inputs of the next run, so a fix that does not have the intended
+  effect (an origin through type punning, `interp/README.md`, "Origins") costs a restart, never soundness.
 - **Defaults:** `ValidationOptions::defaultInput`, 0, converted to the requested type; pointers get null. NITWIT 3.x
   effectively used 1; on the sample, 1 confirms one witness more, on `validation-crafted` six fewer.
 - **Escapes:** producer escapes like `"\result"` in double quotes are repaired by the witness parser.

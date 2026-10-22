@@ -20,5 +20,9 @@ NITWIT 4 keeps the exit codes of NITWIT 3.x, because BenchExec's tool-info modul
 | 255 | wrapper script `nitwit.sh`: unsupported property, missing files | ERROR |
 
 3.x also used 244, 246 to 249 for specific interpreter errors; NITWIT 4 reports those cases as 4 with a message.
-NITWIT 4 adds no new codes until the BenchExec module knows them. Limits (time, transitions, restarts, call depth) end
-with 4 and a message naming the limit.
+NITWIT 4 adds no new codes until the BenchExec module knows them. NITWIT's own limits (restarts, call depth, the host
+stack) end with 4 and a message naming the limit. NITWIT sets no time or step limit (`RunOptions::maxSteps` stays 0):
+BenchExec's time limit ends a run that does not finish, and BenchExec reports it as TIMEOUT.
+
+The result line printed before exiting starts with `VALIDATED:` (0), `FAILED:` (241, 242, 250, 252), `ERROR:` (2, 3)
+or `UNKNOWN:` (4, 251).

@@ -42,6 +42,15 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
                 .runs = 0,
                 .segmentsReached = 0};
     }
+    // Waypoints refer to the original program; one in another file (a header) would be matched against its lines.
+    const FileId original = program.originalFile != FileId::None ? program.originalFile : program.file;
+    if (const std::optional<std::string> other =
+            waypointInOtherFile(witness.violationSequences.front(), program.sources.name(original))) {
+        return {.verdict = Verdict::Unsupported,
+                .message = "NITWIT does not support " + *other,
+                .runs = 0,
+                .segmentsReached = 0};
+    }
     ConstraintCompiler constraints(program, diagnostics);
     WitnessOracle oracle(program.context, options.defaultInput);
     SegmentMonitor monitor(witness.violationSequences.front(), program, options.errorFunction, constraints, oracle,

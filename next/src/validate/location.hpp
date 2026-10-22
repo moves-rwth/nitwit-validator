@@ -4,6 +4,7 @@
 // program file, so that matching an event costs a few comparisons (validate/README.md, "Evaluation points").
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -20,6 +21,13 @@ class Place {
 public:
     [[nodiscard]] bool contains(SourceLocation location) const;
 
+    [[nodiscard]] FileId file() const { return file_; }
+    /// The offsets of the events the place matches; empty for a target without column, which matches whole lines.
+    [[nodiscard]] std::span<const std::uint32_t> offsets() const { return offsets_; }
+    /// Whether the column lies in a part of the line that the preprocessor changed (macro expansion, comments,
+    /// collapsed blanks), so that the waypoint matches nothing in that physical line.
+    [[nodiscard]] bool isAfterPreprocessorChange() const { return isAfterPreprocessorChange_; }
+
 private:
     friend class LocationMap;
 
@@ -31,12 +39,16 @@ private:
     FileId file_ = FileId::None;
     std::vector<std::uint32_t> offsets_;
     std::vector<Line> lines_;
+    bool isAfterPreprocessorChange_ = false;
 };
 
 /// Maps witness locations to places in the program file. Lines and columns count bytes from 1 (witness format 2.x,
 /// "location"). For a preprocessed program, a witness line is a presumed line of the original file, which may cover
-/// several physical lines, and a column beyond the end of the original line matches nothing; lines of other files
-/// (headers) never match.
+/// several physical lines; lines of other files (headers) never match. A column there is only a position in a physical
+/// line where that line and the original line agree up to and including the column: the preprocessor expands macros,
+/// replaces comments by a blank and collapses runs of blanks, which moves the text after them. Blanks agree with blanks
+/// (cpp writes a tab of the indentation as a space). A column after a change, or beyond the original line, matches
+/// nothing in that physical line.
 ///
 /// The evaluation points come from the program's AST: statements (assumption), the keywords of conditions and the
 /// `?` of conditional expressions (branching), and the `)` of calls (function_enter, function_return).
@@ -51,7 +63,9 @@ public:
 
     [[nodiscard]] Place place(const witness::Location& location, witness::WaypointType type) const;
 
-    /// "line:column" of a program location as the witness counts them, for messages.
+    /// "line:column" of a program location as the witness counts them, for messages. In a preprocessed program, the
+    /// column is one of the original line; a location after a change by the preprocessor is "line (column c after
+    /// preprocessing)", one in another file (a header) "file:line:column".
     [[nodiscard]] std::string describe(SourceLocation location) const;
 
 private:
@@ -61,15 +75,19 @@ private:
     };
 
     void collectPoints(const ast::FunctionDecl& function);
-    /// The physical lines of the file that a witness line refers to, as byte ranges.
-    [[nodiscard]] std::vector<Place::Line> linesOf(const witness::Location& location) const;
+    /// The physical lines of the file that a witness line refers to.
+    [[nodiscard]] std::vector<std::uint32_t> physicalLinesOf(std::uint32_t line) const;
+    /// A physical line as a byte range.
+    [[nodiscard]] Place::Line rangeOf(std::uint32_t physicalLine) const;
     [[nodiscard]] const std::vector<Point>& pointsOf(witness::WaypointType type) const;
 
     const SourceManager& sources_;
     FileId file_;
     FileId originalFile_;
-    // Preprocessed programs only: the physical lines of each presumed line of the original file.
+    // Preprocessed programs only: the physical lines of each presumed line of the original file, and per physical line
+    // (index line - 1) the number of leading bytes in which it agrees with its original line (0 for other files).
     std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> physicalLines_;
+    std::vector<std::uint32_t> agreeing_;
     // The evaluation points of the program, sorted by offset.
     std::vector<Point> statements_;
     std::vector<Point> branchings_;

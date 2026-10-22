@@ -7,7 +7,9 @@
 #include <cstdint>
 #include <optional>
 #include <ostream>
+#include <span>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "interp/observer.hpp"
@@ -20,7 +22,8 @@
 
 namespace nitwit::validate {
 
-/// An input of the current run to fix for the next run, so that a failed follow waypoint passes.
+/// An input of the current run to fix for the next run, so that a failed follow waypoint passes or a passing avoid
+/// waypoint fails.
 struct Fix {
     value::InputId input{};
     value::Value value; // of the input's type
@@ -32,7 +35,7 @@ public:
         Following,   // the run goes on
         Rejected,    // a follow waypoint failed or an avoid waypoint passed
         ErrorCalled, // the error function was called, see isAtTarget()
-        Restart,     // a follow waypoint failed, but it may pass with the inputs of fixes() fixed
+        Restart, // a follow waypoint failed or an avoid waypoint passed, which fixing the inputs of fixes() may change
         Unsupported, // a constraint cannot be compiled, or does not fit its waypoint
     };
 
@@ -77,8 +80,10 @@ private:
         enum class Outcome : std::uint8_t { Passes, Fails, Unsupported };
 
         Outcome outcome = Outcome::Passes;
-        std::vector<Fix> fixes; // for a failing follow waypoint
-        std::string reason;     // why it fails, or what is unsupported
+        // A failing follow waypoint: the fixes that may make it pass. A passing avoid waypoint: a fix that may make it
+        // fail.
+        std::vector<Fix> fixes;
+        std::string reason; // why it fails, or what is unsupported
     };
 
     interp::Directive handle(const Event& event, interp::EvaluationContext& context);
@@ -86,16 +91,26 @@ private:
     Evaluation evaluateConstraint(WaypointId id, const Event& event, interp::EvaluationContext& context, bool isFollow,
                                   ast::QualType resultType);
     Evaluation evaluateBranching(WaypointId id, const Event& event, interp::EvaluationContext& context, bool isFollow);
-    /// The fix that makes a failed conjunct `subject op constant` true, if the subject is an unfixed input.
-    std::optional<Fix> resolve(const Conjunct& conjunct, interp::EvaluationContext& context);
-    /// The fix of the input that `subject` (of type `subjectType`) is a copy of, so that the subject satisfies the
-    /// bound; none if the subject is not an unfixed input or no value of the input's type gives such a subject.
+    /// The fix that makes a conjunct true (`makeTrue`) or false: for `subject op constant`, a fix of the subject's
+    /// origin for the relation or its negation; for another conjunct, whose value is `value`, a fix of the value's
+    /// origin for `value != 0` or `value == 0`. None if that origin is no unfixed input.
+    std::optional<Fix> resolve(const Conjunct& conjunct, const value::Value& value, bool makeTrue,
+                               interp::EvaluationContext& context);
+    /// The fix of the input that is the origin of `subject` (of type `subjectType`), so that the subject satisfies the
+    /// bound; none if the origin is no unfixed input or no value of the input's type gives such a subject.
     std::optional<Fix> fixFor(const value::Value& subject, ast::QualType subjectType, const Bound& bound);
+    /// For a switch event: the values of the switched value that no avoid waypoint of the current segment at the
+    /// switch avoids, in the order fixes try them.
+    [[nodiscard]] std::vector<value::Value> unavoidedValues(const Event& event, interp::EvaluationContext& context);
     /// Whether a value's origin is an input that is neither fixed nor hinted.
     [[nodiscard]] bool isUnfixedInput(const value::Value& value) const;
     /// Hands the oracle the value that the function_return waypoints of the current segment at this call ask for.
     void offerHint(const interp::CallEvent& event, interp::EvaluationContext& context);
 
+    /// The waypoints of a segment that an event of this type at this location evaluates, in their order in the
+    /// segment (the follow waypoint last).
+    [[nodiscard]] std::span<const std::uint32_t> waypointsAt(std::uint32_t segment, witness::WaypointType type,
+                                                             SourceLocation location) const;
     interp::Directive stop(State state, std::string reason);
     void advance(const Event& event);
     [[nodiscard]] const witness::Waypoint& waypoint(WaypointId id) const;
@@ -109,7 +124,10 @@ private:
     WitnessOracle& oracle_;
     std::ostream* log_;
     LocationMap locations_;
-    std::vector<std::vector<Place>> places_; // per segment and waypoint
+    // Per segment: the indices of its waypoints by event type and offset, so that an event costs one lookup also for
+    // witnesses with many waypoints. Target waypoints are not evaluated by events and have their own place.
+    std::vector<std::unordered_map<std::uint64_t, std::vector<std::uint32_t>>> waypointIndex_;
+    Place target_;
 
     std::uint32_t run_ = 0;
     std::uint32_t current_ = 0;

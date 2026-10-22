@@ -75,8 +75,10 @@ bool isConstant(const ast::Expr* expr) {
 }
 
 // The operand of a comparison without the conversions sema inserted to bring it to the comparison's type: integer
-// promotions and the usual arithmetic conversions (C17 6.3.1.1, 6.3.1.8). They widen or change the signedness only, so
-// converting the operand's value directly to the comparison's type gives the same value.
+// promotions and the usual arithmetic conversions (C17 6.3.1.1, 6.3.1.8). Integer promotions and conversions between
+// floating types widen; a conversion between integer types may change the signedness, and one from an integer to a
+// floating type (`i < 0.5`) may round. Only the last conversion of the chain can change the value, so converting the
+// operand's value directly to the comparison's type gives the same value, which values.hpp relies on.
 const ast::Expr* withoutArithmeticConversions(const ast::Expr* expr) {
     while (true) {
         expr = ast::ignoreParens(expr);
