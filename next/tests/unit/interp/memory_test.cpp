@@ -736,11 +736,14 @@ TEST_P(MemoryTest, RawAccessesRecordReadsOfBytesWithTermsAndWritesWithoutTerms) 
     ASSERT_TRUE(memory.copy(block + 16, block + 8, 4).has_value()); // copies the term itself
     ASSERT_TRUE(memory.write(block + 20, bytes({1, 2}), stored(2)).has_value());
     ASSERT_TRUE(memory.write(block + 24, bytes({1, 2})).has_value());
+    ASSERT_TRUE(memory.write(block + 26, bytes({3, 4})).has_value());
     ASSERT_TRUE(memory.fill(block + 28, std::byte{1}, 3).has_value());
+    ASSERT_TRUE(memory.write(block + 4, bytes({1})).has_value());
     RawAccesses accesses = memory.endRawAccesses();
     EXPECT_FALSE(accesses.readsInputs);
     using Range = std::pair<Address, std::uint64_t>;
-    EXPECT_EQ(accesses.writes, (std::vector<Range>{{block + 24, 2}, {block + 28, 3}}));
+    // Adjacent writes are merged, as the bytes a library function writes one after the other.
+    EXPECT_EQ(accesses.writes, (std::vector<Range>{{block + 24, 7}, {block + 4, 1}}));
 
     memory.beginRawAccesses();
     ASSERT_TRUE(memory.read(block + 6, out).has_value()); // the first half of the term

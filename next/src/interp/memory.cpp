@@ -385,7 +385,48 @@ struct Memory::State {
     /// Copies the terms of the source range, replacing those of the destination range. A term range that lies only
     /// partly in the source becomes opaque in the destination.
     void copyTerms(Address destination, Address source, std::uint64_t size);
+
+    /// write and fill: the bytes, their initialization and `term`, or none if the bytes depend on no input.
+    std::expected<void, MemoryError> write(Address address, std::span<const std::byte> bytes, const StoredTerm* term) {
+        if (bytes.empty()) {
+            return {};
+        }
+        return access(address, bytes.size(), Access::Write).transform([&](const Allocation* allocation) {
+            std::memcpy(allocation->at(address), bytes.data(), bytes.size());
+            markInitialized(*allocation, address, bytes.size());
+            setWrittenTerm(address, bytes.size(), term);
+        });
+    }
+
+    /// The term of bytes just written: `term` for exactly the range, or none. Writes without term are raw accesses.
+    void setWrittenTerm(Address address, std::uint64_t size, const StoredTerm* term) {
+        if (term != nullptr) {
+            replaceTerms(address, size, *term);
+            return;
+        }
+        clearTerms(address, size);
+        if (rawAccesses) {
+            // Adjacent ranges lie in one allocation (allocations are separated by gaps), so they can be merged.
+            std::vector<std::pair<Address, std::uint64_t>>& writes = rawAccesses->writes;
+            if (!writes.empty() && writes.back().first + writes.back().second == address) {
+                writes.back().second += size;
+            } else {
+                writes.emplace_back(address, size);
+            }
+        }
+    }
+    void replaceTerms(Address address, std::uint64_t size, const StoredTerm& term);
 };
+
+void Memory::State::replaceTerms(Address address, std::uint64_t size, const StoredTerm& term) {
+    // Most often, the object held a value with a term before: then no other range overlaps it.
+    if (const auto same = terms.find(address); same != terms.end() && same->second.size == size) {
+        same->second.stored = term;
+        return;
+    }
+    clearTerms(address, size);
+    terms.emplace(address, TermRange{.size = size, .stored = term});
+}
 
 RangeTerm Memory::State::lookUpTerm(Address address, std::uint64_t size) {
     const auto first = firstTermAfter(address);
@@ -504,36 +545,12 @@ std::expected<Memory::ScalarRead, MemoryError> Memory::readScalar(Address addres
 }
 
 std::expected<void, MemoryError> Memory::write(Address address, std::span<const std::byte> bytes) {
-    if (bytes.empty()) {
-        return {};
-    }
-    return state_->access(address, bytes.size(), Access::Write).transform([&](const Allocation* allocation) {
-        std::memcpy(allocation->at(address), bytes.data(), bytes.size());
-        state_->markInitialized(*allocation, address, bytes.size());
-        state_->clearTerms(address, bytes.size());
-        if (state_->rawAccesses) {
-            state_->rawAccesses->writes.emplace_back(address, bytes.size());
-        }
-    });
+    return state_->write(address, bytes, nullptr);
 }
 
 std::expected<void, MemoryError> Memory::write(Address address, std::span<const std::byte> bytes,
                                                const StoredTerm& term) {
-    if (bytes.empty()) {
-        return {};
-    }
-    return state_->access(address, bytes.size(), Access::Write).transform([&](const Allocation* allocation) {
-        std::memcpy(allocation->at(address), bytes.data(), bytes.size());
-        state_->markInitialized(*allocation, address, bytes.size());
-        // Most often, the object held a value with a term before: then no other range overlaps it.
-        if (const auto same = state_->terms.find(address);
-            same != state_->terms.end() && same->second.size == bytes.size()) {
-            same->second.stored = term;
-            return;
-        }
-        state_->clearTerms(address, bytes.size());
-        state_->terms.emplace(address, State::TermRange{.size = bytes.size(), .stored = term});
-    });
+    return state_->write(address, bytes, &term);
 }
 
 void Memory::initialize(Address address, std::span<const std::byte> bytes) {
@@ -574,10 +591,7 @@ std::expected<void, MemoryError> Memory::fill(Address address, std::byte value, 
     return state_->access(address, size, Access::Write).transform([&](const Allocation* allocation) {
         std::memset(allocation->at(address), std::to_integer<int>(value), size);
         state_->markInitialized(*allocation, address, size);
-        state_->clearTerms(address, size);
-        if (state_->rawAccesses) {
-            state_->rawAccesses->writes.emplace_back(address, size);
-        }
+        state_->setWrittenTerm(address, size, nullptr);
     });
 }
 
