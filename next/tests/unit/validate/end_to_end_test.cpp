@@ -271,7 +271,7 @@ int main(void) {
 TEST_F(EndToEndTest, TheResultOfADefinedFunctionIsSolvedThroughItsBody) {
     // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
     GTEST_SKIP() << "needs the terms of the interpreter";
-    // 2 * x + 1 == 7 cannot be inverted through a signed product; the constant 3 is a candidate.
+    // 2 * x + 1 == 7 is inverted through the factor 2, which divides 6.
     build(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
 int twice(int x) { return 2 * x + 1; }
@@ -286,7 +286,7 @@ int main(void) {
                                                        {target(6, 17)}}));
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
     EXPECT_EQ(result.runs, 2u);
-    EXPECT_TRUE(log().contains("to 3 (candidate)")) << log();
+    EXPECT_TRUE(log().contains("to 3 (inversion)")) << log();
 }
 
 // ---- Invalid witnesses that an earlier version confirmed ----
@@ -302,8 +302,10 @@ int main(void) {
 }
 )";
 
-// The witnesses of the next six tests avoid the condition of the error, so no run confirms them. With the
-// interpreter's terms, the search changes the input so that the avoid waypoint fails, and the run ends without error.
+// The witnesses of the next six tests avoid the condition of the error, so no run confirms them. Without the
+// interpreter's terms, the avoid waypoint passes and rejects the execution (LeftWitness, as in stage 6); with them,
+// the search changes the input so that it fails, and the run ends without error (TargetWithoutError). The first test
+// of each pair checks what holds in both cases.
 
 constexpr std::string_view avoidedCaseProgram = R"(extern int __VERIFIER_nondet_int(void);
 extern void reach_error(void);
