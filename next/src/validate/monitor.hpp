@@ -29,7 +29,7 @@ public:
         Following,   // the run goes on
         Rejected,    // a follow waypoint failed or an avoid waypoint passed
         ErrorCalled, // the error function was called, see isAtTarget()
-        Restart,     // a follow waypoint failed or an avoid waypoint passed; the inputs of fixes() may change that
+        Restart,     // a follow waypoint failed or an avoid waypoint passed; the inputs of changes() may change that
         Unsupported, // a constraint cannot be compiled, or does not fit its waypoint
         Unknown,     // an avoid constraint has no value (undefined behaviour, an invalid read)
     };
@@ -64,7 +64,7 @@ public:
     /// For State::ErrorCalled: whether the call was at the target's location in the target segment.
     [[nodiscard]] bool isAtTarget() const { return isAtTarget_; }
     /// For State::Restart: the new values of inputs, at most one per input.
-    [[nodiscard]] const std::vector<Change>& fixes() const { return fixes_; }
+    [[nodiscard]] const std::vector<Change>& changes() const { return changes_; }
     [[nodiscard]] const LocationMap& locations() const { return locations_; }
 
 private:
@@ -93,16 +93,20 @@ private:
     Evaluation evaluateConstraint(WaypointId id, const Event& event, interp::EvaluationContext& context, bool isFollow,
                                   ast::QualType resultType);
     Evaluation evaluateBranching(WaypointId id, const Event& event, interp::EvaluationContext& context, bool isFollow);
-    /// The requirement of a branching at a switch: the case value `caseValue`, or the default branch without it.
-    [[nodiscard]] std::vector<Clause> switchRequirement(const interp::ConditionEvent& condition,
-                                                        const BranchExpectation& expectation, bool isFollow) const;
-    /// Stops the run after waypoint `id` did not have the outcome the witness needs: Restart with the inputs the search
-    /// finds for `requirement`, else Rejected.
+    /// The requirement of a branching at `default` of a switch; `passes`: whether the switch took it.
+    [[nodiscard]] std::vector<Clause> defaultRequirement(const interp::ConditionEvent& condition, bool isFollow,
+                                                         bool passes) const;
+    /// What taking the case value `caseValue` of `label` (if any; `t` is the switched value's term) needs, or with
+    /// `isTaken` false, not taking it.
+    [[nodiscard]] static std::vector<Clause>
+    caseRequirement(std::optional<value::TermId> term, const ast::CaseStmt* label, Int128 caseValue, bool isTaken);
+    /// Stops the run after waypoint `id` did not have the outcome the witness needs (`reason`): Restart with the inputs
+    /// the search finds for `requirement`, else Rejected, with `rejection` as the reason if it is not empty.
     interp::Directive searchOrReject(WaypointId id, const std::vector<Clause>& requirement,
-                                     interp::EvaluationContext& context, std::string restartReason,
-                                     std::string rejectionReason);
+                                     interp::EvaluationContext& context, std::string reason,
+                                     std::string rejection = {});
     /// Keeps the clauses of a requirement that has its outcome, for the searches later in the run.
-    void keep(std::vector<Clause> requirement);
+    void keep(const std::vector<Clause>& requirement, const value::TermTable& terms);
     /// Hands the oracle the value that the function_return waypoints of the current segment at this call ask for.
     void offerHint(const interp::CallEvent& event, interp::EvaluationContext& context);
 
@@ -135,8 +139,9 @@ private:
     bool isAtTarget_ = false;
     State state_ = State::Following;
     std::string reason_;
-    std::vector<Change> fixes_;
-    std::vector<Clause> kept_; // of the waypoints that had their outcome in this run
+    std::vector<Change> changes_;
+    KeptClauses kept_; // of the waypoints that had their outcome in this run
+    bool isKeptFull_ = false;
 };
 
 /// The name of a waypoint type as the witness format spells it.

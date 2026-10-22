@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -12,6 +11,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -34,10 +34,11 @@ using value::TermId;
 using value::TermKind;
 using value::Value;
 
-// Bounds that keep the cost of solving an atom a small multiple of evaluating it.
-constexpr std::size_t maxInputsPerAtom = 8; // the inputs tried for one atom, in the order of preference
-constexpr std::size_t maxConstants = 8;     // the constants of an atom that give candidates
-constexpr int textDepth = 5;                // the levels of a term in the log
+// Bounds that keep the cost of a search a small multiple of evaluating the terms.
+constexpr std::size_t maxInputsPerRelation = 8; // the inputs tried for one relation, in the order of preference
+constexpr std::size_t maxConstants = 8;  // the constants of a relation, and those of clauses blocking values, per input
+constexpr std::size_t maxGoals = 20'000; // the goals one pass decomposes; failed goals are not decomposed again
+constexpr int textDepth = 5;             // the levels of a term in the log
 
 /// The value of an atom or clause with some input values.
 enum class Truth : std::uint8_t { False, True, Unknown, EndsRun };
@@ -87,32 +88,6 @@ bool isTrue(const Value& value) {
     return value::toBool(value).bits() != 0;
 }
 
-/// Whether two scalars have the same representation (also for NaN and -0.0).
-bool isSame(const Value& a, const Value& b) {
-    if (a.kind() != b.kind()) {
-        return false;
-    }
-    switch (a.kind()) {
-    case Value::Kind::Integer:
-        return a.bits() == b.bits();
-    case Value::Kind::Float:
-        return std::bit_cast<std::uint32_t>(a.asFloat()) == std::bit_cast<std::uint32_t>(b.asFloat());
-    case Value::Kind::Double:
-        return std::bit_cast<std::uint64_t>(a.asDouble()) == std::bit_cast<std::uint64_t>(b.asDouble());
-    case Value::Kind::LongDouble: {
-        std::array<std::byte, 16> first{};
-        std::array<std::byte, 16> second{};
-        value::encodeFloat(a, value::FloatFormat::LongDouble, first);
-        value::encodeFloat(b, value::FloatFormat::LongDouble, second);
-        return first == second;
-    }
-    case Value::Kind::None:
-    case Value::Kind::Bytes:
-        break;
-    }
-    return false;
-}
-
 /// The inverse of an odd number modulo 2^128, by Newton's iteration: each step doubles the number of correct low bits,
 /// starting with 3 (a * a == 1 modulo 8 for odd a).
 UInt128 inverseOfOdd(UInt128 a) {
@@ -152,23 +127,90 @@ std::string_view nameOf(value::FloatOperator op) {
     return names[std::to_underlying(op)];
 }
 
+bool isSameAtom(const Atom& a, const Atom& b) {
+    return a.term == b.term && a.op == b.op && a.constant == b.constant;
+}
+
+std::uint64_t clauseHash(std::span<const Atom> clause) {
+    std::uint64_t hash = 0xcbf29ce484222325ULL; // FNV-1a over the fields of the atoms
+    const auto add = [&](std::uint64_t field) {
+        hash = (hash ^ field) * 0x100000001b3ULL;
+    };
+    for (const Atom& atom : clause) {
+        add(atom.term ? std::to_underlying(*atom.term) : ~std::uint64_t{0});
+        add(std::to_underlying(atom.op));
+        add(static_cast<std::uint64_t>(atom.constant));
+        add(static_cast<std::uint64_t>(static_cast<UInt128>(atom.constant) >> 64));
+    }
+    return hash;
+}
+
+/// The value of a choice for an input, and how it was found.
+struct Choice {
+    Value value;
+    Change::Method method = Change::Method::Inversion;
+};
+
+/// The values to try for one input, each once: the inverted value first, then the candidates, the non-negative ones
+/// before the negative ones (programs often reject negative inputs), each group in the order the values came; values
+/// the input was fixed to in earlier runs come last, or not at all.
+class Choices {
+public:
+    Choices(ast::AstContext& context, const SearchInput& input, bool allowsHistory)
+        : context_(context), input_(input), allowsHistory_(allowsHistory) {}
+
+    void add(Value value, Change::Method method) {
+        if (std::ranges::any_of(seen_, [&](const Value& other) { return isSame(other, value); })) {
+            return;
+        }
+        seen_.push_back(value);
+        const bool isOld = std::ranges::any_of(input_.history, [&](const Value& old) { return isSame(old, value); });
+        if (isOld && !allowsHistory_) {
+            return;
+        }
+        const std::size_t queue = isOld ? 3 : method == Change::Method::Inversion ? 0 : isNegative(value) ? 2 : 1;
+        queues_[queue].push_back({.value = std::move(value), .method = method});
+    }
+
+    std::optional<Choice> next() {
+        for (std::size_t i = 0; i < queues_.size(); ++i) {
+            if (next_[i] < queues_[i].size()) {
+                return queues_[i][next_[i]++];
+            }
+        }
+        return std::nullopt;
+    }
+
+private:
+    [[nodiscard]] bool isNegative(const Value& value) const {
+        if (sema::isSignedInteger(context_, input_.type)) {
+            return value.signedBits() < 0;
+        }
+        return sema::isFloating(context_, input_.type)
+               && value::floatCompare(Comparison::Less, value, valueOf(context_, 0, input_.type),
+                                      sema::floatFormat(context_, input_.type));
+    }
+
+    ast::AstContext& context_;
+    const SearchInput& input_;
+    bool allowsHistory_;
+    std::array<std::vector<Choice>, 4> queues_; // inverted, non-negative, negative, values of earlier runs
+    std::array<std::size_t, 4> next_{};
+    std::vector<Value> seen_;
+};
+
 /// Solves one requirement greedily over its clauses (validate/README.md, "Search").
 class Solver {
 public:
-    Solver(ast::AstContext& context, const value::TermTable& terms, std::span<const SearchInput> inputs)
-        : context_(context), terms_(terms), inputs_(inputs) {}
-
-    /// Makes `clauses` guards: no new value may make them false.
-    void keep(std::span<const Clause> clauses) {
-        for (const Clause& clause : clauses) {
-            guards_.push_back(guardOf(clause, false));
-        }
-    }
+    Solver(ast::AstContext& context, const value::TermTable& terms, const KeptClauses& kept,
+           std::span<const SearchInput> inputs)
+        : context_(context), terms_(terms), kept_(kept), inputs_(inputs) {}
 
     SearchResult solve(std::span<const Clause> requirement);
 
 private:
-    /// A clause that a new value must not make end the run, nor false unless `mayBeFalse`.
+    /// A clause of the requirement, or the part of a goal solved before, that a new value must not make end the run,
+    /// nor false unless `mayBeFalse`. Kept clauses are checked through KeptClauses::mentioning.
     struct Guard {
         Clause clause;
         std::vector<InputId> inputs; // the inputs its atoms depend on, ascending
@@ -182,6 +224,7 @@ private:
         std::optional<TermId> rhs;
         Value constant;
         ScalarFormat format;
+        Atom atom; // holds when the relation does: its guard while a kept clause is repaired
     };
 
     enum class Outcome : std::uint8_t {
@@ -190,37 +233,53 @@ private:
         Fails,
     };
 
-    struct Choice {
-        Value value;
-        Change::Method method = Change::Method::Inversion;
-    };
-
     /// The values chosen so far, to restore after an alternative failed.
     struct Snapshot {
         value::Substitution chosen;
         std::vector<std::pair<InputId, Change::Method>> methods;
     };
 
+    /// One greedy pass over the clauses; whether every clause then holds or is unknown.
+    bool solvePass(std::span<const Clause> requirement);
+
     [[nodiscard]] Truth truthOf(const Atom& atom, const value::Substitution& substitution) const;
     [[nodiscard]] Truth truthOf(std::span<const Atom> clause, const value::Substitution& substitution) const;
     [[nodiscard]] Truth truthOf(const Relation& relation, const value::Substitution& substitution) const;
 
     Outcome solveAtom(const Atom& atom);
-    /// Makes `term` non-zero (`wantTrue`) or zero, decomposing `!`, conversions to _Bool, `&&`, `||` and comparisons.
+    /// Makes `term` non-zero (`wantTrue`) or zero, decomposing `!`, conversions to _Bool, `&&`, `||`, `?:` and
+    /// comparisons. A goal that failed is not decomposed again within one atom.
     Outcome solveGoal(TermId term, bool wantTrue);
+    Outcome decompose(TermId term, bool wantTrue);
+    /// Solves `c ? x : y` through the operand the run evaluated (`solveSelected`), with the condition keeping its
+    /// choice; else makes the condition select the other operand, whose value the next run evaluates (Unknown).
+    template <typename SolveSelected>
+    Outcome solveConditional(const Term& conditional, SolveSelected solveSelected);
     bool solveRelation(const Relation& relation);
     /// The value of input `input` that gives `side op bound`, through the operations on the path to it.
     [[nodiscard]] std::optional<Value> invert(TermId side, Comparison op, const Value& bound,
                                               const ScalarFormat& format, InputId input) const;
     /// The value an operand of `term` must have so that `term` has the value `wanted`.
     [[nodiscard]] std::optional<Value> preimage(TermId term, std::size_t operand, const Value& wanted) const;
-    [[nodiscard]] std::vector<Value> candidates(InputId input, const Relation& relation) const;
-    /// Takes `choice` for `input` if it gives the relation and keeps the guards.
-    bool tryValue(InputId input, const Choice& choice, const Relation& relation);
+    /// Adds the candidates of `input` for `relation` to `choices`.
+    void addCandidates(Choices& choices, const SearchInput& input, const Relation& relation) const;
+    /// Adds a constant of `format` and its neighbours, as values of the input's type.
+    void addConstant(Choices& choices, const SearchInput& input, const Value& constant,
+                     const ScalarFormat& format) const;
+    /// Adds the constants of `clause`, at most `budget` of them.
+    void addConstantsOf(Choices& choices, const SearchInput& input, std::span<const Atom> clause,
+                        std::size_t& budget) const;
+    /// Takes `choice` for `input` if it gives the relation and keeps the guards and the kept clauses. Otherwise
+    /// `blocker` is the clause the value makes false, if there is one.
+    bool tryValue(InputId input, const Choice& choice, const Relation& relation, Clause& blocker);
+    /// Makes the kept clause `clause`, which `trial` makes false, hold again through other inputs than `pinned`, whose
+    /// value in `trial` gives `relation`. One level: a repair does not repair.
+    bool repair(value::Substitution trial, InputId pinned, Change::Method method, std::span<const Atom> clause,
+                const Relation& relation);
 
-    /// The inputs of `term` the search may change, in the order of preference.
-    [[nodiscard]] std::vector<InputId> changeable(const std::vector<InputId>& ids) const;
-    [[nodiscard]] Guard guardOf(const Clause& clause, bool mayBeFalse) const;
+    /// The inputs the search may change, in the order of preference.
+    [[nodiscard]] std::vector<InputId> changeable(std::span<const InputId> ids) const;
+    [[nodiscard]] Guard guardOf(std::span<const Atom> clause, bool mayBeFalse) const;
     [[nodiscard]] Value constantIn(Int128 number, const ScalarFormat& format) const {
         return valueOf(context_, number, typeOf(context_, format));
     }
@@ -230,31 +289,84 @@ private:
         chosen_ = std::move(snapshot.chosen);
         methods_ = std::move(snapshot.methods);
     }
+    void setMethod(InputId input, Change::Method method) {
+        std::erase_if(methods_, [&](const auto& entry) { return entry.first == input; });
+        methods_.emplace_back(input, method);
+    }
 
     [[nodiscard]] std::string textOf(TermId id, int depth, bool isTop) const;
     [[nodiscard]] std::string textOf(const Clause& clause) const;
 
     ast::AstContext& context_;
     const value::TermTable& terms_;
+    const KeptClauses& kept_;
     std::span<const SearchInput> inputs_;
+    bool allowsHistory_ = false; // whether values inputs were fixed to in earlier runs may be chosen
     value::Substitution chosen_;
     std::vector<std::pair<InputId, Change::Method>> methods_; // how each input in chosen_ got its value
     std::vector<Guard> guards_;
+    std::vector<InputId> pinned_; // while a kept clause is repaired: the input whose value broke it
+    bool isRepairing_ = false;
+    std::unordered_set<std::uint64_t> failed_; // the goals that failed for the atom being solved, as term * 2 + want
+    std::size_t goals_ = 0;                    // the goals decomposed in this pass
 };
 
+// Two passes: the first never chooses a value an input was fixed to in an earlier run, so that two waypoints do not
+// take turns changing one input; the second allows them.
 SearchResult Solver::solve(std::span<const Clause> requirement) {
     std::string needs;
-    const auto failure = [&] {
-        return SearchResult{.changes = {}, .explanation = std::format("needs {}: no input values found", needs)};
-    };
+    for (const Clause& clause : requirement) {
+        if (truthOf(clause, {}) != Truth::True) {
+            needs += std::format("{}`{}`", needs.empty() ? "" : ", ", textOf(clause));
+        }
+    }
+    const bool hasHistory =
+        std::ranges::any_of(inputs_, [](const SearchInput& input) { return !input.history.empty(); });
+    for (const bool allowsHistory : {false, true}) {
+        if (allowsHistory && !hasHistory) {
+            break;
+        }
+        allowsHistory_ = allowsHistory;
+        chosen_ = {};
+        methods_.clear();
+        guards_.clear();
+        goals_ = 0;
+        if (!solvePass(requirement)) {
+            continue;
+        }
+        SearchResult result;
+        for (const auto& [input, value] : chosen_.entries()) {
+            if (isSame(value, inputs_[std::to_underlying(input)].value)) {
+                continue;
+            }
+            const auto method = std::ranges::find(methods_, input, &std::pair<InputId, Change::Method>::first)->second;
+            result.changes.push_back({.input = input, .value = value, .method = method});
+        }
+        if (result.changes.empty()) {
+            continue;
+        }
+        result.explanation = std::format("needs {}", needs);
+        for (const char* separator = "; "; const Change& change : result.changes) {
+            result.explanation +=
+                std::format("{}input {} := {} ({})", separator, std::to_underlying(change.input),
+                            toString(context_, change.value, inputs_[std::to_underlying(change.input)].type),
+                            nameOf(change.method));
+            separator = ", ";
+        }
+        return result;
+    }
+    return {.changes = {}, .explanation = std::format("needs {}: no input values found", needs)};
+}
+
+bool Solver::solvePass(std::span<const Clause> requirement) {
     for (const Clause& clause : requirement) {
         if (truthOf(clause, chosen_) != Truth::True) {
-            needs += std::format("{}`{}`", needs.empty() ? "" : ", ", textOf(clause));
             // While the clause is solved, no value may make it end the run.
             guards_.push_back(guardOf(clause, true));
             bool isSolved = false;
             for (const Atom& atom : clause) {
                 Snapshot before = snapshot();
+                failed_.clear();
                 if (solveAtom(atom) != Outcome::Fails) {
                     const Truth after = truthOf(clause, chosen_);
                     isSolved = after == Truth::True || after == Truth::Unknown;
@@ -266,31 +378,12 @@ SearchResult Solver::solve(std::span<const Clause> requirement) {
             }
             guards_.pop_back();
             if (!isSolved && truthOf(clause, chosen_) != Truth::Unknown) {
-                return failure();
+                return false;
             }
         }
         guards_.push_back(guardOf(clause, false)); // the values for later clauses keep it
     }
-
-    SearchResult result;
-    for (const auto& [input, value] : chosen_.entries()) {
-        if (isSame(value, inputs_[std::to_underlying(input)].value)) {
-            continue;
-        }
-        const auto method = std::ranges::find(methods_, input, &std::pair<InputId, Change::Method>::first)->second;
-        result.changes.push_back({.input = input, .value = value, .method = method});
-    }
-    if (result.changes.empty()) {
-        return failure();
-    }
-    result.explanation = std::format("needs {}", needs);
-    for (const char* separator = "; "; const Change& change : result.changes) {
-        result.explanation += std::format(
-            "{}input {} := {} ({})", separator, std::to_underlying(change.input),
-            toString(context_, change.value, inputs_[std::to_underlying(change.input)].type), nameOf(change.method));
-        separator = ", ";
-    }
-    return result;
+    return true;
 }
 
 // ---- Evaluation ----
@@ -343,19 +436,40 @@ Solver::Outcome Solver::solveAtom(const Atom& atom) {
     if (!atom.term || terms_.isOpaque(*atom.term)) {
         return Outcome::Fails; // unknown: no input is changed for it
     }
-    const ScalarFormat format = terms_.resultFormat(*atom.term);
     if (atom.constant == 0 && (atom.op == Comparison::Equal || atom.op == Comparison::NotEqual)) {
         return solveGoal(*atom.term, atom.op == Comparison::NotEqual);
     }
-    const Relation relation{.lhs = *atom.term,
-                            .op = atom.op,
-                            .rhs = std::nullopt,
-                            .constant = constantIn(atom.constant, format),
-                            .format = format};
-    return solveRelation(relation) ? Outcome::Holds : Outcome::Fails;
+    const auto relationOn = [&](TermId term) {
+        const ScalarFormat format = terms_.resultFormat(term);
+        const Relation relation{.lhs = term,
+                                .op = atom.op,
+                                .rhs = std::nullopt,
+                                .constant = constantIn(atom.constant, format),
+                                .format = format,
+                                .atom = {.term = term, .op = atom.op, .constant = atom.constant}};
+        return solveRelation(relation) ? Outcome::Holds : Outcome::Fails;
+    };
+    const Term& term = terms_.term(*atom.term);
+    if (term.kind == TermKind::Conditional) {
+        return solveConditional(term, relationOn);
+    }
+    return relationOn(*atom.term);
 }
 
 Solver::Outcome Solver::solveGoal(TermId term, bool wantTrue) {
+    const std::uint64_t key = (std::uint64_t{std::to_underlying(term)} << 1) | (wantTrue ? 1 : 0);
+    // Shared subterms (`c = c || c` in a loop) would make the decomposition exponential.
+    if (failed_.contains(key) || ++goals_ > maxGoals) {
+        return Outcome::Fails;
+    }
+    const Outcome outcome = decompose(term, wantTrue);
+    if (outcome == Outcome::Fails) {
+        failed_.insert(key);
+    }
+    return outcome;
+}
+
+Solver::Outcome Solver::decompose(TermId term, bool wantTrue) {
     const std::expected<Value, NoValue> now = terms_.evaluate(term, chosen_);
     if (now && isTrue(*now) == wantTrue) {
         return Outcome::Holds;
@@ -368,16 +482,20 @@ Solver::Outcome Solver::solveGoal(TermId term, bool wantTrue) {
         return solveGoal(current.operands[0], !wantTrue);
     case TermKind::ToBool:
         return solveGoal(current.operands[0], wantTrue);
+    case TermKind::Conditional:
+        return solveConditional(current, [&](TermId selected) { return solveGoal(selected, wantTrue); });
     case TermKind::IntegerCompare:
     case TermKind::FloatCompare: {
         // The negation of a floating comparison holds without NaN only; the relation is checked as such, which
         // implies the negation.
         const auto op = static_cast<Comparison>(current.op);
-        const Relation relation{.lhs = current.operands[0],
-                                .op = wantTrue ? op : negated(op),
-                                .rhs = current.operands[1],
-                                .constant = {},
-                                .format = current.format};
+        const Relation relation{
+            .lhs = current.operands[0],
+            .op = wantTrue ? op : negated(op),
+            .rhs = current.operands[1],
+            .constant = {},
+            .format = current.format,
+            .atom = {.term = term, .op = wantTrue ? Comparison::NotEqual : Comparison::Equal, .constant = 0}};
         return solveRelation(relation) ? Outcome::Holds : Outcome::Fails;
     }
     case TermKind::LogicalAnd:
@@ -400,8 +518,8 @@ Solver::Outcome Solver::solveGoal(TermId term, bool wantTrue) {
         if (current.operandCount < 2) {
             return Outcome::Unknown;
         }
-        guards_.push_back(guardOf(
-            {{.term = first, .op = wantTrue ? Comparison::NotEqual : Comparison::Equal, .constant = 0}}, false));
+        const Atom firstHolds{.term = first, .op = wantTrue ? Comparison::NotEqual : Comparison::Equal, .constant = 0};
+        guards_.push_back(guardOf(std::span(&firstHolds, 1), false));
         const Outcome second = solveGoal(current.operands[1], wantTrue);
         guards_.pop_back();
         if (second == Outcome::Fails) {
@@ -411,32 +529,52 @@ Solver::Outcome Solver::solveGoal(TermId term, bool wantTrue) {
     }
     default: {
         const ScalarFormat format = terms_.resultFormat(term);
+        const Comparison op = wantTrue ? Comparison::NotEqual : Comparison::Equal;
         const Relation relation{.lhs = term,
-                                .op = wantTrue ? Comparison::NotEqual : Comparison::Equal,
+                                .op = op,
                                 .rhs = std::nullopt,
                                 .constant = constantIn(0, format),
-                                .format = format};
+                                .format = format,
+                                .atom = {.term = term, .op = op, .constant = 0}};
         return solveRelation(relation) ? Outcome::Holds : Outcome::Fails;
     }
     }
 }
 
+template <typename SolveSelected>
+Solver::Outcome Solver::solveConditional(const Term& conditional, SolveSelected solveSelected) {
+    const TermId condition = conditional.operands[0];
+    const bool selectsFirst = conditional.op == 1;
+    Snapshot before = snapshot();
+    const Atom keepsChoice{
+        .term = condition, .op = selectsFirst ? Comparison::NotEqual : Comparison::Equal, .constant = 0};
+    guards_.push_back(guardOf(std::span(&keepsChoice, 1), false));
+    const Outcome outcome = solveSelected(conditional.operands[1]);
+    guards_.pop_back();
+    if (outcome != Outcome::Fails) {
+        return outcome;
+    }
+    restore(std::move(before));
+    return solveGoal(condition, !selectsFirst) == Outcome::Fails ? Outcome::Fails : Outcome::Unknown;
+}
+
 // ---- Relations ----
 
 // Each input of the relation in the order of preference gets the inverted value, if the relation can be inverted for
-// it, and then candidates; values it was fixed to before come last. The first value that gives the relation and keeps
-// the guards is taken.
+// it, and then candidates. A candidate that a clause blocks adds that clause's constants as candidates. The first
+// value that gives the relation and keeps the guards and kept clauses is taken.
 bool Solver::solveRelation(const Relation& relation) {
     const std::vector<InputId> lhsInputs = terms_.inputs(relation.lhs);
     const std::vector<InputId> rhsInputs = relation.rhs ? terms_.inputs(*relation.rhs) : std::vector<InputId>{};
     std::vector<InputId> all;
     std::ranges::set_union(lhsInputs, rhsInputs, std::back_inserter(all));
     std::vector<InputId> order = changeable(all);
-    if (order.size() > maxInputsPerAtom) {
-        order.resize(maxInputsPerAtom);
+    if (order.size() > maxInputsPerRelation) {
+        order.resize(maxInputsPerRelation);
     }
     for (const InputId input : order) {
-        std::vector<Choice> choices;
+        const SearchInput& info = inputs_[std::to_underlying(input)];
+        Choices choices(context_, info, allowsHistory_);
         // Inversion needs the input on one side only; the other side is the bound.
         const bool isLeft = std::ranges::binary_search(lhsInputs, input);
         if (isLeft != std::ranges::binary_search(rhsInputs, input)) {
@@ -447,35 +585,27 @@ bool Solver::solveRelation(const Relation& relation) {
             if (bound) {
                 if (std::optional<Value> inverted =
                         invert(side, isLeft ? relation.op : mirrored(relation.op), *bound, relation.format, input)) {
-                    choices.push_back({.value = std::move(*inverted), .method = Change::Method::Inversion});
+                    choices.add(std::move(*inverted), Change::Method::Inversion);
                 }
             }
         }
-        for (Value& candidate : candidates(input, relation)) {
-            choices.push_back({.value = std::move(candidate), .method = Change::Method::Candidate});
-        }
-        std::vector<Choice> unique;
-        for (Choice& choice : choices) {
-            if (std::ranges::none_of(unique, [&](const Choice& other) { return isSame(other.value, choice.value); })) {
-                unique.push_back(std::move(choice));
-            }
-        }
-        const std::span<const Value> history = inputs_[std::to_underlying(input)].history;
-        std::ranges::stable_partition(unique, [&](const Choice& choice) {
-            return std::ranges::none_of(history, [&](const Value& old) { return isSame(old, choice.value); });
-        });
-        for (const Choice& choice : unique) {
-            if (tryValue(input, choice, relation)) {
+        addCandidates(choices, info, relation);
+        std::size_t blockerConstants = maxConstants;
+        Clause blocker;
+        while (const std::optional<Choice> choice = choices.next()) {
+            blocker.clear();
+            if (tryValue(input, *choice, relation, blocker)) {
                 return true;
             }
+            addConstantsOf(choices, info, blocker, blockerConstants);
         }
     }
     return false;
 }
 
-bool Solver::tryValue(InputId input, const Choice& choice, const Relation& relation) {
+bool Solver::tryValue(InputId input, const Choice& choice, const Relation& relation, Clause& blocker) {
     const SearchInput& info = inputs_[std::to_underlying(input)];
-    // A value of the input's type: a pointer is not chosen, and a _Bool is 0 or 1.
+    // A value of the input's type: a _Bool is 0 or 1.
     const std::optional<Value> converted = convert(context_, choice.value, info.type, info.type);
     if (!converted || !isSame(*converted, choice.value)) {
         return false;
@@ -490,14 +620,68 @@ bool Solver::tryValue(InputId input, const Choice& choice, const Relation& relat
             continue;
         }
         const Truth truth = truthOf(guard.clause, trial);
-        if (truth == Truth::EndsRun || (truth == Truth::False && !guard.mayBeFalse)) {
+        if (truth == Truth::EndsRun) {
+            return false;
+        }
+        if (truth == Truth::False && !guard.mayBeFalse) {
+            blocker = guard.clause;
             return false;
         }
     }
+    std::optional<std::uint32_t> broken; // the one kept clause the value makes false
+    for (const std::uint32_t index : kept_.mentioning(input)) {
+        const Truth truth = truthOf(kept_[index], trial);
+        if (truth == Truth::EndsRun) {
+            return false;
+        }
+        if (truth == Truth::False) {
+            if (broken) {
+                blocker.assign(kept_[index].begin(), kept_[index].end());
+                return false;
+            }
+            broken = index;
+        }
+    }
+    if (broken) {
+        blocker.assign(kept_[*broken].begin(), kept_[*broken].end());
+        return !isRepairing_ && repair(std::move(trial), input, choice.method, kept_[*broken], relation);
+    }
     chosen_ = std::move(trial);
-    std::erase_if(methods_, [&](const auto& entry) { return entry.first == input; });
-    methods_.emplace_back(input, choice.method);
+    setMethod(input, choice.method);
     return true;
+}
+
+// validate/README.md, "Search": the input whose value broke the kept clause keeps it, and the relation it gives must
+// keep holding; the other inputs of the clause may change, as far as their own guards and kept clauses allow.
+bool Solver::repair(value::Substitution trial, InputId pinned, Change::Method method, std::span<const Atom> clause,
+                    const Relation& relation) {
+    Snapshot before = snapshot();
+    chosen_ = std::move(trial);
+    setMethod(pinned, method);
+    isRepairing_ = true;
+    pinned_.push_back(pinned);
+    guards_.push_back(guardOf(std::span(&relation.atom, 1), false));
+    std::unordered_set<std::uint64_t> outerFailed = std::exchange(failed_, {});
+    bool isRepaired = false;
+    for (const Atom& atom : clause) {
+        Snapshot attempt = snapshot();
+        if (solveAtom(atom) != Outcome::Fails) {
+            const Truth truth = truthOf(clause, chosen_);
+            isRepaired = (truth == Truth::True || truth == Truth::Unknown) && truthOf(relation, chosen_) == Truth::True;
+        }
+        if (isRepaired) {
+            break;
+        }
+        restore(std::move(attempt));
+    }
+    failed_ = std::move(outerFailed);
+    guards_.pop_back();
+    pinned_.pop_back();
+    isRepairing_ = false;
+    if (!isRepaired) {
+        restore(std::move(before));
+    }
+    return isRepaired;
 }
 
 // ---- Inversion ----
@@ -542,6 +726,8 @@ std::optional<Value> Solver::invert(TermId side, Comparison op, const Value& bou
     return value;
 }
 
+// Each case gives the value that makes the operation give `wanted` exactly, or none. Where rounding or truncation
+// may make it inexact, the evaluation of the relation in tryValue decides.
 std::optional<Value> Solver::preimage(TermId term, std::size_t operand, const Value& wanted) const {
     const Term& current = terms_.term(term);
     switch (current.kind) {
@@ -570,34 +756,68 @@ std::optional<Value> Solver::preimage(TermId term, std::size_t operand, const Va
         return value::integerComplement(wanted, std::get<value::IntegerFormat>(current.format));
     case TermKind::FloatNegate:
         return value::floatNegate(wanted, std::get<value::FloatFormat>(current.format));
-    case TermKind::IntegerBinary: {
-        // The other operand keeps its value.
-        const std::expected<Value, NoValue> other = terms_.evaluate(current.operands[1 - operand], chosen_);
-        if (!other) {
-            return std::nullopt;
-        }
-        const auto format = std::get<value::IntegerFormat>(current.format);
-        const auto apply = [&](value::IntegerOperator op, const Value& lhs, const Value& rhs) {
-            return value::integerBinary(op, lhs, rhs, format).value; // wraps around, as the run continues
-        };
-        switch (static_cast<value::IntegerOperator>(current.op)) {
-        case value::IntegerOperator::Add:
-            return apply(value::IntegerOperator::Sub, wanted, *other);
-        case value::IntegerOperator::Sub:
-            return operand == 0 ? apply(value::IntegerOperator::Add, wanted, *other)
-                                : apply(value::IntegerOperator::Sub, *other, wanted);
-        case value::IntegerOperator::Xor:
-            return apply(value::IntegerOperator::Xor, wanted, *other);
-        case value::IntegerOperator::Mul:
-            // Odd factors are invertible modulo 2^bits; signed products may overflow, which inverting cannot undo.
-            if (format.isSigned || (other->bits() & 1) == 0) {
-                return std::nullopt;
-            }
-            return apply(value::IntegerOperator::Mul, wanted, Value::integer(inverseOfOdd(other->bits()), format));
+    default:
+        break;
+    }
+
+    // Binary operations: the other operand keeps its value.
+    if (current.kind != TermKind::IntegerBinary && current.kind != TermKind::FloatBinary) {
+        return std::nullopt;
+    }
+    const std::expected<Value, NoValue> other = terms_.evaluate(current.operands[1 - operand], chosen_);
+    if (!other) {
+        return std::nullopt;
+    }
+    if (current.kind == TermKind::FloatBinary) {
+        const auto format = std::get<value::FloatFormat>(current.format);
+        switch (static_cast<value::FloatOperator>(current.op)) {
+        case value::FloatOperator::Add:
+            return value::floatBinary(value::FloatOperator::Sub, wanted, *other, format);
+        case value::FloatOperator::Sub:
+            return operand == 0 ? value::floatBinary(value::FloatOperator::Add, wanted, *other, format)
+                                : value::floatBinary(value::FloatOperator::Sub, *other, wanted, format);
         default:
             return std::nullopt;
         }
     }
+    const auto format = std::get<value::IntegerFormat>(current.format);
+    // Defined results only, except for the wrap-around of + and -, which the run continues with.
+    const auto exact = [&](value::IntegerOperator op, const Value& lhs, const Value& rhs) -> std::optional<Value> {
+        const value::Result result = value::integerBinary(op, lhs, rhs, format);
+        return result.undefinedBehavior == value::UndefinedBehavior::None ? std::optional(result.value) : std::nullopt;
+    };
+    const auto wrapped = [&](value::IntegerOperator op, const Value& lhs, const Value& rhs) {
+        return value::integerBinary(op, lhs, rhs, format).value;
+    };
+    switch (static_cast<value::IntegerOperator>(current.op)) {
+    case value::IntegerOperator::Add:
+        return wrapped(value::IntegerOperator::Sub, wanted, *other);
+    case value::IntegerOperator::Sub:
+        return operand == 0 ? wrapped(value::IntegerOperator::Add, wanted, *other)
+                            : wrapped(value::IntegerOperator::Sub, *other, wanted);
+    case value::IntegerOperator::Xor:
+        return wrapped(value::IntegerOperator::Xor, wanted, *other);
+    case value::IntegerOperator::Mul: {
+        // A factor that divides the wanted value gives the quotient; an odd one in an unsigned format its inverse
+        // modulo 2^bits.
+        if (other->bits() == 0) {
+            return std::nullopt;
+        }
+        const std::optional<Value> remainder = exact(value::IntegerOperator::Rem, wanted, *other);
+        if (remainder && remainder->bits() == 0) {
+            return exact(value::IntegerOperator::Div, wanted, *other);
+        }
+        if (format.isSigned || (other->bits() & 1) == 0) {
+            return std::nullopt;
+        }
+        return wrapped(value::IntegerOperator::Mul, wanted, Value::integer(inverseOfOdd(other->bits()), format));
+    }
+    case value::IntegerOperator::Div:
+        // x / c == w for x = w * c, unless the product overflows.
+        if (operand != 0 || other->bits() == 0) {
+            return std::nullopt;
+        }
+        return exact(value::IntegerOperator::Mul, wanted, *other);
     default:
         return std::nullopt;
     }
@@ -605,26 +825,25 @@ std::optional<Value> Solver::preimage(TermId term, std::size_t operand, const Va
 
 // ---- Candidates ----
 
-std::vector<Value> Solver::candidates(InputId input, const Relation& relation) const {
-    const SearchInput& info = inputs_[std::to_underlying(input)];
-    if (!isArithmetic(context_, info.type)) {
-        return {};
+void Solver::addCandidates(Choices& choices, const SearchInput& input, const Relation& relation) const {
+    if (!isArithmetic(context_, input.type)) {
+        return;
     }
-    std::vector<Value> result;
     const auto add = [&](std::optional<Value> value) {
         if (value) {
-            result.push_back(std::move(*value));
+            choices.add(std::move(*value), Change::Method::Candidate);
         }
     };
-    add(offset(info.value, 1, info.type));
-    add(offset(info.value, -1, info.type));
+    add(offset(input.value, 1, input.type));
+    add(offset(input.value, -1, input.type));
     for (const Int128 number : {0, 1, -1}) {
-        add(valueOf(context_, number, info.type));
+        add(valueOf(context_, number, input.type));
     }
-    // The constants of the relation, the value it compares with first, and their neighbours.
-    std::vector<std::pair<Value, ScalarFormat>> constants;
+    // The constants of the relation, the value it compares with first.
+    std::size_t budget = maxConstants;
     if (!relation.rhs) {
-        constants.emplace_back(relation.constant, relation.format);
+        addConstant(choices, input, relation.constant, relation.format);
+        --budget;
     }
     for (const std::optional<TermId> side : {std::optional(relation.lhs), relation.rhs}) {
         if (!side) {
@@ -632,19 +851,47 @@ std::vector<Value> Solver::candidates(InputId input, const Relation& relation) c
         }
         for (const TermId id : terms_.subterms(*side)) {
             const Term& term = terms_.term(id);
-            if (term.kind == TermKind::Constant && constants.size() < maxConstants) {
-                constants.emplace_back(terms_.constantOf(term), term.format);
+            if (term.kind == TermKind::Constant && budget > 0) {
+                addConstant(choices, input, terms_.constantOf(term), term.format);
+                --budget;
             }
         }
     }
-    for (const auto& [constant, format] : constants) {
-        if (const std::optional<Value> converted = convert(context_, constant, typeOf(context_, format), info.type)) {
-            add(converted);
-            add(offset(*converted, -1, info.type));
-            add(offset(*converted, 1, info.type));
+}
+
+void Solver::addConstant(Choices& choices, const SearchInput& input, const Value& constant,
+                         const ScalarFormat& format) const {
+    const std::optional<Value> converted = convert(context_, constant, typeOf(context_, format), input.type);
+    if (!converted) {
+        return;
+    }
+    for (const Int128 delta : {0, -1, 1}) {
+        if (std::optional<Value> value = offset(*converted, delta, input.type)) {
+            choices.add(std::move(*value), Change::Method::Candidate);
         }
     }
-    return result;
+}
+
+void Solver::addConstantsOf(Choices& choices, const SearchInput& input, std::span<const Atom> clause,
+                            std::size_t& budget) const {
+    if (!isArithmetic(context_, input.type)) {
+        return;
+    }
+    for (const Atom& atom : clause) {
+        if (!atom.term || terms_.isOpaque(*atom.term) || budget == 0) {
+            continue;
+        }
+        const ScalarFormat format = terms_.resultFormat(*atom.term);
+        addConstant(choices, input, constantIn(atom.constant, format), format);
+        --budget;
+        for (const TermId id : terms_.subterms(*atom.term)) {
+            const Term& term = terms_.term(id);
+            if (term.kind == TermKind::Constant && budget > 0) {
+                addConstant(choices, input, terms_.constantOf(term), term.format);
+                --budget;
+            }
+        }
+    }
 }
 
 std::optional<Value> Solver::offset(const Value& value, Int128 delta, ast::QualType type) const {
@@ -657,11 +904,14 @@ std::optional<Value> Solver::offset(const Value& value, Int128 delta, ast::QualT
 
 // ---- Inputs and guards ----
 
-std::vector<InputId> Solver::changeable(const std::vector<InputId>& ids) const {
+std::vector<InputId> Solver::changeable(std::span<const InputId> ids) const {
     std::vector<InputId> result;
     for (const InputId id : ids) {
         NITWIT_ASSERT(std::to_underlying(id) < inputs_.size(), "a term has an input the run did not request");
-        if (inputs_[std::to_underlying(id)].source != InputSource::Hinted) {
+        const SearchInput& input = inputs_[std::to_underlying(id)];
+        // Hinted inputs have the witness's values; pointers are not chosen.
+        if (input.source != InputSource::Hinted && isArithmetic(context_, input.type)
+            && !std::ranges::contains(pinned_, id)) {
             result.push_back(id);
         }
     }
@@ -675,8 +925,8 @@ std::vector<InputId> Solver::changeable(const std::vector<InputId>& ids) const {
     return result;
 }
 
-Solver::Guard Solver::guardOf(const Clause& clause, bool mayBeFalse) const {
-    Guard guard{.clause = clause, .inputs = {}, .mayBeFalse = mayBeFalse};
+Solver::Guard Solver::guardOf(std::span<const Atom> clause, bool mayBeFalse) const {
+    Guard guard{.clause = Clause(clause.begin(), clause.end()), .inputs = {}, .mayBeFalse = mayBeFalse};
     for (const Atom& atom : clause) {
         if (atom.term) {
             std::ranges::copy(terms_.inputs(*atom.term), std::back_inserter(guard.inputs));
@@ -745,8 +995,12 @@ std::string Solver::textOf(TermId id, int depth, bool isTop) const {
     std::unreachable();
 }
 
-// An atom `t != 0` on a truth value is written `t`, and `t == 0` as `!(t)`.
+// An atom `t != 0` on a truth value is written `t`, and `t == 0` as `!(t)`. A clause without atoms, which no value
+// satisfies (an avoided default of a switch without case labels), is `false`.
 std::string Solver::textOf(const Clause& clause) const {
+    if (clause.empty()) {
+        return "false";
+    }
     std::string text;
     for (const Atom& atom : clause) {
         if (!text.empty()) {
@@ -777,6 +1031,65 @@ std::string Solver::textOf(const Clause& clause) const {
 
 } // namespace
 
+// ---- KeptClauses ----
+
+KeptClauses::Outcome KeptClauses::keep(const value::TermTable& terms, std::span<const Atom> clause) {
+    const auto hasInputs = [&](const Atom& atom) {
+        return atom.term && !terms.isOpaque(*atom.term);
+    };
+    if (std::ranges::none_of(clause, hasInputs)) {
+        return Outcome::Ignored;
+    }
+    const std::uint64_t hash = clauseHash(clause);
+    for (auto [found, end] = byHash_.equal_range(hash); found != end; ++found) {
+        if (std::ranges::equal((*this)[found->second], clause, isSameAtom)) {
+            return Outcome::Ignored;
+        }
+    }
+    if (size() >= limit_) {
+        return Outcome::Full;
+    }
+    const auto index = static_cast<std::uint32_t>(size());
+    starts_.push_back(static_cast<std::uint32_t>(atoms_.size()));
+    atoms_.insert(atoms_.end(), clause.begin(), clause.end());
+    byHash_.emplace(hash, index);
+    std::vector<InputId> inputs;
+    for (const Atom& atom : clause) {
+        if (hasInputs(atom)) {
+            std::ranges::copy(terms.inputs(*atom.term), std::back_inserter(inputs));
+        }
+    }
+    std::ranges::sort(inputs);
+    const auto [first, last] = std::ranges::unique(inputs);
+    inputs.erase(first, last);
+    for (const InputId input : inputs) {
+        const std::size_t id = std::to_underlying(input);
+        if (byInput_.size() <= id) {
+            byInput_.resize(id + 1);
+        }
+        byInput_[id].push_back(index);
+    }
+    return Outcome::Kept;
+}
+
+void KeptClauses::clear() {
+    atoms_.clear();
+    starts_.clear();
+    byInput_.clear();
+    byHash_.clear();
+}
+
+std::span<const Atom> KeptClauses::operator[](std::size_t index) const {
+    NITWIT_ASSERT(index < starts_.size(), "no kept clause with this index");
+    const std::size_t end = index + 1 < starts_.size() ? starts_[index + 1] : atoms_.size();
+    return std::span(atoms_).subspan(starts_[index], end - starts_[index]);
+}
+
+std::span<const std::uint32_t> KeptClauses::mentioning(InputId input) const {
+    const std::size_t id = std::to_underlying(input);
+    return id < byInput_.size() ? std::span<const std::uint32_t>(byInput_[id]) : std::span<const std::uint32_t>();
+}
+
 std::string_view nameOf(Change::Method method) {
     switch (method) {
     case Change::Method::Inversion:
@@ -788,10 +1101,8 @@ std::string_view nameOf(Change::Method method) {
 }
 
 SearchResult search(ast::AstContext& context, const value::TermTable& terms, std::span<const Clause> requirement,
-                    std::span<const Clause> kept, std::span<const SearchInput> inputs) {
-    Solver solver(context, terms, inputs);
-    solver.keep(kept);
-    return solver.solve(requirement);
+                    const KeptClauses& kept, std::span<const SearchInput> inputs) {
+    return Solver(context, terms, kept, inputs).solve(requirement);
 }
 
 } // namespace nitwit::validate

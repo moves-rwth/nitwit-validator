@@ -113,7 +113,7 @@ TEST_F(MonitorTest, WithoutAColumnTheFirstEvaluationInTheLineCounts) {
     EXPECT_TRUE(log().contains("run 1: segment 1 of 2 passed at 5:35 (function_return)")) << log();
 }
 
-TEST_F(MonitorTest, AFollowWaypointMustPassAtItsFirstEvaluationPoint) {
+TEST_F(MonitorTest, AFollowWaypointIsEvaluatedAtItsFirstEvaluationPoint) {
     program(std::string(twoIfsProgram));
     // The first if in line 6 is false, the second true: the waypoint fails at the first, and the search makes a > 0.
     const ValidationResult result =
@@ -121,17 +121,21 @@ TEST_F(MonitorTest, AFollowWaypointMustPassAtItsFirstEvaluationPoint) {
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
     EXPECT_EQ(result.runs, 2u);
     EXPECT_TRUE(log().contains("run 1: the follow waypoint of segment 1 (branching at 6) failed at 6:5")) << log();
-    // Without a term, its outcome cannot be changed.
-    const ValidationResult fixedOutcome = validate(
+}
+
+TEST_F(MonitorTest, AFollowWaypointThatFailsAtItsFirstEvaluationPointRejects) {
+    program(std::string(twoIfsProgram));
+    // The outcome has no term, so no input can change it.
+    const ValidationResult result = validate(
         sequence({{follow(WaypointType::Branching, 6, std::nullopt, "true")}, {target(6, 34)}}), [](FakeExecution& x) {
             x.statement(6, 5);
             x.branch(6, 5, false);
             return returned(0);
         });
-    EXPECT_EQ(fixedOutcome.verdict, Verdict::LeftWitness) << fixedOutcome.message;
-    EXPECT_EQ(exitCode(fixedOutcome), 241);
-    EXPECT_EQ(fixedOutcome.message, "the execution left the witness: the follow waypoint of segment 1 (branching at "
-                                    "6) did not pass at its first evaluation point, 6:5");
+    EXPECT_EQ(result.verdict, Verdict::LeftWitness) << result.message;
+    EXPECT_EQ(exitCode(result), 241);
+    EXPECT_EQ(result.message, "the execution left the witness: the follow waypoint of segment 1 (branching at 6) did "
+                              "not pass at its first evaluation point, 6:5");
 }
 
 TEST_F(MonitorTest, AColumnSkipsTheOtherConditionsOfTheLine) {
@@ -800,6 +804,240 @@ TEST_F(MonitorTest, TheProgramContinuesAfterSignedOverflowButAConstraintDoesNot)
         sequence({{follow(WaypointType::Assumption, 5, 5, "a + 1 < -2147483647")}, {target(5, 30)}}), runOverflow);
     EXPECT_EQ(assumption.verdict, Verdict::LeftWitness) << assumption.message;
     EXPECT_EQ(assumption.runs, 1u);
+}
+
+TEST_F(MonitorTest, AnInputIsNotChangedBackAndForthBetweenTwoWaypoints) {
+    // x == 1 || x == 5, then x != 1: x = 1 passes the first, x = 0 the second, and the search must not return to 1.
+    program(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    if (x == 1 || x == 5) {
+        if (x != 1) reach_error();
+    }
+    return 0;
+}
+)");
+    const auto script = [](FakeExecution& x) {
+        x.statement(4, 5);
+        x.assign("x", x.nondet(4, 35));
+        x.statement(5, 5);
+        if (x.branch(5, 5)) {
+            x.statement(6, 9);
+            if (x.branch(6, 9)) {
+                x.statement(6, 21);
+                x.call(6, 33);
+            }
+        }
+        x.statement(8, 5);
+        return returned(0);
+    };
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Branching, 5, 5, "true")},
+                                                       {follow(WaypointType::Branching, 6, 9, "true")},
+                                                       {target(6, 21)}}),
+                                             script);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 4u); // x becomes 1, 0, then 5
+}
+
+TEST_F(MonitorTest, ARunWithTheInputsOfAnEarlierRunIsNotMade) {
+    // y is hinted 0; x == 1 || y == 1 needs x == 1, which x != 1 excludes. After x = 1 and x = 0, the search can only
+    // propose x = 1 again, whose run ended at x != 1.
+    program(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int y = __VERIFIER_nondet_int();
+    if (x == 1 || y == 1) {
+        if (x != 1) reach_error();
+    }
+    return 0;
+}
+)");
+    const auto script = [](FakeExecution& x) {
+        x.statement(4, 5);
+        x.assign("x", x.nondet(4, 35));
+        x.statement(5, 5);
+        x.assign("y", x.nondet(5, 35));
+        x.statement(6, 5);
+        if (x.branch(6, 5)) {
+            x.statement(7, 9);
+            if (x.branch(7, 9)) {
+                x.statement(7, 21);
+                x.call(7, 33);
+            }
+        }
+        x.statement(9, 5);
+        return returned(0);
+    };
+    const ValidationResult result = validate(sequence({{follow(WaypointType::FunctionReturn, 5, 35, "\\result == 0")},
+                                                       {follow(WaypointType::Branching, 6, 5, "true")},
+                                                       {follow(WaypointType::Branching, 7, 9, "true")},
+                                                       {target(7, 21)}}),
+                                             script);
+    EXPECT_EQ(result.verdict, Verdict::LeftWitness) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 3u);
+    EXPECT_EQ(result.message, "the execution left the witness: the follow waypoint of segment 2 (branching at 6:5) "
+                              "failed at 6:5; the search proposes the inputs of run 2 again");
+}
+
+TEST_F(MonitorTest, ABlockingKeptClauseIsRepairedThroughAnotherInput) {
+    // x + y == 10 keeps y = 10 from the first run; y == 3 then needs x = 7.
+    program(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int y = __VERIFIER_nondet_int();
+    if (x + y == 10) {
+        if (y == 3) reach_error();
+    }
+    return 0;
+}
+)");
+    const auto script = [](FakeExecution& x) {
+        x.statement(4, 5);
+        x.assign("x", x.nondet(4, 35));
+        x.statement(5, 5);
+        x.assign("y", x.nondet(5, 35));
+        x.statement(6, 5);
+        if (x.branch(6, 5)) {
+            x.statement(7, 9);
+            if (x.branch(7, 9)) {
+                x.statement(7, 21);
+                x.call(7, 33);
+            }
+        }
+        x.statement(9, 5);
+        return returned(0);
+    };
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Branching, 6, 5, "true")},
+                                                       {follow(WaypointType::Branching, 7, 9, "true")},
+                                                       {target(7, 21)}}),
+                                             script);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 3u);
+    EXPECT_TRUE(log().contains("needs `in1 == 3`; input 1 := 3 (inversion), input 0 := 7 (inversion)")) << log();
+}
+
+constexpr std::string_view rangeProgram = R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    switch (x) {
+    case 1 ... 5:
+        break;
+    default:
+        return 0;
+    }
+    if (x == 4) reach_error();
+    return 0;
+}
+)";
+
+interp::RunResult runRange(const ValidateTest& fixture, FakeExecution& x) {
+    x.statement(4, 5);
+    x.assign("x", x.nondet(4, 35));
+    x.statement(5, 5);
+    if (fixture.lineOf(x.switchOn(5, 5)) == 8) {
+        x.statement(9, 9);
+        return returned(0);
+    }
+    x.statement(11, 5);
+    if (x.branch(11, 5)) {
+        x.statement(11, 17);
+        x.call(11, 29);
+    }
+    x.statement(12, 5);
+    return returned(0);
+}
+
+TEST_F(MonitorTest, AnAvoidedDefaultKeepsTheRangeTheRunTook) {
+    // The first run takes the default; x = 1 takes the range, which any value in it keeps, such as 4.
+    program(std::string(rangeProgram));
+    const ValidationResult result = validate(
+        sequence({{avoid(WaypointType::Branching, 5, 5, "default"), follow(WaypointType::Branching, 11, 5, "true")},
+                  {target(11, 17)}}),
+        [this](FakeExecution& x) { return runRange(*this, x); });
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 3u);
+}
+
+TEST_F(MonitorTest, ACaseValueInARangeTakesTheRangesLabel) {
+    // Case value 3 is the label `case 1 ... 5`, which x = 1 takes too.
+    program(std::string(rangeProgram));
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Branching, 5, 5, "3")},
+                                                       {follow(WaypointType::Branching, 11, 5, "true")},
+                                                       {target(11, 17)}}),
+                                             [this](FakeExecution& x) { return runRange(*this, x); });
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 3u);
+    EXPECT_TRUE(log().contains("run 2: segment 1 of 3 passed at 5:5 (branching)")) << log();
+}
+
+TEST_F(MonitorTest, AnAvoidedCaseValueInARangeAvoidsTheRange) {
+    // x is hinted 3, which takes the label of the avoided case value 2.
+    program(std::string(rangeProgram));
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::FunctionReturn, 4, 35, "\\result == 3")},
+                           {avoid(WaypointType::Branching, 5, 5, "2"), follow(WaypointType::Branching, 11, 5, "true")},
+                           {target(11, 17)}}),
+                 [this](FakeExecution& x) { return runRange(*this, x); });
+    EXPECT_EQ(result.verdict, Verdict::LeftWitness) << result.message << "\n" << log();
+    EXPECT_EQ(result.message,
+              "the execution left the witness: the avoid waypoint of segment 2 (branching at 5:5) passed at 5:5");
+}
+
+constexpr std::string_view guardedSwitchProgram = R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    if (a < 0) return 0;
+    switch (a) {
+    case 0: return 1;
+    case 1: return 2;
+    default: reach_error();
+    }
+    return 0;
+}
+)";
+
+interp::RunResult runGuardedSwitch(const ValidateTest& fixture, FakeExecution& x) {
+    x.statement(4, 5);
+    x.assign("a", x.nondet(4, 35));
+    x.statement(5, 5);
+    if (x.branch(5, 5)) {
+        x.statement(5, 16);
+        return returned(0);
+    }
+    x.statement(6, 5);
+    const std::uint32_t line = fixture.lineOf(x.switchOn(6, 5));
+    if (line == 7 || line == 8) {
+        return returned(line == 7 ? 1 : 2);
+    }
+    x.statement(9, 14);
+    x.call(9, 26);
+    x.statement(11, 5);
+    return returned(0);
+}
+
+TEST_F(MonitorTest, AvoidedCasesGiveTheSmallestNonNegativeValueOfNoCase) {
+    // Negative values do not reach the switch. Case 1 is avoided before case 0, whose value a has at first.
+    program(std::string(guardedSwitchProgram));
+    const ValidationResult result = validate(sequence({{avoid(WaypointType::Branching, 6, 5, "1"),
+                                                        avoid(WaypointType::Branching, 6, 5, "0"), target(9, 14)}}),
+                                             [this](FakeExecution& x) { return runGuardedSwitch(*this, x); });
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("to 2 (candidate)")) << log();
+}
+
+TEST_F(MonitorTest, AFollowedDefaultGetsTheSmallestNonNegativeValueOfNoCase) {
+    program(std::string(guardedSwitchProgram));
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 6, 5, "default")}, {target(9, 14)}}),
+                 [this](FakeExecution& x) { return runGuardedSwitch(*this, x); });
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
 }
 
 // ---- Constraints ----

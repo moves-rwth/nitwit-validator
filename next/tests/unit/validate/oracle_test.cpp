@@ -102,6 +102,25 @@ TEST_F(OracleTest, AFixedInputMayBeFixedAgainAndKeepsItsHistory) {
     EXPECT_EQ(toString(context(), oracle.fixedValues(key)[0], intType), "9");
 }
 
+TEST_F(OracleTest, ARunWithTheFixedValuesOfAnEarlierRunIsFound) {
+    WitnessOracle oracle(context());
+    const ast::QualType intType = context().builtin(ast::BuiltinKind::Int);
+    const InputKey first{.site = callAt(6, 35), .occurrence = 0};
+    const InputKey second{.site = callAt(6, 35), .occurrence = 1};
+    oracle.beginRun(); // run 1: nothing fixed
+    oracle.fix(first, valueOf(context(), 1, intType));
+    EXPECT_EQ(oracle.repeatedRun(), std::nullopt);
+    oracle.beginRun(); // run 2: first = 1
+    oracle.fix(first, valueOf(context(), 2, intType));
+    EXPECT_EQ(oracle.repeatedRun(), std::nullopt);
+    oracle.beginRun(); // run 3: first = 2
+    oracle.fix(first, valueOf(context(), 1, intType));
+    EXPECT_EQ(oracle.repeatedRun(), 2u);
+    // Run 2 had no fixed value for the second request.
+    oracle.fix(second, valueOf(context(), 0, intType));
+    EXPECT_EQ(oracle.repeatedRun(), std::nullopt);
+}
+
 TEST_F(OracleTest, TheRunKeepsTheAnswers) {
     WitnessOracle oracle(context(), 3);
     oracle.hint(callAt(9, 38), valueOf(context(), 1, context().builtin(ast::BuiltinKind::Bool)));

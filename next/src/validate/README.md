@@ -52,7 +52,7 @@ from 1. A column 0 or beyond the end of the line (one past its text still counts
 | Type | Evaluated | Location | Passes when |
 |---|---|---|---|
 | `assumption` | before the statement | first character of the statement | the constraint holds |
-| `branching` | after the controlling expression | keyword (`if`, `while`, `for`, `switch`; for a do loop `do` or its `while`), or the `?` | the outcome is the constraint (`true`/`false`); for `switch`, the value is the case value (or `default`: no case label matches) |
+| `branching` | after the controlling expression | keyword (`if`, `while`, `for`, `switch`; for a do loop `do` or its `while`), or the `?` | the outcome is the constraint (`true`/`false`); for `switch`, the value is the case value (in a GNU range `case lo ... hi:`, any value of the range), or `default`: no case label matches |
 | `function_enter` | after the arguments | the `)` of the call | always |
 | `function_return` | after the call returned | the `)` of the call | the constraint (with `\result`) holds, or there is none |
 | `target` | when the error function is called | the start of the call (the function's name); without a column the first statement or full expression in the line | the target segment is current |
@@ -155,20 +155,26 @@ one prediction.
   | Waypoint | Requirement |
   |---|---|
   | follow `branching` at `if`, a loop or `?:`, outcome b | `t != 0` if b, else `t == 0`, for the condition's term `t` |
-  | follow `branching` at `switch`, case value v | `t == v` |
+  | follow `branching` at `switch`, case value v | `t == v`; for a range `case lo ... hi:`, `t >= lo` and `t <= hi`, one clause each |
   | follow `branching` at `switch`, `default` | `t != v` for every case label v, one clause each; `t < lo \|\| t > hi` for a range |
   | follow `assumption`, `function_return` | `c != 0` for each conjunct c, one clause each |
   | avoid `branching`, outcome b | `t == 0` if b, else `t != 0` |
-  | avoid `branching` at `switch`, case value v | `t != v` |
-  | avoid `branching` at `switch`, `default` | one clause: `t == v` for one of the case labels v (the first value of a range) |
+  | avoid `branching` at `switch`, case value v | `t != v`; for a range, `t < lo \|\| t > hi` |
+  | avoid `branching` at `switch`, `default`, passing | one clause: `t == v` for one of the case labels v (the first value of a range) |
+  | avoid `branching` at `switch`, `default`, not passing | the requirement of following the case label the run took |
   | avoid `assumption`, `function_return` | one clause: `c == 0` for one of the conjuncts c up to the first false one |
 
 - **Unknown atoms:** an atom without a term (a conjunct or condition that depends on no input, or only through control
   flow, or has no value) and an atom on the opaque term (`TermTable::isOpaque`) are unknown. No input is changed for
   them, and they count against no value.
 - **Kept clauses:** the requirements of every waypoint evaluation of the run that had its outcome (a follow waypoint
-  that passed, an avoid waypoint that did not), as far as they have terms. New input values must keep them, so that
-  the next run passes the same waypoints again.
+  that passed, an avoid waypoint that did not), so that the next run passes the same waypoints again (`KeptClauses`).
+  - A clause is kept once, and not at all without an atom on a term other than the opaque term: no input can make it
+    false. A loop that passes one waypoint a million times on the same term keeps one clause.
+  - The kept clauses are indexed by the inputs they depend on, so a value is checked against the clauses that
+    mention its input only.
+  - A run keeps at most 100,000 clauses (about 100 bytes each); later ones are not kept, which the log says once.
+    Values may then break them, which costs a restart, never soundness.
 - **Changeable inputs:** inputs of the run of arithmetic types with the default value or a value fixed by an earlier
   run; not hinted inputs (the witness gave their value). Inputs with the default value are tried first, then fixed
   ones; within each group, later requests first: a later input changes less of the path to the waypoint.
@@ -179,36 +185,58 @@ one prediction.
     in order; `t == 0` the negations; `!a` and a conversion to `_Bool` pass the atom on to `a`. A comparison
     `a op' b` that must hold (or fail: `a op'' b` with the negated operator) is a relation of its two sides. An operand
     the run did not evaluate (`a && b` where `a` was false) is unknown: making `a` hold is all the search can do there.
-  - **Inversion:** if a changeable input occurs once in one side of the relation, and the path to it has only
-    invertible operations (conversions; `+`, `-`, `^` with the other operand's value; `~`; unary `-`; `*` by an odd
-    factor in an unsigned format), the value for the side is chosen as for hints (`values.hpp`, `choose`: `x < c`
-    gives `c - 1`, `x != c` gives 0, or 1 if `c` is 0) with the other side's value as the constant, and inverted down
-    to the input. A conversion is inverted only where the value converts back unchanged (`(int)c == 300` has no
-    `char` c).
+    `c ? x : y` is solved through the operand the run evaluated, with `c` keeping its value, else by changing `c`: the
+    other operand is unknown then, like a missing operand of `&&`. A goal that failed is not decomposed again for the
+    same atom, so that shared subterms (`c = c || c` in a loop) cost no more than the term's size; a pass decomposes
+    at most 20,000 goals.
+  - **Inversion:** if a changeable input occurs once in one side of the relation, the value for the side is chosen as
+    for hints (`values.hpp`, `choose`: `x < c` gives `c - 1`, `x != c` gives 0, or 1 if `c` is 0) with the other side's
+    value as the constant, and inverted down the path to the input, the other operand of each operation keeping its
+    value:
+    - conversions, where the value converts back unchanged (`(int)c == 300` has no `char` c);
+    - integer `+`, `-` (either operand), `^`, `~`, unary `-`, wrapping around as the run does;
+    - integer `*` by a factor that divides the value, and in an unsigned format by any odd factor (its inverse modulo
+      2^bits);
+    - integer `/` of the dividend by a non-zero divisor: the value times the divisor;
+    - floating `+`, `-` (either operand) and unary `-`.
+
+    The relation is then evaluated with the inverted value, which rounding or a truncating division may make miss.
   - **Candidates** follow, for every input of the relation, also those that inversion cannot reach: the input's run
     value + 1 and − 1, 0, 1, −1, then the constant of the atom and the constants of the terms, each with its
-    neighbours − 1 and + 1. At most 8 inputs per relation and 8 constants are tried, so that the cost is a small
+    neighbours − 1 and + 1. A clause that blocks a value adds its constants and their neighbours. The non-negative
+    candidates come before the negative ones, each in this order: programs often reject negative inputs. At most 8
+    inputs per relation, and 8 constants of the relation and 8 of blocking clauses per input, keep the cost a small
     multiple of evaluating the terms.
   - **A value is taken** only if, evaluated with all values chosen so far, it is a value of the input's type (a
     `_Bool` is 0 or 1), makes the relation hold, makes no kept clause and no earlier clause of the requirement that
     mentions the input false, and makes neither them nor the clause being solved end the run (`NoValue::EndsRun`:
     division by zero, any undefined behaviour in the strict terms of a constraint). A clause whose value becomes
-    unknown does not count against a value. Values the input was fixed to in earlier runs are tried after all others,
-    so that two waypoints do not keep changing one input back and forth.
+    unknown does not count against a value.
+  - **Repair:** if the only obstacle of a value is one kept clause that it makes false, the clause is solved like a
+    requirement through its other changeable inputs, with the value's input pinned and its relation kept: `x + y == 10`,
+    kept with y = 10, and then `y == 3` give y := 3 and x := 7. One level only: a repair does not repair in turn.
+  - **Values of earlier runs:** the whole requirement is first solved without any value an input was fixed to in an
+    earlier run, so that two waypoints do not take turns changing one input; only if that fails are those values
+    allowed, after all others.
   - If every clause of the requirement then holds or is unknown, and at least one input has a new value, the new
     values become fixed inputs and the run restarts (`fixing input 3 (...) to 5 (inversion)` in the log); otherwise
     the waypoint fails as before (exit 241). The log (`-v`) says what the waypoint needed and what was chosen, e.g.
     ``run 3: the follow waypoint of segment 5 (branching at 12:3) needs `in7 != 0`; input 7 := 1 (inversion)``.
-- **Switches:** the rules of stage 6 follow from the requirements. A case value of a follow waypoint gives the
-  switched value that value; its `default` excludes every case label. An avoid waypoint at `default` that passes gets
-  the first case label that the kept clauses allow, so that the avoid waypoints evaluated before it at the `switch`
-  keep failing; one at a case value gets another value (0, or 1 for the case 0). An avoid waypoint after it in the
-  segment that the new value makes pass costs another restart (`validation-crafted/switch.3A1` avoids two cases and
-  `default` at one `switch`).
+- **Switches:** a case value of a follow waypoint gives the switched value that value (any value of a range). Its
+  `default` excludes every case label, which gives the smallest non-negative value that is no case value where the
+  run's value is a case value: the candidates put the case values' neighbours before negative values. An avoid
+  waypoint at `default` that passes gets the first case label that the kept clauses allow, so that the avoid waypoints
+  evaluated before it at the `switch` keep failing; one at a case value gets another value (0, or 1 for the case 0,
+  else the next value no kept clause excludes). An avoid waypoint after it in the segment that the new value makes
+  pass costs another restart (`validation-crafted/switch.3A1` avoids two cases and `default` at one `switch`).
 - **Restarts** happen only when at least one input gets a new value. Fixed inputs may get another value in a later
-  run when the search needs it and the kept clauses allow it. A waypoint can need a restart for each prediction that
-  fails, and a loop counter one per iteration, so the number of restarts is limited to 16 plus 2 per waypoint of the
-  witness, and at most `ValidationOptions::maxRestarts` (10,000; `restartLimit`).
+  run when the search needs it and the kept clauses allow it.
+  - Runs are deterministic, so a run with the fixed inputs of an earlier run would end as that run did: if the
+    search proposes them, the execution is rejected (exit 241), with "the search proposes the inputs of run n again".
+    The oracle finds such a run by a fingerprint of the fixed values, compared exactly where it matches.
+  - The limit is `min(ValidationOptions::maxRestarts, 16 + 2 · waypoints)` (`restartLimit`). A waypoint can need a
+    restart for each prediction that fails, and a loop counter one per iteration; 16 cover witnesses with few
+    waypoints. The cap of 10,000 bounds long witnesses, whose runs would exceed the time limit before.
 - **Examples:**
   - `if (tmp)` after `tmp = __VERIFIER_nondet_int()`, which the witness wants true: `in0 != 0` gives tmp := 1.
   - The input check of RERS programs, `if ((input != 1) && (input != 2) && ...) return -2;`, which the witness wants
@@ -221,7 +249,9 @@ one prediction.
   library functions, bit-fields, dependencies through control flow that no waypoint covers), relations where an
   input occurs more than once and candidates do not help (`x * x == 49`), and witnesses without waypoints between
   the start and the target. Searching the program's paths for those would cost runs per candidate, which NITWIT does
-  not do. An SMT solver can later replace the candidates behind the same requirements.
+  not do. An SMT solver can later replace the candidates behind the same requirements. An avoid assumption evaluated
+  in a hot loop records the strict terms of its constraint at each evaluation and can fill the term table, after which
+  later values get the opaque term.
 
 ## Known gaps
 
@@ -236,9 +266,10 @@ one prediction.
 - `tests/unit/validate/`: each rule above, with small programs, witnesses built in code, and scripted runs
   (`validate_test_support.hpp`, whose `FakeExecution` records terms as the interpreter does);
   `end_to_end_test.cpp` with the interpreter; `search_test.cpp` the search on term tables built by hand, one test
-  per rule (inversion through every invertible operation, candidates, kept clauses, unknown atoms, `&&` and `||`,
-  switches, avoid waypoints, the order of inputs and values) and the examples above (the input check of RERS, a loop
-  counter, `if (tmp)`).
+  per rule (inversion through every invertible operation, candidates and their order, kept clauses and their index,
+  repairs, unknown atoms, `&&`, `||` and `?:`, shared subterms, switches, avoid waypoints, the order of inputs and
+  values, the two passes) and the examples above (the input check of RERS, a loop counter, `if (tmp)`); monitor tests
+  of the review's probes: an input changed back and forth, a repeated run, case ranges, avoided cases, a repair.
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness and checks the stage's exit criteria on
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`;
   - `validation-crafted` (expected results in `*.witness-validation.yml`);

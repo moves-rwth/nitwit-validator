@@ -41,7 +41,7 @@ public:
     /// `defaultValue` is the value of inputs that are neither fixed nor hinted, converted to their type.
     explicit WitnessOracle(ast::AstContext& context, Int128 defaultValue = 0);
 
-    /// Forgets the requests and the hint of the previous run; fixed inputs stay.
+    /// Forgets the requests and the hint of the previous run; fixed inputs stay. Runs are numbered from 1.
     void beginRun();
 
     /// Answers the next request made at `call` with `value`, a value of the call's type (validate/README.md,
@@ -53,6 +53,8 @@ public:
     void fix(InputKey key, value::Value value);
     /// The values the request with this key was fixed to, oldest first; the last one is its value now.
     [[nodiscard]] std::span<const value::Value> fixedValues(InputKey key) const;
+    /// The earlier run in which every fixed input had the value it has now: the next run would repeat it.
+    [[nodiscard]] std::optional<std::uint32_t> repeatedRun() const;
 
     value::Value provide(const interp::InputRequest& request) override;
 
@@ -74,12 +76,24 @@ private:
         const ast::CallExpr* call = nullptr;
         value::Value value;
     };
+    /// The values a key was fixed to, and the first run each answered.
+    struct History {
+        std::vector<value::Value> values;
+        std::vector<std::uint32_t> runs;
+    };
+
+    /// A hash of a key and its value; the fingerprint of the fixed inputs is the sum of these hashes, so that it does
+    /// not depend on the order of the keys and is updated in constant time.
+    [[nodiscard]] static std::uint64_t hashOf(const InputKey& key, const value::Value& value);
 
     ast::AstContext& context_;
     Int128 defaultValue_;
-    // By key, the values it was fixed to. Only looked up, never iterated: the order is by address.
-    std::map<InputKey, std::vector<value::Value>, KeyLess> fixed_;
-    std::vector<ProvidedInput> inputs_; // of the current run, indexed by InputId
+    // Iterated only where the order does not matter: it is by address.
+    std::map<InputKey, History, KeyLess> fixed_;
+    std::uint32_t run_ = 0;
+    std::uint64_t fingerprint_ = 0;           // of the values fixed now
+    std::vector<std::uint64_t> fingerprints_; // of the values each run had, by run - 1
+    std::vector<ProvidedInput> inputs_;       // of the current run, indexed by InputId
     std::optional<Hint> hint_;
 };
 

@@ -94,14 +94,23 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
                     .runs = runs,
                     .segmentsReached = monitor.segmentsPassed()};
         }
-        for (const Change& fix : monitor.fixes()) {
-            const ProvidedInput& input = oracle.input(fix.input);
+        for (const Change& change : monitor.changes()) {
+            const ProvidedInput& input = oracle.input(change.input);
             if (options.log != nullptr) {
                 std::println(*options.log, "run {}: fixing {} to {} ({})", runs,
-                             describeInput(fix.input, input, program, monitor),
-                             toString(program.context, fix.value, input.type), nameOf(fix.method));
+                             describeInput(change.input, input, program, monitor),
+                             toString(program.context, change.value, input.type), nameOf(change.method));
             }
-            oracle.fix(input.key, fix.value);
+            oracle.fix(input.key, change.value);
+        }
+        // Runs are deterministic: one with the inputs of an earlier run would end as it did.
+        if (const std::optional<std::uint32_t> earlier = oracle.repeatedRun()) {
+            return {.verdict = Verdict::LeftWitness,
+                    .message = std::format("the execution left the witness: {}; the search proposes the inputs of "
+                                           "run {} again",
+                                           monitor.reason(), *earlier),
+                    .runs = runs,
+                    .segmentsReached = monitor.segmentsPassed()};
         }
     }
 }

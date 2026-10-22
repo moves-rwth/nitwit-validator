@@ -18,6 +18,16 @@ bool isTrue(const value::Value& value) {
     return value::toBool(value).bits() != 0;
 }
 
+/// The case label of a switch that `value` takes, if any.
+const ast::CaseStmt* labelOf(const ast::SwitchStmt& stmt, Int128 value) {
+    for (const ast::CaseStmt* label : stmt.cases()) {
+        if (label->low() <= value && value <= label->high()) {
+            return label;
+        }
+    }
+    return nullptr;
+}
+
 std::uint64_t keyOf(witness::WaypointType type, std::uint32_t offset) {
     return (static_cast<std::uint64_t>(type) << 32) | offset;
 }
@@ -124,8 +134,9 @@ void SegmentMonitor::beginRun(std::uint32_t run) {
     isAtTarget_ = false;
     state_ = State::Following;
     reason_.clear();
-    fixes_.clear();
+    changes_.clear();
     kept_.clear();
+    isKeptFull_ = false;
 }
 
 interp::Directive SegmentMonitor::beforeStatement(const interp::StatementEvent& event,
@@ -214,7 +225,7 @@ interp::Directive SegmentMonitor::handle(const Event& event, interp::EvaluationC
             case Evaluation::Outcome::Undefined:
                 NITWIT_UNREACHABLE("a follow constraint without value fails");
             case Evaluation::Outcome::Passes:
-                keep(std::move(evaluation.requirement));
+                keep(evaluation.requirement, context.terms());
                 break;
             }
         }
@@ -227,12 +238,12 @@ interp::Directive SegmentMonitor::handle(const Event& event, interp::EvaluationC
             case Evaluation::Outcome::Undefined:
                 return stop(State::Unknown, std::format("{} has no value at {}: {}", describe(id),
                                                         locations_.describe(event.location), avoid.reason));
-            case Evaluation::Outcome::Passes: {
-                std::string reason = std::format("{} passed at {}", describe(id), locations_.describe(event.location));
-                return searchOrReject(id, avoid.requirement, context, reason, reason);
-            }
+            case Evaluation::Outcome::Passes:
+                return searchOrReject(
+                    id, avoid.requirement, context,
+                    std::format("{} passed at {}", describe(id), locations_.describe(event.location)));
             case Evaluation::Outcome::Fails:
-                keep(std::move(avoid.requirement));
+                keep(avoid.requirement, context.terms());
                 break;
             }
         }
@@ -345,38 +356,39 @@ SegmentMonitor::Evaluation SegmentMonitor::evaluateBranching(WaypointId id, cons
         requirement.push_back({{.term = condition.term,
                                 .op = needsTrue ? value::Comparison::NotEqual : value::Comparison::Equal,
                                 .constant = 0}});
+    } else if (expectation->kind == BranchExpectation::Kind::Default) {
+        passes = condition.switchLabel == nullptr || ast::isa<ast::DefaultStmt>(condition.switchLabel);
+        requirement = defaultRequirement(condition, isFollow, passes);
     } else {
-        const ast::QualType type = ast::cast<ast::SwitchStmt>(condition.stmt)->condition()->type();
-        passes = expectation->kind == BranchExpectation::Kind::Default
-                     ? condition.switchLabel == nullptr || ast::isa<ast::DefaultStmt>(condition.switchLabel)
-                     : valueOf(program_.context, expectation->caseValue, type).bits() == condition.switchValue.bits();
-        requirement = switchRequirement(condition, *expectation, isFollow);
+        // A case value in a GNU range `case lo ... hi:` takes the range's label, like any value in it.
+        const auto* switchStmt = ast::cast<ast::SwitchStmt>(condition.stmt);
+        const value::Value caseValue =
+            valueOf(program_.context, expectation->caseValue, switchStmt->condition()->type());
+        const ast::CaseStmt* label = labelOf(*switchStmt, caseValue.signedBits());
+        passes = label != nullptr ? condition.switchLabel == label : caseValue.bits() == condition.switchValue.bits();
+        requirement = caseRequirement(condition.term, label, caseValue.signedBits(), isFollow);
     }
     return {.outcome = passes ? Evaluation::Outcome::Passes : Evaluation::Outcome::Fails,
             .requirement = std::move(requirement),
             .reason = {}};
 }
 
-// validate/README.md, "Search": a case value v needs `t == v`, avoided `t != v`; the default branch needs `t != v` for
-// every case label (`t < lo || t > hi` for a range), avoided `t == v` for one of the labels.
-std::vector<Clause> SegmentMonitor::switchRequirement(const interp::ConditionEvent& condition,
-                                                      const BranchExpectation& expectation, bool isFollow) const {
-    const std::optional<value::TermId> term = condition.term;
-    if (expectation.kind == BranchExpectation::Kind::Case) {
-        return {{{.term = term,
-                  .op = isFollow ? value::Comparison::Equal : value::Comparison::NotEqual,
-                  .constant = expectation.caseValue}}};
+// validate/README.md, "Search": the default branch needs `t != v` for every case label (`t < lo || t > hi` for a
+// range); avoided, `t == v` for one of the labels, and while it is avoided, the label the run took.
+std::vector<Clause> SegmentMonitor::defaultRequirement(const interp::ConditionEvent& condition, bool isFollow,
+                                                       bool passes) const {
+    const auto* switchStmt = ast::cast<ast::SwitchStmt>(condition.stmt);
+    if (!isFollow && !passes) {
+        const auto* label = ast::cast<ast::CaseStmt>(condition.switchLabel);
+        return caseRequirement(condition.term, label, label->low(), true);
     }
     std::vector<Clause> requirement;
     Clause someCase;
-    for (const ast::CaseStmt* label : ast::cast<ast::SwitchStmt>(condition.stmt)->cases()) {
+    for (const ast::CaseStmt* label : switchStmt->cases()) {
         if (!isFollow) {
-            someCase.push_back({.term = term, .op = value::Comparison::Equal, .constant = label->low()});
-        } else if (label->low() == label->high()) {
-            requirement.push_back({{.term = term, .op = value::Comparison::NotEqual, .constant = label->low()}});
+            someCase.push_back({.term = condition.term, .op = value::Comparison::Equal, .constant = label->low()});
         } else {
-            requirement.push_back({{.term = term, .op = value::Comparison::Less, .constant = label->low()},
-                                   {.term = term, .op = value::Comparison::Greater, .constant = label->high()}});
+            requirement.push_back(caseRequirement(condition.term, label, label->low(), false).front());
         }
     }
     if (!isFollow) {
@@ -385,9 +397,25 @@ std::vector<Clause> SegmentMonitor::switchRequirement(const interp::ConditionEve
     return requirement;
 }
 
+// A case value v needs `t == v`, avoided `t != v`; in a range, `t >= lo` and `t <= hi`, avoided `t < lo || t > hi`.
+std::vector<Clause> SegmentMonitor::caseRequirement(std::optional<value::TermId> term, const ast::CaseStmt* label,
+                                                    Int128 caseValue, bool isTaken) {
+    if (label == nullptr || label->low() == label->high()) {
+        return {{{.term = term,
+                  .op = isTaken ? value::Comparison::Equal : value::Comparison::NotEqual,
+                  .constant = caseValue}}};
+    }
+    if (isTaken) {
+        return {{{.term = term, .op = value::Comparison::GreaterEqual, .constant = label->low()}},
+                {{.term = term, .op = value::Comparison::LessEqual, .constant = label->high()}}};
+    }
+    return {{{.term = term, .op = value::Comparison::Less, .constant = label->low()},
+             {.term = term, .op = value::Comparison::Greater, .constant = label->high()}}};
+}
+
 interp::Directive SegmentMonitor::searchOrReject(WaypointId id, const std::vector<Clause>& requirement,
-                                                 interp::EvaluationContext& context, std::string restartReason,
-                                                 std::string rejectionReason) {
+                                                 interp::EvaluationContext& context, std::string reason,
+                                                 std::string rejection) {
     std::vector<SearchInput> inputs;
     inputs.reserve(oracle_.inputCount());
     for (std::uint32_t i = 0; i < oracle_.inputCount(); ++i) {
@@ -400,19 +428,21 @@ interp::Directive SegmentMonitor::searchOrReject(WaypointId id, const std::vecto
     SearchResult result = search(program_.context, context.terms(), requirement, kept_, inputs);
     const bool isRestart = !result.changes.empty();
     stop(isRestart ? State::Restart : State::Rejected,
-         isRestart ? std::move(restartReason) : std::move(rejectionReason));
+         isRestart || rejection.empty() ? std::move(reason) : std::move(rejection));
     if (log_ != nullptr) {
         std::println(*log_, "run {}: {} {}", run_, describe(id), result.explanation);
     }
-    fixes_ = std::move(result.changes);
+    changes_ = std::move(result.changes);
     return interp::Directive::Stop;
 }
 
-void SegmentMonitor::keep(std::vector<Clause> requirement) {
-    // A clause without terms depends on no input the search changes, so no value can make it false.
-    for (Clause& clause : requirement) {
-        if (std::ranges::any_of(clause, [](const Atom& atom) { return atom.term.has_value(); })) {
-            kept_.push_back(std::move(clause));
+void SegmentMonitor::keep(const std::vector<Clause>& requirement, const value::TermTable& terms) {
+    for (const Clause& clause : requirement) {
+        if (kept_.keep(terms, clause) == KeptClauses::Outcome::Full && !isKeptFull_) {
+            isKeptFull_ = true;
+            if (log_ != nullptr) {
+                std::println(*log_, "run {}: {} clauses are kept, no more in this run", run_, kept_.size());
+            }
         }
     }
 }

@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <format>
 #include <map>
+#include <optional>
+#include <ranges>
 #include <string>
 #include <utility>
 #include <variant>
@@ -21,8 +23,10 @@ namespace {
 
 using ast::BuiltinKind;
 using value::Comparison;
+using value::FloatOperator;
 using value::InputId;
 using value::IntegerOperator;
+using value::TermKind;
 using value::Value;
 
 constexpr value::IntegerFormat s32{.bits = 32, .isSigned = true};
@@ -129,7 +133,11 @@ protected:
     }
 
     SearchResult solve(const std::vector<Clause>& requirement, const std::vector<Clause>& kept = {}) {
-        return search(context_, terms_, requirement, kept, inputs_);
+        KeptClauses keptClauses;
+        for (const Clause& clause : kept) {
+            (void)keptClauses.keep(terms_, clause);
+        }
+        return search(context_, terms_, requirement, keptClauses, inputs_);
     }
 
     /// The changes as "input := value (method)", or "none".
@@ -182,18 +190,52 @@ TEST_F(SearchTest, InvertsXorComplementAndNegation) {
     EXPECT_EQ(changes({{atom(negated, Comparison::Equal, 3)}}), "0 := -3 (inversion)");
 }
 
+TEST_F(SearchTest, InvertsMultiplicationByAFactorThatDividesTheValue) {
+    const Value x = input(0, 0);
+    EXPECT_EQ(changes({{atom(arithmetic(IntegerOperator::Mul, x, constant(3)), Comparison::Equal, 21)}}),
+              "0 := 7 (inversion)");
+    EXPECT_EQ(changes({{atom(arithmetic(IntegerOperator::Mul, constant(-2), x), Comparison::Equal, 8)}}),
+              "0 := -4 (inversion)");
+    const Value linear =
+        arithmetic(IntegerOperator::Add, arithmetic(IntegerOperator::Mul, x, constant(2)), constant(1));
+    EXPECT_EQ(changes({{atom(linear, Comparison::Equal, 9)}}), "0 := 4 (inversion)");
+    // A signed product that the factor does not divide is not inverted, and no candidate gives it.
+    EXPECT_EQ(changes({{atom(arithmetic(IntegerOperator::Mul, x, constant(3)), Comparison::Equal, 22)}}), "none");
+}
+
 TEST_F(SearchTest, InvertsMultiplicationByAnOddFactorInAnUnsignedFormat) {
     const Value x = input(0, 0, InputSource::Default, BuiltinKind::UnsignedInt);
     const Value odd = arithmetic(IntegerOperator::Mul, x, constant(3, BuiltinKind::UnsignedInt), u32);
     EXPECT_EQ(changes({{atom(odd, Comparison::Equal, 22)}}), "0 := 2863311538 (inversion)"); // 3 * that wraps to 22
-    // An even factor is not inverted; the constant 2 is a candidate.
+    // An even factor that does not divide the value has no inverse.
     const Value even = arithmetic(IntegerOperator::Mul, x, constant(2, BuiltinKind::UnsignedInt), u32);
-    EXPECT_EQ(changes({{atom(even, Comparison::Equal, 4)}}), "0 := 2 (candidate)");
+    EXPECT_EQ(changes({{atom(even, Comparison::Equal, 5)}}), "none");
 }
 
-TEST_F(SearchTest, SignedMultiplicationIsNotInverted) {
-    const Value x = input(0, 0);
-    EXPECT_EQ(changes({{atom(arithmetic(IntegerOperator::Mul, x, constant(3)), Comparison::Equal, 21)}}), "none");
+TEST_F(SearchTest, InvertsDivisionByAFactor) {
+    const Value x = input(0, 1);
+    const Value quotient = arithmetic(IntegerOperator::Div, x, constant(4));
+    EXPECT_EQ(changes({{atom(quotient, Comparison::Equal, 3)}}), "0 := 12 (inversion)");
+    EXPECT_EQ(changes({{atom(quotient, Comparison::Greater, 2)}}), "0 := 12 (inversion)");
+    // The divisor is not inverted: 12 / x == 3 for the candidate 4, the constant 3 + 1.
+    EXPECT_EQ(changes({{atom(arithmetic(IntegerOperator::Div, constant(12), x), Comparison::Equal, 3)}}),
+              "0 := 4 (candidate)");
+}
+
+TEST_F(SearchTest, InvertsFloatingAdditionWhereRoundingAllowsIt) {
+    const Value d = input(0, 0, InputSource::Default, BuiltinKind::Double);
+    const auto plus = [&](FloatOperator op, const Value& lhs, const Value& rhs) {
+        Value result = value::floatBinary(op, lhs, rhs, value::FloatFormat::Double);
+        result.setTerm(terms_.floatBinary(op, lhs, rhs, value::FloatFormat::Double));
+        return result;
+    };
+    const auto isEqual = [&](const Value& lhs, double rhs) {
+        return holds(compare(Comparison::Equal, lhs, Value::ofDouble(rhs), value::FloatFormat::Double));
+    };
+    EXPECT_EQ(changes({{isEqual(plus(FloatOperator::Add, d, Value::ofDouble(0.5)), 2.0)}}), "0 := 1.5 (inversion)");
+    EXPECT_EQ(changes({{isEqual(plus(FloatOperator::Sub, Value::ofDouble(1.0), d), 0.25)}}), "0 := 0.75 (inversion)");
+    // 0.2 + 0.1 - 0.1 is not 0.2 in double.
+    EXPECT_EQ(changes({{isEqual(plus(FloatOperator::Sub, d, Value::ofDouble(0.1)), 0.2)}}), "none");
 }
 
 TEST_F(SearchTest, InvertsConversionsThatTruncate) {
@@ -321,6 +363,40 @@ TEST_F(SearchTest, DivisionByZeroRejectsACandidate) {
 
 // ---- Kept clauses ----
 
+TEST_F(SearchTest, ClausesAreKeptOnceAndIndexedByTheirInputs) {
+    const Value x = input(0, 0);
+    const Value y = input(1, 0);
+    const Clause onX{atom(x, Comparison::NotEqual, 1)};
+    const Clause onBoth{holds(compare(Comparison::Equal, arithmetic(IntegerOperator::Add, x, y), constant(0)))};
+    KeptClauses kept;
+    EXPECT_EQ(kept.keep(terms_, onX), KeptClauses::Outcome::Kept);
+    EXPECT_EQ(kept.keep(terms_, onX), KeptClauses::Outcome::Ignored);
+    EXPECT_EQ(kept.keep(terms_, onBoth), KeptClauses::Outcome::Kept);
+    // No input can make a clause false that has no atom on a term other than the opaque term.
+    EXPECT_EQ(kept.keep(terms_, Clause{{.term = std::nullopt, .op = Comparison::NotEqual, .constant = 0}}),
+              KeptClauses::Outcome::Ignored);
+    EXPECT_EQ(kept.keep(terms_, Clause{holds(opaque())}), KeptClauses::Outcome::Ignored);
+    ASSERT_EQ(kept.size(), 2u);
+    EXPECT_EQ(kept[0].size(), 1u);
+    EXPECT_EQ(kept[0][0].constant, 1);
+    EXPECT_EQ(std::ranges::to<std::vector>(kept.mentioning(InputId{0})), (std::vector<std::uint32_t>{0, 1}));
+    EXPECT_EQ(std::ranges::to<std::vector>(kept.mentioning(InputId{1})), std::vector<std::uint32_t>{1});
+    EXPECT_TRUE(kept.mentioning(InputId{7}).empty());
+    kept.clear();
+    EXPECT_EQ(kept.size(), 0u);
+    EXPECT_TRUE(kept.mentioning(InputId{0}).empty());
+}
+
+TEST_F(SearchTest, ClausesAreKeptUpToALimit) {
+    const Value x = input(0, 0);
+    KeptClauses kept(2);
+    EXPECT_EQ(kept.keep(terms_, Clause{atom(x, Comparison::NotEqual, 1)}), KeptClauses::Outcome::Kept);
+    EXPECT_EQ(kept.keep(terms_, Clause{atom(x, Comparison::NotEqual, 2)}), KeptClauses::Outcome::Kept);
+    EXPECT_EQ(kept.keep(terms_, Clause{atom(x, Comparison::NotEqual, 3)}), KeptClauses::Outcome::Full);
+    EXPECT_EQ(kept.keep(terms_, Clause{atom(x, Comparison::NotEqual, 1)}), KeptClauses::Outcome::Ignored);
+    EXPECT_EQ(kept.size(), 2u);
+}
+
 TEST_F(SearchTest, AKeptClauseBlocksAValue) {
     // x != 5 with x = 5 gives 0, unless a kept clause excludes it; then the run's value + 1.
     const Value x = input(0, 5);
@@ -355,11 +431,54 @@ TEST_F(SearchTest, KeptClausesWithoutTheChangedInputAreNotEvaluated) {
 }
 
 TEST_F(SearchTest, EarlierClausesOfTheRequirementStay) {
-    // The default of a switch with cases 0, 1 and 2, and x = 1: each case value is excluded in turn.
+    // The default of a switch with cases 0, 1 and 2, and x = 1: each case value is excluded in turn, and 3 is the
+    // smallest non-negative value that is no case value.
     const Value x = input(0, 1);
     const std::vector<Clause> requirement{
         {atom(x, Comparison::NotEqual, 0)}, {atom(x, Comparison::NotEqual, 1)}, {atom(x, Comparison::NotEqual, 2)}};
-    EXPECT_EQ(changes(requirement), "0 := -1 (candidate)");
+    EXPECT_EQ(changes(requirement), "0 := 3 (candidate)");
+}
+
+TEST_F(SearchTest, NonNegativeCandidatesComeFirst) {
+    // x != 0, then x != 1, with x = 0: the candidates are 1, 0, then 2 (the constant 1 + 1) before -1.
+    const Value x = input(0, 0);
+    EXPECT_EQ(changes({{atom(x, Comparison::NotEqual, 0)}, {atom(x, Comparison::NotEqual, 1)}}), "0 := 2 (candidate)");
+    // A negative value is taken where no other one helps.
+    EXPECT_EQ(changes({{atom(x, Comparison::Less, 0)}}), "0 := -1 (inversion)");
+    EXPECT_EQ(changes({{atom(arithmetic(IntegerOperator::Rem, x, constant(10)), Comparison::Equal, -1)}}),
+              "0 := -1 (candidate)");
+}
+
+TEST_F(SearchTest, AClauseThatBlocksAValueGivesCandidates) {
+    // x != 0 with x = 0 gives 1, which the kept clause x != 1 excludes; its constant 1 + 1 is a candidate.
+    const Value x = input(0, 0);
+    EXPECT_EQ(changes({{atom(x, Comparison::NotEqual, 0)}}, {{atom(x, Comparison::NotEqual, 1)}}),
+              "0 := 2 (candidate)");
+}
+
+TEST_F(SearchTest, AKeptClauseIsRepairedThroughAnotherInput) {
+    // x + y == 10 with y = 10 is kept; y == 3 breaks it, and x := 7 repairs it.
+    const Value x = input(0, 0);
+    const Value y = input(1, 10, InputSource::Fixed);
+    const Value sum = arithmetic(IntegerOperator::Add, x, y);
+    const std::vector<Clause> kept{{holds(compare(Comparison::Equal, sum, constant(10)))}};
+    EXPECT_EQ(changes({{holds(compare(Comparison::Equal, y, constant(3)))}}, kept),
+              "1 := 3 (inversion), 0 := 7 (inversion)");
+}
+
+TEST_F(SearchTest, ARepairKeepsTheOtherClausesAndDoesNotRepairInTurn) {
+    const Value x = input(0, 0, InputSource::Fixed);
+    const Value y = input(1, 10, InputSource::Fixed);
+    const Value z = input(2, 0, InputSource::Hinted);
+    const Value sum = arithmetic(IntegerOperator::Add, x, y);
+    const Clause sumIsTen{holds(compare(Comparison::Equal, sum, constant(10)))};
+    const Clause needsThree{holds(compare(Comparison::Equal, y, constant(3)))};
+    // x + z == 0 holds and mentions x only among the changeable inputs: x cannot become 7.
+    const Clause xIsZero{holds(compare(Comparison::Equal, arithmetic(IntegerOperator::Add, x, z), constant(0)))};
+    EXPECT_EQ(changes({needsThree}, {sumIsTen, xIsZero}), "none");
+    // Two kept clauses that y == 3 breaks are not repaired.
+    const Clause yIsTen{holds(compare(Comparison::Equal, y, constant(10)))};
+    EXPECT_EQ(changes({needsThree}, {sumIsTen, yIsTen}), "none");
 }
 
 // ---- Unknown atoms ----
@@ -429,6 +548,15 @@ TEST_F(SearchTest, ValuesTheInputWasFixedToBeforeComeLast) {
     EXPECT_EQ(changes({{atom(x, Comparison::Equal, 0)}}), "0 := 0 (inversion)");
 }
 
+TEST_F(SearchTest, TheWholeRequirementIsSolvedWithoutValuesOfEarlierRunsFirst) {
+    // x == 1 || x == 5 with x = 0, which was 1 before: the first disjunct would give 1 again.
+    const Value x = input(0, 0, InputSource::Fixed);
+    fixedBefore(0, {1, 0});
+    const Value either =
+        logical(false, compare(Comparison::Equal, x, constant(1)), compare(Comparison::Equal, x, constant(5)));
+    EXPECT_EQ(changes({{holds(either)}}), "0 := 5 (inversion)");
+}
+
 TEST_F(SearchTest, DefaultInputsComeFirstAndLaterRequestsBeforeEarlierOnes) {
     const Value x = input(0, 0);
     const Value y = input(1, 0);
@@ -439,6 +567,51 @@ TEST_F(SearchTest, DefaultInputsComeFirstAndLaterRequestsBeforeEarlierOnes) {
               "0 := 5 (inversion)");
     EXPECT_EQ(changes({{atom(arithmetic(IntegerOperator::Add, fixed, fixedLater), Comparison::Equal, 5)}}),
               "3 := 5 (inversion)");
+}
+
+TEST_F(SearchTest, PointerInputsAreNotTriedInPlaceOfOthers) {
+    // The sum of an int and 8 later pointer inputs: the pointers would take all the places of the inputs tried.
+    const Value x = input(0, 0);
+    Value sum = x;
+    for (std::uint32_t id = 1; id <= 8; ++id) {
+        const ast::QualType pointer = context_.pointerTo(type(BuiltinKind::Char));
+        const value::IntegerFormat format = sema::integerFormat(context_, pointer);
+        Value p = Value::integer(0, format);
+        inputs_.push_back({.value = p, .type = pointer, .source = InputSource::Default, .history = {}});
+        p.setTerm(terms_.input(InputId{id}, p, format));
+        sum = arithmetic(IntegerOperator::Add, sum, converted(p, BuiltinKind::UnsignedInt, BuiltinKind::Int));
+    }
+    EXPECT_EQ(changes({{atom(sum, Comparison::Equal, 5)}}), "0 := 5 (inversion)");
+}
+
+// ---- Shared subterms and `?:` ----
+
+TEST_F(SearchTest, SharedSubtermsAreDecomposedOnce) {
+    // c = c || c, 64 times, on x == 1 with a hinted x: every path fails, and there are 2^64 of them.
+    const Value x = input(0, 0, InputSource::Hinted);
+    Value c = compare(Comparison::Equal, x, constant(1));
+    for (int i = 0; i < 63; ++i) {
+        Value next = Value::integer(0, s32);
+        next.setTerm(terms_.logicalOr(c, s32, &c, s32));
+        c = next;
+    }
+    EXPECT_EQ(terms_.term(*c.term()).kind, TermKind::LogicalOr);
+    EXPECT_EQ(changes({{holds(c)}}), "none");
+}
+
+TEST_F(SearchTest, AConditionalChangesItsConditionToTheOperandTheRunDidNotEvaluate) {
+    // a = x > 3 ? 1 : 0 with x = 0 selected 0; a != 0 needs the other operand, whose value the next run computes.
+    const Value x = input(0, 0);
+    const Value greater = compare(Comparison::Greater, x, constant(3));
+    Value a = constant(0);
+    a.setTerm(terms_.conditional(greater, s32, constant(0), s32));
+    EXPECT_EQ(changes({{holds(a)}}), "0 := 4 (inversion)");
+    // Through the operand the run evaluated, the condition keeps its value: b = y > 0 ? z : 0 with y = 1.
+    const Value y = input(1, 1);
+    const Value z = input(2, 0);
+    Value b = z;
+    b.setTerm(terms_.conditional(compare(Comparison::Greater, y, constant(0)), s32, z, s32));
+    EXPECT_EQ(changes({{atom(b, Comparison::Equal, 5)}}), "2 := 5 (inversion)");
 }
 
 // ---- The README's examples ----
