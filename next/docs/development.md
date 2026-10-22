@@ -7,7 +7,8 @@ The Ubuntu default compilers (GCC 13, Clang 18) are not used, see "Toolchain" in
 
 ```bash
 cd next
-cmake --preset gcc-debug          # or: gcc-release, clang-debug, clang-release, asan (Clang with ASan and UBSan)
+cmake --preset gcc-debug          # or: gcc-release, clang-debug, clang-release, asan (Clang with ASan and UBSan),
+                                  # release-static (static nitwit only, docs/release.md)
 cmake --build --preset gcc-debug
 ctest --preset gcc-debug          # unit and golden tests
 ```
@@ -50,6 +51,12 @@ started them.
 | `ctest --preset <p>` | unit and golden tests |
 | `ctest --preset <p> -L semantics` | interpreter vs. GCC/Clang on `tests/semantics/` |
 | `ctest --preset <p> -L corpus` | corpus checks; needs `-DNITWIT_DATASET_DIR=...` at configure time |
+| `ctest --preset <p> -L release` | `nitwit.sh` and the smoke test of the release archive with this build's `nitwit` |
+
+## Release archive
+
+`tools/package.sh` builds the static executable (preset `release-static`) and the archive for BenchExec and fm-tools,
+see `docs/release.md`.
 
 ## Corpus
 

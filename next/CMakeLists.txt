@@ -9,8 +9,18 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(NITWIT_BUILD_TESTS "Build the tests" ON)
 option(NITWIT_WERROR "Treat warnings as errors" ON)
+option(NITWIT_STATIC "Link the nitwit executable statically, for the release archive" OFF)
 set(NITWIT_SANITIZE "" CACHE STRING "Sanitizers to build with, e.g. address,undefined")
 set(NITWIT_DATASET_DIR "" CACHE PATH "SV-COMP 2026 witness dataset for the corpus tests (optional)")
+
+if(NITWIT_STATIC)
+    if(NITWIT_SANITIZE)
+        message(FATAL_ERROR "NITWIT_STATIC cannot be combined with NITWIT_SANITIZE: the sanitizers do not support -static")
+    endif()
+    # The release executable embeds no paths of the build machine, e.g. in the file names of assertion messages. Only
+    # here, because relative file names in the debug information keep debuggers from finding the sources.
+    add_compile_options(-ffile-prefix-map=${PROJECT_SOURCE_DIR}/= -ffile-prefix-map=${PROJECT_BINARY_DIR}/=)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 include(Warnings)

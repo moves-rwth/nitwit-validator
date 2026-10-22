@@ -5,7 +5,13 @@
 
 namespace nitwit::driver {
 
-std::expected<CommandLine, int> parseCommandLine(std::span<const std::string_view> arguments) {
+DataModel defaultDataModel(std::string_view executable) {
+    // The file name: everything after the last '/' (without one, npos + 1 is 0).
+    const std::string_view name = executable.substr(executable.rfind('/') + 1);
+    return name == "nitwit64" ? DataModel::LP64 : DataModel::ILP32;
+}
+
+std::expected<CommandLine, int> parseCommandLine(std::span<const std::string_view> arguments, DataModel defaultModel) {
     CommandLine commandLine;
     ReplayOptions replay;
     ValidationCommand validation;
@@ -13,7 +19,7 @@ std::expected<CommandLine, int> parseCommandLine(std::span<const std::string_vie
     bool isValidation = false;
     bool hasDataModel = false;
     std::string program;
-    DataModel dataModel = DataModel::ILP32;
+    DataModel dataModel = defaultModel;
     // Each option with a value may be given once; its value is the next argument.
     const auto takeValue = [&](std::size_t& i, std::string& into) {
         if (i + 1 >= arguments.size() || !into.empty()) {

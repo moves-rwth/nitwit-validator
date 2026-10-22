@@ -11,7 +11,9 @@ foreach(module IN ITEMS support value lex ast parse sema interp witness validate
     endif()
 endforeach()
 
-# The semantics suite runs the programs of tests/semantics with the replay mode of the driver.
+# The semantics suite runs the programs of tests/semantics with the replay mode of the driver; tests/release runs the
+# release wrapper and smoke test with the driver.
 if(TARGET nitwit)
     add_subdirectory(semantics)
+    add_subdirectory(release)
 endif()
