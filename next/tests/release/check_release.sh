@@ -1,8 +1,31 @@
 #!/usr/bin/env bash
 # Checks nitwit.sh, the default data model of bin/nitwit32 and bin/nitwit64, and the smoke test of the release archive
 # (docs/release.md) with a nitwit executable.
-# Usage: check_release.sh <nitwit> <project-version> <work-dir>
+# Usage: check_release.sh <nitwit> <project-version> <work-dir> [--glibc-only]
+# --glibc-only (a build with NITWIT_STATIC_RUNTIME) also checks that nitwit needs no shared libraries but glibc's, and
+# no glibc newer than maxGlibc.
 set -euo pipefail
+
+# The newest glibc the release executable may need; docs/release.md and release/README.md promise it.
+maxGlibc=2.38
+
+usage() {
+    echo "usage: check_release.sh <nitwit> <project-version> <work-dir> [--glibc-only]" >&2
+    exit 2
+}
+if [ $# -lt 3 ] || [ $# -gt 4 ]; then
+    usage
+fi
+glibcOnly=false
+case "${4:-}" in
+    "") ;;
+    --glibc-only) glibcOnly=true ;;
+    *) usage ;;
+esac
+if [ ! -f "$1" ]; then
+    echo "check_release.sh: there is no executable $1" >&2
+    exit 2
+fi
 nitwit="$(readlink -f "$1")"
 version="$2"
 here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
@@ -33,6 +56,20 @@ expect() {
         fail "$(printf "'%s' exited with %d, expected %d:\n%s" "$*" "$status" "$expected" "$output")"
     fi
 }
+
+if $glibcOnly; then
+    # ldd's messages (e.g. "not a dynamic executable") count as other libraries.
+    libraries="$(ldd "$nitwit" 2>&1 || true)"
+    others="$(awk '{ print $1 }' <<<"$libraries" |
+        grep -v -x -E 'linux-vdso\.so\.1|libc\.so\.6|libm\.so\.6|/lib64/ld-linux-x86-64\.so\.2' || true)"
+    if [ -n "$others" ]; then
+        fail "$(printf 'nitwit needs shared libraries other than libc, libm and the dynamic loader:\n%s' "$libraries")"
+    fi
+    needed="$(objdump -T "$nitwit" | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -u -V | tail -n 1 || true)"
+    if [ "$(printf '%s\n%s\n' "$needed" "$maxGlibc" | sort -V | tail -n 1)" != "$maxGlibc" ]; then
+        fail "nitwit needs glibc $needed, newer than the $maxGlibc that docs/release.md promises"
+    fi
+fi
 
 # BenchExec takes the version from nitwit.sh --version.
 printed="$(nitwit/nitwit.sh --version 2>&1)" || true

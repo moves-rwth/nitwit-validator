@@ -18,7 +18,8 @@ TEST(ExitCodeTest, ExitCodesOfNitwit3) {
     EXPECT_EQ(code(Verdict::Confirmed), 0);
     EXPECT_EQ(code(Verdict::LeftWitness), 241);
     EXPECT_EQ(code(Verdict::ProgramFinished), 242);
-    EXPECT_EQ(code(Verdict::ErrorBeforeTarget), 252);
+    // 252 is reserved until BenchExec maps it to UNKNOWN (docs/exit-codes.md).
+    EXPECT_EQ(code(Verdict::ErrorBeforeTarget), 241);
     EXPECT_EQ(code(Verdict::TargetWithoutError), 250);
     EXPECT_EQ(code(Verdict::Unsupported), 4);
     EXPECT_EQ(code(Verdict::Unknown), 4);

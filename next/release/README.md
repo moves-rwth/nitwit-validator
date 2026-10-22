@@ -25,7 +25,8 @@ Source code and documentation: <https://github.com/moves-rwth/nitwit-validator>
 
 ## Requirements
 
-Linux on x86-64. The executables are statically linked and need no libraries. Programs with preprocessor directives
+Linux on x86-64 with glibc 2.38 or later (Ubuntu 24.04 has 2.39; `licenses/VERSIONS` names the oldest glibc for this
+build). The executables contain the C++ runtime and need no other library. Programs with preprocessor directives
 other than line markers and `#pragma` are preprocessed by the `cpp` on the `PATH`; without it, they give UNKNOWN.
 Ubuntu's package `gcc-multilib` provides `cpp` and the system headers for both data models.
 
@@ -38,14 +39,13 @@ Ubuntu's package `gcc-multilib` provides `cpp` and the system headers for both d
 | 3 | wrong command line, or a file cannot be read | ERROR |
 | 4 | unsupported program, witness or property, or a limit of NITWIT | UNKNOWN |
 | 240 | no witness given | ERROR |
-| 241 | the program left the witness | UNKNOWN |
+| 241 | the program left the witness, or called the error function before the witness reached its target | UNKNOWN |
 | 242 | the program finished without calling the error function | UNKNOWN |
 | 250 | the witness reached its target, but the error function was not called | UNKNOWN |
 | 251 | out of memory | OUT OF MEMORY |
-| 252 | the error function was called, but the witness was not followed to its target | UNKNOWN (BenchExec 3.35: ERROR) |
 | 255 | `nitwit.sh`: `bin/nitwit32` is missing or not executable | ERROR |
 
 ## License
 
-NITWIT is licensed under the New BSD license, see `LICENSE`. The executables contain third-party code, see
-`THIRD-PARTY.md`.
+NITWIT is licensed under the New BSD license (BSD-3-Clause), see `LICENSE`. The executables contain third-party code,
+see `THIRD-PARTY.md`.

@@ -10,3 +10,4 @@ interpreter with a precise memory model, and a witness layer that observes the e
 - [`docs/exit-codes.md`](docs/exit-codes.md): exit codes (compatible with NITWIT 3.x)
 - [`docs/release.md`](docs/release.md): the release archive for BenchExec and fm-tools
 - [`docs/status.md`](docs/status.md): progress per stage
+- [`LICENSE`](LICENSE): NITWIT 4 is licensed under the New BSD license (BSD-3-Clause)

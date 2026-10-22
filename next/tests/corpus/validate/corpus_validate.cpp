@@ -161,6 +161,15 @@ std::string exitText(std::optional<int> code) {
     return code ? std::to_string(*code) : "-";
 }
 
+/// Whether NITWIT 4 exited as 3.x did. 3.x's 252 (the error function called before the target) is 241 in NITWIT 4 for
+/// now, with its own result line (docs/exit-codes.md); 241 for leaving the witness is a change.
+bool isSameExit(const Outcome& outcome, std::optional<int> v3Exit) {
+    if (v3Exit == 252 && outcome.exitCode == 241) {
+        return outcome.lastLine.starts_with("FAILED: the target was not reached");
+    }
+    return outcome.exitCode == v3Exit;
+}
+
 /// Prints how the exit codes changed from 3.x, as "3.x -> 4: count".
 void printTransitions(const std::vector<Job>& jobs, const std::vector<Outcome>& outcomes) {
     std::map<std::pair<std::string, int>, int> transitions;
@@ -399,7 +408,7 @@ bool checkSample(const fs::path& dataset, const fs::path& logs) {
             confirmed += isConfirmed ? 1 : 0;
             v3Confirmed += wasConfirmed ? 1 : 0;
         }
-        if (isConfirmed != wasConfirmed || outcomes[i].exitCode != job.v3Exit) {
+        if (isConfirmed != wasConfirmed || !isSameExit(outcomes[i], job.v3Exit)) {
             const std::string_view change = isConfirmed == wasConfirmed ? "" : isConfirmed ? "NEW-CONFIRMED " : "LOST ";
             std::println("{}{} {} {}-bit buggy={}: 3.x {} 4 {} ({:.1f} s) {}", change, job.name, job.producer, job.bits,
                          job.mustConfirm, exitText(job.v3Exit), outcomes[i].exitCode, outcomes[i].seconds,

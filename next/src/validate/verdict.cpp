@@ -46,7 +46,8 @@ int exitCode(const ValidationResult& result) {
     case Verdict::ProgramFinished:
         return 242;
     case Verdict::ErrorBeforeTarget:
-        return 252;
+        // Not 252 as in 3.x: BenchExec 3.35 maps 252 to ERROR, every version maps 241 to UNKNOWN (docs/exit-codes.md).
+        return 241;
     case Verdict::TargetWithoutError:
         return 250;
     case Verdict::Unsupported:
