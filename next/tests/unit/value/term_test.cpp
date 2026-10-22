@@ -4,6 +4,7 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <expected>
 #include <format>
 #include <functional>
 #include <limits>
@@ -89,17 +90,31 @@ std::string describe(const Value& value) {
                        static_cast<std::uint64_t>(bits >> 64), static_cast<std::uint64_t>(bits));
 }
 
-/// Whether an evaluation gave the value the run gets from `expected`: its value, bit for bit, or none if its undefined
-/// behaviour ends the run.
-::testing::AssertionResult evaluatesTo(const std::optional<Value>& actual, const Result& expected) {
+using Outcome = std::expected<Value, NoValue>;
+
+const char* describe(NoValue reason) {
+    return reason == NoValue::Unknown ? "unknown" : "ends the run";
+}
+
+/// Whether an evaluation has no value for `reason`.
+::testing::AssertionResult failsWith(const Outcome& actual, NoValue reason) {
+    if (actual) {
+        return ::testing::AssertionFailure() << describe(*actual) << " instead of " << describe(reason);
+    }
+    if (actual.error() != reason) {
+        return ::testing::AssertionFailure() << describe(actual.error()) << " instead of " << describe(reason);
+    }
+    return ::testing::AssertionSuccess();
+}
+
+/// Whether an evaluation gave what the program gets from `expected`: its value, bit for bit, or the end of the run if
+/// its undefined behaviour ends the run.
+::testing::AssertionResult evaluatesTo(const Outcome& actual, const Result& expected) {
     if (endsRun(expected.undefinedBehavior)) {
-        if (actual) {
-            return ::testing::AssertionFailure() << describe(*actual) << " instead of none";
-        }
-        return ::testing::AssertionSuccess();
+        return failsWith(actual, NoValue::EndsRun);
     }
     if (!actual) {
-        return ::testing::AssertionFailure() << "no value instead of " << describe(expected.value);
+        return ::testing::AssertionFailure() << describe(actual.error()) << " instead of " << describe(expected.value);
     }
     if (actual->kind() != expected.value.kind() || representation(*actual) != representation(expected.value)) {
         return ::testing::AssertionFailure() << describe(*actual) << " instead of " << describe(expected.value);
@@ -110,7 +125,7 @@ std::string describe(const Value& value) {
     return ::testing::AssertionSuccess();
 }
 
-::testing::AssertionResult evaluatesTo(const std::optional<Value>& actual, const Value& expected) {
+::testing::AssertionResult evaluatesTo(const Outcome& actual, const Value& expected) {
     return evaluatesTo(actual, Result{expected});
 }
 
@@ -262,10 +277,12 @@ TEST(TermTableTest, ConstantsRecordTheFormatOfTheirOperand) {
     const std::optional<TermId> either = table.logicalOr(integer(0, s16), s16, &y, FloatFormat::Double);
     const std::optional<TermId> compared =
         table.floatCompare(Comparison::Equal, Value::ofDouble(2.0), y, FloatFormat::Double);
-    ASSERT_TRUE(shifted && either && compared);
+    const std::optional<TermId> chosen = table.conditional(x, u64, integer(-2, s128), s128);
+    ASSERT_TRUE(shifted && either && compared && chosen);
     EXPECT_EQ(table.term(table.term(*shifted).operands[1]).format, ScalarFormat{s8});
     EXPECT_EQ(table.term(table.term(*either).operands[0]).format, ScalarFormat{s16});
     EXPECT_EQ(table.term(table.term(*compared).operands[0]).format, ScalarFormat{FloatFormat::Double});
+    EXPECT_EQ(table.term(table.term(*chosen).operands[1]).format, ScalarFormat{s128}); // the result's format
 }
 
 TEST(TermTableTest, OperationsWithoutAnOperandWithTermRecordNothing) {
@@ -273,6 +290,7 @@ TEST(TermTableTest, OperationsWithoutAnOperandWithTermRecordNothing) {
     const std::size_t before = table.size();
     const Value a = integer(6, s32);
     const Value b = Value::ofDouble(1.5);
+    const Value zero = integer(0, s32);
     EXPECT_FALSE(table.integerBinary(IntegerOperator::Add, a, a, s32));
     EXPECT_FALSE(table.shift(ShiftOperator::Left, a, s32, a, s32));
     EXPECT_FALSE(table.integerNegate(a, s32));
@@ -287,11 +305,12 @@ TEST(TermTableTest, OperationsWithoutAnOperandWithTermRecordNothing) {
     EXPECT_FALSE(table.floatToInteger(b, FloatFormat::Double, s64));
     EXPECT_FALSE(table.convertFloat(b, FloatFormat::Double, FloatFormat::LongDouble));
     EXPECT_FALSE(table.logicalNot(a, s32));
-    EXPECT_FALSE(table.logicalAnd(a, s32, &a, s32));
-    EXPECT_FALSE(table.logicalAnd(a, s32, nullptr, s32));
-    EXPECT_FALSE(table.logicalOr(b, FloatFormat::Double, &a, s32));
-    EXPECT_FALSE(table.logicalOr(a, s32, nullptr, s32));
-    EXPECT_FALSE(table.conditional(a, s32, b));
+    // The right operands of && and || are given exactly when the left one does not decide the result.
+    EXPECT_FALSE(table.logicalAnd(a, s32, &b, FloatFormat::Double));
+    EXPECT_FALSE(table.logicalAnd(zero, s32, nullptr, s32));
+    EXPECT_FALSE(table.logicalOr(zero, s32, &b, FloatFormat::Double));
+    EXPECT_FALSE(table.logicalOr(b, FloatFormat::Double, nullptr, s32));
+    EXPECT_FALSE(table.conditional(a, s32, b, FloatFormat::Double));
     EXPECT_EQ(table.size(), before);
 }
 
@@ -330,7 +349,7 @@ TEST(TermTableTest, TermsRecordTheirKindOperatorAndFormats) {
         Expected{table.logicalNot(f, FloatFormat::Float), TermKind::LogicalNot, 0, FloatFormat::Float, std::nullopt},
         Expected{table.logicalAnd(i, s16, &f, FloatFormat::Float), TermKind::LogicalAnd, 0, s16, FloatFormat::Float},
         Expected{table.logicalOr(f, FloatFormat::Float, nullptr, s16), TermKind::LogicalOr, 0, FloatFormat::Float, s16},
-        Expected{table.conditional(i, s16, f), TermKind::Conditional, 1, s16, std::nullopt},
+        Expected{table.conditional(i, s16, f, FloatFormat::Float), TermKind::Conditional, 1, s16, FloatFormat::Float},
     };
     for (const Expected& entry : expected) {
         SCOPED_TRACE(std::format("{}", std::to_underlying(entry.kind)));
@@ -388,7 +407,7 @@ TEST(TermEvaluationTest, SignedOverflowUnderSubstitutionGivesTheWrappedValue) {
     EXPECT_TRUE(evaluatesTo(table.evaluate(*quotient, replacing(firstInput, min)), min));
 }
 
-TEST(TermEvaluationTest, DivisionBySubstitutedZeroHasNoValue) {
+TEST(TermEvaluationTest, DivisionBySubstitutedZeroEndsTheRun) {
     // Division by zero ends the run.
     TermTable table(lp64);
     const Value x = registered(table, firstInput, integer(5, u32), u32);
@@ -396,7 +415,7 @@ TEST(TermEvaluationTest, DivisionBySubstitutedZeroHasNoValue) {
         const std::optional<TermId> quotient = table.integerBinary(op, integer(100, u32), x, u32);
         ASSERT_TRUE(quotient.has_value());
         EXPECT_TRUE(evaluatesTo(table.evaluate(*quotient, {}), integer(op == IntegerOperator::Div ? 20 : 0, u32)));
-        EXPECT_FALSE(table.evaluate(*quotient, replacing(firstInput, integer(0, u32))).has_value());
+        EXPECT_TRUE(failsWith(table.evaluate(*quotient, replacing(firstInput, integer(0, u32))), NoValue::EndsRun));
     }
 }
 
@@ -725,7 +744,7 @@ TEST(TermEvaluationTest, LogicalAndWithoutTheRightOperand) {
     ASSERT_TRUE(both.has_value());
     EXPECT_EQ(table.term(*both).operandCount, 1u);
     EXPECT_TRUE(evaluatesTo(table.evaluate(*both, {}), integer(0, s32)));
-    EXPECT_FALSE(table.evaluate(*both, replacing(firstInput, integer(3, s32))).has_value());
+    EXPECT_TRUE(failsWith(table.evaluate(*both, replacing(firstInput, integer(3, s32))), NoValue::Unknown));
 }
 
 TEST(TermEvaluationTest, LogicalAndWithALeftOperandThatDividesByZero) {
@@ -738,7 +757,7 @@ TEST(TermEvaluationTest, LogicalAndWithALeftOperandThatDividesByZero) {
     const std::optional<TermId> both = table.logicalAnd(quotient, s32, &y, s32);
     ASSERT_TRUE(both.has_value());
     EXPECT_TRUE(evaluatesTo(table.evaluate(*both, {}), integer(1, s32)));
-    EXPECT_FALSE(table.evaluate(*both, replacing(firstInput, integer(0, s32))).has_value());
+    EXPECT_TRUE(failsWith(table.evaluate(*both, replacing(firstInput, integer(0, s32))), NoValue::EndsRun));
 }
 
 TEST(TermEvaluationTest, LogicalOrWithBothOperands) {
@@ -771,7 +790,7 @@ TEST(TermEvaluationTest, LogicalOrWithoutTheRightOperand) {
     ASSERT_TRUE(either.has_value());
     EXPECT_TRUE(evaluatesTo(table.evaluate(*either, {}), integer(1, s32)));
     EXPECT_TRUE(evaluatesTo(table.evaluate(*either, replacing(firstInput, Value::ofFloat(-2.0F))), integer(1, s32)));
-    EXPECT_FALSE(table.evaluate(*either, replacing(firstInput, Value::ofFloat(0.0F))).has_value());
+    EXPECT_TRUE(failsWith(table.evaluate(*either, replacing(firstInput, Value::ofFloat(0.0F))), NoValue::Unknown));
 }
 
 TEST(TermEvaluationTest, LogicalOrWithALeftOperandThatDividesByZero) {
@@ -783,7 +802,7 @@ TEST(TermEvaluationTest, LogicalOrWithALeftOperandThatDividesByZero) {
     const std::optional<TermId> either = table.logicalOr(quotient, s32, &y, s32);
     ASSERT_TRUE(either.has_value());
     EXPECT_TRUE(evaluatesTo(table.evaluate(*either, {}), integer(1, s32)));
-    EXPECT_FALSE(table.evaluate(*either, replacing(firstInput, integer(0, s32))).has_value());
+    EXPECT_TRUE(failsWith(table.evaluate(*either, replacing(firstInput, integer(0, s32))), NoValue::EndsRun));
 }
 
 TEST(TermEvaluationTest, LogicalOperationsWithAConstantOperand) {
@@ -807,13 +826,14 @@ TEST(TermEvaluationTest, ConditionalHasAValueOnlyIfTheConditionSelectsTheSameOpe
         TermTable table(lp64);
         const Value c = registered(table, firstInput, integer(held ? 2 : 0, s32), s32);
         const Value selected = registered(table, secondInput, Value::ofDouble(1.5), FloatFormat::Double);
-        const std::optional<TermId> chosen = table.conditional(c, s32, selected);
+        const std::optional<TermId> chosen = table.conditional(c, s32, selected, FloatFormat::Double);
         ASSERT_TRUE(chosen.has_value());
         EXPECT_EQ(table.term(*chosen).op, held ? 1u : 0u);
         EXPECT_TRUE(evaluatesTo(table.evaluate(*chosen, {}), Value::ofDouble(1.5)));
         EXPECT_TRUE(
             evaluatesTo(table.evaluate(*chosen, replacing(secondInput, Value::ofDouble(-4.0))), Value::ofDouble(-4.0)));
-        EXPECT_FALSE(table.evaluate(*chosen, replacing(firstInput, integer(held ? 0 : -1, s32))).has_value());
+        EXPECT_TRUE(
+            failsWith(table.evaluate(*chosen, replacing(firstInput, integer(held ? 0 : -1, s32))), NoValue::Unknown));
         EXPECT_TRUE(evaluatesTo(table.evaluate(*chosen, replacing(firstInput, integer(held ? 7 : 0, s32))),
                                 Value::ofDouble(1.5)));
     }
@@ -823,10 +843,10 @@ TEST(TermEvaluationTest, ConditionalWithAConstantOperand) {
     // c ? 3 : ..., with a floating condition; NaN is true.
     TermTable table(lp64);
     const Value c = registered(table, firstInput, Value::ofDouble(1.0), FloatFormat::Double);
-    const std::optional<TermId> chosen = table.conditional(c, FloatFormat::Double, integer(3, s64));
+    const std::optional<TermId> chosen = table.conditional(c, FloatFormat::Double, integer(3, s64), s64);
     ASSERT_TRUE(chosen.has_value());
     EXPECT_TRUE(evaluatesTo(table.evaluate(*chosen, replacing(firstInput, Value::ofDouble(nan))), integer(3, s64)));
-    EXPECT_FALSE(table.evaluate(*chosen, replacing(firstInput, Value::ofDouble(-0.0))).has_value());
+    EXPECT_TRUE(failsWith(table.evaluate(*chosen, replacing(firstInput, Value::ofDouble(-0.0))), NoValue::Unknown));
 }
 
 TEST(TermEvaluationTest, ConditionalWithAConstantConditionIsTheSelectedOperand) {
@@ -835,7 +855,7 @@ TEST(TermEvaluationTest, ConditionalWithAConstantConditionIsTheSelectedOperand) 
     const Value x = registered(table, firstInput, integer(5, s32), s32);
     const Value quotient = withTerm(table.integerBinary(IntegerOperator::Div, integer(10, s32), x, s32));
     const std::size_t before = table.size();
-    EXPECT_EQ(table.conditional(integer(1, s32), s32, quotient), quotient.term());
+    EXPECT_EQ(table.conditional(integer(1, s32), s32, quotient, s32), quotient.term());
     EXPECT_EQ(table.size(), before);
 }
 
@@ -917,6 +937,19 @@ TEST(TermLimitsTest, MaxTermsZeroRecordsNothing) {
     EXPECT_EQ(table.size(), 0u);
 }
 
+TEST(TermLimitsTest, InputsBeyondTwiceTheSizeLimitGetTheOpaqueTerm) {
+    // The opaque term and three inputs fill twice the size limit.
+    TermTable table(lp64, TermLimits{.maxTerms = 2});
+    for (std::uint32_t i = 0; i < 3; ++i) {
+        const std::optional<TermId> input = table.input(InputId{i}, integer(i, s32), s32);
+        ASSERT_TRUE(input.has_value());
+        EXPECT_FALSE(table.isOpaque(*input));
+    }
+    EXPECT_EQ(table.size(), 4u);
+    EXPECT_EQ(table.input(InputId{3}, integer(3, s32), s32), table.opaque());
+    EXPECT_EQ(table.size(), 4u);
+}
+
 // ---- The opaque term ----
 
 TEST(TermOpaqueTest, EveryTableHasAnOpaqueTerm) {
@@ -926,7 +959,7 @@ TEST(TermOpaqueTest, EveryTableHasAnOpaqueTerm) {
         ASSERT_TRUE(opaque.has_value());
         EXPECT_TRUE(table.isOpaque(*opaque));
         EXPECT_EQ(table.term(*opaque).kind, TermKind::Opaque);
-        EXPECT_FALSE(table.evaluate(*opaque, {}).has_value());
+        EXPECT_TRUE(failsWith(table.evaluate(*opaque, {}), NoValue::Unknown));
         EXPECT_TRUE(table.inputs(*opaque).empty());
         EXPECT_FALSE(table.origin(*opaque).has_value());
         EXPECT_EQ(table.size(), 1u);
@@ -944,9 +977,9 @@ TEST(TermOpaqueTest, OperationsOnTheOpaqueTermGiveTheOpaqueTerm) {
     EXPECT_EQ(table.convertInteger(unknown, s32, u8), table.opaque());
     EXPECT_EQ(table.logicalAnd(x, s32, &unknown, s32), table.opaque());
     EXPECT_EQ(table.logicalOr(unknown, s32, nullptr, s32), table.opaque());
-    EXPECT_EQ(table.conditional(unknown, s32, x), table.opaque());
-    EXPECT_EQ(table.conditional(x, s32, unknown), table.opaque());
-    EXPECT_EQ(table.conditional(integer(1, s32), s32, unknown), table.opaque());
+    EXPECT_EQ(table.conditional(unknown, s32, x, s32), table.opaque());
+    EXPECT_EQ(table.conditional(x, s32, unknown, s32), table.opaque());
+    EXPECT_EQ(table.conditional(integer(1, s32), s32, unknown, s32), table.opaque());
     EXPECT_EQ(table.size(), before);
 }
 
@@ -957,6 +990,137 @@ TEST(TermOpaqueTest, OtherTermsAreNotOpaque) {
     ASSERT_TRUE(negated.has_value());
     EXPECT_FALSE(table.isOpaque(*x.term()));
     EXPECT_FALSE(table.isOpaque(*negated));
+}
+
+// ---- Unknown values and the end of the run ----
+
+TEST(TermNoValueTest, AnOperationEndsTheRunIfAnyOperandDoesEvenIfAnotherIsUnknown) {
+    // (x || ...) + 10 / y, where the run did not evaluate the right operand of ||.
+    TermTable table(lp64);
+    const Value x = registered(table, firstInput, integer(1, s32), s32);
+    const Value y = registered(table, secondInput, integer(5, s32), s32);
+    const Value either = withTerm(table.logicalOr(x, s32, nullptr, s32), integer(1, s32));
+    const Value quotient =
+        withTerm(table.integerBinary(IntegerOperator::Div, integer(10, s32), y, s32), integer(2, s32));
+    const std::optional<TermId> sum = table.integerBinary(IntegerOperator::Add, either, quotient, s32);
+    ASSERT_TRUE(sum.has_value());
+    EXPECT_TRUE(evaluatesTo(table.evaluate(*sum, {}), integer(3, s32)));
+    Substitution both;
+    both.set(firstInput, integer(0, s32));
+    both.set(secondInput, integer(0, s32));
+    EXPECT_TRUE(failsWith(table.evaluate(*sum, both), NoValue::EndsRun));
+    EXPECT_TRUE(failsWith(table.evaluate(*sum, replacing(firstInput, integer(0, s32))), NoValue::Unknown));
+    EXPECT_TRUE(failsWith(table.evaluate(*sum, replacing(secondInput, integer(0, s32))), NoValue::EndsRun));
+}
+
+TEST(TermNoValueTest, LogicalAndWithAnUnknownLeftOperandIsUnknown) {
+    // (x || ...) && 10 / y: whether the program reaches 10 / y is unknown.
+    TermTable table(lp64);
+    const Value x = registered(table, firstInput, integer(1, s32), s32);
+    const Value y = registered(table, secondInput, integer(5, s32), s32);
+    const Value either = withTerm(table.logicalOr(x, s32, nullptr, s32), integer(1, s32));
+    const Value quotient =
+        withTerm(table.integerBinary(IntegerOperator::Div, integer(10, s32), y, s32), integer(2, s32));
+    const std::optional<TermId> both = table.logicalAnd(either, s32, &quotient, s32);
+    ASSERT_TRUE(both.has_value());
+    Substitution substitution;
+    substitution.set(firstInput, integer(0, s32));
+    substitution.set(secondInput, integer(0, s32));
+    EXPECT_TRUE(failsWith(table.evaluate(*both, substitution), NoValue::Unknown));
+    EXPECT_TRUE(failsWith(table.evaluate(*both, replacing(secondInput, integer(0, s32))), NoValue::EndsRun));
+}
+
+TEST(TermNoValueTest, ConditionalWithAConditionThatEndsTheRun) {
+    // 10 / x ? y : ...
+    TermTable table(lp64);
+    const Value x = registered(table, firstInput, integer(5, s32), s32);
+    const Value y = registered(table, secondInput, integer(7, s32), s32);
+    const Value quotient =
+        withTerm(table.integerBinary(IntegerOperator::Div, integer(10, s32), x, s32), integer(2, s32));
+    const std::optional<TermId> chosen = table.conditional(quotient, s32, y, s32);
+    ASSERT_TRUE(chosen.has_value());
+    EXPECT_TRUE(evaluatesTo(table.evaluate(*chosen, replacing(secondInput, integer(9, s32))), integer(9, s32)));
+    EXPECT_TRUE(failsWith(table.evaluate(*chosen, replacing(firstInput, integer(0, s32))), NoValue::EndsRun));
+    EXPECT_TRUE(failsWith(table.evaluate(*chosen, replacing(firstInput, integer(20, s32))), NoValue::Unknown));
+}
+
+// ---- Strict terms ----
+
+TEST(TermStrictTest, TermsRecordedInAStrictScopeAreStrict) {
+    TermTable table(lp64);
+    const Value x = registered(table, firstInput, integer(1, s32), s32);
+    const std::optional<TermId> before = table.integerNegate(x, s32);
+    std::optional<TermId> inside;
+    {
+        const TermTable::StrictScope scope(table);
+        inside = table.integerNegate(x, s32);
+    }
+    const std::optional<TermId> after = table.integerNegate(x, s32);
+    ASSERT_TRUE(before && inside && after);
+    EXPECT_FALSE(table.term(*before).strict);
+    EXPECT_TRUE(table.term(*inside).strict);
+    EXPECT_FALSE(table.term(*after).strict);
+}
+
+TEST(TermStrictTest, AScopeRestoresThePreviousMode) {
+    TermTable table(lp64);
+    const Value x = registered(table, firstInput, integer(1, s32), s32);
+    {
+        const TermTable::StrictScope outer(table);
+        {
+            const TermTable::StrictScope inner(table);
+        }
+        const std::optional<TermId> negated = table.integerNegate(x, s32);
+        ASSERT_TRUE(negated.has_value());
+        EXPECT_TRUE(table.term(*negated).strict);
+    }
+    const std::optional<TermId> negated = table.integerNegate(x, s32);
+    ASSERT_TRUE(negated.has_value());
+    EXPECT_FALSE(table.term(*negated).strict);
+}
+
+TEST(TermStrictTest, AnyUndefinedBehaviourOfAStrictTermEndsTheRun) {
+    TermTable table(lp64);
+    const Value x = registered(table, firstInput, integer(5, s32), s32);
+    const Value d = registered(table, secondInput, Value::ofDouble(1.0), FloatFormat::Double);
+    std::optional<TermId> sum;
+    std::optional<TermId> shifted;
+    std::optional<TermId> converted;
+    {
+        const TermTable::StrictScope scope(table);
+        sum = table.integerBinary(IntegerOperator::Add, x, integer(1, s32), s32);
+        shifted = table.shift(ShiftOperator::Left, integer(1, s32), s32, x, s32);
+        converted = table.floatToInteger(d, FloatFormat::Double, s32);
+    }
+    ASSERT_TRUE(sum && shifted && converted);
+    EXPECT_TRUE(evaluatesTo(table.evaluate(*sum, {}), integer(6, s32)));
+    const Value max = integer(std::numeric_limits<std::int32_t>::max(), s32);
+    EXPECT_TRUE(failsWith(table.evaluate(*sum, replacing(firstInput, max)), NoValue::EndsRun));
+    EXPECT_TRUE(failsWith(table.evaluate(*shifted, replacing(firstInput, integer(32, s32))), NoValue::EndsRun));
+    EXPECT_TRUE(failsWith(table.evaluate(*converted, replacing(secondInput, Value::ofDouble(3e9))), NoValue::EndsRun));
+}
+
+TEST(TermStrictTest, SubtermsRecordedOutsideTheScopeKeepTheProgramsSemantics) {
+    // s = x + 1 in the program; s == 0 and s + 1 in a constraint.
+    TermTable table(lp64);
+    const Value x = registered(table, firstInput, integer(5, s32), s32);
+    const Value s = withTerm(table.integerBinary(IntegerOperator::Add, x, integer(1, s32), s32), integer(6, s32));
+    std::optional<TermId> compared;
+    std::optional<TermId> incremented;
+    {
+        const TermTable::StrictScope scope(table);
+        compared = table.integerCompare(Comparison::Equal, s, integer(0, s32), s32);
+        incremented = table.integerBinary(IntegerOperator::Add, s, integer(1, s32), s32);
+    }
+    ASSERT_TRUE(compared && incremented);
+    // With x = INT_MAX, the program's s wraps around to INT_MIN.
+    const std::int32_t max = std::numeric_limits<std::int32_t>::max();
+    EXPECT_TRUE(evaluatesTo(table.evaluate(*compared, replacing(firstInput, integer(max, s32))), integer(0, s32)));
+    EXPECT_TRUE(evaluatesTo(table.evaluate(*incremented, replacing(firstInput, integer(max, s32))),
+                            integer(std::numeric_limits<std::int32_t>::min() + 1, s32)));
+    // With x = INT_MAX - 1, s is INT_MAX, and the constraint's s + 1 overflows.
+    EXPECT_TRUE(
+        failsWith(table.evaluate(*incremented, replacing(firstInput, integer(max - 1, s32))), NoValue::EndsRun));
 }
 
 // ---- Shared subterms ----
@@ -1090,11 +1254,16 @@ TEST(TermTableDeathTest, RightOperandOfLogicalOperationsMustMatchTheRun) {
     EXPECT_DEATH((void)table.logicalOr(x, s32, &y, s32), "right operand");
 }
 
-TEST(TermTableDeathTest, NonScalarConstantOperandAsserts) {
+TEST(TermTableDeathTest, ConstantOperandOfAnotherFormatAsserts) {
     TermTable table(lp64);
     const Value x = registered(table, firstInput, integer(1, s32), s32);
-    EXPECT_DEATH((void)table.conditional(x, s32, Value::ofBytes({std::byte{1}, std::byte{2}})), "not a scalar");
-    EXPECT_DEATH((void)table.integerBinary(IntegerOperator::Add, x, Value(), s32), "not a scalar");
+    EXPECT_DEATH((void)table.conditional(x, s32, Value::ofBytes({std::byte{1}, std::byte{2}}), s32), "its format");
+    EXPECT_DEATH((void)table.integerBinary(IntegerOperator::Add, x, Value(), s32), "its format");
+    EXPECT_DEATH((void)table.integerBinary(IntegerOperator::Add, x, Value::integer(UInt128{1} << 32, u64), s32),
+                 "its format");
+    EXPECT_DEATH((void)table.floatCompare(Comparison::Less, withTerm(x.term(), Value::ofFloat(1.0F)),
+                                          Value::ofDouble(1.0), FloatFormat::Float),
+                 "its format");
 }
 
 TEST(TermTableDeathTest, ReadingATermOfTheWrongKindAsserts) {

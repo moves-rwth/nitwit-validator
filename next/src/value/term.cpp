@@ -1,7 +1,6 @@
 #include "value/term.hpp"
 
 #include <algorithm>
-#include <unordered_set>
 
 #include "support/assert.hpp"
 
@@ -11,6 +10,8 @@ namespace nitwit::value {
 static_assert(sizeof(Term) <= 32, "terms must stay compact");
 
 namespace {
+
+using Outcome = std::expected<Value, NoValue>;
 
 /// The type of the result of comparisons, `!`, `&&` and `||`: int (C17 6.5.3.3p5, 6.5.8p6, 6.5.9p3, 6.5.13p3,
 /// 6.5.14p3).
@@ -30,10 +31,6 @@ FloatFormat floatFormat(const ScalarFormat& format) {
     const auto* floating = std::get_if<FloatFormat>(&format);
     NITWIT_ASSERT(floating != nullptr, "the term has an integer format where a floating format belongs");
     return *floating;
-}
-
-bool isScalar(const Value& value) {
-    return value.kind() != Value::Kind::None && value.kind() != Value::Kind::Bytes;
 }
 
 /// Whether `value` is a value of `format`, in canonical form if it is an integer.
@@ -59,10 +56,11 @@ Value detached(Value value) {
     return value;
 }
 
-/// The value an operation gives the run: none if the run ends at its undefined behaviour.
-std::optional<Value> runValue(const Result& result) {
-    if (endsRun(result.undefinedBehavior)) {
-        return std::nullopt;
+/// The value an operation gives the program: none if the program stops at its undefined behaviour, which in a strict
+/// term is any.
+Outcome runValue(const Result& result, bool strict) {
+    if (result.undefinedBehavior != UndefinedBehavior::None && (strict || endsRun(result.undefinedBehavior))) {
+        return std::unexpected(NoValue::EndsRun);
     }
     return result.value;
 }
@@ -85,7 +83,7 @@ bool keepsOrigin(TermKind kind) {
 
 /// The terms that `root` depends on, and `root`, in ascending order: operands have smaller ids than the terms that use
 /// them, so this order has every operand before its users. Taking the largest pending term each time takes the copies
-/// of a term, one per path to it, one after another, so that each term is listed once.
+/// of a term, one per use, one after another, so that each term is listed once.
 std::vector<TermId> subterms(const TermTable& table, TermId root) {
     std::vector<TermId> result;
     std::vector<TermId> pending{root}; // a max-heap
@@ -144,6 +142,9 @@ std::optional<TermId> TermTable::input(InputId id, const Value& value, ScalarFor
     if (limits_.maxTerms == 0) {
         return std::nullopt;
     }
+    if (terms_.size() >= 2 * std::size_t{limits_.maxTerms}) {
+        return opaque();
+    }
     const std::uint32_t index = std::to_underlying(id);
     if (index >= registered_.size()) {
         registered_.resize(index + std::size_t{1});
@@ -164,7 +165,7 @@ std::optional<TermId> TermTable::record(Term term, std::initializer_list<Operand
             }
             deepest = std::max<unsigned>(deepest, operandTerm.depth);
         } else {
-            NITWIT_ASSERT(isScalar(operand.value), "an operand without term is not a scalar");
+            NITWIT_ASSERT(hasFormat(operand.value, operand.format), "a constant operand is not a value of its format");
             ++constants;
         }
     }
@@ -174,12 +175,11 @@ std::optional<TermId> TermTable::record(Term term, std::initializer_list<Operand
     }
     term.depth = static_cast<std::uint16_t>(deepest + 1);
     term.operandCount = static_cast<std::uint8_t>(operands.size());
+    term.strict = strict_;
     for (std::size_t i = 0; const Operand& operand : operands) {
         const std::optional<TermId> id = operand.value.term();
-        term.operands[i++] = id ? *id
-                                : add({.kind = TermKind::Constant,
-                                       .format = operand.format.value_or(ScalarFormat{}),
-                                       .payload = addValue(operand.value)});
+        term.operands[i++] =
+            id ? *id : add({.kind = TermKind::Constant, .format = operand.format, .payload = addValue(operand.value)});
     }
     return add(term);
 }
@@ -197,11 +197,12 @@ std::optional<TermId> TermTable::recordLogical(TermKind kind, const Value& lhs, 
 }
 
 std::optional<TermId> TermTable::recordConditional(const Value& condition, ScalarFormat conditionFormat,
-                                                   const Value& selected) {
+                                                   const Value& selected, ScalarFormat resultFormat) {
     return record({.kind = TermKind::Conditional,
                    .op = static_cast<std::uint8_t>(isTrue(condition) ? 1 : 0),
-                   .format = conditionFormat},
-                  {{condition, conditionFormat}, {selected, std::nullopt}});
+                   .format = conditionFormat,
+                   .secondFormat = resultFormat},
+                  {{condition, conditionFormat}, {selected, resultFormat}});
 }
 
 TermId TermTable::add(const Term& term) {
@@ -239,18 +240,9 @@ bool TermTable::isOpaque(TermId id) const {
 
 std::vector<InputId> TermTable::inputs(TermId id) const {
     std::vector<InputId> result;
-    std::unordered_set<std::uint32_t> seen{std::to_underlying(id)};
-    std::vector<TermId> pending{id};
-    while (!pending.empty()) {
-        const Term& current = term(pending.back());
-        pending.pop_back();
-        if (current.kind == TermKind::Input) {
+    for (const TermId subterm : subterms(*this, id)) {
+        if (const Term& current = term(subterm); current.kind == TermKind::Input) {
             result.push_back(inputOf(current)); // unique: an input has one term per run
-        }
-        for (const TermId operand : operandsOf(current)) {
-            if (seen.insert(std::to_underlying(operand)).second) {
-                pending.push_back(operand);
-            }
         }
     }
     std::ranges::sort(result);
@@ -270,25 +262,28 @@ std::optional<InputId> TermTable::origin(TermId id) const {
 
 // ---- Evaluation ----
 
-std::optional<Value> TermTable::evaluate(TermId id, const Substitution& substitution) const {
+std::expected<Value, NoValue> TermTable::evaluate(TermId id, const Substitution& substitution) const {
     // Shared subterms would make a recursive evaluation exponential, and terms may be TermLimits::maxDepth deep: each
     // subterm is evaluated once, in ascending order, without recursion.
     const std::vector<TermId> order = subterms(*this, id);
-    std::vector<std::optional<Value>> values;
-    values.reserve(order.size()); // the operands point into it
+    std::vector<Outcome> outcomes;
+    outcomes.reserve(order.size()); // the operands point into it
     for (const TermId current : order) {
         const Term& currentTerm = term(current);
-        std::array<const std::optional<Value>*, 3> operands{};
+        std::array<const Outcome*, 3> operands{};
         for (std::size_t i = 0; const TermId operand : operandsOf(currentTerm)) {
-            operands[i++] = &values[static_cast<std::size_t>(std::ranges::lower_bound(order, operand) - order.begin())];
+            operands[i++] =
+                &outcomes[static_cast<std::size_t>(std::ranges::lower_bound(order, operand) - order.begin())];
         }
-        values.push_back(evaluateTerm(currentTerm, std::span(operands).first(currentTerm.operandCount), substitution));
+        outcomes.push_back(
+            evaluateTerm(currentTerm, std::span(operands).first(currentTerm.operandCount), substitution));
     }
-    return std::move(values.back());
+    return std::move(outcomes.back());
 }
 
-std::optional<Value> TermTable::evaluateTerm(const Term& term, std::span<const std::optional<Value>* const> operands,
-                                             const Substitution& substitution) const {
+std::expected<Value, NoValue> TermTable::evaluateTerm(const Term& term,
+                                                      std::span<const std::expected<Value, NoValue>* const> operands,
+                                                      const Substitution& substitution) const {
     switch (term.kind) {
     case TermKind::Input:
         if (const Value* substituted = substitution.find(inputOf(term))) {
@@ -299,35 +294,52 @@ std::optional<Value> TermTable::evaluateTerm(const Term& term, std::span<const s
     case TermKind::Constant:
         return constantOf(term);
     case TermKind::Opaque:
-        return std::nullopt;
+        return std::unexpected(NoValue::Unknown);
     case TermKind::LogicalAnd:
     case TermKind::LogicalOr: {
         // C17 6.5.13p4, 6.5.14p4: the right operand is evaluated only if the left one does not decide the result.
-        const bool decidingValue = term.kind == TermKind::LogicalOr;
-        if (!*operands[0]) {
-            return std::nullopt;
+        const Outcome& lhs = *operands[0];
+        if (!lhs) {
+            return lhs;
         }
-        if (isTrue(**operands[0]) == decidingValue) {
+        const bool decidingValue = term.kind == TermKind::LogicalOr;
+        if (isTrue(*lhs) == decidingValue) {
             return truthValue(decidingValue);
         }
-        if (operands.size() < 2 || !*operands[1]) {
-            return std::nullopt;
+        if (operands.size() < 2) {
+            return std::unexpected(NoValue::Unknown);
         }
-        return truthValue(isTrue(**operands[1]));
+        const Outcome& rhs = *operands[1];
+        if (!rhs) {
+            return rhs;
+        }
+        return truthValue(isTrue(*rhs));
     }
-    case TermKind::Conditional:
+    case TermKind::Conditional: {
         // The term has only the operand the run evaluated, which the condition must select again.
-        if (!*operands[0] || isTrue(**operands[0]) != (term.op == 1)) {
-            return std::nullopt;
+        const Outcome& condition = *operands[0];
+        if (!condition) {
+            return condition;
+        }
+        if (isTrue(*condition) != (term.op == 1)) {
+            return std::unexpected(NoValue::Unknown);
         }
         return *operands[1];
+    }
     default:
         break;
     }
 
-    // The remaining kinds have no value if an operand has none.
-    if (std::ranges::any_of(operands, [](const std::optional<Value>* operand) { return !*operand; })) {
-        return std::nullopt;
+    // The program evaluates every operand of the remaining kinds: if one ends the run, so does the operation.
+    const auto anyOperandFails = [&](NoValue reason) {
+        return std::ranges::any_of(operands,
+                                   [&](const Outcome* operand) { return !*operand && operand->error() == reason; });
+    };
+    if (anyOperandFails(NoValue::EndsRun)) {
+        return std::unexpected(NoValue::EndsRun);
+    }
+    if (anyOperandFails(NoValue::Unknown)) {
+        return std::unexpected(NoValue::Unknown);
     }
     const auto operand = [&](std::size_t i) -> const Value& {
         return **operands[i];
@@ -335,12 +347,14 @@ std::optional<Value> TermTable::evaluateTerm(const Term& term, std::span<const s
     switch (term.kind) {
     case TermKind::IntegerBinary:
         return runValue(value::integerBinary(static_cast<IntegerOperator>(term.op), operand(0), operand(1),
-                                             integerFormat(term.format)));
+                                             integerFormat(term.format)),
+                        term.strict);
     case TermKind::Shift:
         return runValue(value::shift(static_cast<ShiftOperator>(term.op), operand(0), integerFormat(term.format),
-                                     operand(1), integerFormat(term.secondFormat)));
+                                     operand(1), integerFormat(term.secondFormat)),
+                        term.strict);
     case TermKind::IntegerNegate:
-        return runValue(value::integerNegate(operand(0), integerFormat(term.format)));
+        return runValue(value::integerNegate(operand(0), integerFormat(term.format)), term.strict);
     case TermKind::IntegerComplement:
         return value::integerComplement(operand(0), integerFormat(term.format));
     case TermKind::IntegerCompare:
@@ -362,7 +376,8 @@ std::optional<Value> TermTable::evaluateTerm(const Term& term, std::span<const s
         return value::integerToFloat(operand(0), integerFormat(term.format), floatFormat(term.secondFormat));
     case TermKind::FloatToInteger:
         return runValue(
-            value::floatToInteger(operand(0), floatFormat(term.format), integerFormat(term.secondFormat), model_));
+            value::floatToInteger(operand(0), floatFormat(term.format), integerFormat(term.secondFormat), model_),
+            term.strict);
     case TermKind::ConvertFloat:
         return value::convertFloat(operand(0), floatFormat(term.format), floatFormat(term.secondFormat));
     case TermKind::LogicalNot:

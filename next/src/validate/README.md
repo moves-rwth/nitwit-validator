@@ -207,10 +207,10 @@ with them. It never tries values by running the program, so each restart costs o
   run when the search needs it and the kept clauses allow it. The number of restarts is limited
   (`ValidationOptions::maxRestarts`, scaled with the number of waypoints).
 - **Limits of the search:** it cannot predict values through operations without term kinds (pointer arithmetic,
-  library functions, bit-fields, dependencies through control flow that no waypoint covers), relations where an input occurs
-  more than once and candidates do not help (`x * x == 49`), and witnesses without waypoints between the start and
-  the target. Searching the program's paths for those would cost runs per candidate, which NITWIT does not do. An SMT
-  solver can later replace the candidates behind the same requirements.
+  library functions, bit-fields, dependencies through control flow that no waypoint covers), relations where an
+  input occurs more than once and candidates do not help (`x * x == 49`), and witnesses without waypoints between
+  the start and the target. Searching the program's paths for those would cost runs per candidate, which NITWIT does
+  not do. An SMT solver can later replace the candidates behind the same requirements.
 
 ## Known gaps
 

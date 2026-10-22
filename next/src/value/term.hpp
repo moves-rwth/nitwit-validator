@@ -8,6 +8,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <initializer_list>
 #include <optional>
 #include <span>
@@ -28,7 +29,7 @@ using ScalarFormat = std::variant<IntegerFormat, FloatFormat>;
 /// function the kind is named after, in its order (`Term::format`, then `Term::secondFormat`).
 enum class TermKind : std::uint8_t {
     Input,             // an input of the run; format: the input's
-    Constant,          // a value that depends on no input; format: its own, unknown as the operand of a Conditional
+    Constant,          // a value that depends on no input; format: its own
     Opaque,            // a value that depends on inputs in a way the table does not record (TermTable::opaque)
     IntegerBinary,     // op: IntegerOperator; format
     Shift,             // op: ShiftOperator; format: lhsFormat, secondFormat: rhsFormat
@@ -46,7 +47,7 @@ enum class TermKind : std::uint8_t {
     LogicalNot,        // `!a`; format: a's; the result is an int, 0 or 1
     LogicalAnd,        // `a && b`; formats: a's, b's; one operand if the run did not evaluate b
     LogicalOr,         // `a || b`; as LogicalAnd
-    Conditional,       // `c ? x : y`; operands: c and the operand the run evaluated; op: 1 if that is x; format: c's
+    Conditional,       // `c ? x : y`; operands: c, the evaluated operand (op 1: x, 0: y); formats: c's, the result's
 };
 
 /// The members are ordered so that a term takes 32 bytes.
@@ -57,13 +58,15 @@ struct Term {
     std::uint8_t operandCount = 0;
     ScalarFormat format{};
     ScalarFormat secondFormat{};
+    /// Recorded in a TermTable::StrictScope: any undefined behaviour of the operation ends the evaluation.
+    bool strict = false;
     std::array<TermId, 3> operands{}; // the first operandCount are valid
     std::uint32_t payload = 0;        // Input: the InputId; Constant: the index of its value in the table
     std::uint32_t inputValue = 0;     // Input: the index of the run's value in the table
 };
 
 struct TermLimits {
-    /// The number of terms of a run, beyond which only inputs get terms; 0 records none.
+    /// The number of terms of a run, beyond which only inputs get terms, up to twice the number; 0 records none.
     std::uint32_t maxTerms = 1U << 21;
     /// A result whose term would be deeper gets the opaque term, so that loops like `x = x * 31 + c` stay cheap.
     std::uint16_t maxDepth = 64;
@@ -82,9 +85,30 @@ private:
     std::vector<std::pair<InputId, Value>> entries_; // few entries: a linear search is fastest
 };
 
+/// Why a term has no value (TermTable::evaluate).
+enum class NoValue : std::uint8_t {
+    Unknown, // the value depends on the opaque term or on an operand the run did not evaluate
+    EndsRun, // the program stops at undefined behaviour (endsRun; any undefined behaviour of a strict term)
+};
+
 /// The terms of one run. Terms only refer to earlier terms, so a table is a DAG in creation order.
 class TermTable {
 public:
+    /// While a scope is alive, the table records strict terms: the terms of a witness constraint, whose evaluation
+    /// stops at any undefined behaviour, where the program continues after some (interp/README.md, "Undefined
+    /// behaviour").
+    class StrictScope {
+    public:
+        explicit StrictScope(TermTable& table) : table_(table), previous_(table.strict_) { table.strict_ = true; }
+        ~StrictScope() { table_.strict_ = previous_; }
+        StrictScope(const StrictScope&) = delete;
+        StrictScope& operator=(const StrictScope&) = delete;
+
+    private:
+        TermTable& table_;
+        bool previous_;
+    };
+
     explicit TermTable(DataModel model, TermLimits limits = {});
 
     /// Forgets all terms; at the start of a run.
@@ -95,11 +119,13 @@ public:
     // Each function takes the arguments of the arithmetic.hpp function that computed the result, and returns the
     // result's term, or nullopt if no operand has a term (Value::term()). That check is inline, so that operations on
     // values without terms cost no call. An operand without a term is recorded as a constant of its value, which must
-    // be a scalar. A result with an opaque operand, or whose term would exceed a limit (TermLimits), gets the opaque
-    // term.
+    // be a value of the operand's format. A result with an opaque operand, or whose term would exceed a limit
+    // (TermLimits), gets the opaque term.
 
     /// Registers the run's value of an input, at most once per run, in any order. Inputs get a term even in a full
-    /// table, so that the search can change them; nullopt only if `maxTerms` is 0.
+    /// table, so that the search can change them, until the table holds 2 * `maxTerms` terms; after that they get the
+    /// opaque term, so that a loop reading inputs without end does not exhaust the memory. Nullopt only if `maxTerms`
+    /// is 0.
     [[nodiscard]] std::optional<TermId> input(InputId id, const Value& value, ScalarFormat format);
     [[nodiscard]] std::optional<TermId> integerBinary(IntegerOperator op, const Value& lhs, const Value& rhs,
                                                       IntegerFormat format);
@@ -125,10 +151,10 @@ public:
                                                    ScalarFormat rhsFormat);
     [[nodiscard]] std::optional<TermId> logicalOr(const Value& lhs, ScalarFormat lhsFormat, const Value* rhs,
                                                   ScalarFormat rhsFormat);
-    /// `selected` is the operand the run evaluated, the one `condition` selects; it must be a scalar. With a condition
-    /// without term, the result is `selected`'s term: the condition selects the same operand for every input.
+    /// `selected` is the operand the run evaluated, the one `condition` selects, a scalar of `resultFormat`. With a
+    /// condition without term, the result is `selected`'s term: the condition selects the same operand for every input.
     [[nodiscard]] std::optional<TermId> conditional(const Value& condition, ScalarFormat conditionFormat,
-                                                    const Value& selected);
+                                                    const Value& selected, ScalarFormat resultFormat);
 
     /// The term of a value that depends on inputs in a way the table does not record (through library functions,
     /// pointer arithmetic or partial overwrites, for example), so that the value does not become a constant of later
@@ -157,15 +183,21 @@ public:
 
     /// The value of a term when the inputs in `substitution` have those values instead of the run's; with an empty
     /// substitution, the value the run computed. Undefined behaviour gives the value the run continues with
-    /// (arithmetic.hpp, endsRun). Nullopt if the evaluation ends the run (division by zero), needs an operand the run
-    /// did not evaluate (the right operand of `&&` and `||`, the other operand of `?:`), or is of the opaque term.
-    [[nodiscard]] std::optional<Value> evaluate(TermId id, const Substitution& substitution) const;
+    /// (arithmetic.hpp, endsRun).
+    ///
+    /// No value (NoValue::EndsRun) if the program would stop at undefined behaviour: one that ends the run, or any in
+    /// the operation of a strict term. No value (NoValue::Unknown) for the opaque term and for an operand the run did
+    /// not evaluate: the right operand of `&&` and `||`, the other operand of `?:`. The program evaluates every
+    /// operand of an arithmetic operation, comparison or conversion, so one that ends the run ends the evaluation even
+    /// if another one is unknown; of `&&`, `||` and `?:`, only the operands the program would evaluate count, in
+    /// order.
+    [[nodiscard]] std::expected<Value, NoValue> evaluate(TermId id, const Substitution& substitution) const;
 
 private:
-    /// An operand of a term being recorded, and its format, if known, for when it becomes a constant.
+    /// An operand of a term being recorded, and its format, for when it becomes a constant.
     struct Operand {
         const Value& value;
-        std::optional<ScalarFormat> format;
+        ScalarFormat format;
     };
 
     static constexpr TermId opaqueTerm{0}; // the first term of every table with maxTerms > 0
@@ -176,17 +208,18 @@ private:
     [[nodiscard]] std::optional<TermId> recordLogical(TermKind kind, const Value& lhs, ScalarFormat lhsFormat,
                                                       const Value* rhs, ScalarFormat rhsFormat);
     [[nodiscard]] std::optional<TermId> recordConditional(const Value& condition, ScalarFormat conditionFormat,
-                                                          const Value& selected);
+                                                          const Value& selected, ScalarFormat resultFormat);
     TermId add(const Term& term);
     /// Stores a value of a constant or input and returns its index.
     std::uint32_t addValue(const Value& value);
-    /// The value of `term` from the values of its operands, which are empty where an operand has none.
-    [[nodiscard]] std::optional<Value> evaluateTerm(const Term& term,
-                                                    std::span<const std::optional<Value>* const> operands,
-                                                    const Substitution& substitution) const;
+    /// The value of `term` from the values of its operands.
+    [[nodiscard]] std::expected<Value, NoValue>
+    evaluateTerm(const Term& term, std::span<const std::expected<Value, NoValue>* const> operands,
+                 const Substitution& substitution) const;
 
     DataModel model_;
     TermLimits limits_;
+    bool strict_ = false; // in a StrictScope
     std::vector<Term> terms_;
     std::vector<Value> values_;    // the values of constants and the run's values of inputs
     std::vector<bool> registered_; // by InputId: whether the input has a term
@@ -320,11 +353,11 @@ inline std::optional<TermId> TermTable::logicalOr(const Value& lhs, ScalarFormat
 }
 
 inline std::optional<TermId> TermTable::conditional(const Value& condition, ScalarFormat conditionFormat,
-                                                    const Value& selected) {
+                                                    const Value& selected, ScalarFormat resultFormat) {
     if (!condition.term()) {
         return selected.term();
     }
-    return recordConditional(condition, conditionFormat, selected);
+    return recordConditional(condition, conditionFormat, selected, resultFormat);
 }
 
 } // namespace nitwit::value
