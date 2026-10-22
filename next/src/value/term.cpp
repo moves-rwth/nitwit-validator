@@ -82,6 +82,21 @@ bool isConversion(TermKind kind) {
            || kind == TermKind::FloatToInteger || kind == TermKind::ConvertFloat;
 }
 
+/// A number that tells formats apart, below 2^10.
+std::uint64_t formatCode(const ScalarFormat& format) {
+    if (const auto* integer = std::get_if<IntegerFormat>(&format)) {
+        return std::uint64_t{integer->bits} << 1U | (integer->isSigned ? 1U : 0U);
+    }
+    return 512 + std::uint64_t{std::to_underlying(std::get<FloatFormat>(format))};
+}
+
+/// What tells a conversion of `input` from the others: its kind, formats and strictness.
+std::uint64_t conversionKey(const Term& term, TermId input) {
+    return std::uint64_t{std::to_underlying(input)} | std::uint64_t{std::to_underlying(term.kind)} << 32U
+           | std::uint64_t{term.strict ? 1U : 0U} << 40U | formatCode(term.format) << 41U
+           | formatCode(term.secondFormat) << 51U;
+}
+
 } // namespace
 
 // ---- Substitution ----
@@ -110,6 +125,7 @@ void TermTable::clear() {
     terms_.clear();
     values_.clear();
     registered_.clear();
+    inputConversions_.clear();
     if (limits_.maxTerms > 0) {
         add({.kind = TermKind::Opaque});
     }
@@ -135,7 +151,7 @@ std::optional<TermId> TermTable::input(InputId id, const Value& value, ScalarFor
 std::optional<TermId> TermTable::record(Term term, std::initializer_list<Operand> operands) {
     unsigned deepest = 0;
     std::size_t constants = 0;
-    bool isInputOperand = false;
+    std::optional<TermId> input; // an operand that is an input
     for (const Operand& operand : operands) {
         if (const std::optional<TermId> id = operand.value.term()) {
             const Term& operandTerm = this->term(*id);
@@ -143,28 +159,45 @@ std::optional<TermId> TermTable::record(Term term, std::initializer_list<Operand
                 return id;
             }
             deepest = std::max<unsigned>(deepest, operandTerm.depth);
-            isInputOperand = operandTerm.kind == TermKind::Input;
+            if (operandTerm.kind == TermKind::Input) {
+                input = id;
+            }
         } else {
             NITWIT_ASSERT(hasFormat(operand.value, operand.format), "a constant operand is not a value of its format");
             ++constants;
         }
     }
+    term.strict = strict_;
     // A conversion of an input fits under the cap of the inputs (input()), so that a full table does not hide an
-    // input that a program converts first, as in `unsigned char c = x;`.
-    const std::size_t sizeLimit = isConversion(term.kind) && isInputOperand ? inputCap() : limits_.maxTerms;
+    // input that a program converts first, as in `unsigned char c = x;`. Past the size limit, each conversion of an
+    // input is recorded once, so that a loop that converts an input again and again does not use up the cap.
+    std::size_t sizeLimit = limits_.maxTerms;
+    std::optional<std::uint64_t> conversion;
+    if (input && isConversion(term.kind)) {
+        sizeLimit = inputCap();
+        if (terms_.size() >= limits_.maxTerms) {
+            conversion = conversionKey(term, *input);
+            if (const auto recorded = inputConversions_.find(*conversion); recorded != inputConversions_.end()) {
+                return recorded->second;
+            }
+        }
+    }
     // Checked before anything is added, so that a result over a limit leaves no constants behind.
     if (deepest + 1 > limits_.maxDepth || terms_.size() + constants + 1 > sizeLimit) {
         return opaque();
     }
     term.depth = static_cast<std::uint16_t>(deepest + 1);
     term.operandCount = static_cast<std::uint8_t>(operands.size());
-    term.strict = strict_;
     for (std::size_t i = 0; const Operand& operand : operands) {
         const std::optional<TermId> id = operand.value.term();
         term.operands[i++] =
             id ? *id : add({.kind = TermKind::Constant, .format = operand.format, .payload = addValue(operand.value)});
     }
-    return add(term);
+    const TermId id = add(term);
+    if (conversion) {
+        inputConversions_.emplace(*conversion, id);
+    }
+    return id;
 }
 
 std::optional<TermId> TermTable::recordLogical(TermKind kind, const Value& lhs, ScalarFormat lhsFormat,

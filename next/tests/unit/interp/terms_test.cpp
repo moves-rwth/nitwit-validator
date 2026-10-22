@@ -654,7 +654,9 @@ int main(void) {
 }
 
 TEST_F(TermsTest, ConversionsOfInputsKeepTheirTermsInAFullTable) {
-    oracle_.answers = {3, 4};
+    // Past the size limit, each conversion of an input is recorded once: the loop of 200 conversions takes one term
+    // of the cap of 200, and leaves room for the inputs after it.
+    oracle_.answers = {3, 4, 5};
     RunOptions options;
     options.terms.maxTerms = 100;
     EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
@@ -662,13 +664,16 @@ int main(void) {
     int x = __VERIFIER_nondet_int();
     int s = 0;
     for (int i = 0; i < 200; i++) s = x + i; // fills the table
-    unsigned char c = x;
+    unsigned char c = 0;
+    for (int i = 0; i < 200; i++) c = x;
     long y = __VERIFIER_nondet_int();
     int z = x + 1;
+    int w = __VERIFIER_nondet_int();
     return 0;
 })",
-                        9, {variable("x"), variable("c"), variable("y"), variable("z")}, DataModel::LP64, options),
-                ElementsAre("x0", "(u8)x0", "(s64)x1", "opaque"));
+                        11, {variable("x"), variable("c"), variable("y"), variable("z"), variable("w")},
+                        DataModel::LP64, options),
+                ElementsAre("x0", "(u8)x0", "(s64)x1", "opaque", "x2"));
 }
 
 TEST_F(TermsTest, WithoutTermsNothingIsRecorded) {

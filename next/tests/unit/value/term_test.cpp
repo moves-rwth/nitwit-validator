@@ -9,6 +9,7 @@
 #include <functional>
 #include <limits>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -942,12 +943,54 @@ TEST(TermLimitsTest, ConversionsOfInputsShareTheCapOfInputs) {
     // The opaque term, the input and two conversions of it fill twice the size limit.
     TermTable table(lp64, TermLimits{.maxTerms = 2});
     const Value x = registered(table, firstInput, integer(5, s32), s32);
-    EXPECT_FALSE(table.isOpaque(*table.convertInteger(x, s32, s64)));
+    const std::optional<TermId> wide = table.convertInteger(x, s32, s64);
+    EXPECT_FALSE(table.isOpaque(*wide));
     EXPECT_FALSE(table.isOpaque(*table.integerToFloat(x, s32, FloatFormat::Float)));
     EXPECT_EQ(table.size(), 4u);
     EXPECT_EQ(table.toBool(x, s32), table.opaque());
     EXPECT_EQ(table.input(secondInput, integer(1, s32), s32), table.opaque());
+    EXPECT_EQ(table.convertInteger(x, s32, s64), wide); // recorded already
     EXPECT_EQ(table.size(), 4u);
+}
+
+TEST(TermLimitsTest, PastTheSizeLimitEachConversionOfAnInputIsRecordedOnce) {
+    // A loop that converts an input again and again leaves room for later inputs.
+    TermTable table(lp64, TermLimits{.maxTerms = 2});
+    const Value x = registered(table, firstInput, integer(300, s32), s32);
+    const std::optional<TermId> narrow = table.convertInteger(x, s32, u8);
+    for (int i = 0; i < 100; ++i) {
+        EXPECT_EQ(table.convertInteger(x, s32, u8), narrow);
+    }
+    const Value y = registered(table, secondInput, integer(1, s32), s32);
+    EXPECT_FALSE(table.isOpaque(*y.term()));
+    EXPECT_EQ(table.size(), 4u);
+    EXPECT_TRUE(evaluatesTo(table.evaluate(*narrow, replacing(firstInput, integer(257, s32))), integer(1, u8)));
+}
+
+TEST(TermLimitsTest, ConversionsOfAnInputDifferInKindFormatsAndStrictness) {
+    TermTable table(lp64, TermLimits{.maxTerms = 4});
+    const Value x = registered(table, firstInput, integer(300, s32), s32);
+    EXPECT_FALSE(table.isOpaque(*table.integerBinary(IntegerOperator::Add, x, integer(1, s32), s32))); // full
+    const std::optional<TermId> signedNarrow = table.convertInteger(x, s32, s8);
+    const std::optional<TermId> narrow = table.convertInteger(x, s32, u8);
+    const std::optional<TermId> truth = table.toBool(x, s32);
+    std::optional<TermId> strictNarrow;
+    {
+        const TermTable::StrictScope strict(table);
+        strictNarrow = table.convertInteger(x, s32, u8);
+        EXPECT_EQ(table.convertInteger(x, s32, u8), strictNarrow);
+    }
+    EXPECT_EQ(table.size(), 8u);
+    EXPECT_EQ((std::set<std::optional<TermId>>{narrow, signedNarrow, truth, strictNarrow}).size(), 4u);
+    EXPECT_TRUE(table.term(*strictNarrow).strict);
+    EXPECT_EQ(table.convertInteger(x, s32, u8), narrow);
+    EXPECT_EQ(table.toBool(x, s32), truth);
+    EXPECT_EQ(narrow, TermId{5});
+    // Each run starts without them.
+    table.clear();
+    const Value again = registered(table, firstInput, integer(300, s32), s32);
+    EXPECT_FALSE(table.isOpaque(*table.integerBinary(IntegerOperator::Add, again, integer(1, s32), s32)));
+    EXPECT_EQ(table.convertInteger(again, s32, u8), TermId{4});
 }
 
 TEST(TermLimitsTest, MaxTermsZeroRecordsNothing) {

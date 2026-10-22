@@ -12,6 +12,7 @@
 #include <initializer_list>
 #include <optional>
 #include <span>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -66,8 +67,8 @@ struct Term {
 };
 
 struct TermLimits {
-    /// The number of terms of a run, beyond which only inputs and conversions of inputs get terms, up to twice the
-    /// number; 0 records none.
+    /// The number of terms of a run, beyond which only inputs and conversions of inputs get terms (each conversion of
+    /// an input once), up to twice the number; 0 records none.
     std::uint32_t maxTerms = 1U << 21;
     /// A result whose term would be deeper gets the opaque term, so that loops like `x = x * 31 + c` stay cheap.
     std::uint16_t maxDepth = 64;
@@ -121,8 +122,8 @@ public:
     // result's term, or nullopt if no operand has a term (Value::term()). That check is inline, so that operations on
     // values without terms cost no call. An operand without a term is recorded as a constant of its value, which must
     // be a value of the operand's format. A result with an opaque operand, or whose term would exceed a limit
-    // (TermLimits), gets the opaque term; a conversion of an input exceeds the size limit only at 2 * `maxTerms`, as
-    // inputs do.
+    // (TermLimits), gets the opaque term. A conversion of an input exceeds the size limit only at 2 * `maxTerms`, as
+    // inputs do; past the size limit, the same conversion of the same input gives the same term.
 
     /// Registers the run's value of an input, at most once per run, in any order. Inputs get a term even in a full
     /// table, so that the search can change them, until the table holds 2 * `maxTerms` terms; after that they get the
@@ -227,6 +228,8 @@ private:
     std::vector<Term> terms_;
     std::vector<Value> values_;    // the values of constants and the run's values of inputs
     std::vector<bool> registered_; // by InputId: whether the input has a term
+    /// Past the size limit, the conversions of inputs, by input, kind, formats and strictness (record()).
+    std::unordered_map<std::uint64_t, TermId> inputConversions_;
 };
 
 // The building functions check for operands with terms inline.

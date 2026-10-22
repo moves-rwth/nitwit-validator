@@ -40,13 +40,16 @@ validator can ask what the value would be with other inputs (`validate/README.md
   not hide later inputs from the search, until the table holds twice the size limit; later inputs get the opaque term,
   so that a loop that reads inputs without end does not exhaust the memory. Conversions of an input (ConvertInteger,
   ToBool, IntegerToFloat, FloatToInteger, ConvertFloat with an Input operand) share that cap, since programs often
-  convert an input before they use it (`unsigned char c = x;`): each is one term for one input. `maxTerms` 0 records
+  convert an input before they use it (`unsigned char c = x;`). Past the size limit, each conversion of an input (by
+  kind, formats and strictness) is recorded once and then found again (`inputConversions_`), so that a loop that
+  converts an input again and again takes one term: the conversions are bounded by the inputs times the few
+  conversions a program applies to each, and a full table still has room for later inputs. `maxTerms` 0 records
   nothing at all.
 - **Memory:** a term takes 32 bytes, and the value of a constant or an input another 64 (`sizeof(Value)`), plus one
   bit per input id. An operation records at most one constant, so at the default size limit of 2^21 terms a table
   takes at most 128 MiB (measured: 128.2 MiB with a constant in every operation). Inputs beyond the size limit take
-  another 96 bytes each and conversions of inputs another 32, up to 2^21 of them together: the worst case, a full
-  table followed by inputs up to their cap, measured 353 MiB at its peak.
+  another 96 bytes each and conversions of inputs another 32 plus about 48 in `inputConversions_`, up to 2^21 of them
+  together: the worst case, a full table followed by inputs up to their cap, measured 353 MiB at its peak.
 - **Evaluation** replays the recorded operations with the inputs of a `Substitution` and the run's values for the
   others, through the same arithmetic.hpp functions, so the result is exactly the value the program would compute on
   the same path, and without substitution exactly the value the run computed. Undefined behaviour that the run
@@ -91,7 +94,8 @@ exactly the target's arithmetic, and the host's `long double` is the x87 extende
   operands, with a right operand that the left one makes irrelevant, and with constant operands; the kind, operator
   and formats every building function records; constants with their formats, also the selected operand of `?:`;
   inputs registered out of order, in a full table and beyond their cap, and conversions of inputs likewise (but not
-  conversions of other terms); nothing recorded without an operand with a term; the opaque term (in every table,
-  after `clear()`, as the result of operations on it and over the depth and size limits); `maxTerms` 0; shared
-  subterms (a term used 60 times, a 64-level chain with each level used twice, a 65535-level chain evaluated without
-  recursion); `inputs()`, `subterms()`, `resultFormat()`, `clear()`, and the assertions on preconditions.
+  conversions of other terms), each recorded once past the size limit, per kind, formats and strictness, and again
+  after `clear()`; nothing recorded without an operand with a term; the opaque term (in every table, after
+  `clear()`, as the result of operations on it and over the depth and size limits); `maxTerms` 0; shared subterms (a
+  term used 60 times, a 64-level chain with each level used twice, a 65535-level chain evaluated without recursion);
+  `inputs()`, `subterms()`, `resultFormat()`, `clear()`, and the assertions on preconditions.
