@@ -217,8 +217,7 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
   remaining arguments instead.
 - **Calls through a pointer of another type** (C17 6.5.2.2p9) convert scalar arguments and results like the
   registers that pass them; a struct where a scalar is expected, or the other way round, is undefined. The conversion
-  of a result with a term starts from the format of its term, which is the format of the callee's type; a term of
-  `_Bool`'s format other than a conversion to `_Bool` gets one, since it may be an `unsigned char`.
+  of a result with a term starts from the format of its term, which is the format of the type the callee returned.
 - **Pass-through builtins** (`__builtin_expect`, `__builtin_expect_with_probability`, `__builtin_assume_aligned`)
   return their first argument converted to the result type, with the term of the conversion.
 - **Statement expressions** are lowered in place, behind a jump over them, and run as a range of the function's
@@ -240,7 +239,8 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
 (`Execution::attach`); `terms.cpp` has the consistency check.
 
 - **Inputs:** every input request (`__VERIFIER_nondet_*`, a function without definition, an uninitialized read)
-  registers its answer, normalized to the requested type, as an input (`TermTable::input`).
+  registers its answer, normalized to the requested type, as an input (`TermTable::input`); a `_Bool` gets a ToBool
+  term over it (below).
 - **Operations:** where the evaluator applies an operation of arithmetic.hpp, it calls the `TermTable` function of
   the same name: unary and binary arithmetic, shifts, comparisons, compound assignments, `++` and `--` (with the
   promotion and the conversion back), and every conversion between scalar types, also to `_Bool`. `!`, `&&`, `||` and
@@ -250,6 +250,13 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   ends the run before a term is recorded.
 - **Pointers converted to wider integers** are sign-extended (see "Conversions"): the term converts to the signed
   integer of the pointer's width first, and then to the target, so that it gives the run's value.
+- **`_Bool` values** have the format of `unsigned char`, so that a term of that format may give other values than 0
+  and 1; a ToBool term gives only those. A conversion to `_Bool` (`Execution::toBool`; also of the arguments and
+  results of calls with `_Bool` parameters and results) records a ToBool term, unless the operand's term is one
+  already, also behind integer conversions, which keep 0 and 1 (`c ? b : d` promotes `_Bool` operands to `int`): then
+  the result has that term. Inputs of type `_Bool`, also uninitialized `_Bool` objects, get a ToBool term over their
+  input term (`requestInput`). A `_Bool` read from bytes written as another type, and `?:` of `_Bool` values with a
+  condition that depends on inputs, keep their terms up to the next conversion.
 - **Copies keep the term:** assignment, initialization, arguments, results, `va_arg` (with a conversion between the
   signed and the unsigned type), and memory (below).
 - **Conditions:** every `ConditionEvent` (`if`, loops, `?:`, `switch`) carries the term of the controlling

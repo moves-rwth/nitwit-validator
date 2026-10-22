@@ -538,6 +538,31 @@ int main(void) {
         ElementsAre("(s64)x0", "(u8)x0", "(bool)x0", "x0", "(bool)(u8)x0", "(bool)x0"));
 }
 
+TEST_F(TermsTest, BoolValuesGetTheTermOfAConversionToBoolOnce) {
+    // _Bool has the format of unsigned char: a term of that format gets a conversion to _Bool where a _Bool is
+    // expected, unless it is one. Inputs of type _Bool have one; arguments and results keep it.
+    oracle_.answers = {257, 1, 1};
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
+_Bool __VERIFIER_nondet_bool(void);
+void *memcpy(void *, const void *, unsigned long);
+_Bool get(_Bool *p) { return *p; }
+_Bool down(_Bool b, int n) { return n == 0 ? b : down(b, n - 1); }
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    unsigned char c = x;
+    _Bool b;
+    memcpy(&b, &c, 1); // the byte 1 of unsigned char (u8)x0, which gives 44 for x0 = 300
+    _Bool r = get(&b);
+    _Bool n = __VERIFIER_nondet_bool();
+    _Bool d = down(n, 40);
+    _Bool u;
+    _Bool v = u;
+    return 0;
+})",
+                        16, {variable("b"), variable("r"), variable("n"), variable("d"), variable("v")}),
+                ElementsAre("(u8)x0", "(bool)(u8)x0", "(bool)x1", "(bool)x1", "(bool)x2"));
+}
+
 TEST_F(TermsTest, AtomicReadModifyWritesAreRecorded) {
     oracle_.answers = {4};
     EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);

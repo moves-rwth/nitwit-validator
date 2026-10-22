@@ -197,7 +197,7 @@ private:
     /// The value a library function returned, or the end of the run it asks for.
     std::optional<value::Value> libraryResult(const FunctionEntity& function, LibraryResult result,
                                               const ast::CallExpr* site);
-    /// A value from the oracle, with its input term; also counts the request.
+    /// A value from the oracle, with its input term (a _Bool, with its conversion to _Bool); also counts the request.
     value::Value requestInput(InputRequest::Kind kind, const ast::Expr* site, ast::QualType type,
                               const ast::FunctionDecl* function);
     /// The value a function without definition returns: from the oracle for scalar types, zero for others.
@@ -316,7 +316,8 @@ private:
     /// value::convertInteger with its term; `value` itself if the formats are equal.
     value::Value convertInteger(const value::Value& value, value::IntegerFormat from, value::IntegerFormat to,
                                 const ast::Expr* where);
-    /// value::toBool with its term.
+    /// value::toBool with its term; a value whose term is a conversion to _Bool, also behind integer conversions, gives
+    /// that term.
     value::Value toBool(const value::Value& value, value::ScalarFormat from, const ast::Expr* where);
     /// A conversion from or to a floating type, between different types, with its term.
     value::Value convertFloating(const value::Value& value, const TypeInfo& from, const TypeInfo& to,

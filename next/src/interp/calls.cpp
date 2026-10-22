@@ -162,13 +162,11 @@ std::optional<value::Value> Execution::inCallType(value::Value result, std::stri
             term && !terms_.isOpaque(*term) ? std::optional(std::get<value::IntegerFormat>(terms_.resultFormat(*term)))
                                             : std::nullopt;
         if (type.representation == Representation::Bool) {
-            value::Value converted = result.bits() <= 1 ? result : value::toBool(result);
-            // _Bool has the format of unsigned char: only a term of a conversion to _Bool is known to give 0 or 1.
-            if (from && terms_.term(*term).kind != value::TermKind::ToBool) {
-                attach(converted, terms_.toBool(result, *from), where);
-            } else {
-                converted.setTerm(term);
+            if (from) {
+                return toBool(result, *from, where); // which keeps a conversion to _Bool
             }
+            value::Value converted = result.bits() <= 1 ? result : value::toBool(result);
+            converted.setTerm(term); // none, or the opaque term
             return converted;
         }
         if (type.isIntegral()) {
@@ -442,6 +440,11 @@ value::Value Execution::requestInput(InputRequest::Kind kind, const ast::Expr* s
     }
     if (info.isScalar()) {
         input.setTerm(terms_.input(request.id, input, info.scalarFormat()));
+        if (info.representation == Representation::Bool && input.term()) {
+            // The term of a conversion to _Bool, which tells that the input is 0 or 1, and which conversions to _Bool
+            // keep (toBool).
+            attach(input, terms_.toBool(input, info.scalarFormat()), site);
+        }
     }
     return input;
 }
