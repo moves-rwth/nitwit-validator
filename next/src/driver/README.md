@@ -31,6 +31,10 @@ nitwit --version
     limit) ends with code 4 and a message on stderr, one that exceeds the memory limit with 251. A program the front end
     rejects also gives 4, with its diagnostics; an unreadable file gives 3.
   - The process is not dumpable, so that `abort` and crashes write no core dump.
+  - Replay records no terms. The hidden options `--terms` and `--check-terms`, for testing the interpreter, record
+    them as validation does, and the second also checks each term against the run's value
+    (`interp::RunOptions::checkTerms`; a mismatch ends the run with code 4 and "internal error" on stderr). They are
+    not in the usage text.
 
 ## Steps
 

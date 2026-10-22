@@ -152,4 +152,5 @@ builds of both compilers:
 - `<name>.expected-log-32` and `<name>.expected-log-64`, optional: the input log.
 
 `difftest.py semantics --update` writes the output and status files, and the log files that exist, when all builds
-agree. Once the interpreter exists, CTest (label `semantics`) checks the interpreter against the same files.
+agree. Once the interpreter exists, CTest (label `semantics`) checks the interpreter against the same files, also with
+the hidden option `--check-terms`, which checks the interpreter's terms against its values (`src/driver/README.md`).

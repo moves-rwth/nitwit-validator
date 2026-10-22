@@ -350,7 +350,10 @@ ReplayOutcome replay(const ReplayOptions& options) {
     ReplayObserver observer;
     interp::RunOptions runOptions;
     runOptions.output = &std::cout;
-    runOptions.terms.maxTerms = 0; // replay has no use for terms
+    if (options.terms == ReplayOptions::Terms::None) {
+        runOptions.terms.maxTerms = 0; // replay has no use for terms
+    }
+    runOptions.checkTerms = options.terms == ReplayOptions::Terms::Check;
     interp::Interpreter interpreter((*loaded)->program, oracle, observer, runOptions);
     const interp::RunResult result = interpreter.run();
     std::cout.flush();
