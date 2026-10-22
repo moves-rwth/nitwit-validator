@@ -50,29 +50,41 @@ from 1. A column 0 or beyond the end of the line (one past its text still counts
 | Type | Evaluated | Location | Passes when |
 |---|---|---|---|
 | `assumption` | before the statement | first character of the statement | the constraint holds |
-| `branching` | after the controlling expression | keyword (`if`, `while`, `for`, `do`'s `while`, `switch`), or the `?` | the outcome is the constraint (`true`/`false`); for `switch`, the value is the case value (or `default`: no case label matches) |
+| `branching` | after the controlling expression | keyword (`if`, `while`, `for`, `switch`; for a do loop `do` or its `while`), or the `?` | the outcome is the constraint (`true`/`false`); for `switch`, the value is the case value (or `default`: no case label matches) |
 | `function_enter` | after the arguments | the `)` of the call | always |
 | `function_return` | after the call returned | the `)` of the call | the constraint (with `\result`) holds, or there is none |
-| `target` | when the error function is called | the start of the call (the function's name) | the target segment is current |
+| `target` | when the error function is called | the start of the call (the function's name); without a column the first statement or full expression in the line | the target segment is current |
 
-- **Without a column**, a waypoint is evaluated at the first evaluation point of its type in the line, by column; a
-  target matches every call in the line. `validation-crafted` requires this: in `ternary.1B0`, two branching waypoints
-  of line 15 without column both mean the first `?:` of the line, so the witness must be rejected.
+- **Every waypoint but the target must be at an evaluation point of its type**, or the witness does not fit the
+  program: the verdict is UNKNOWN (exit 4, Unsupported) before any run, naming the waypoint. A witness with
+  inconsistent locations is invalid, and a waypoint that matched nothing would never be evaluated, which for an avoid
+  waypoint would confirm what the witness excludes. This covers a line that does not exist, a column inside a
+  construct, a column after a change by the preprocessor, a line without evaluation point of the type (for a waypoint
+  without column), and a `location.function` that is not the function containing the evaluation point.
+- **Without a column**, a waypoint is evaluated at the first evaluation point of its type in the line, by column.
+  `validation-crafted` requires this: in `ternary.1B0`, two branching waypoints of line 15 without column both mean
+  the first `?:` of the line, so the witness must be rejected. A target without a column is, as the format says, the
+  first statement or full expression in the line, which the call of the error function must start: in
+  `ERROR: reach_error();` that is the labeled statement, not the call. Only Paulina's crafted witnesses omit the
+  target's column in SV-COMP 2026 (86 of 200), always at a line `reach_error();`.
 - **Blocks** have no evaluation point of their own (the interpreter reports no event for them). An assumption at a `{`,
-  where CPAchecker puts some, is evaluated before the first statement in the block, which runs in the same state.
+  where CPAchecker puts some, is evaluated before the first statement in the block, which runs in the same state. An
+  empty block has no evaluation point, and neither has a block whose first statement has a label (`L:`, `case`,
+  `default`, also the body of a `switch`): a jump enters it there without passing the `{`.
 - **Labels:** the interpreter reports a statement event for a label (or `case`) and again for the statement it labels.
 - **Preprocessed programs** (NITWIT ran `cpp`): lines are presumed lines of the original file. `cpp` expands macros,
   replaces comments by a blank and collapses runs of blanks, which moves the text after them. A column is therefore
   only used where the `cpp` line and the original line agree byte for byte up to and including it, a blank agreeing
-  with any blank (`cpp` writes a tab of the indentation as a space). A column after a change matches nothing in that
-  line (the verbose log says so), and so does a column beyond the end of the original line (into a macro expansion,
-  as in `testfiles/sv-comp-2019/09.assert.c`). Messages give original columns; a location after a change is given as
-  "line (column c after preprocessing)".
+  with any blank (`cpp` writes a tab of the indentation as a space). A column after a change, or beyond the end of the
+  original line (into a macro expansion, as in `testfiles/sv-comp-2019/09.assert.c`), is at no evaluation point.
+  Messages give original columns; a location after a change is given as "line (column c after preprocessing)". A
+  `#line` directive in such a program makes the witness not fit: presumed lines would then differ from the lines the
+  witness counts.
 - **Branching values:** `true`, `false` and `default` in any case and with blanks around them; a case value is an
   integer constant expression. An outcome at a `switch`, or a case value elsewhere, is UNKNOWN.
 - **Constraints** are compiled at their first evaluation and kept for later runs (so that the sites of input requests
   in them stay the same). Their scope is that of the event's location in the function of the current frame, which
-  contains the location; `location.function` is not needed.
+  contains the location; `location.function` is only checked.
 
 ### Follow, avoid and progress
 
@@ -84,13 +96,18 @@ waypoint of the current segment is evaluated first, then its avoid waypoints the
   follow waypoint makes the next segment current.
 - **Avoid:** an avoid waypoint of the current segment that passes rejects the execution (exit 241), also where the
   follow waypoint passed at the same event, unless fixing an input may make it fail ("Values"): then the run
-  restarts, and the next run evaluates it again on the fixed input.
+  restarts, and the next run evaluates it again on the fixed input. An avoid constraint without value (undefined
+  behaviour, an invalid read in a conjunct that `&&` evaluates) makes the verdict UNKNOWN (exit 4): whether it passes
+  is not decided.
 - **Cascading:** one event can complete several segments only through `assumption` waypoints at the same statement,
   and they all refer to the same execution of the statement: CPAchecker writes several identical assumptions, often
   `1`, at one location. After a follow assumption passed, the waypoints of the next segment are evaluated at the same
   event: its follow waypoint, if it is an assumption at this statement, must pass there, and its avoid waypoints there
-  are evaluated. Other waypoint types do not cascade: a waypoint of the next segment at the same `if` or loop refers to
-  its next execution.
+  are evaluated.
+- **When the avoid waypoints of a new segment start:** a segment that became current by a cascaded assumption
+  evaluates its avoid waypoints at that event, for the same execution of the statement. A segment that became current
+  by any other waypoint type (branching, function_enter, function_return) evaluates its waypoints from the next event
+  on: one at the same `if`, loop or call refers to its next execution, as consecutive branchings of a loop do.
 - **Verdict:**
 
   | Outcome | Exit code |
@@ -100,7 +117,7 @@ waypoint of the current segment is evaluated first, then its avoid waypoints the
   | the program ends (end of `main`, `exit`) | 242 |
   | the target segment is reached, but the program ends without calling the error function | 250 |
   | the program aborts, `__VERIFIER_assume` fails, undefined behaviour without a defined result, a limit | 4 |
-  | a construct the interpreter does not support, a constraint that does not compile, an unsupported witness | 4 |
+  | a construct the interpreter does not support, a constraint that does not compile, an unsupported witness, a witness that does not fit the program, an avoid constraint without value | 4 |
   | the program exceeds the memory limit | 251 |
 
 ### Values

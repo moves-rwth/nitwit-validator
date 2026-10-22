@@ -176,7 +176,32 @@ TEST_F(ValidationTest, WitnessLinesOfPreprocessedProgramsArePresumedLines) {
     EXPECT_EQ(run(), 0) << output_.str();
 }
 
-TEST_F(ValidationTest, ColumnsAfterAChangeByThePreprocessorMatchNothing) {
+TEST_F(ValidationTest, LineDirectivesInProgramsThatNeedThePreprocessorDoNotFit) {
+    // cpp would give line 4 of the dead function and line 8 the same presumed line 4.
+    command_.program = write("program.c", "#define UNUSED 1\n"
+                                          "void reach_error(void) {}\n"
+                                          "void dead(void) {\n"
+                                          "  reach_error();\n"
+                                          "}\n"
+                                          "int main(void) {\n"
+                                          "#line 4\n"
+                                          "  reach_error();\n"
+                                          "  return 0;\n"
+                                          "}\n");
+    command_.witness = write("witness.yml", R"(- entry_type: violation_sequence
+  content:
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location: {file_name: program.c, line: 4, column: 3}
+)");
+    EXPECT_EQ(run(), 4) << output_.str();
+    EXPECT_EQ(resultLine(), "UNKNOWN: the witness does not fit the program: a #line directive (line 7) in a program "
+                            "that needs the preprocessor: its presumed lines are not the lines of the witness");
+}
+
+TEST_F(ValidationTest, ColumnsAfterAChangeByThePreprocessorDoNotFitTheProgram) {
     // cpp collapses the blanks before the second if of line 6, so that column 25 of its output is the third if, whose
     // condition holds; in the original line, it is the second if, whose condition does not.
     command_.program = write("program.c", "#define ZERO 0\n"
@@ -201,14 +226,10 @@ TEST_F(ValidationTest, ColumnsAfterAChangeByThePreprocessorMatchNothing) {
         action: follow
         location: {file_name: program.c, line: 6}
 )");
-    command_.verbose = true;
-    EXPECT_EQ(run(), 252) << output_.str();
-    EXPECT_TRUE(resultLine().starts_with("FAILED: the target was not reached: 'reach_error' was called at 6 (column "))
-        << resultLine();
-    EXPECT_TRUE(resultLine().ends_with(" after preprocessing) in segment 1 of 2")) << resultLine();
-    EXPECT_TRUE(log_.str().contains("the follow waypoint of segment 1 (branching at 6:25) matches nothing in a line "
-                                    "that the preprocessor changed before the column"))
-        << log_.str();
+    EXPECT_EQ(run(), 4) << output_.str();
+    EXPECT_EQ(resultLine(), "UNKNOWN: the witness does not fit the program: the follow waypoint of segment 1 "
+                            "(branching at 6:25) is at no evaluation point of its type: its column lies after text "
+                            "that the preprocessor changed");
 }
 
 } // namespace

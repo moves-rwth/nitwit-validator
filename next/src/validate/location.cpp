@@ -178,15 +178,30 @@ std::uint32_t agreeingPrefix(std::string_view physical, std::string_view origina
     return length;
 }
 
+// `#line 7 "a.c"`, or the GNU form `# 7 "a.c"` (C17 6.10.4).
+bool isLineDirective(std::string_view line) {
+    std::size_t i = 0;
+    const auto skipBlanks = [&] {
+        while (i < line.size() && isBlank(line[i])) {
+            ++i;
+        }
+    };
+    skipBlanks();
+    if (i == line.size() || line[i] != '#') {
+        return false;
+    }
+    ++i;
+    skipBlanks();
+    if (i < line.size() && line[i] >= '0' && line[i] <= '9') {
+        return true;
+    }
+    return line.substr(i).starts_with("line") && (i + 4 == line.size() || isBlank(line[i + 4]));
+}
+
 } // namespace
 
 bool Place::contains(SourceLocation location) const {
-    if (location.file != file_) {
-        return false;
-    }
-    return std::ranges::contains(offsets_, location.offset) || std::ranges::any_of(lines_, [&](const Line& line) {
-               return line.begin <= location.offset && location.offset < line.end;
-           });
+    return location.file == file_ && std::ranges::contains(offsets_, location.offset);
 }
 
 LocationMap::LocationMap(const SourceManager& sources, FileId file, FileId originalFile,
@@ -200,8 +215,14 @@ LocationMap::LocationMap(const SourceManager& sources, FileId file, FileId origi
     for (std::vector<Point>* points : {&statements_, &branchings_, &calls_}) {
         std::ranges::sort(*points, {}, &Point::offset);
     }
+    std::ranges::sort(starts_);
     if (originalFile_ == FileId::None) {
         return;
+    }
+    for (std::uint32_t line = 1; line <= sources_.lineCount(originalFile_) && !lineDirective_; ++line) {
+        if (isLineDirective(sources_.lineText(originalFile_, line))) {
+            lineDirective_ = line;
+        }
     }
     // A line marker applies to whole physical lines, so the presumed line of a line's first byte holds for the line.
     const std::string_view originalName = sources_.name(originalFile_);
@@ -225,20 +246,58 @@ void LocationMap::collectPoints(const ast::FunctionDecl& function) {
     std::vector<Node> pending = {{.stmt = function.body(), .expr = nullptr}};
     const auto add = [&](std::vector<Point>& points, SourceLocation location, SourceLocation evaluated) {
         if (location.file == file_) {
-            points.push_back({.offset = location.offset, .evaluated = evaluated.offset});
+            points.push_back({.offset = location.offset, .evaluated = evaluated.offset, .function = &function});
+        }
+    };
+    const auto addStart = [&](const ast::Expr* expr) {
+        if (expr != nullptr && expr->location().file == file_) {
+            starts_.push_back(expr->location().offset);
         }
     };
     while (!pending.empty()) {
         const Node node = pending.back();
         pending.pop_back();
         if (node.stmt != nullptr) {
-            if (const ast::Stmt* first = firstStatement(node.stmt)) {
+            // Statements and full expressions (C17 6.8p4), where a target without a column can be.
+            if (node.stmt->location().file == file_) {
+                starts_.push_back(node.stmt->location().offset);
+            }
+            if (const auto* ifStmt = ast::dyn_cast<ast::IfStmt>(node.stmt)) {
+                addStart(ifStmt->condition());
+            } else if (const auto* whileStmt = ast::dyn_cast<ast::WhileStmt>(node.stmt)) {
+                addStart(whileStmt->condition());
+            } else if (const auto* doStmt = ast::dyn_cast<ast::DoWhileStmt>(node.stmt)) {
+                addStart(doStmt->condition());
+            } else if (const auto* forStmt = ast::dyn_cast<ast::ForStmt>(node.stmt)) {
+                addStart(forStmt->condition());
+                addStart(forStmt->increment());
+            } else if (const auto* switchStmt = ast::dyn_cast<ast::SwitchStmt>(node.stmt)) {
+                addStart(switchStmt->condition());
+            } else if (const auto* returnStmt = ast::dyn_cast<ast::ReturnStmt>(node.stmt)) {
+                addStart(returnStmt->value());
+            } else if (const auto* declaration = ast::dyn_cast<ast::DeclarationStmt>(node.stmt)) {
+                for (const ast::Decl* decl : declaration->decls()) {
+                    if (const auto* var = ast::dyn_cast<ast::VarDecl>(decl)) {
+                        addStart(var->initializer());
+                    }
+                }
+            }
+            // A block stands for its first statement, unless a jump to a label can enter the block there without
+            // passing its `{` (goto, or the case labels of a switch body); an empty block has no event.
+            const ast::Stmt* first = firstStatement(node.stmt);
+            const bool isEnteredByJump = ast::isa<ast::CompoundStmt>(node.stmt) && first != nullptr
+                                         && (ast::isa<ast::LabelStmt>(first) || ast::isa<ast::CaseStmt>(first)
+                                             || ast::isa<ast::DefaultStmt>(first));
+            if (first != nullptr && !isEnteredByJump) {
                 add(statements_, node.stmt->location(), first->location());
             }
             if (ast::isa<ast::IfStmt>(node.stmt) || ast::isa<ast::WhileStmt>(node.stmt)
                 || ast::isa<ast::ForStmt>(node.stmt) || ast::isa<ast::SwitchStmt>(node.stmt)) {
                 add(branchings_, node.stmt->location(), node.stmt->location());
             } else if (const auto* doStmt = ast::dyn_cast<ast::DoWhileStmt>(node.stmt)) {
+                // The format locates the branching at the first character of the statement, `do`; the condition is
+                // evaluated at its `while`, which NITWIT 3.x used.
+                add(branchings_, doStmt->location(), doStmt->whileLocation());
                 add(branchings_, doStmt->whileLocation(), doStmt->whileLocation());
             }
             pushChildren(node.stmt, pending);
@@ -289,19 +348,28 @@ const std::vector<LocationMap::Point>& LocationMap::pointsOf(witness::WaypointTy
 Place LocationMap::place(const witness::Location& location, witness::WaypointType type) const {
     Place place;
     place.file_ = file_;
-    const std::vector<std::uint32_t> physical = physicalLinesOf(location.line);
+    const bool isTarget = type == witness::WaypointType::Target;
     const std::vector<Point>& points = pointsOf(type);
-    for (const std::uint32_t line : physical) {
+    const auto addPoint = [&](const Point& point) {
+        place.offsets_.push_back(point.evaluated);
+        place.functions_.push_back(point.function);
+    };
+    for (const std::uint32_t line : physicalLinesOf(location.line)) {
         const Place::Line range = rangeOf(line);
         if (!location.column) {
-            if (type == witness::WaypointType::Target) {
-                place.lines_.push_back(range);
+            if (isTarget) {
+                // Witness format 2.x: the first statement or full expression in the line; the error call must start it.
+                const auto first = std::ranges::lower_bound(starts_, range.begin);
+                if (first != starts_.end() && *first < range.end) {
+                    place.offsets_.push_back(*first);
+                    break;
+                }
                 continue;
             }
             // The first evaluation point of the type in the line.
             const auto first = std::ranges::lower_bound(points, range.begin, {}, &Point::offset);
             if (first != points.end() && first->offset < range.end) {
-                place.offsets_.push_back(first->evaluated);
+                addPoint(*first);
                 break;
             }
             continue;
@@ -324,9 +392,15 @@ Place LocationMap::place(const witness::Location& location, witness::WaypointTyp
             }
         }
         const std::uint32_t offset = range.begin + column - 1;
+        if (isTarget) {
+            place.offsets_.push_back(offset); // the start of the call, which calls_ does not hold
+            continue;
+        }
+        // Only an evaluation point of the type: a column inside a construct matches nothing.
         const auto at = std::ranges::lower_bound(points, offset, {}, &Point::offset);
-        const bool isPoint = at != points.end() && at->offset == offset;
-        place.offsets_.push_back(isPoint && type == witness::WaypointType::Assumption ? at->evaluated : offset);
+        if (at != points.end() && at->offset == offset) {
+            addPoint(*at);
+        }
     }
     return place;
 }

@@ -4,6 +4,7 @@
 // program file, so that matching an event costs a few comparisons (validate/README.md, "Evaluation points").
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -15,15 +16,16 @@
 
 namespace nitwit::validate {
 
-/// The program positions where a waypoint is evaluated: byte offsets of the events it matches, or for a target
-/// without column, whole lines.
+/// The program positions where a waypoint is evaluated: byte offsets of the events it matches.
 class Place {
 public:
     [[nodiscard]] bool contains(SourceLocation location) const;
 
     [[nodiscard]] FileId file() const { return file_; }
-    /// The offsets of the events the place matches; empty for a target without column, which matches whole lines.
+    /// The offsets of the events the place matches; empty for a location without evaluation point of its type.
     [[nodiscard]] std::span<const std::uint32_t> offsets() const { return offsets_; }
+    /// For waypoints other than targets: the function containing each evaluation point of offsets().
+    [[nodiscard]] std::span<const ast::FunctionDecl* const> functions() const { return functions_; }
     /// Whether the column lies in a part of the line that the preprocessor changed (macro expansion, comments,
     /// collapsed blanks), so that the waypoint matches nothing in that physical line.
     [[nodiscard]] bool isAfterPreprocessorChange() const { return isAfterPreprocessorChange_; }
@@ -38,7 +40,7 @@ private:
 
     FileId file_ = FileId::None;
     std::vector<std::uint32_t> offsets_;
-    std::vector<Line> lines_;
+    std::vector<const ast::FunctionDecl*> functions_;
     bool isAfterPreprocessorChange_ = false;
 };
 
@@ -50,18 +52,25 @@ private:
 /// (cpp writes a tab of the indentation as a space). A column after a change, or beyond the original line, matches
 /// nothing in that physical line.
 ///
-/// The evaluation points come from the program's AST: statements (assumption), the keywords of conditions and the
-/// `?` of conditional expressions (branching), and the `)` of calls (function_enter, function_return).
+/// The evaluation points come from the program's AST: statements (assumption), the keywords of conditions (for a do
+/// loop `do` and `while`) and the `?` of conditional expressions (branching), and the `)` of calls (function_enter,
+/// function_return). A column must be one of them; a column inside a construct matches nothing.
 /// - A waypoint without a column is evaluated at the first evaluation point of its type in the line, as the crafted
-///   witnesses of sv-benchmarks (`c/validation-crafted`) expect. A target without a column matches the whole line.
+///   witnesses of sv-benchmarks (`c/validation-crafted`) expect. A target without a column is the first statement or
+///   full expression in the line, which the call of the error function must start.
 /// - A block has no evaluation point of its own: an assumption at a `{` is evaluated before the first statement in
-///   the block, which runs in the same state.
+///   the block, which runs in the same state. An empty block, and one whose first statement has a label (a jump can
+///   enter there without passing the `{`), have none.
 class LocationMap {
 public:
     /// `originalFile` is FileId::None unless `file` is the preprocessor's output; `unit` is the program's AST.
     LocationMap(const SourceManager& sources, FileId file, FileId originalFile, const ast::TranslationUnit& unit);
 
     [[nodiscard]] Place place(const witness::Location& location, witness::WaypointType type) const;
+
+    /// For a preprocessed program: the first line of the original file with a line directive (`#line 7`, `# 7`), which
+    /// would make presumed lines differ from the lines a witness counts; nullopt if there is none.
+    [[nodiscard]] std::optional<std::uint32_t> lineDirective() const { return lineDirective_; }
 
     /// "line:column" of a program location as the witness counts them, for messages. In a preprocessed program, the
     /// column is one of the original line; a location after a change by the preprocessor is "line (column c after
@@ -71,7 +80,8 @@ public:
 private:
     struct Point {
         std::uint32_t offset = 0;    // where the construct begins
-        std::uint32_t evaluated = 0; // where it is evaluated: different for blocks
+        std::uint32_t evaluated = 0; // where it is evaluated: different for blocks and `do`
+        const ast::FunctionDecl* function = nullptr;
     };
 
     void collectPoints(const ast::FunctionDecl& function);
@@ -88,10 +98,13 @@ private:
     // (index line - 1) the number of leading bytes in which it agrees with its original line (0 for other files).
     std::unordered_map<std::uint32_t, std::vector<std::uint32_t>> physicalLines_;
     std::vector<std::uint32_t> agreeing_;
+    std::optional<std::uint32_t> lineDirective_;
     // The evaluation points of the program, sorted by offset.
     std::vector<Point> statements_;
     std::vector<Point> branchings_;
     std::vector<Point> calls_;
+    // The offsets where statements and full expressions begin, sorted: for targets without a column.
+    std::vector<std::uint32_t> starts_;
 };
 
 } // namespace nitwit::validate

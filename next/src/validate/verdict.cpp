@@ -70,6 +70,8 @@ ValidationResult verdictOf(const interp::RunResult& run, const SegmentMonitor& m
     switch (monitor.state()) {
     case SegmentMonitor::State::Unsupported:
         return decided(Verdict::Unsupported, monitor.reason());
+    case SegmentMonitor::State::Unknown:
+        return decided(Verdict::Unknown, monitor.reason());
     case SegmentMonitor::State::Rejected:
         return decided(Verdict::LeftWitness, "the execution left the witness: " + monitor.reason());
     case SegmentMonitor::State::ErrorCalled:

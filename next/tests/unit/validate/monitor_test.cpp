@@ -173,7 +173,55 @@ TEST_F(MonitorTest, EventsOfOtherTypesAtTheLocationDoNotEvaluateAWaypoint) {
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
 }
 
+TEST_F(MonitorTest, AWaypointAtNoEvaluationPointDoesNotFitTheProgram) {
+    program(std::string(inputsProgram));
+    // 6:6 is inside the if; an avoid waypoint there would never be evaluated.
+    const ValidationResult result = validate(sequence({{avoid(WaypointType::Branching, 6, 6, "true"), target(7, 9)}}),
+                                             [](FakeExecution& x) { return runInputs(x); });
+    EXPECT_EQ(result.verdict, Verdict::Unsupported) << result.message;
+    EXPECT_EQ(exitCode(result), 4);
+    EXPECT_EQ(result.message, "the witness does not fit the program: the avoid waypoint of segment 1 (branching at "
+                              "6:6) is at no evaluation point of its type");
+    EXPECT_EQ(scriptRuns_, 0);
+    // A line that does not exist.
+    EXPECT_EQ(validate(sequence({{follow(WaypointType::Assumption, 99, 1, "1")}, {target(7, 9)}}),
+                       [](FakeExecution& x) { return runInputs(x); })
+                  .verdict,
+              Verdict::Unsupported);
+}
+
+TEST_F(MonitorTest, TheFunctionOfALocationMustContainIt) {
+    program(std::string(inputsProgram));
+    witness::YamlWitness witness = sequence({{follow(WaypointType::Branching, 6, 5, "true")}, {target(7, 9)}});
+    witness.violationSequences[0].segments[0].waypoints[0].location.function = "main";
+    EXPECT_EQ(validate(witness, [](FakeExecution& x) { return runInputs(x, true); }).verdict, Verdict::Confirmed);
+    witness.violationSequences[0].segments[0].waypoints[0].location.function = "reach_error";
+    const ValidationResult result = validate(witness, [](FakeExecution& x) { return runInputs(x, true); });
+    EXPECT_EQ(result.verdict, Verdict::Unsupported) << result.message;
+    EXPECT_EQ(result.message, "the witness does not fit the program: the follow waypoint of segment 1 (branching at "
+                              "6:5) is in function 'main', not in 'reach_error' as the witness says");
+}
+
 // ---- Avoid waypoints ----
+
+TEST_F(MonitorTest, AnAvoidConstraintWithoutValueIsUnknown) {
+    program(std::string(inputsProgram));
+    const ValidationResult result = validate(
+        sequence({{avoid(WaypointType::Assumption, 6, 5, "a / 0 == 1"), follow(WaypointType::Branching, 6, 5, "false")},
+                  {target(9, 5)}}),
+        [](FakeExecution& x) { return runInputs(x); });
+    EXPECT_EQ(result.verdict, Verdict::Unknown) << result.message;
+    EXPECT_EQ(exitCode(result), 4);
+    EXPECT_EQ(result.message,
+              "the avoid waypoint of segment 1 (assumption at 6:5) has no value at 6:5: division by zero");
+    // A false conjunct before it ends the evaluation, as && does.
+    EXPECT_EQ(validate(sequence({{avoid(WaypointType::Assumption, 6, 5, "a == 1 && a / 0 == 1"),
+                                  follow(WaypointType::Branching, 6, 5, "false")},
+                                 {target(9, 5)}}),
+                       [](FakeExecution& x) { return runInputs(x); })
+                  .verdict,
+              Verdict::TargetWithoutError);
+}
 
 TEST_F(MonitorTest, APassingAvoidWaypointRejectsTheExecution) {
     program(std::string(inputsProgram));

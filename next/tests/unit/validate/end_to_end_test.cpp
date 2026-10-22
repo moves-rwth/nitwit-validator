@@ -261,12 +261,62 @@ int main(void) {
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
 }
 
+TEST_F(EndToEndTest, ADoLoopIsBranchedAtItsDoKeyword) {
+    build(R"(void reach_error(void);
+int main(void) {
+  int i = 0;
+  do {
+    i++;
+  } while (i < 2);
+  reach_error();
+  return 0;
+}
+)");
+    // The condition holds after the first iteration: an avoid waypoint at `do` or at `while` passes.
+    for (const auto& [line, column] : {std::pair{4u, 3u}, std::pair{6u, 5u}}) {
+        const ValidationResult result =
+            validate(sequence({{avoid(WaypointType::Branching, line, column, "true"), target(7, 3)}}));
+        EXPECT_EQ(result.verdict, Verdict::LeftWitness) << result.message << "\n" << log();
+    }
+}
+
+TEST_F(EndToEndTest, BlocksWithoutTheirOwnEventDoNotFitAWaypoint) {
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+  int x = __VERIFIER_nondet_int();
+  if (x == 0) {
+  } else {
+    goto L;
+  }
+  {
+  L: x++;
+  }
+  switch (x) {
+  case 1: return 0;
+  default: reach_error();
+  }
+  return 0;
+}
+)");
+    // An empty block, a block entered by goto, the body of a switch.
+    for (const auto& [line, column] : {std::pair{5u, 15u}, std::pair{9u, 3u}, std::pair{12u, 14u}}) {
+        const ValidationResult result =
+            validate(sequence({{avoid(WaypointType::Assumption, line, column, "1"), target(14, 12)}}));
+        EXPECT_EQ(result.verdict, Verdict::Unsupported) << line << ": " << result.message;
+        EXPECT_TRUE(result.message.ends_with("is at no evaluation point of its type")) << result.message;
+    }
+}
+
 TEST_F(EndToEndTest, AHugeColumnDoesNotWrapAroundToAnEarlierLine) {
     // Line 6 plus column 4294967283 would be the if at 5:3 in 32-bit offsets.
     build(std::string(avoidProgram));
     const ValidationResult result =
         validate(sequence({{follow(WaypointType::Branching, 6, 4294967283u, "true")}, {target(6, 5)}}));
-    EXPECT_EQ(result.verdict, Verdict::ErrorBeforeTarget) << result.message << "\n" << log();
+    EXPECT_EQ(result.verdict, Verdict::Unsupported) << result.message << "\n" << log();
+    EXPECT_EQ(result.message, "the witness does not fit the program: the follow waypoint of segment 1 (branching at "
+                              "6:4294967283) is at no evaluation point of its type");
+    EXPECT_EQ(result.runs, 0u);
 }
 
 } // namespace

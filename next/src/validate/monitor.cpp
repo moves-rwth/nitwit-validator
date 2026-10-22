@@ -63,16 +63,12 @@ SegmentMonitor::SegmentMonitor(const witness::ViolationSequence& witness, const 
     : segments_(witness.segments), program_(program), errorFunction_(errorFunction), constraints_(constraints),
       oracle_(oracle), log_(log), locations_(program.sources, program.file, program.originalFile, program.unit) {
     NITWIT_ASSERT(!segments_.empty(), "a violation sequence without segments");
-    for (std::uint32_t s = 0; s < segments_.size(); ++s) {
+    for (const witness::Segment& segment : segments_) {
         std::unordered_map<std::uint64_t, std::vector<std::uint32_t>>& index = waypointIndex_.emplace_back();
-        const witness::Segment& segment = segments_[s];
+        std::vector<Place>& places = places_.emplace_back();
         for (std::uint32_t i = 0; i < segment.waypoints.size(); ++i) {
             const witness::Waypoint& point = segment.waypoints[i];
-            const Place place = locations_.place(point.location, point.type);
-            if (place.isAfterPreprocessorChange() && log_ != nullptr) {
-                std::println(*log_, "{} matches nothing in a line that the preprocessor changed before the column",
-                             describe({.segment = s, .index = i}));
-            }
+            const Place& place = places.emplace_back(locations_.place(point.location, point.type));
             if (point.type == witness::WaypointType::Target) {
                 target_ = place; // unsupportedFeature(): only the last waypoint of the last segment is a target
                 continue;
@@ -85,6 +81,41 @@ SegmentMonitor::SegmentMonitor(const witness::ViolationSequence& witness, const 
             }
         }
     }
+    inconsistency_ = findInconsistency();
+}
+
+// validate/README.md, "Evaluation points": a witness whose locations do not fit the program is invalid. A waypoint
+// that matched nothing would never be evaluated, which for an avoid waypoint would confirm what the witness excludes.
+std::optional<std::string> SegmentMonitor::findInconsistency() const {
+    if (const std::optional<std::uint32_t> line = locations_.lineDirective()) {
+        return std::format("a #line directive (line {}) in a program that needs the preprocessor: its presumed lines "
+                           "are not the lines of the witness",
+                           *line);
+    }
+    for (std::uint32_t s = 0; s < segments_.size(); ++s) {
+        for (std::uint32_t i = 0; i < segments_[s].waypoints.size(); ++i) {
+            const WaypointId id{.segment = s, .index = i};
+            const witness::Waypoint& point = waypoint(id);
+            const Place& place = places_[s][i];
+            if (point.type == witness::WaypointType::Target) {
+                continue;
+            }
+            if (place.offsets().empty()) {
+                return std::format("{} is at no evaluation point of its type{}", describe(id),
+                                   place.isAfterPreprocessorChange()
+                                       ? ": its column lies after text that the preprocessor changed"
+                                       : "");
+            }
+            const std::string& function = point.location.function;
+            for (const ast::FunctionDecl* containing : place.functions()) {
+                if (!function.empty() && containing->name().text() != function) {
+                    return std::format("{} is in function '{}', not in '{}' as the witness says", describe(id),
+                                       containing->name().text(), function);
+                }
+            }
+        }
+    }
+    return std::nullopt;
 }
 
 void SegmentMonitor::beginRun(std::uint32_t run) {
@@ -180,6 +211,8 @@ interp::Directive SegmentMonitor::handle(const Event& event, interp::EvaluationC
                 return stop(State::Rejected, std::format("{} did not pass at its first evaluation point, {}{}",
                                                          describe(followId), locations_.describe(event.location),
                                                          evaluation.reason.empty() ? "" : ": " + evaluation.reason));
+            case Evaluation::Outcome::Undefined:
+                NITWIT_UNREACHABLE("a follow constraint without value fails");
             case Evaluation::Outcome::Passes:
                 break;
             }
@@ -189,6 +222,10 @@ interp::Directive SegmentMonitor::handle(const Event& event, interp::EvaluationC
             Evaluation avoid = evaluate(id, event, context, false);
             if (avoid.outcome == Evaluation::Outcome::Unsupported) {
                 return stop(State::Unsupported, std::format("{}: {}", describe(id), avoid.reason));
+            }
+            if (avoid.outcome == Evaluation::Outcome::Undefined) {
+                return stop(State::Unknown, std::format("{} has no value at {}: {}", describe(id),
+                                                        locations_.describe(event.location), avoid.reason));
             }
             if (avoid.outcome == Evaluation::Outcome::Passes) {
                 std::string reason = std::format("{} passed at {}", describe(id), locations_.describe(event.location));
@@ -249,6 +286,10 @@ SegmentMonitor::Evaluation SegmentMonitor::evaluateConstraint(WaypointId id, con
     std::vector<value::Value> values; // of the conjuncts, while all hold
     for (const Conjunct& conjunct : conjuncts) {
         const std::expected<value::Value, std::string> value = context.evaluate(conjunct.expr);
+        if (!value && !isFollow) {
+            // `&&` evaluates this conjunct, since all before it hold: the constraint has no value.
+            return {.outcome = Evaluation::Outcome::Undefined, .fixes = {}, .reason = value.error()};
+        }
         if (!value) {
             evaluation.outcome = Evaluation::Outcome::Fails;
             evaluation.reason = std::format("the constraint cannot be evaluated: {}", value.error());

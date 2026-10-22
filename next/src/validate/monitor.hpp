@@ -35,14 +35,20 @@ public:
         Following,   // the run goes on
         Rejected,    // a follow waypoint failed or an avoid waypoint passed
         ErrorCalled, // the error function was called, see isAtTarget()
-        Restart, // a follow waypoint failed or an avoid waypoint passed, which fixing the inputs of fixes() may change
+        Restart,     // a follow waypoint failed or an avoid waypoint passed; fixing fixes() may change that
         Unsupported, // a constraint cannot be compiled, or does not fit its waypoint
+        Unknown,     // an avoid constraint has no value (undefined behaviour, an invalid read)
     };
 
     /// `witness` must have passed unsupportedFeature(). The monitor keeps references to all arguments.
     SegmentMonitor(const witness::ViolationSequence& witness, const ProgramInput& program,
                    const std::string& errorFunction, ConstraintCompiler& constraints, WitnessOracle& oracle,
                    std::ostream* log);
+
+    /// Why the witness cannot be followed in this program, found when the monitor was built (validate/README.md,
+    /// "Evaluation points"): a waypoint other than the target without evaluation point of its type, or in another
+    /// function than its location.function; a #line directive in a program that went through the preprocessor.
+    [[nodiscard]] const std::optional<std::string>& inconsistency() const { return inconsistency_; }
 
     /// Starts following the witness from its first segment; `run` numbers the runs for the log.
     void beginRun(std::uint32_t run);
@@ -77,14 +83,17 @@ private:
     };
 
     struct Evaluation {
-        enum class Outcome : std::uint8_t { Passes, Fails, Unsupported };
+        enum class Outcome : std::uint8_t { Passes, Fails, Unsupported, Undefined };
 
         Outcome outcome = Outcome::Passes;
         // A failing follow waypoint: the fixes that may make it pass. A passing avoid waypoint: a fix that may make it
         // fail.
         std::vector<Fix> fixes;
-        std::string reason; // why it fails, or what is unsupported
+        std::string reason; // why it fails, has no value (Undefined: an avoid constraint), or what is unsupported
     };
+
+    /// The first reason why the waypoints cannot be followed in this program; for the constructor.
+    [[nodiscard]] std::optional<std::string> findInconsistency() const;
 
     interp::Directive handle(const Event& event, interp::EvaluationContext& context);
     Evaluation evaluate(WaypointId id, const Event& event, interp::EvaluationContext& context, bool isFollow);
@@ -127,7 +136,9 @@ private:
     // Per segment: the indices of its waypoints by event type and offset, so that an event costs one lookup also for
     // witnesses with many waypoints. Target waypoints are not evaluated by events and have their own place.
     std::vector<std::unordered_map<std::uint64_t, std::vector<std::uint32_t>>> waypointIndex_;
+    std::vector<std::vector<Place>> places_; // per segment and waypoint
     Place target_;
+    std::optional<std::string> inconsistency_;
 
     std::uint32_t run_ = 0;
     std::uint32_t current_ = 0;

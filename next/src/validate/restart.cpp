@@ -55,6 +55,12 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
     WitnessOracle oracle(program.context, options.defaultInput);
     SegmentMonitor monitor(witness.violationSequences.front(), program, options.errorFunction, constraints, oracle,
                            options.log);
+    if (const std::optional<std::string>& inconsistency = monitor.inconsistency()) {
+        return {.verdict = Verdict::Unsupported,
+                .message = "the witness does not fit the program: " + *inconsistency,
+                .runs = 0,
+                .segmentsReached = 0};
+    }
     // Every confirmation comes from one complete run: a restart begins again at main with more inputs fixed.
     for (std::uint32_t runs = 1;; ++runs) {
         oracle.beginRun();

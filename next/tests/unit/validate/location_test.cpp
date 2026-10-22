@@ -92,6 +92,19 @@ TEST_F(ProgramLocationTest, AColumnBeyondItsLineMatchesNothing) {
     EXPECT_TRUE(isEmpty(place(WaypointType::Assumption, 2, 30)));
 }
 
+TEST_F(ProgramLocationTest, AColumnInsideAConstructMatchesNothing) {
+    EXPECT_TRUE(place(WaypointType::Branching, 5, 3).offsets().empty());       // the f of if
+    EXPECT_TRUE(place(WaypointType::Assumption, 4, 9).offsets().empty());      // the a of int a
+    EXPECT_TRUE(place(WaypointType::FunctionReturn, 4, 34).offsets().empty()); // the ( of the call
+    EXPECT_FALSE(place(WaypointType::FunctionReturn, 4, 35).offsets().empty());
+}
+
+TEST_F(ProgramLocationTest, PlacesKnowTheFunctionOfTheirEvaluationPoints) {
+    const Place place = this->place(WaypointType::Branching, 5, 2);
+    ASSERT_EQ(place.functions().size(), 1u);
+    EXPECT_EQ(place.functions()[0]->name().text(), "main");
+}
+
 TEST_F(ProgramLocationTest, ColumnsThatWouldWrapAroundMatchNothing) {
     // The start of line 5 plus this column, as a 32-bit offset, is the declaration at 4:5.
     const std::uint32_t wrapping = position(4, 5).offset - position(5, 1).offset + 1;
@@ -106,11 +119,14 @@ TEST_F(ProgramLocationTest, LinesBeyondTheFileMatchNothing) {
     EXPECT_TRUE(isEmpty(place(WaypointType::Target, 99)));
 }
 
-TEST_F(ProgramLocationTest, ATargetWithoutAColumnMatchesTheWholeLine) {
+TEST_F(ProgramLocationTest, ATargetWithoutAColumnIsTheFirstStatementOfTheLine) {
     EXPECT_TRUE(place(WaypointType::Target, 12).contains(position(12, 5)));
-    EXPECT_TRUE(place(WaypointType::Target, 12).contains(position(12, 10)));
+    EXPECT_FALSE(place(WaypointType::Target, 12).contains(position(12, 10)));
     EXPECT_FALSE(place(WaypointType::Target, 12, 5).contains(position(12, 6)));
     EXPECT_TRUE(place(WaypointType::Target, 12, 5).contains(position(12, 5)));
+    // Line 5 begins with an if, not with a call.
+    EXPECT_TRUE(place(WaypointType::Target, 5).contains(position(5, 2)));
+    EXPECT_FALSE(place(WaypointType::Target, 5).contains(position(5, 11)));
 }
 
 TEST_F(ProgramLocationTest, AnAssumptionAtABlockIsEvaluatedBeforeItsFirstStatement) {
@@ -122,6 +138,65 @@ TEST_F(ProgramLocationTest, AnAssumptionAtABlockIsEvaluatedBeforeItsFirstStateme
     EXPECT_FALSE(place(WaypointType::Branching, 6, 5).contains(assignment));
     // An empty block has no first statement.
     EXPECT_FALSE(place(WaypointType::Assumption, 10, 9).contains(position(12, 5)));
+}
+
+// A do loop, a block entered by goto, and the body of a switch.
+class JumpLocationTest : public LocationTest {
+protected:
+    void SetUp() override {
+        program("void reach_error(void);\n"
+                "int main(void) {\n"
+                "    int i = 0;\n"
+                "    do {\n"
+                "        i++;\n"
+                "    } while (i < 2);\n"
+                "    goto L;\n"
+                "    {\n"
+                "    L: reach_error();\n"
+                "    }\n"
+                "    switch (i) {\n"
+                "    case 2: break;\n"
+                "    }\n"
+                "    return 0;\n"
+                "}\n");
+    }
+};
+
+TEST_F(JumpLocationTest, ADoLoopBranchesAtItsDoAndItsWhile) {
+    const SourceLocation condition = position(6, 7);
+    EXPECT_TRUE(place(WaypointType::Branching, 4, 5).contains(condition));
+    EXPECT_TRUE(place(WaypointType::Branching, 4).contains(condition));
+    EXPECT_TRUE(place(WaypointType::Branching, 6, 7).contains(condition));
+    EXPECT_TRUE(place(WaypointType::Branching, 6).contains(condition));
+}
+
+TEST_F(JumpLocationTest, ABlockThatAJumpCanEnterAtALabelHasNoEvaluationPoint) {
+    EXPECT_TRUE(place(WaypointType::Assumption, 8, 5).offsets().empty());
+    EXPECT_TRUE(place(WaypointType::Assumption, 11, 16).offsets().empty());      // the body of the switch
+    EXPECT_TRUE(place(WaypointType::Assumption, 9, 5).contains(position(9, 5))); // the label itself
+    EXPECT_TRUE(place(WaypointType::Assumption, 4, 8).contains(position(5, 9))); // the body of the do loop
+}
+
+TEST_F(JumpLocationTest, ATargetWithoutAColumnInALabeledLineIsTheLabeledStatement) {
+    EXPECT_TRUE(place(WaypointType::Target, 9).contains(position(9, 5)));
+    EXPECT_FALSE(place(WaypointType::Target, 9).contains(position(9, 8))); // the call of reach_error
+}
+
+TEST_F(LocationTest, LineDirectivesInTheOriginalOfAPreprocessedProgramAreFound) {
+    original_ = sources_.addFile("prog.c", "#define ZERO 0\n"
+                                           "int main(void) {\n"
+                                           "  #  line 20\n"
+                                           "  return ZERO;\n"
+                                           "}\n");
+    program("# 1 \"prog.c\"\n"
+            "\n"
+            "int main(void) {\n"
+            "# 20 \"prog.c\"\n"
+            "  return 0;\n"
+            "}\n",
+            DataModel::ILP32, "prog.c");
+    EXPECT_EQ(LocationMap(sources_, file_, original_, unit()).lineDirective(), 3u);
+    EXPECT_EQ(LocationMap(sources_, file_, FileId::None, unit()).lineDirective(), std::nullopt);
 }
 
 TEST_F(ProgramLocationTest, LocationsInOtherFilesNeverMatch) {
@@ -169,6 +244,10 @@ TEST_F(PreprocessedLocationTest, LinesOfOtherFilesNeverMatch) {
 
 TEST_F(PreprocessedLocationTest, ColumnsBeyondTheOriginalLineMatchNothing) {
     EXPECT_TRUE(isEmpty(place(WaypointType::Branching, 3, 30)));
+}
+
+TEST_F(PreprocessedLocationTest, IncludesAreNoLineDirectives) {
+    EXPECT_EQ(LocationMap(sources_, file_, original_, unit()).lineDirective(), std::nullopt);
 }
 
 TEST_F(PreprocessedLocationTest, DescribeGivesPresumedLines) {
