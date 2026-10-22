@@ -11,9 +11,10 @@
 namespace nitwit::driver {
 namespace {
 
-std::expected<CommandLine, int> parse(std::initializer_list<std::string_view> arguments) {
+std::expected<CommandLine, int> parse(std::initializer_list<std::string_view> arguments,
+                                      DataModel defaultModel = DataModel::ILP32) {
     const std::vector<std::string_view> list(arguments);
-    return parseCommandLine(list);
+    return parseCommandLine(list, defaultModel);
 }
 
 /// The exit code of a wrong command line; 0 if it is right.
@@ -41,6 +42,45 @@ TEST(CommandLineTest, LongOptionsAndTheDefaultDataModel) {
     ASSERT_TRUE(parsed->validation.has_value());
     EXPECT_EQ(parsed->validation->errorFunction, "fail");
     EXPECT_EQ(parsed->validation->dataModel, DataModel::ILP32);
+}
+
+TEST(CommandLineTest, TheDefaultDataModelComesFromTheExecutableName) {
+    EXPECT_EQ(defaultDataModel("/opt/nitwit/bin/nitwit64"), DataModel::LP64);
+    EXPECT_EQ(defaultDataModel("../bin/nitwit64"), DataModel::LP64);
+    EXPECT_EQ(defaultDataModel("nitwit64"), DataModel::LP64);
+    EXPECT_EQ(defaultDataModel("bin/nitwit32"), DataModel::ILP32);
+    EXPECT_EQ(defaultDataModel("nitwit"), DataModel::ILP32);
+    EXPECT_EQ(defaultDataModel(""), DataModel::ILP32);
+}
+
+TEST(CommandLineTest, OnlyTheNameNitwit64SelectsLp64) {
+    EXPECT_EQ(defaultDataModel("nitwit-x86_64"), DataModel::ILP32);
+    EXPECT_EQ(defaultDataModel("nitwit_amd64"), DataModel::ILP32);
+    EXPECT_EQ(defaultDataModel("/opt/x86_64/nitwit"), DataModel::ILP32);
+    EXPECT_EQ(defaultDataModel("/opt/nitwit64/nitwit"), DataModel::ILP32);
+    EXPECT_EQ(defaultDataModel("bin/my-nitwit64"), DataModel::ILP32);
+}
+
+TEST(CommandLineTest, TheDefaultDataModelAppliesWithoutAFlag) {
+    const auto validation = parse({"-w", "w.yml", "prog.c"}, DataModel::LP64);
+    ASSERT_TRUE(validation.has_value()) << validation.error();
+    ASSERT_TRUE(validation->validation.has_value());
+    EXPECT_EQ(validation->validation->dataModel, DataModel::LP64);
+    const auto replay = parse({"--replay", "in.txt", "prog.c"}, DataModel::LP64);
+    ASSERT_TRUE(replay.has_value()) << replay.error();
+    ASSERT_TRUE(replay->replay.has_value());
+    EXPECT_EQ(replay->replay->dataModel, DataModel::LP64);
+}
+
+TEST(CommandLineTest, AnExplicitDataModelWinsOverTheDefault) {
+    const auto ilp32 = parse({"-32", "-w", "w.yml", "prog.c"}, DataModel::LP64);
+    ASSERT_TRUE(ilp32.has_value()) << ilp32.error();
+    ASSERT_TRUE(ilp32->validation.has_value());
+    EXPECT_EQ(ilp32->validation->dataModel, DataModel::ILP32);
+    const auto lp64 = parse({"-64", "-w", "w.yml", "prog.c"}, DataModel::ILP32);
+    ASSERT_TRUE(lp64.has_value()) << lp64.error();
+    ASSERT_TRUE(lp64->validation.has_value());
+    EXPECT_EQ(lp64->validation->dataModel, DataModel::LP64);
 }
 
 TEST(CommandLineTest, AReplay) {

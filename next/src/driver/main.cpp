@@ -37,8 +37,10 @@ int main(int argc, char** argv) {
     // No core dumps: abort() of the program is an outcome, not a crash (tools/difftest/README.md), and WSL's
     // core_pattern helper would collect one despite RLIMIT_CORE.
     prctl(PR_SET_DUMPABLE, 0);
-    const std::vector<std::string_view> arguments(argv + 1, argv + argc);
-    const std::expected<driver::CommandLine, int> commandLine = driver::parseCommandLine(arguments);
+    const std::string_view executable = argc > 0 ? argv[0] : "";
+    const std::vector<std::string_view> arguments(argv + (argc > 0 ? 1 : 0), argv + argc);
+    const std::expected<driver::CommandLine, int> commandLine =
+        driver::parseCommandLine(arguments, driver::defaultDataModel(executable));
     if (!commandLine) {
         std::println(stderr, "{}",
                      commandLine.error() == driver::exitNoWitness ? "no witness given (-w)" : driver::usage);

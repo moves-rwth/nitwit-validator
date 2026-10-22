@@ -10,7 +10,9 @@ nitwit --replay <inputs-file> [--input-log <log-file>] [-32|-64] <program>
 nitwit --version
 ```
 
-- **Data model:** `-32`/`-64` select ILP32 (the default, as in 3.x) or LP64.
+- **Data model:** `-32`/`-64` select ILP32 or LP64. Without either, the executable's name decides: LP64 if its file
+  name is exactly `nitwit64` (`bin/nitwit64` of the release archive, `docs/release.md`), else ILP32 (the default, as
+  in 3.x).
 - **Error function:** read from the property file. `CHECK( init(main()), LTL(G ! call(reach_error())) )` and the
   `__VERIFIER_error` variant are supported; any other property is reported as UNKNOWN (exit 4). Without `-p` and
   `-e`, it is `reach_error`. Giving both is a wrong command line (exit 3).
@@ -18,7 +20,8 @@ nitwit --version
 - **Wrong command lines** give exit code 3: unknown options, an option without its value, an option given twice
   (also `-32` with `-64`), a second program, no program, `--replay` with validation options, `--input-log` without
   `--replay`. `command_line.hpp` parses it.
-- **`-v`:** prints the validation log (segments reached, restarts, why each run ended) to stderr.
+- **`-v`:** prints the validation log (segments reached, restarts, why each run ended) to stderr. (In 3.x's
+  `nitwit.sh`, `-v` printed the version; that is `--version` now.)
 - **`--replay`:** the differential-testing mode (`tools/difftest/README.md`): runs `main` with the inputs file, without
   a witness. The program's output goes to stdout, and the exit status is the program's (or the harness codes).
   - Calls of `__assert_fail`, `__VERIFIER_error` and `reach_error` without a definition end the run with the harness's
