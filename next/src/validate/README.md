@@ -179,7 +179,8 @@ with them. It never tries values by running the program, so each restart costs o
   | avoid `assumption`, `function_return` | one clause: `c == 0` for one of the conjuncts c |
 
   A conjunct or condition without a term depends on no input the validator can change: if it does not hold, no input
-  is changed for it.
+  is changed for it. An atom whose term is the opaque term (`TermTable::isOpaque`: the value depends on inputs in a way
+  the terms do not record) is unknown, and no input is changed for it either.
 - **Kept clauses:** the requirements of every waypoint evaluation of the run that had its outcome (a follow waypoint
   that passed, an avoid waypoint that did not), as far as they have terms. New input values must keep them, so that
   the next run passes the same waypoints again.
@@ -205,8 +206,8 @@ with them. It never tries values by running the program, so each restart costs o
 - **Restarts** happen only when at least one input gets a new value. Fixed inputs may get another value in a later
   run when the search needs it and the kept clauses allow it. The number of restarts is limited
   (`ValidationOptions::maxRestarts`, scaled with the number of waypoints).
-- **Limits of the search:** it cannot predict values through operations without terms (pointer arithmetic, library
-  functions, bit-fields, dependencies through control flow that no waypoint covers), relations where an input occurs
+- **Limits of the search:** it cannot predict values through operations without term kinds (pointer arithmetic,
+  library functions, bit-fields, dependencies through control flow that no waypoint covers), relations where an input occurs
   more than once and candidates do not help (`x * x == 49`), and witnesses without waypoints between the start and
   the target. Searching the program's paths for those would cost runs per candidate, which NITWIT does not do. An SMT
   solver can later replace the candidates behind the same requirements.
