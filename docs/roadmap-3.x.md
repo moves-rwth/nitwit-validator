@@ -27,6 +27,12 @@ Measurements and the full list of findings: `E:\workspace\playground\svcomp-2026
 | R2 | BenchExec: push `ffd329d` (exit 252 → UNKNOWN) to PR #1339 | trivial | **needs your go** |
 | R3 | Push `master` and the tag `3.0.0` (on `6758ef2`) to GitHub | trivial | **needs your go** |
 
+## 3.1.x: correctness fix first
+
+| # | Item | Where | Effect | Effort |
+|---|---|---|---|---|
+| F0 | **Avoid waypoints on unresolved nondet values.** 3.x evaluates avoid assumptions with `ResolveNonDetInAssumptions = FALSE` and treats an unresolved value as "not passing". If the execution later uses the default value, it really passes the avoid waypoint, and an invalid witness can be confirmed (found by the NITWIT 4 review: `x = nondet(); if (x == 0) reach_error();` with `avoid x == 0` is confirmed). Fix: resolve the value to one that violates the avoid constraint (as already done for `function_return`), or reject. Measure on `validation-crafted` | `passesAvoidWaypoint` in `automaton_run.cpp` | removes a source of wrong confirmations | small |
+
 ## 3.2.0: value inference and robustness
 
 These items are ordered by benefit per effort.
