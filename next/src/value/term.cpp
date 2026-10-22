@@ -76,8 +76,8 @@ bool isTrue(const Value& value) {
     return toBool(value).bits() != 0;
 }
 
-/// The kinds through which a term keeps the origin of its operand.
-bool keepsOrigin(TermKind kind) {
+/// The conversions between scalar types.
+bool isConversion(TermKind kind) {
     return kind == TermKind::ConvertInteger || kind == TermKind::ToBool || kind == TermKind::IntegerToFloat
            || kind == TermKind::FloatToInteger || kind == TermKind::ConvertFloat;
 }
@@ -120,7 +120,7 @@ std::optional<TermId> TermTable::input(InputId id, const Value& value, ScalarFor
     if (limits_.maxTerms == 0) {
         return std::nullopt;
     }
-    if (terms_.size() >= 2 * std::size_t{limits_.maxTerms}) {
+    if (terms_.size() >= inputCap()) {
         return opaque();
     }
     const std::uint32_t index = std::to_underlying(id);
@@ -135,6 +135,7 @@ std::optional<TermId> TermTable::input(InputId id, const Value& value, ScalarFor
 std::optional<TermId> TermTable::record(Term term, std::initializer_list<Operand> operands) {
     unsigned deepest = 0;
     std::size_t constants = 0;
+    bool isInputOperand = false;
     for (const Operand& operand : operands) {
         if (const std::optional<TermId> id = operand.value.term()) {
             const Term& operandTerm = this->term(*id);
@@ -142,13 +143,17 @@ std::optional<TermId> TermTable::record(Term term, std::initializer_list<Operand
                 return id;
             }
             deepest = std::max<unsigned>(deepest, operandTerm.depth);
+            isInputOperand = operandTerm.kind == TermKind::Input;
         } else {
             NITWIT_ASSERT(hasFormat(operand.value, operand.format), "a constant operand is not a value of its format");
             ++constants;
         }
     }
+    // A conversion of an input fits under the cap of the inputs (input()), so that a full table does not hide an
+    // input that a program converts first, as in `unsigned char c = x;`.
+    const std::size_t sizeLimit = isConversion(term.kind) && isInputOperand ? inputCap() : limits_.maxTerms;
     // Checked before anything is added, so that a result over a limit leaves no constants behind.
-    if (deepest + 1 > limits_.maxDepth || !hasRoomFor(constants + 1)) {
+    if (deepest + 1 > limits_.maxDepth || terms_.size() + constants + 1 > sizeLimit) {
         return opaque();
     }
     term.depth = static_cast<std::uint16_t>(deepest + 1);
@@ -279,17 +284,6 @@ ScalarFormat TermTable::resultFormat(TermId id) const {
         break;
     }
     return current.format;
-}
-
-std::optional<InputId> TermTable::origin(TermId id) const {
-    const Term* current = &term(id);
-    while (keepsOrigin(current->kind)) {
-        current = &term(current->operands[0]);
-    }
-    if (current->kind != TermKind::Input) {
-        return std::nullopt;
-    }
-    return inputOf(*current);
 }
 
 // ---- Evaluation ----
