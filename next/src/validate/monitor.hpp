@@ -2,7 +2,8 @@
 
 // The monitor of a format 2.x witness (validate/README.md, "Follow, avoid and progress"): it follows the execution
 // through the segments of the violation sequence, evaluates the waypoints of the current segment at their evaluation
-// points, gives the oracle the hints of function_return waypoints, and stops the run once its outcome is decided.
+// points, gives the oracle the hints of function_return waypoints, and stops the run once its outcome is decided. A
+// waypoint without the outcome the witness needs asks the search for inputs that give it ("Search").
 
 #include <cstdint>
 #include <optional>
@@ -16,18 +17,11 @@
 #include "validate/constraints.hpp"
 #include "validate/location.hpp"
 #include "validate/oracle.hpp"
+#include "validate/search.hpp"
 #include "validate/validator.hpp"
-#include "validate/values.hpp"
 #include "witness/model.hpp"
 
 namespace nitwit::validate {
-
-/// An input of the current run to fix for the next run, so that a failed follow waypoint passes or a passing avoid
-/// waypoint fails.
-struct Fix {
-    value::InputId input{};
-    value::Value value; // of the input's type
-};
 
 class SegmentMonitor final : public interp::ExecutionObserver {
 public:
@@ -35,15 +29,16 @@ public:
         Following,   // the run goes on
         Rejected,    // a follow waypoint failed or an avoid waypoint passed
         ErrorCalled, // the error function was called, see isAtTarget()
-        Restart,     // a follow waypoint failed or an avoid waypoint passed; fixing fixes() may change that
+        Restart,     // a follow waypoint failed or an avoid waypoint passed; the inputs of changes() may change that
         Unsupported, // a constraint cannot be compiled, or does not fit its waypoint
         Unknown,     // an avoid constraint has no value (undefined behaviour, an invalid read)
     };
 
-    /// `witness` must have passed unsupportedFeature(). The monitor keeps references to all arguments.
+    /// `witness` must have passed unsupportedFeature(). The monitor keeps references to all arguments. A run keeps
+    /// clauses with at most `keptAtoms` atoms for the search.
     SegmentMonitor(const witness::ViolationSequence& witness, const ProgramInput& program,
                    const std::string& errorFunction, ConstraintCompiler& constraints, WitnessOracle& oracle,
-                   std::ostream* log);
+                   std::ostream* log, std::size_t keptAtoms);
 
     /// Why the witness cannot be followed in this program, found when the monitor was built (validate/README.md,
     /// "Evaluation points"): a waypoint other than the target without evaluation point of its type, or in another
@@ -69,8 +64,8 @@ public:
     [[nodiscard]] bool isTargetSegmentCurrent() const { return current_ + 1 == segmentCount(); }
     /// For State::ErrorCalled: whether the call was at the target's location in the target segment.
     [[nodiscard]] bool isAtTarget() const { return isAtTarget_; }
-    /// For State::Restart: the inputs to fix, at most one fix per input.
-    [[nodiscard]] const std::vector<Fix>& fixes() const { return fixes_; }
+    /// For State::Restart: the new values of inputs, at most one per input.
+    [[nodiscard]] const std::vector<Change>& changes() const { return changes_; }
     [[nodiscard]] const LocationMap& locations() const { return locations_; }
 
 private:
@@ -86,9 +81,8 @@ private:
         enum class Outcome : std::uint8_t { Passes, Fails, Unsupported, Undefined };
 
         Outcome outcome = Outcome::Passes;
-        // A failing follow waypoint: the fixes that may make it pass. A passing avoid waypoint: a fix that may make it
-        // fail.
-        std::vector<Fix> fixes;
+        // What the waypoint needs ("Search"): a follow waypoint to pass, an avoid waypoint to fail.
+        std::vector<Clause> requirement;
         std::string reason; // why it fails, has no value (Undefined: an avoid constraint), or what is unsupported
     };
 
@@ -100,19 +94,20 @@ private:
     Evaluation evaluateConstraint(WaypointId id, const Event& event, interp::EvaluationContext& context, bool isFollow,
                                   ast::QualType resultType);
     Evaluation evaluateBranching(WaypointId id, const Event& event, interp::EvaluationContext& context, bool isFollow);
-    /// The fix that makes a conjunct true (`makeTrue`) or false: for `subject op constant`, a fix of the subject's
-    /// origin for the relation or its negation; for another conjunct, whose value is `value`, a fix of the value's
-    /// origin for `value != 0` or `value == 0`. None if that origin is no unfixed input.
-    std::optional<Fix> resolve(const Conjunct& conjunct, const value::Value& value, bool makeTrue,
-                               interp::EvaluationContext& context);
-    /// The fix of the input that is the origin of `subject` (of type `subjectType`), so that the subject satisfies the
-    /// bound; none if the origin is no unfixed input or no value of the input's type gives such a subject.
-    std::optional<Fix> fixFor(const value::Value& subject, ast::QualType subjectType, const Bound& bound);
-    /// For a switch event: the values of the switched value that no avoid waypoint of the current segment at the
-    /// switch avoids, in the order fixes try them.
-    [[nodiscard]] std::vector<value::Value> unavoidedValues(const Event& event, interp::EvaluationContext& context);
-    /// Whether a value's origin is an input that is neither fixed nor hinted.
-    [[nodiscard]] bool isUnfixedInput(const value::Value& value) const;
+    /// The requirement of a branching at `default` of a switch; `passes`: whether the switch took it.
+    [[nodiscard]] std::vector<Clause> defaultRequirement(const interp::ConditionEvent& condition, bool isFollow,
+                                                         bool passes) const;
+    /// What taking the case value `caseValue` of `label` (if any; `t` is the switched value's term) needs, or with
+    /// `isTaken` false, not taking it.
+    [[nodiscard]] static std::vector<Clause>
+    caseRequirement(std::optional<value::TermId> term, const ast::CaseStmt* label, Int128 caseValue, bool isTaken);
+    /// Stops the run after waypoint `id` did not have the outcome the witness needs (`reason`): Restart with the inputs
+    /// the search finds for `requirement`, else Rejected, with `rejection` as the reason if it is not empty.
+    interp::Directive searchOrReject(WaypointId id, const std::vector<Clause>& requirement,
+                                     interp::EvaluationContext& context, std::string reason,
+                                     std::string rejection = {});
+    /// Keeps the clauses of a requirement that has its outcome, for the searches later in the run.
+    void keep(const std::vector<Clause>& requirement, const value::TermTable& terms);
     /// Hands the oracle the value that the function_return waypoints of the current segment at this call ask for.
     void offerHint(const interp::CallEvent& event, interp::EvaluationContext& context);
 
@@ -145,7 +140,9 @@ private:
     bool isAtTarget_ = false;
     State state_ = State::Following;
     std::string reason_;
-    std::vector<Fix> fixes_;
+    std::vector<Change> changes_;
+    KeptClauses kept_; // of the waypoints that had their outcome in this run
+    bool isKeptFull_ = false;
 };
 
 /// The name of a waypoint type as the witness format spells it.

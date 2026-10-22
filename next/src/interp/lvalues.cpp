@@ -1,5 +1,5 @@
 // Lvalues (C17 6.3.2.1): the objects expressions designate, and loads and stores of their values, including
-// bit-fields, uninitialized reads and the origins of nondeterministic values.
+// bit-fields, uninitialized reads and the terms of the bytes (interp/README.md, "Terms").
 
 #include <array>
 #include <format>
@@ -15,7 +15,7 @@ namespace {
 
 /// The bytes that hold a bit-field: from the byte of its first bit to the byte of its last.
 std::uint64_t storageBytes(const LValue& object) {
-    return (object.bitOffset + object.bitWidth + 7) / 8;
+    return (std::uint64_t{object.bitOffset} + object.bitWidth + 7) / 8;
 }
 
 /// A scalar's value from its object representation.
@@ -52,7 +52,8 @@ LValue Execution::lvalue(const ast::Expr* expr) {
     case ast::ExprKind::Unary: {
         const auto* unaryExpr = ast::cast<ast::UnaryExpr>(expr);
         if (unaryExpr->op() == ast::UnaryOperator::Dereference) {
-            return {.address = static_cast<Address>(rvalue(unaryExpr->operand()).bits())};
+            const value::Value pointer = rvalue(unaryExpr->operand());
+            return LValue::at(static_cast<Address>(pointer.bits()), pointer.term());
         }
         if (unaryExpr->op() == ast::UnaryOperator::Extension) {
             return lvalue(unaryExpr->operand());
@@ -64,8 +65,8 @@ LValue Execution::lvalue(const ast::Expr* expr) {
         const auto* subscript = ast::cast<ast::ArraySubscriptExpr>(expr);
         const value::Value base = rvalue(subscript->base());
         const value::Value index = rvalue(subscript->index());
-        return {.address =
-                    static_cast<Address>(pointerOffset(base, index, subscript->base()->type(), false, expr).bits())};
+        const value::Value address = pointerOffset(base, index, subscript->base()->type(), false, expr);
+        return LValue::at(static_cast<Address>(address.bits()), address.term());
     }
     case ast::ExprKind::Member:
         return member(ast::cast<ast::MemberExpr>(expr));
@@ -120,19 +121,28 @@ LValue Execution::member(const ast::MemberExpr* expr) {
     const ast::FieldDecl* field = expr->field();
     const ast::RecordLayout& layout = sema::layoutOf(field->parent());
     Address base = 0;
+    std::optional<value::TermId> baseTerm;
     if (expr->isArrow()) {
-        base = static_cast<Address>(rvalue(expr->base()).bits());
+        const value::Value pointer = rvalue(expr->base());
+        base = static_cast<Address>(pointer.bits());
+        baseTerm = pointer.term();
     } else if (expr->base()->isLValue()) {
-        base = lvalue(expr->base()).address;
+        const LValue object = lvalue(expr->base());
+        base = object.address;
+        baseTerm = object.addressTerm();
     } else {
         base = recordObject(expr->base()); // `f().x`, `(c ? s : t).a[1]`
     }
-    const auto address = static_cast<Address>(
-        value::Value::integer(UInt128{base} + layout.fieldOffsets[field->index()], types_.pointerFormat()).bits());
+    const std::uint64_t offset = layout.fieldOffsets[field->index()];
+    const auto address =
+        static_cast<Address>(value::Value::integer(UInt128{base} + offset, types_.pointerFormat()).bits());
+    // Pointer arithmetic, unless the member is at offset 0.
+    LValue object = LValue::at(address, offset == 0 ? baseTerm : opaqueIf(baseTerm.has_value()));
     if (field->isBitField()) {
-        return {.address = address, .bitWidth = field->bitWidth(), .bitOffset = layout.bitOffsets[field->index()]};
+        object.bitWidth = static_cast<std::uint16_t>(field->bitWidth());
+        object.bitOffset = layout.bitOffsets[field->index()];
     }
-    return {.address = address};
+    return object;
 }
 
 Address Execution::recordObject(const ast::Expr* expr) {
@@ -162,7 +172,7 @@ Address Execution::recordObject(const ast::Expr* expr) {
             return object;
         }
         const Address copy = temporary(result.asBytes().size(), nullptr, expr);
-        writeBytes(copy, result.asBytes(), expr);
+        writeRecord(copy, result.asBytes(), result.term(), expr);
         return copy;
     }
     case ast::ExprKind::Conditional: {
@@ -187,7 +197,7 @@ Address Execution::recordObject(const ast::Expr* expr) {
     }
     const value::Value result = rvalue(expr);
     const Address copy = temporary(result.asBytes().size(), nullptr, expr);
-    writeBytes(copy, result.asBytes(), expr);
+    writeRecord(copy, result.asBytes(), result.term(), expr);
     return copy;
 }
 
@@ -229,37 +239,83 @@ value::Value Execution::load(const LValue& object, ast::QualType type, const ast
             memoryError(read.error(), false, site);
         }
         if (!read->isInitialized) {
-            // An uninitialized automatic or heap object holds a nondeterministic value, as the verifiers assume. The
-            // answer is stored, so that later reads agree; bytes that were written keep their values.
-            value::Value input = requestInput(InputRequest::Kind::UninitializedRead, site, type, nullptr);
-            std::array<std::byte, 16> provided{};
-            encode(input, info, std::span(provided.data(), info.size));
-            bool isPartlyInitialized = false;
-            for (std::size_t i = 0; i < info.size; ++i) {
-                if (memory_.isInitialized(object.address + i, 1)) {
-                    provided[i] = bytes[i];
-                    isPartlyInitialized = true;
-                }
-            }
-            writeBytes(object.address, std::span(provided.data(), info.size), site);
-            if (isPartlyInitialized) {
-                return decode(std::span(provided.data(), info.size), info);
-            }
-            memory_.setOrigin(object.address, info.size, *input.origin());
-            return input;
+            return loadUninitialized(object.address, type, info, bytes, site);
         }
-        value::Value result = decode(bytes, info);
-        result.setOrigin(read->origin);
-        return result;
+        return decodeLoaded(bytes, info, read->term, site);
     }
     if (info.isBytes()) {
-        return value::Value::ofBytes(readBytes(object.address, info.size, site));
+        return loadRecord(object.address, info.size, site);
     }
     stop(Termination::Unsupported, "a read of an object that is not a scalar or a record", locationOf(site));
 }
 
+// One named value, constructed in place (NRVO): loads are the most frequent operation.
+value::Value Execution::decodeLoaded(std::span<const std::byte> bytes, const TypeInfo& type, const RangeTerm& term,
+                                     const ast::Expr* site) {
+    value::Value result = decode(bytes, type);
+    if (term.kind != RangeTerm::Kind::None) {
+        attachLoadedTerm(result, term, bytes, type, site);
+    }
+    return result;
+}
+
+// An uninitialized automatic or heap object holds a nondeterministic value, as the verifiers assume. The answer is
+// stored, so that later reads agree; bytes that were written keep their values.
+value::Value Execution::loadUninitialized(Address address, ast::QualType type, const TypeInfo& info,
+                                          std::span<const std::byte> bytes, const ast::Expr* site) {
+    value::Value input = requestInput(InputRequest::Kind::UninitializedRead, site, type, nullptr);
+    std::array<std::byte, 16> provided{};
+    encode(input, info, std::span(provided.data(), info.size));
+    bool isPartlyInitialized = false;
+    for (std::size_t i = 0; i < info.size; ++i) {
+        if (memory_.isInitialized(address + i, 1)) {
+            provided[i] = bytes[i];
+            isPartlyInitialized = true;
+        }
+    }
+    const std::span<const std::byte> written(provided.data(), info.size);
+    if (isPartlyInitialized) {
+        // Bytes of the input and bytes that were written: no term records how the value depends on them.
+        writeBytes(address, written, site);
+        markOpaque(address, info.size);
+        input = decode(written, info);
+        input.setTerm(terms_.opaque());
+    } else if (input.term()) {
+        const StoredTerm term{.term = *input.term(), .format = info.scalarFormat()};
+        writeBytes(address, written, site, &term);
+    } else {
+        writeBytes(address, written, site);
+    }
+    return input;
+}
+
+// Bytes written with another type of the same size (a union member, a cast pointer): a signed integer read as unsigned
+// is converted, but the bytes of a floating value read as an integer (or the other way round) have no term kind.
+void Execution::attachLoadedTerm(value::Value& result, const RangeTerm& term, std::span<const std::byte> bytes,
+                                 const TypeInfo& type, const ast::Expr* site) {
+    if (term.kind == RangeTerm::Kind::Stored) {
+        const StoredTerm& stored = term.stored;
+        const value::ScalarFormat format = type.scalarFormat();
+        if (stored.format == format) {
+            attach(result, stored.term, site);
+            return;
+        }
+        const auto* from = std::get_if<value::IntegerFormat>(&stored.format);
+        const auto* to = std::get_if<value::IntegerFormat>(&format);
+        if (from != nullptr && to != nullptr) {
+            value::Value original = value::decodeInteger(bytes, *from);
+            attach(original, stored.term, site);
+            result = convertInteger(original, *from, *to, site);
+            return;
+        }
+    }
+    // A part of a value with a term, bytes whose dependency on the inputs no term records, or type punning.
+    result.setTerm(terms_.opaque());
+}
+
 // A bit-field with uninitialized storage: the uninitialized bytes of its storage are inputs, as the bytes of any
-// uninitialized object, and the field is read from them.
+// uninitialized object, and the field is read from them. A field has no term kind: its value is opaque if its storage
+// depends on inputs.
 value::Value Execution::loadBitField(const LValue& object, const TypeInfo& type, const ast::Expr* site) {
     std::array<std::byte, 16> storage{};
     const std::span<std::byte> bytes(storage.data(), storageBytes(object));
@@ -267,17 +323,24 @@ value::Value Execution::loadBitField(const LValue& object, const TypeInfo& type,
     if (!read) {
         memoryError(read.error(), false, site);
     }
+    bool dependsOnInputs = read->term.kind != RangeTerm::Kind::None;
     if (!read->isInitialized) {
         const ast::QualType byte = context_.builtin(ast::BuiltinKind::UnsignedChar);
         for (std::size_t i = 0; i < bytes.size(); ++i) {
             if (!memory_.isInitialized(object.address + i, 1)) {
                 const value::Value input = requestInput(InputRequest::Kind::UninitializedRead, site, byte, nullptr);
                 bytes[i] = static_cast<std::byte>(input.bits() & 0xFF);
+                dependsOnInputs = dependsOnInputs || input.term().has_value();
             }
         }
         writeBytes(object.address, bytes, site);
+        if (dependsOnInputs) {
+            markOpaque(object.address, bytes.size());
+        }
     }
-    return value::readBitField(bytes, object.bitOffset, object.bitWidth, type.integer);
+    value::Value result = value::readBitField(bytes, object.bitOffset, object.bitWidth, type.integer);
+    result.setTerm(opaqueIf(dependsOnInputs));
+    return result;
 }
 
 value::Value Execution::store(const LValue& object, ast::QualType type, const value::Value& stored,
@@ -290,23 +353,35 @@ value::Value Execution::store(const LValue& object, ast::QualType type, const va
         if (const auto read = memory_.read(object.address, bytes); !read) {
             memoryError(read.error(), true, where);
         }
+        // The storage holds the other fields too: it stays opaque if they depend on inputs.
+        const bool isStorageDerived =
+            stored.term() || memory_.term(object.address, bytes.size()).kind != RangeTerm::Kind::None;
         value::writeBitField(bytes, object.bitOffset, object.bitWidth, stored);
         writeBytes(object.address, bytes, where);
-        return value::readBitField(bytes, object.bitOffset, object.bitWidth, info.integer);
+        if (isStorageDerived) {
+            markOpaque(object.address, bytes.size());
+        }
+        value::Value result = value::readBitField(bytes, object.bitOffset, object.bitWidth, info.integer);
+        if (stored.term()) {
+            result.setTerm(terms_.opaque());
+        }
+        return result;
     }
     if (info.isScalar()) {
         std::array<std::byte, 16> buffer{};
         const std::span<std::byte> bytes(buffer.data(), info.size);
         encode(stored, info, bytes);
-        writeBytes(object.address, bytes, where);
-        if (const std::optional<value::InputId> origin = stored.origin()) {
-            memory_.setOrigin(object.address, info.size, *origin);
+        if (stored.term()) {
+            const StoredTerm term{.term = *stored.term(), .format = info.scalarFormat()};
+            writeBytes(object.address, bytes, where, &term);
+        } else {
+            writeBytes(object.address, bytes, where);
         }
         return stored;
     }
     if (info.isBytes()) {
         const std::span<const std::byte> bytes = stored.asBytes();
-        writeBytes(object.address, bytes.first(std::min<std::size_t>(bytes.size(), info.size)), where);
+        writeRecord(object.address, bytes.first(std::min<std::size_t>(bytes.size(), info.size)), stored.term(), where);
         return stored;
     }
     stop(Termination::Unsupported, "a write of an object that is not a scalar or a record", locationOf(where));
@@ -314,6 +389,20 @@ value::Value Execution::store(const LValue& object, ast::QualType type, const va
 
 void Execution::storeRecord(Address destination, std::uint64_t size, const ast::Expr* source) {
     copyObject(destination, recordObject(source), size, source);
+}
+
+value::Value Execution::loadRecord(Address address, std::uint64_t size, const ast::Expr* where) {
+    value::Value record = value::Value::ofBytes(readBytes(address, size, where));
+    record.setTerm(opaqueIf(memory_.term(address, size).kind != RangeTerm::Kind::None));
+    return record;
+}
+
+void Execution::writeRecord(Address address, std::span<const std::byte> bytes, std::optional<value::TermId> term,
+                            const ast::Expr* where) {
+    writeBytes(address, bytes, where);
+    if (term) {
+        markOpaque(address, bytes.size());
+    }
 }
 
 std::vector<std::byte> Execution::readBytes(Address address, std::uint64_t size, const ast::Expr* where) {
@@ -333,24 +422,26 @@ std::vector<std::byte> Execution::readBytes(Address address, std::uint64_t size,
     return bytes;
 }
 
-void Execution::writeBytes(Address address, std::span<const std::byte> bytes, const ast::Expr* where) {
-    if (const auto written = memory_.write(address, bytes); !written) {
+void Execution::writeBytes(Address address, std::span<const std::byte> bytes, const ast::Expr* where,
+                           const StoredTerm* term) {
+    const auto written = term != nullptr ? memory_.write(address, bytes, *term) : memory_.write(address, bytes);
+    if (!written) {
         memoryError(written.error(), true, where);
     }
 }
 
-std::uint64_t Execution::sizeOf(ast::QualType type, const ast::Expr* where) {
+std::uint64_t Execution::sizeOf(ast::QualType type, const ast::Expr* where, bool* dependsOnInputs) {
     const TypeInfo info = types_.describe(type);
     if (!info.isVariableArray) {
         return info.size;
     }
     const ast::ArrayType* array = TypeTable::array(type);
-    return arraySize(array) * sizeOf(array->element(), where);
+    return arraySize(array, dependsOnInputs) * sizeOf(array->element(), where, dependsOnInputs);
 }
 
 // C17 6.7.6.2p5: the size of a variable length array type is fixed when its declaration is reached; a type written
 // elsewhere, as in sizeof(int[n]), is evaluated where it is used.
-std::uint64_t Execution::arraySize(const ast::ArrayType* array) {
+std::uint64_t Execution::arraySize(const ast::ArrayType* array, bool* dependsOnInputs) {
     switch (array->sizeKind()) {
     case ast::ArrayType::SizeKind::Constant:
         return array->size();
@@ -361,12 +452,19 @@ std::uint64_t Execution::arraySize(const ast::ArrayType* array) {
     }
     if (frame_ != nullptr) {
         for (auto known = frame_->arraySizes.rbegin(); known != frame_->arraySizes.rend(); ++known) {
-            if (known->first == array) {
-                return known->second;
+            if (known->array == array) {
+                if (dependsOnInputs != nullptr && known->dependsOnInputs) {
+                    *dependsOnInputs = true;
+                }
+                return known->count;
             }
         }
     }
-    return static_cast<std::uint64_t>(rvalue(array->sizeExpression()).bits());
+    const value::Value count = rvalue(array->sizeExpression());
+    if (dependsOnInputs != nullptr && count.term()) {
+        *dependsOnInputs = true;
+    }
+    return static_cast<std::uint64_t>(count.bits());
 }
 
 } // namespace nitwit::interp

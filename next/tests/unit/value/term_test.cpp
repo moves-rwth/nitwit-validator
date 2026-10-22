@@ -119,8 +119,8 @@ const char* describe(NoValue reason) {
     if (actual->kind() != expected.value.kind() || representation(*actual) != representation(expected.value)) {
         return ::testing::AssertionFailure() << describe(*actual) << " instead of " << describe(expected.value);
     }
-    if (actual->term() || actual->origin()) {
-        return ::testing::AssertionFailure() << "the value has a term or an origin";
+    if (actual->term()) {
+        return ::testing::AssertionFailure() << "the value has a term";
     }
     return ::testing::AssertionSuccess();
 }
@@ -222,9 +222,7 @@ TEST(TermTableTest, InputTermRecordsTheInput) {
 
 TEST(TermTableTest, InputEvaluatesToTheRunValueOrTheSubstitutedOne) {
     TermTable table(lp64);
-    Value runValue = Value::ofDouble(2.5);
-    runValue.setOrigin(firstInput);
-    const Value x = registered(table, firstInput, runValue, FloatFormat::Double);
+    const Value x = registered(table, firstInput, Value::ofDouble(2.5), FloatFormat::Double);
     EXPECT_TRUE(evaluatesTo(table.evaluate(*x.term(), {}), Value::ofDouble(2.5)));
     EXPECT_TRUE(
         evaluatesTo(table.evaluate(*x.term(), replacing(firstInput, Value::ofDouble(-1.0))), Value::ofDouble(-1.0)));
@@ -254,8 +252,7 @@ TEST(TermTableTest, InputsNotSubstitutedKeepTheirRunValue) {
 TEST(TermTableTest, OperandWithoutTermBecomesAConstant) {
     TermTable table(lp64);
     const Value x = registered(table, firstInput, integer(10, s32), s32);
-    Value five = integer(5, s32);
-    five.setOrigin(secondInput); // an origin without a term: the constant does not keep it
+    const Value five = integer(5, s32);
     const std::optional<TermId> sum = table.integerBinary(IntegerOperator::Add, five, x, s32);
     ASSERT_TRUE(sum.has_value());
     const Term& term = table.term(*sum);
@@ -265,7 +262,7 @@ TEST(TermTableTest, OperandWithoutTermBecomesAConstant) {
     EXPECT_EQ(constant.kind, TermKind::Constant);
     EXPECT_EQ(constant.depth, 0u);
     EXPECT_EQ(table.constantOf(constant).bits(), 5u);
-    EXPECT_FALSE(table.constantOf(constant).origin().has_value());
+    EXPECT_FALSE(table.constantOf(constant).term().has_value());
     EXPECT_TRUE(evaluatesTo(table.evaluate(term.operands[0], replacing(firstInput, integer(1, s32))), integer(5, s32)));
 }
 
@@ -1190,6 +1187,48 @@ TEST(TermTableTest, InputsAreSortedAndUnique) {
     EXPECT_EQ(table.inputs(*product), (std::vector{firstInput, secondInput, thirdInput}));
     EXPECT_EQ(table.inputs(*right.term()), (std::vector{firstInput, secondInput}));
     EXPECT_EQ(table.inputs(*z.term()), std::vector{thirdInput});
+}
+
+TEST(TermTableTest, SubtermsListEveryTermOnceWithOperandsFirst) {
+    TermTable table(lp64);
+    const Value x = registered(table, firstInput, integer(1, s32), s32);
+    const Value y = registered(table, secondInput, integer(2, s32), s32);
+    const Value sum = withTerm(table.integerBinary(IntegerOperator::Add, x, y, s32));
+    const Value twice = withTerm(table.integerBinary(IntegerOperator::Mul, sum, sum, s32));
+    const std::vector<TermId> subterms = table.subterms(*twice.term());
+    EXPECT_EQ(subterms, (std::vector{*x.term(), *y.term(), *sum.term(), *twice.term()}));
+    EXPECT_EQ(table.subterms(*y.term()), std::vector{*y.term()});
+    // A constant operand is a subterm too.
+    const Value next = withTerm(table.integerBinary(IntegerOperator::Add, x, integer(7, s32), s32));
+    const std::vector<TermId> withConstant = table.subterms(*next.term());
+    ASSERT_EQ(withConstant.size(), 3u);
+    EXPECT_EQ(table.term(withConstant[1]).kind, TermKind::Constant);
+}
+
+TEST(TermTableTest, ResultFormatsAreThoseOfTheOperationsValue) {
+    TermTable table(lp64);
+    const Value i = registered(table, firstInput, integer(1, s16), s16);
+    const Value f = registered(table, secondInput, Value::ofFloat(1.0F), FloatFormat::Float);
+    const std::array<std::pair<std::optional<TermId>, ScalarFormat>, 14> expected{{
+        {i.term(), s16},
+        {table.integerBinary(IntegerOperator::Xor, i, integer(3, s16), s16), s16},
+        {table.shift(ShiftOperator::Right, i, s16, integer(2, u8), u8), s16},
+        {table.integerNegate(i, s16), s16},
+        {table.integerCompare(Comparison::Less, i, i, s16), s32},
+        {table.floatBinary(FloatOperator::Div, f, f, FloatFormat::Float), FloatFormat::Float},
+        {table.floatCompare(Comparison::Less, f, f, FloatFormat::Float), s32},
+        {table.convertInteger(i, s16, u64), u64},
+        {table.toBool(f, FloatFormat::Float), u8},
+        {table.integerToFloat(i, s16, FloatFormat::LongDouble), FloatFormat::LongDouble},
+        {table.floatToInteger(f, FloatFormat::Float, s8), s8},
+        {table.logicalNot(f, FloatFormat::Float), s32},
+        {table.logicalAnd(i, s16, &f, FloatFormat::Float), s32},
+        {table.conditional(i, s16, f, FloatFormat::Float), FloatFormat::Float},
+    }};
+    for (const auto& [term, format] : expected) {
+        ASSERT_TRUE(term.has_value());
+        EXPECT_EQ(table.resultFormat(*term), format) << std::to_underlying(table.term(*term).kind);
+    }
 }
 
 TEST(TermTableTest, OriginFollowsConversionsOnly) {

@@ -175,6 +175,101 @@ int main(void) {
     EXPECT_EQ(ending(4).verdict, Verdict::TargetWithoutError);
 }
 
+// ---- The search (validate/README.md, "Search") ----
+
+TEST_F(EndToEndTest, ABranchingOnAnInputGetsItsOutcome) {
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int tmp = __VERIFIER_nondet_int();
+    if (tmp) reach_error();
+    return 0;
+}
+)");
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 5, 5, "true")}, {target(5, 14)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+}
+
+TEST_F(EndToEndTest, AConstraintOnAComputedValueIsSolvedThroughTheComputation) {
+    // As validation-crafted/while.3A1: `a == 10` after `a = a - n`.
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    int n = 3;
+    a = a - n;
+    if (a == 10) reach_error();
+    return 0;
+}
+)");
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Assumption, 7, 5, "a == 10")},
+                                                       {follow(WaypointType::Branching, 7, 5, "true")},
+                                                       {target(7, 18)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("to 13 (inversion)")) << log();
+}
+
+TEST_F(EndToEndTest, ALoopCounterBoundedByAnInput) {
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    int i = 0;
+    while (i <= a) {
+        i++;
+    }
+    reach_error();
+    return 0;
+}
+)");
+    options_.defaultInput = 100;
+    std::vector<std::vector<witness::Waypoint>> segments(33, {follow(WaypointType::Branching, 6, 5, "true")});
+    segments.push_back({follow(WaypointType::Branching, 6, 5, "false")});
+    segments.push_back({target(9, 5)});
+    const ValidationResult result = validate(sequence(std::move(segments)));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+}
+
+TEST_F(EndToEndTest, TheInputCheckOfRersAndThenTheInput) {
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int input = __VERIFIER_nondet_int();
+    if ((input != 1) && (input != 2) && (input != 3)) return -2;
+    if (input == 3) reach_error();
+    return 0;
+}
+)");
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Branching, 5, 5, "false")},
+                                                       {follow(WaypointType::Branching, 6, 5, "true")},
+                                                       {target(6, 21)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 3u);
+}
+
+TEST_F(EndToEndTest, TheResultOfADefinedFunctionIsSolvedThroughItsBody) {
+    // 2 * x + 1 == 7 is inverted through the factor 2, which divides 6.
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int twice(int x) { return 2 * x + 1; }
+int main(void) {
+    int y = twice(__VERIFIER_nondet_int());
+    if (y == 7) reach_error();
+    return 0;
+}
+)");
+    const ValidationResult result = validate(sequence({{follow(WaypointType::FunctionReturn, 5, 42, "\\result == 7")},
+                                                       {follow(WaypointType::Branching, 6, 5, "true")},
+                                                       {target(6, 17)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("to 3 (inversion)")) << log();
+}
+
 // ---- Invalid witnesses that an earlier version confirmed ----
 
 constexpr std::string_view avoidProgram = R"(extern int __VERIFIER_nondet_int(void);
@@ -188,8 +283,33 @@ int main(void) {
 }
 )";
 
+// The witnesses of the next three tests avoid the condition of the error, so no run may confirm them. The default
+// input passes the avoid waypoint, the search changes it so that the waypoint fails, and the run ends without error.
+
+constexpr std::string_view avoidedCaseProgram = R"(extern int __VERIFIER_nondet_int(void);
+extern void reach_error(void);
+int main(void) {
+  int x = __VERIFIER_nondet_int();
+  switch (x) {
+  case 0: reach_error(); break;
+  default: break;
+  }
+  return 0;
+}
+)";
+
+constexpr std::string_view narrowingProgram = R"(extern int __VERIFIER_nondet_int(void);
+extern void reach_error(void);
+int main(void) {
+  int x = __VERIFIER_nondet_int();
+  unsigned char c = x;
+  if (c == 0) reach_error();
+  return 0;
+}
+)";
+
 TEST_F(EndToEndTest, AnAvoidWaypointOnTheDefaultOfAnInputIsEvaluatedOnIt) {
-    // The error needs x == 0, which the witness avoids: the default 0 passes the avoid waypoint, and x is fixed to 1.
+    // The error needs x == 0, which the default 0 gives and the witness avoids.
     build(std::string(avoidProgram));
     for (const auto& [line, column] : {std::pair{5u, 3u}, std::pair{6u, 5u}}) {
         const ValidationResult result =
@@ -200,32 +320,14 @@ TEST_F(EndToEndTest, AnAvoidWaypointOnTheDefaultOfAnInputIsEvaluatedOnIt) {
 }
 
 TEST_F(EndToEndTest, AnAvoidedCaseOfTheDefaultOfAnInputIsEvaluatedOnIt) {
-    build(R"(extern int __VERIFIER_nondet_int(void);
-extern void reach_error(void);
-int main(void) {
-  int x = __VERIFIER_nondet_int();
-  switch (x) {
-  case 0: reach_error(); break;
-  default: break;
-  }
-  return 0;
-}
-)");
+    build(std::string(avoidedCaseProgram));
     const ValidationResult result = validate(sequence({{avoid(WaypointType::Branching, 5, 3, "0"), target(6, 11)}}));
     EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
     EXPECT_EQ(result.runs, 2u);
 }
 
-TEST_F(EndToEndTest, AnAvoidWaypointFixesAnInputThroughANarrowingConversion) {
-    build(R"(extern int __VERIFIER_nondet_int(void);
-extern void reach_error(void);
-int main(void) {
-  int x = __VERIFIER_nondet_int();
-  unsigned char c = x;
-  if (c == 0) reach_error();
-  return 0;
-}
-)");
+TEST_F(EndToEndTest, AnAvoidWaypointChangesAnInputThroughANarrowingConversion) {
+    build(std::string(narrowingProgram));
     const ValidationResult result =
         validate(sequence({{avoid(WaypointType::Assumption, 6, 3, "c == 0"), target(6, 15)}}));
     EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();

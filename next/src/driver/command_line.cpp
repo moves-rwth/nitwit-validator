@@ -38,6 +38,10 @@ std::expected<CommandLine, int> parseCommandLine(std::span<const std::string_vie
             isRight = takeValue(i, replay.inputs);
         } else if (argument == "--input-log") {
             isRight = takeValue(i, replay.inputLog);
+        } else if (argument == "--terms" || argument == "--check-terms") {
+            // Hidden options for testing the terms of the interpreter.
+            isRight = replay.terms == ReplayOptions::Terms::None;
+            replay.terms = argument == "--terms" ? ReplayOptions::Terms::Record : ReplayOptions::Terms::Check;
         } else if (argument == "-w" || argument == "--witness") {
             isValidation = true;
             isRight = takeValue(i, validation.witness);
@@ -67,8 +71,9 @@ std::expected<CommandLine, int> parseCommandLine(std::span<const std::string_vie
         return commandLine;
     }
     const bool hasBothSources = !validation.propertyFile.empty() && !validation.errorFunction.empty();
-    const bool hasLogWithoutReplay = !replay.inputLog.empty() && !isReplay;
-    if (program.empty() || (isReplay && isValidation) || hasBothSources || hasLogWithoutReplay) {
+    const bool hasReplayOptionsOnly =
+        (!replay.inputLog.empty() || replay.terms != ReplayOptions::Terms::None) && !isReplay;
+    if (program.empty() || (isReplay && isValidation) || hasBothSources || hasReplayOptionsOnly) {
         return std::unexpected(exitUsage);
     }
     if (isReplay) {

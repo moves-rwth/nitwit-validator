@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <unistd.h>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -14,9 +15,33 @@
 namespace nitwit::interp {
 namespace {
 
-using value::InputId;
-
 constexpr std::array allRegions{Region::Code, Region::ReadOnly, Region::Global, Region::Stack, Region::Heap};
+
+constexpr value::IntegerFormat s32{.bits = 32, .isSigned = true};
+
+/// The term `id` of a value written in `format`.
+StoredTerm stored(std::uint32_t id, value::ScalarFormat format = s32) {
+    return {.term = value::TermId{id}, .format = format};
+}
+
+/// Writes `size` bytes of the value 1 with the term `id`.
+void writeWithTerm(Memory& memory, Address address, std::uint64_t size, std::uint32_t id) {
+    ASSERT_TRUE(memory.write(address, std::vector<std::byte>(size, std::byte{1}), stored(id)).has_value());
+}
+
+/// The term memory knows for a range: the term's id, "opaque", or "-" for none.
+std::string termOf(const Memory& memory, Address address, std::uint64_t size) {
+    const RangeTerm term = memory.term(address, size);
+    switch (term.kind) {
+    case RangeTerm::Kind::None:
+        return "-";
+    case RangeTerm::Kind::Stored:
+        return std::to_string(std::to_underlying(term.stored.term));
+    case RangeTerm::Kind::Opaque:
+        return "opaque";
+    }
+    return "?";
+}
 
 Address allocate(Memory& memory, Region region, std::uint64_t size, std::uint64_t align = 8) {
     return memory.allocate(region, size, align, "object").value();
@@ -401,14 +426,16 @@ TEST_P(MemoryTest, InitializationIsTrackedPerByte) {
 
 TEST_P(MemoryTest, MarkUninitializedMakesBytesUninitializedAgain) {
     const Address stack = allocate(memory, Region::Stack, 8);
-    ASSERT_TRUE(memory.write(stack, bytes({1, 2, 3, 4, 5, 6, 7, 8})).has_value());
-    memory.setOrigin(stack + 4, 4, InputId{3});
+    ASSERT_TRUE(memory.write(stack, bytes({1, 2, 3, 4})).has_value());
+    writeWithTerm(memory, stack + 4, 4, 3);
     ASSERT_TRUE(memory.markUninitialized(stack + 2, 4).has_value());
     EXPECT_TRUE(memory.isInitialized(stack, 2));
     EXPECT_FALSE(memory.isInitialized(stack + 2, 1));
     EXPECT_FALSE(memory.isInitialized(stack + 5, 1));
     EXPECT_TRUE(memory.isInitialized(stack + 6, 2));
-    EXPECT_FALSE(memory.origin(stack + 4, 4).has_value());
+    // The uninitialized bytes have no term; the rest of the value is opaque.
+    EXPECT_EQ(termOf(memory, stack + 2, 4), "-");
+    EXPECT_EQ(termOf(memory, stack + 6, 2), "opaque");
     // Allocations whose bytes all counted as initialized get a bitmap.
     const Address global = allocate(memory, Region::Global, 4);
     ASSERT_TRUE(memory.markUninitialized(global + 1, 1).has_value());
@@ -424,20 +451,21 @@ TEST_P(MemoryTest, MarkUninitializedNeedsAWritableRange) {
     EXPECT_EQ(errorOf(memory.markUninitialized(stack, 5)), MemoryErrorKind::OutOfBounds);
 }
 
-TEST_P(MemoryTest, ReadScalarReportsInitializationAndOrigin) {
+TEST_P(MemoryTest, ReadScalarReportsInitializationAndTerm) {
     const Address base = allocate(memory, Region::Heap, 8);
-    ASSERT_TRUE(memory.write(base, bytes({1, 2, 3, 4})).has_value());
-    memory.setOrigin(base, 4, InputId{9});
+    ASSERT_TRUE(memory.write(base, bytes({1, 2, 3, 4}), stored(9, value::FloatFormat::Float)).has_value());
     std::array<std::byte, 4> out{};
     const auto whole = memory.readScalar(base, out);
     ASSERT_TRUE(whole.has_value());
     EXPECT_TRUE(whole->isInitialized);
-    EXPECT_EQ(whole->origin, InputId{9});
+    EXPECT_EQ(whole->term.kind, RangeTerm::Kind::Stored);
+    EXPECT_EQ(whole->term.stored.term, value::TermId{9});
+    EXPECT_EQ(whole->term.stored.format, value::ScalarFormat{value::FloatFormat::Float});
     EXPECT_EQ(out[3], std::byte{4});
     const auto part = memory.readScalar(base + 2, out);
     ASSERT_TRUE(part.has_value());
     EXPECT_FALSE(part->isInitialized);
-    EXPECT_FALSE(part->origin.has_value());
+    EXPECT_EQ(part->term.kind, RangeTerm::Kind::Opaque);
     EXPECT_EQ(errorOf(memory.readScalar(base + 6, out)), MemoryErrorKind::OutOfBounds);
 }
 
@@ -524,8 +552,8 @@ TEST_P(MemoryTest, FailedCopyWritesNothing) {
     const Address destination = allocate(memory, Region::Heap, 8);
     ASSERT_TRUE(memory.fill(source, std::byte{1}, 8).has_value());
     ASSERT_TRUE(memory.fill(destination, std::byte{2}, 8).has_value());
-    memory.setOrigin(source, 4, InputId{1});
-    memory.setOrigin(destination, 4, InputId{2});
+    ASSERT_TRUE(memory.write(source, bytes({1, 1, 1, 1}), stored(1)).has_value());
+    ASSERT_TRUE(memory.write(destination, bytes({2, 2, 2, 2}), stored(2)).has_value());
     const auto expectFailure = [&](Address to, Address from, std::uint64_t size, MemoryErrorKind kind,
                                    Address reported) {
         const auto result = memory.copy(to, from, size);
@@ -533,7 +561,7 @@ TEST_P(MemoryTest, FailedCopyWritesNothing) {
         EXPECT_EQ(result.error().kind, kind);
         EXPECT_EQ(result.error().address, reported);
         EXPECT_EQ(readBytes(memory, destination, 8), bytes({2, 2, 2, 2, 2, 2, 2, 2}));
-        EXPECT_EQ(memory.origin(destination, 4), InputId{2});
+        EXPECT_EQ(termOf(memory, destination, 4), "2");
     };
     expectFailure(destination, source + 4, 8, MemoryErrorKind::OutOfBounds, source + 4);      // source too short
     expectFailure(destination + 4, source, 8, MemoryErrorKind::OutOfBounds, destination + 4); // destination too short
@@ -541,7 +569,7 @@ TEST_P(MemoryTest, FailedCopyWritesNothing) {
     ASSERT_TRUE(memory.free(freed).has_value());
     expectFailure(destination, freed, 8, MemoryErrorKind::DeadObject, freed);
     expectFailure(freed, source, 8, MemoryErrorKind::DeadObject, freed);
-    EXPECT_EQ(memory.origin(source, 4), InputId{1});
+    EXPECT_EQ(termOf(memory, source, 4), "1");
 }
 
 TEST_P(MemoryTest, OverlappingCopyIsAMemmove) {
@@ -580,79 +608,149 @@ TEST(MemoryDeathTest, InitializeNeedsAReadOnlyAllocation) {
     EXPECT_DEATH(memory.initialize(base, bytes({1})), "ReadOnly allocation");
 }
 
-// ---- Origins ----
+// ---- Terms ----
 
-TEST_P(MemoryTest, OriginIsReadBackForExactlyItsRange) {
+TEST_P(MemoryTest, TermIsReadBackForExactlyItsRange) {
     const Address base = allocate(memory, Region::Stack, 16);
+    writeWithTerm(memory, base, 4, 7);
+    EXPECT_EQ(termOf(memory, base, 4), "7");
+    // Parts of the range, and ranges that contain more, depend on the input in a way no term records.
+    EXPECT_EQ(termOf(memory, base, 2), "opaque");
+    EXPECT_EQ(termOf(memory, base + 1, 3), "opaque");
+    EXPECT_EQ(termOf(memory, base + 2, 4), "opaque");
+    EXPECT_EQ(termOf(memory, base, 8), "opaque");
+    EXPECT_EQ(termOf(memory, base + 4, 4), "-");
+}
+
+TEST_P(MemoryTest, WriteWithoutTermRemovesTheTermsOfItsBytes) {
+    const Address base = allocate(memory, Region::Global, 8);
+    writeWithTerm(memory, base, 4, 1);
     ASSERT_TRUE(memory.write(base, bytes({1, 2, 3, 4})).has_value());
-    memory.setOrigin(base, 4, InputId{7});
-    EXPECT_EQ(memory.origin(base, 4), InputId{7});
-    EXPECT_FALSE(memory.origin(base, 2).has_value());
-    EXPECT_FALSE(memory.origin(base + 1, 3).has_value());
-    EXPECT_FALSE(memory.origin(base + 4, 4).has_value());
+    EXPECT_EQ(termOf(memory, base, 4), "-");
+    writeWithTerm(memory, base + 4, 4, 2);
+    ASSERT_TRUE(memory.fill(base, std::byte{0}, 8).has_value());
+    EXPECT_EQ(termOf(memory, base, 8), "-");
 }
 
-TEST_P(MemoryTest, PartialOverwriteDropsTheOrigin) {
+TEST_P(MemoryTest, PartialOverwriteLeavesTheRestOpaque) {
     const Address base = allocate(memory, Region::Heap, 16);
-    memory.setOrigin(base, 4, InputId{1});
-    memory.setOrigin(base + 4, 4, InputId{2});
-    memory.setOrigin(base + 8, 4, InputId{3});
+    writeWithTerm(memory, base, 4, 1);
+    writeWithTerm(memory, base + 4, 4, 2);
+    writeWithTerm(memory, base + 8, 4, 3);
     ASSERT_TRUE(memory.write(base + 7, bytes({0, 0})).has_value()); // last byte of 2 and first byte of 3
-    EXPECT_EQ(memory.origin(base, 4), InputId{1});
-    EXPECT_FALSE(memory.origin(base + 4, 4).has_value());
-    EXPECT_FALSE(memory.origin(base + 8, 4).has_value());
-    ASSERT_TRUE(memory.fill(base + 3, std::byte{0}, 1).has_value());
-    EXPECT_FALSE(memory.origin(base, 4).has_value());
+    EXPECT_EQ(termOf(memory, base, 4), "1");
+    EXPECT_EQ(termOf(memory, base + 4, 3), "opaque");
+    EXPECT_EQ(termOf(memory, base + 4, 4), "opaque");
+    EXPECT_EQ(termOf(memory, base + 7, 2), "-");
+    EXPECT_EQ(termOf(memory, base + 9, 3), "opaque");
+    ASSERT_TRUE(memory.fill(base + 1, std::byte{0}, 2).has_value()); // the middle of 1
+    EXPECT_EQ(termOf(memory, base, 1), "opaque");
+    EXPECT_EQ(termOf(memory, base + 1, 2), "-");
+    EXPECT_EQ(termOf(memory, base + 3, 1), "opaque");
 }
 
-TEST_P(MemoryTest, SetOriginReplacesOverlappingOrigins) {
+TEST_P(MemoryTest, WriteWithTermReplacesOverlappingTerms) {
     const Address base = allocate(memory, Region::Global, 16);
-    memory.setOrigin(base, 8, InputId{1});
-    memory.setOrigin(base + 4, 4, InputId{2});
-    EXPECT_FALSE(memory.origin(base, 8).has_value());
-    EXPECT_EQ(memory.origin(base + 4, 4), InputId{2});
+    writeWithTerm(memory, base, 8, 1);
+    writeWithTerm(memory, base + 4, 4, 2);
+    EXPECT_EQ(termOf(memory, base, 8), "opaque");
+    EXPECT_EQ(termOf(memory, base, 4), "opaque");
+    EXPECT_EQ(termOf(memory, base + 4, 4), "2");
+    writeWithTerm(memory, base, 8, 3);
+    EXPECT_EQ(termOf(memory, base, 8), "3");
 }
 
-TEST_P(MemoryTest, CopyCarriesOriginsInsideTheRange) {
+TEST_P(MemoryTest, MarkOpaqueCoversItsRangeAndTheRestOfOverlappingTerms) {
+    const Address base = allocate(memory, Region::Heap, 16);
+    writeWithTerm(memory, base, 4, 1);
+    memory.markOpaque(base + 2, 4);
+    EXPECT_EQ(termOf(memory, base, 2), "opaque");
+    EXPECT_EQ(termOf(memory, base + 4, 2), "opaque");
+    EXPECT_EQ(termOf(memory, base + 6, 2), "-");
+}
+
+TEST_P(MemoryTest, CopyCarriesTermsAndMakesPartsOpaque) {
     const Address source = allocate(memory, Region::Heap, 16);
     const Address destination = allocate(memory, Region::Heap, 16);
-    memory.setOrigin(source, 4, InputId{1});
-    memory.setOrigin(source + 4, 8, InputId{2});
-    memory.setOrigin(source + 12, 4, InputId{3});
-    memory.setOrigin(destination, 4, InputId{9});
-    ASSERT_TRUE(memory.copy(destination, source + 2, 12).has_value()); // source bytes 2..13
-    EXPECT_FALSE(memory.origin(destination, 4).has_value());           // overwritten
-    EXPECT_EQ(memory.origin(destination + 2, 8), InputId{2});          // entirely inside
-    EXPECT_FALSE(memory.origin(destination + 10, 4).has_value());      // only partly inside
-    // The source keeps its origins.
-    EXPECT_EQ(memory.origin(source, 4), InputId{1});
-    EXPECT_EQ(memory.origin(source + 4, 8), InputId{2});
+    writeWithTerm(memory, source, 4, 1);
+    writeWithTerm(memory, source + 4, 8, 2);
+    writeWithTerm(memory, source + 12, 4, 3);
+    writeWithTerm(memory, destination, 4, 9);
+    writeWithTerm(memory, destination + 12, 2, 8);
+    ASSERT_TRUE(memory.copy(destination, source + 2, 13).has_value()); // source bytes 2..14
+    EXPECT_EQ(termOf(memory, destination, 2), "opaque");               // part of 1
+    EXPECT_EQ(termOf(memory, destination + 2, 8), "2");                // entirely inside
+    EXPECT_EQ(termOf(memory, destination + 10, 3), "opaque");          // part of 3
+    EXPECT_EQ(termOf(memory, destination + 13, 1), "opaque");          // the rest of 8
+    EXPECT_EQ(termOf(memory, destination + 14, 2), "-");
+    // The source keeps its terms.
+    EXPECT_EQ(termOf(memory, source, 4), "1");
+    EXPECT_EQ(termOf(memory, source + 4, 8), "2");
+    EXPECT_EQ(termOf(memory, source + 12, 4), "3");
 }
 
-TEST_P(MemoryTest, OverlappingCopyMovesOrigins) {
+TEST_P(MemoryTest, CopyKeepsTheFormatOfTerms) {
+    const Address block = allocate(memory, Region::Heap, 16);
+    ASSERT_TRUE(memory.write(block, std::vector<std::byte>(8), stored(4, value::FloatFormat::Double)).has_value());
+    ASSERT_TRUE(memory.copy(block + 8, block, 8).has_value());
+    const RangeTerm copied = memory.term(block + 8, 8);
+    EXPECT_EQ(copied.kind, RangeTerm::Kind::Stored);
+    EXPECT_EQ(copied.stored.format, value::ScalarFormat{value::FloatFormat::Double});
+}
+
+TEST_P(MemoryTest, OverlappingCopyMovesTerms) {
     const Address block = allocate(memory, Region::Heap, 32);
-    memory.setOrigin(block, 4, InputId{1});
-    memory.setOrigin(block + 4, 4, InputId{2});
+    writeWithTerm(memory, block, 4, 1);
+    writeWithTerm(memory, block + 4, 4, 2);
     ASSERT_TRUE(memory.copy(block + 4, block, 8).has_value()); // memmove(block + 4, block, 8)
-    EXPECT_EQ(memory.origin(block, 4), InputId{1});
-    EXPECT_EQ(memory.origin(block + 4, 4), InputId{1});
-    EXPECT_EQ(memory.origin(block + 8, 4), InputId{2});
+    EXPECT_EQ(termOf(memory, block, 4), "1");
+    EXPECT_EQ(termOf(memory, block + 4, 4), "1");
+    EXPECT_EQ(termOf(memory, block + 8, 4), "2");
     ASSERT_TRUE(memory.copy(block, block + 4, 8).has_value()); // and back
-    EXPECT_EQ(memory.origin(block, 4), InputId{1});
-    EXPECT_EQ(memory.origin(block + 4, 4), InputId{2});
-    EXPECT_EQ(memory.origin(block + 8, 4), InputId{2});
+    EXPECT_EQ(termOf(memory, block, 4), "1");
+    EXPECT_EQ(termOf(memory, block + 4, 4), "2");
+    EXPECT_EQ(termOf(memory, block + 8, 4), "2");
 }
 
-TEST_P(MemoryTest, EndOfLifetimeDropsOrigins) {
+TEST_P(MemoryTest, EndOfLifetimeDropsTerms) {
     const Address block = allocate(memory, Region::Heap, 8);
-    memory.setOrigin(block, 8, InputId{4});
+    writeWithTerm(memory, block, 8, 4);
     ASSERT_TRUE(memory.free(block).has_value());
-    EXPECT_FALSE(memory.origin(block, 8).has_value());
+    EXPECT_EQ(termOf(memory, block, 8), "-");
     const Address local = allocate(memory, Region::Stack, 8);
-    memory.setOrigin(local, 8, InputId{5});
+    writeWithTerm(memory, local, 4, 5);
+    memory.markOpaque(local + 4, 4);
     memory.popStack(local);
     EXPECT_EQ(allocate(memory, Region::Stack, 8), local);
-    EXPECT_FALSE(memory.origin(local, 8).has_value());
+    EXPECT_EQ(termOf(memory, local, 8), "-");
+}
+
+TEST_P(MemoryTest, RawAccessesRecordReadsOfBytesWithTermsAndWritesWithoutTerms) {
+    const Address block = allocate(memory, Region::Heap, 32);
+    ASSERT_TRUE(memory.fill(block, std::byte{0}, 32).has_value());
+    writeWithTerm(memory, block + 8, 4, 1);
+    std::array<std::byte, 4> out{};
+    memory.beginRawAccesses();
+    ASSERT_TRUE(memory.read(block, out).has_value());
+    ASSERT_TRUE(memory.readScalar(block + 8, out).has_value());     // reports the term itself
+    ASSERT_TRUE(memory.copy(block + 16, block + 8, 4).has_value()); // copies the term itself
+    ASSERT_TRUE(memory.write(block + 20, bytes({1, 2}), stored(2)).has_value());
+    ASSERT_TRUE(memory.write(block + 24, bytes({1, 2})).has_value());
+    ASSERT_TRUE(memory.fill(block + 28, std::byte{1}, 3).has_value());
+    RawAccesses accesses = memory.endRawAccesses();
+    EXPECT_FALSE(accesses.readsInputs);
+    using Range = std::pair<Address, std::uint64_t>;
+    EXPECT_EQ(accesses.writes, (std::vector<Range>{{block + 24, 2}, {block + 28, 3}}));
+
+    memory.beginRawAccesses();
+    ASSERT_TRUE(memory.read(block + 6, out).has_value()); // the first half of the term
+    accesses = memory.endRawAccesses();
+    EXPECT_TRUE(accesses.readsInputs);
+    EXPECT_TRUE(accesses.writes.empty());
+    // Not recorded after the end.
+    ASSERT_TRUE(memory.write(block + 24, bytes({1, 2})).has_value());
+    memory.beginRawAccesses();
+    EXPECT_TRUE(memory.endRawAccesses().writes.empty());
 }
 
 // ---- Lazy commit ----

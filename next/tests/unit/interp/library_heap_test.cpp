@@ -1,3 +1,4 @@
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -9,7 +10,9 @@
 namespace nitwit::interp::test {
 namespace {
 
-using value::InputId;
+using value::TermId;
+
+constexpr value::IntegerFormat s32{.bits = 32, .isSigned = true};
 
 class HeapTest : public LibraryTest {
 protected:
@@ -76,16 +79,17 @@ TEST_P(HeapTest, InvalidFreesAreUndefined) {
     EXPECT_TRUE(isUndefined(call("free", {pointer(block)}), "freed before"));
 }
 
-TEST_P(HeapTest, ReallocMovesContentsInitializationAndOrigins) {
+TEST_P(HeapTest, ReallocMovesContentsInitializationAndTerms) {
     const Address block = malloc(8);
-    writeInteger(block, 0x11223344, ScalarType::Int);
-    memory().setOrigin(block, 4, InputId{7});
+    const std::array bytes{std::byte{0x44}, std::byte{0x33}, std::byte{0x22}, std::byte{0x11}};
+    ASSERT_TRUE(memory().write(block, bytes, StoredTerm{.term = TermId{7}, .format = s32}).has_value());
     const Address larger = callPointer("realloc", {pointer(block), size(16)});
     EXPECT_NE(larger, block);
     EXPECT_FALSE(memory().find(block)->isAlive);
     EXPECT_EQ(memory().find(larger)->size, 16u);
     EXPECT_EQ(readInteger(larger, ScalarType::Int), 0x11223344);
-    EXPECT_EQ(memory().origin(larger, 4), InputId{7});
+    EXPECT_EQ(memory().term(larger, 4).kind, RangeTerm::Kind::Stored);
+    EXPECT_EQ(memory().term(larger, 4).stored.term, TermId{7});
     EXPECT_TRUE(memory().isInitialized(larger, 4));
     EXPECT_FALSE(memory().isInitialized(larger + 4, 1)); // uninitialized in the old block
     EXPECT_FALSE(memory().isInitialized(larger + 8, 1)); // beyond the old block

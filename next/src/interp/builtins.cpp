@@ -163,7 +163,7 @@ std::optional<value::Value> Execution::builtinOnValues(const FunctionEntity& fun
     case Builtin::Overflow:
         return overflow(function, call, arguments);
     case Builtin::PassThrough:
-        // The value of the first argument; the conversion keeps its origin where it preserves the value.
+        // The value of the first argument, converted with the term of the conversion.
         if (arguments.values.empty()) {
             undefined(std::format("'{}' needs an argument", function.name.text()), call);
         }
@@ -253,11 +253,7 @@ value::Value Execution::vaArg(const ast::VaArgExpr* expr) {
         undefined("va_arg with a type that does not match the argument", expr);
     }
     if (to.isIntegral()) {
-        value::Value result = value::Value::integer(argument.bits(), to.integer);
-        if (from.integer == to.integer) {
-            result.setOrigin(argument.origin());
-        }
-        return result;
+        return convertInteger(argument, from.integer, to.integer, expr); // only the signedness may differ
     }
     return argument;
 }
@@ -314,7 +310,11 @@ value::Value Execution::allocateOnStack(const ast::CallExpr* call, const Argumen
     }
     const Address block = allocate(Region::Stack, size, alignment, "alloca", call);
     frame_->dynamic.push_back({.address = block, .isArray = false});
-    return value::Value::integer(block, types_.pointerFormat());
+    value::Value result = value::Value::integer(block, types_.pointerFormat());
+    // As for malloc, the result of a call with an argument with a term is opaque.
+    result.setTerm(opaqueIf(std::ranges::any_of(
+        arguments.values, [](const value::Value& argument) { return argument.term().has_value(); })));
+    return result;
 }
 
 // ---- Overflow builtins (GCC, "Integer Overflow Builtins") ----
@@ -347,12 +347,18 @@ value::Value Execution::overflow(const FunctionEntity& function, const ast::Call
     }
     const ast::QualType resultType = isPredicate ? arguments.types[2] : TypeTable::pointee(arguments.types[2]);
     const TypeInfo result = types_.describe(resultType);
+    // Computed with unbounded precision, which no term kind records.
+    const std::optional<value::TermId> term =
+        opaqueIf(arguments.values[0].term().has_value() || arguments.values[1].term().has_value());
     if (!isPredicate) {
-        (void)store({.address = static_cast<Address>(arguments.values[2].bits())}, resultType,
-                    value::Value::integer(exact.bits(), result.integer), call);
+        value::Value wrapped = value::Value::integer(exact.bits(), result.integer);
+        wrapped.setTerm(term);
+        (void)store({.address = static_cast<Address>(arguments.values[2].bits())}, resultType, wrapped, call);
     }
     const bool overflowed = !exact.fits(result.integer);
-    return value::Value::integer(overflowed ? 1 : 0, types_.describe(call->type()).integer);
+    value::Value flag = value::Value::integer(overflowed ? 1 : 0, types_.describe(call->type()).integer);
+    flag.setTerm(term);
+    return flag;
 }
 
 // ---- Atomic builtins (GCC, "Built-in Functions for Memory Model Aware Atomic Operations" and "Legacy __sync
@@ -371,17 +377,20 @@ std::optional<value::Value> Execution::atomic(const FunctionEntity& function, co
         }
         return convert(value, types_.describe(type), callType, call);
     };
-    const auto boolean = [&](bool holds) -> std::optional<value::Value> {
+    // A comparison and its conversion to the type of the call, without a term kind.
+    const auto boolean = [&](bool holds, bool dependsOnInputs) -> std::optional<value::Value> {
         if (callType.representation == Representation::Void) {
             return std::nullopt;
         }
-        return value::Value::integer(holds ? 1 : 0, callType.integer);
+        value::Value truth = value::Value::integer(holds ? 1 : 0, callType.integer);
+        truth.setTerm(opaqueIf(dependsOnInputs));
+        return truth;
     };
     if (function.builtin == Builtin::AtomicNoOp) {
         return result(value::Value::integer(0, types_.intFormat()), context_.builtin(ast::BuiltinKind::Int));
     }
     if (function.builtin == Builtin::AtomicLockFree) {
-        return boolean(true);
+        return boolean(true, false);
     }
     const std::size_t needed = [&]() -> std::size_t {
         switch (function.builtin) {
@@ -434,7 +443,7 @@ std::optional<value::Value> Execution::atomic(const FunctionEntity& function, co
         } else {
             (void)store(pointer(1), type, current, call);
         }
-        return boolean(isEqual);
+        return boolean(isEqual, current.term() || expected.term());
     }
     case Builtin::AtomicLoadGeneric:
         if (const auto copied = memory_.copy(pointer(1).address, object.address, info.size); !copied) {
@@ -447,53 +456,61 @@ std::optional<value::Value> Execution::atomic(const FunctionEntity& function, co
         }
         return std::nullopt;
     case Builtin::AtomicExchangeGeneric: {
-        const std::vector<std::byte> old = readBytes(object.address, info.size, call);
+        const value::Value old = loadRecord(object.address, info.size, call);
         if (const auto copied = memory_.copy(object.address, pointer(1).address, info.size); !copied) {
             memoryError(copied.error(), true, call);
         }
-        writeBytes(pointer(2).address, old, call);
+        writeRecord(pointer(2).address, old.asBytes(), old.term(), call);
         return std::nullopt;
     }
     case Builtin::AtomicCompareExchangeGeneric: {
-        const std::vector<std::byte> current = readBytes(object.address, info.size, call);
-        const std::vector<std::byte> expected = readBytes(pointer(1).address, info.size, call);
-        const bool isEqual = current == expected;
+        const value::Value current = loadRecord(object.address, info.size, call);
+        const value::Value expected = loadRecord(pointer(1).address, info.size, call);
+        const bool isEqual = std::ranges::equal(current.asBytes(), expected.asBytes());
         if (isEqual) {
             if (const auto copied = memory_.copy(object.address, pointer(2).address, info.size); !copied) {
                 memoryError(copied.error(), true, call);
             }
         } else {
-            writeBytes(pointer(1).address, current, call);
+            writeRecord(pointer(1).address, current.asBytes(), current.term(), call);
         }
-        return boolean(isEqual);
+        return boolean(isEqual, current.term() || expected.term());
     }
     case Builtin::AtomicFetchOp:
     case Builtin::AtomicOpFetch: {
         const value::Value old = load(object, type, call);
         const value::Value argument = operand(1);
         const value::IntegerFormat format = info.integer;
+        // Atomic arithmetic wraps, also for signed types: the value that comes with signed overflow, which is also
+        // what the term gives.
+        const auto apply = [&](value::IntegerOperator op) {
+            value::Value computed = value::integerBinary(op, old, argument, format).value;
+            attach(computed, terms_.integerBinary(op, old, argument, format), call);
+            return computed;
+        };
         value::Value updated;
-        // Atomic arithmetic wraps, also for signed types.
         switch (function.operation) {
         case BuiltinOperation::Add:
-            updated = value::integerBinary(value::IntegerOperator::Add, old, argument, format).value;
+            updated = apply(value::IntegerOperator::Add);
             break;
         case BuiltinOperation::Sub:
-            updated = value::integerBinary(value::IntegerOperator::Sub, old, argument, format).value;
+            updated = apply(value::IntegerOperator::Sub);
             break;
         case BuiltinOperation::And:
-            updated = value::integerBinary(value::IntegerOperator::And, old, argument, format).value;
+            updated = apply(value::IntegerOperator::And);
             break;
         case BuiltinOperation::Or:
-            updated = value::integerBinary(value::IntegerOperator::Or, old, argument, format).value;
+            updated = apply(value::IntegerOperator::Or);
             break;
         case BuiltinOperation::Xor:
-            updated = value::integerBinary(value::IntegerOperator::Xor, old, argument, format).value;
+            updated = apply(value::IntegerOperator::Xor);
             break;
-        case BuiltinOperation::Nand:
-            updated = value::integerComplement(
-                value::integerBinary(value::IntegerOperator::And, old, argument, format).value, format);
+        case BuiltinOperation::Nand: {
+            const value::Value conjunction = apply(value::IntegerOperator::And);
+            updated = value::integerComplement(conjunction, format);
+            attach(updated, terms_.integerComplement(conjunction, format), call);
             break;
+        }
         case BuiltinOperation::Mul:
             NITWIT_UNREACHABLE("no atomic multiplication");
         }
@@ -503,17 +520,21 @@ std::optional<value::Value> Execution::atomic(const FunctionEntity& function, co
     case Builtin::SyncBoolCompareSwap:
     case Builtin::SyncValCompareSwap: {
         const value::Value current = load(object, type, call);
-        const bool isEqual = current.bits() == operand(1).bits();
+        const value::Value expected = operand(1);
+        const bool isEqual = current.bits() == expected.bits();
         if (isEqual) {
             (void)store(object, type, operand(2), call);
         }
-        return function.builtin == Builtin::SyncBoolCompareSwap ? boolean(isEqual) : result(current, type);
+        if (function.builtin == Builtin::SyncBoolCompareSwap) {
+            return boolean(isEqual, current.term() || expected.term());
+        }
+        return result(current, type);
     }
     case Builtin::AtomicTestAndSet: {
         const ast::QualType byte = context_.builtin(ast::BuiltinKind::UnsignedChar);
         const value::Value old = load(object, byte, call);
         (void)store(object, byte, value::Value::integer(1, types_.describe(byte).integer), call);
-        return boolean(old.bits() != 0);
+        return boolean(old.bits() != 0, old.term().has_value());
     }
     case Builtin::AtomicClear: {
         const ast::QualType byte = context_.builtin(ast::BuiltinKind::UnsignedChar);

@@ -1,3 +1,4 @@
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -11,7 +12,9 @@ namespace nitwit::interp::test {
 namespace {
 
 using namespace std::string_literals;
-using value::InputId;
+using value::TermId;
+
+constexpr value::IntegerFormat s32{.bits = 32, .isSigned = true};
 
 class StringTest : public LibraryTest {
 protected:
@@ -29,14 +32,15 @@ INSTANTIATE_TEST_SUITE_P(DataModels, StringTest, testing::Values(DataModel::ILP3
 
 // ---- Copying ----
 
-TEST_P(StringTest, MemcpyCopiesBytesInitializationAndOrigins) {
+TEST_P(StringTest, MemcpyCopiesBytesInitializationAndTerms) {
     const Address source = buffer(8);
-    writeInteger(source, 0x11223344, ScalarType::Int);
-    memory().setOrigin(source, 4, InputId{3});
+    const std::array bytes{std::byte{0x44}, std::byte{0x33}, std::byte{0x22}, std::byte{0x11}};
+    ASSERT_TRUE(memory().write(source, bytes, StoredTerm{.term = TermId{3}, .format = s32}).has_value());
     const Address destination = buffer(8);
     EXPECT_EQ(callPointer("memcpy", {pointer(destination), pointer(source), size(8)}), destination);
     EXPECT_EQ(readInteger(destination, ScalarType::Int), 0x11223344);
-    EXPECT_EQ(memory().origin(destination, 4), InputId{3});
+    EXPECT_EQ(memory().term(destination, 4).kind, RangeTerm::Kind::Stored);
+    EXPECT_EQ(memory().term(destination, 4).stored.term, TermId{3});
     EXPECT_TRUE(memory().isInitialized(destination, 4));
     EXPECT_FALSE(memory().isInitialized(destination + 4, 4));
 }

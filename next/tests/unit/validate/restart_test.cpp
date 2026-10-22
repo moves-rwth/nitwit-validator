@@ -323,6 +323,15 @@ TEST_F(RestartTest, TheNumberOfRestartsIsLimited) {
                               "6:5) failed at 6:5");
 }
 
+TEST_F(RestartTest, TheRestartLimitScalesWithTheWaypoints) {
+    ValidationOptions options;
+    EXPECT_EQ(restartLimit(options, 0), 16u);
+    EXPECT_EQ(restartLimit(options, 3), 22u);
+    EXPECT_EQ(restartLimit(options, 1'000'000), options.maxRestarts);
+    options.maxRestarts = 20;
+    EXPECT_EQ(restartLimit(options, 3), 20u);
+}
+
 TEST_F(RestartTest, NoRestartsAtAll) {
     program(std::string(inputsProgram));
     options_.maxRestarts = 0;

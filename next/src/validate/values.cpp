@@ -1,6 +1,9 @@
 #include "validate/values.hpp"
 
+#include <array>
+#include <bit>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <format>
 #include <limits>
@@ -87,6 +90,27 @@ std::optional<value::Value> satisfying(ast::AstContext& context, const Bound& bo
         return satisfyingFloating(bound.op, bound.constant.asLongDouble()).transform(value::Value::ofLongDouble);
     }
     std::unreachable();
+}
+
+/// The bits of a scalar: an integer's canonical bits, or a floating value's encoding.
+UInt128 representationOf(const value::Value& value) {
+    switch (value.kind()) {
+    case value::Value::Kind::Integer:
+        return value.bits();
+    case value::Value::Kind::Float:
+        return std::bit_cast<std::uint32_t>(value.asFloat());
+    case value::Value::Kind::Double:
+        return std::bit_cast<std::uint64_t>(value.asDouble());
+    case value::Value::Kind::LongDouble: {
+        std::array<std::byte, 16> bytes{};
+        value::encodeFloat(value, value::FloatFormat::LongDouble, bytes);
+        return value::decodeInteger(bytes, {.bits = 128, .isSigned = false}).bits();
+    }
+    case value::Value::Kind::None:
+    case value::Value::Kind::Bytes:
+        break;
+    }
+    NITWIT_UNREACHABLE("only scalars have a representation");
 }
 
 } // namespace
@@ -197,6 +221,22 @@ bool satisfies(ast::AstContext& context, const value::Value& value, const Bound&
         return value::integerCompare(bound.op, value, bound.constant, sema::integerFormat(context, bound.type));
     }
     return value::floatCompare(bound.op, value, bound.constant, sema::floatFormat(context, bound.type));
+}
+
+bool isSame(const value::Value& a, const value::Value& b) {
+    return a.kind() == b.kind() && representationOf(a) == representationOf(b);
+}
+
+std::uint64_t hashOf(const value::Value& value) {
+    // The finalizer of splitmix64 on both halves of the representation.
+    const auto mix = [](std::uint64_t x) {
+        x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+        x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+        return x ^ (x >> 31);
+    };
+    const UInt128 bits = representationOf(value);
+    return mix(static_cast<std::uint64_t>(bits) ^ mix(static_cast<std::uint64_t>(bits >> 64)))
+           ^ static_cast<std::uint64_t>(value.kind());
 }
 
 std::optional<value::Value> choose(ast::AstContext& context, std::span<const Bound> bounds, ast::QualType type) {

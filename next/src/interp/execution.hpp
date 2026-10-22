@@ -4,7 +4,7 @@
 // area: execution.cpp (start-up, ending, limits), statements.cpp (the instruction loop), calls.cpp (frames, calls,
 // arguments, library and oracle), expressions.cpp (operators), lvalues.cpp (objects, loads and stores),
 // conversions.cpp (casts), initialization.cpp (initializers, string literals), builtins.cpp (builtins the evaluator
-// implements) and events.cpp (observer events and the evaluation context).
+// implements), events.cpp (observer events and the evaluation context) and terms.cpp (terms of values).
 
 #include <cstdint>
 #include <expected>
@@ -43,13 +43,29 @@ struct RunEnd {
     SourceLocation location;
 };
 
-/// An object designated by an lvalue: its address and, for a bit-field, the bits within the bytes at the address.
+/// An object designated by an lvalue: its address and, for a bit-field, the bits within the bytes at the address. It
+/// takes 16 bytes, so that it is returned in registers: the evaluator makes one for every access of an object.
 struct LValue {
     Address address = 0;
-    std::uint32_t bitWidth = 0; // 0: not a bit-field
+    std::uint16_t bitWidth = 0; // 0: not a bit-field
     std::uint8_t bitOffset = 0;
+    bool hasAddressTerm = false;
+    value::TermId addressTermId{}; // if hasAddressTerm
 
     [[nodiscard]] bool isBitField() const { return bitWidth != 0; }
+    /// The term of the address, if it depends on inputs (`*p`, `a[i]`): the term of a pointer to the object
+    /// (interp/README.md, "Terms").
+    [[nodiscard]] std::optional<value::TermId> addressTerm() const {
+        return hasAddressTerm ? std::optional(addressTermId) : std::nullopt;
+    }
+    /// The object at `address` whose address has the term `term`.
+    [[nodiscard]] static LValue at(Address address, std::optional<value::TermId> term) {
+        return {.address = address,
+                .bitWidth = 0,
+                .bitOffset = 0,
+                .hasAddressTerm = term.has_value(),
+                .addressTermId = term.value_or(value::TermId{})};
+    }
 };
 
 /// The arguments of a call: their values and the types of the argument expressions (after the conversions sema
@@ -58,12 +74,12 @@ struct Arguments {
     std::vector<value::Value> values;
     std::vector<ast::QualType> types;
     /// For struct and union arguments, a temporary copy of the argument object made when the argument was evaluated,
-    /// with the initialization state and origins of its bytes; 0 for the others.
+    /// with the initialization state and terms of its bytes; 0 for the others.
     std::vector<Address> objects;
 };
 
 /// The result of a function of the program: the value, and for a struct or union a temporary object that holds it
-/// with the initialization state and origins of its bytes (0 for other types).
+/// with the initialization state and terms of its bytes (0 for other types).
 struct Returned {
     std::optional<value::Value> value;
     Address object = 0;
@@ -75,6 +91,13 @@ struct DynamicObject {
     bool isArray = false;
 };
 
+/// The number of elements of a variable length array type, fixed where its declaration was reached (C17 6.7.6.2p5).
+struct ArraySize {
+    const ast::ArrayType* array = nullptr;
+    std::uint64_t count = 0;
+    bool dependsOnInputs = false; // whether the size expression's value has a term
+};
+
 struct Frame {
     const FunctionEntity* function = nullptr;
     const FunctionCode* body = nullptr;
@@ -82,8 +105,8 @@ struct Frame {
     std::vector<Address> literals;      // compound literals, by FunctionCode::compoundLiteralIds
     std::vector<DynamicObject> dynamic; // in allocation order, so they end in LIFO order
     std::uint32_t arrayCount = 0;       // the variable length arrays in `dynamic`
-    /// The sizes of the variable length array types evaluated in this frame (C17 6.7.6.2p5), newest last.
-    std::vector<std::pair<const ast::ArrayType*, std::uint64_t>> arraySizes;
+    /// The sizes of the variable length array types evaluated in this frame, newest last.
+    std::vector<ArraySize> arraySizes;
     Arguments variadic; // the arguments after the named parameters
     /// Heap objects holding struct and union rvalues: arguments, results, and values whose members are addressed, as
     /// in `f().a[1]` (C17 6.2.4p8). They end with the full expression, i.e. after the instruction that made them.
@@ -157,9 +180,10 @@ private:
     value::Value call(const ast::CallExpr* call, bool isValueUsed, Address* object = nullptr);
     /// The called function; null for a pointer to no function.
     const FunctionEntity* resolveCallee(const ast::CallExpr* call);
-    /// The result of a call in the representation of the call's type; empty for void.
-    std::optional<value::Value> inCallType(value::Value result, std::string_view callee, const TypeInfo& type,
-                                           const ast::Expr* where);
+    /// The result of a call in the representation of the call's type; empty for void. `from` is the type of the
+    /// result, if the callee is a function of the program.
+    std::optional<value::Value> inCallType(value::Value result, std::string_view callee, const TypeInfo* from,
+                                           const TypeInfo& type, const ast::Expr* where);
     void evaluateArguments(const ast::CallExpr* call, Arguments& arguments);
     /// Runs a function of the program; the result has no value if the function ended without returning one.
     Returned invoke(const FunctionEntity& function, Arguments& arguments, const ast::CallExpr* site);
@@ -169,7 +193,10 @@ private:
     void leaveFrame(Frame& frame);
     std::optional<value::Value> callLibrary(const FunctionEntity& function, Arguments& arguments,
                                             const ast::CallExpr* site);
-    /// A value from the oracle, with its origin; also counts the request.
+    /// The value a library function returned, or the end of the run it asks for.
+    std::optional<value::Value> libraryResult(const FunctionEntity& function, LibraryResult result,
+                                              const ast::CallExpr* site);
+    /// A value from the oracle, with its input term; also counts the request.
     value::Value requestInput(InputRequest::Kind kind, const ast::Expr* site, ast::QualType type,
                               const ast::FunctionDecl* function);
     /// The value a function without definition returns: from the oracle for scalar types, zero for others.
@@ -185,15 +212,30 @@ private:
     value::Value rvalue(const ast::Expr* expr);
     /// Evaluates an expression whose value is not used (C17 6.8.3p2).
     void effect(const ast::Expr* expr);
-    /// Whether a scalar rvalue compares unequal to 0 (C17 6.8.4.1p2, 6.5.13p3, ...).
-    bool test(const ast::Expr* condition);
+    /// The value of a controlling expression or of an operand of `!`, `&&` or `||`, which must be a scalar; it is
+    /// tested for comparing unequal to 0 (C17 6.8.4.1p2, 6.5.13p3, ...).
+    value::Value condition(const ast::Expr* expr);
     value::Value unary(const ast::UnaryExpr* expr);
+    /// A pointer to the object, with the term of its address.
+    value::Value pointerTo(const LValue& object);
+    value::Value negation(const ast::UnaryExpr* expr);
+    value::Value complement(const ast::UnaryExpr* expr);
+    value::Value logicalNot(const ast::UnaryExpr* expr);
     value::Value binary(const ast::BinaryExpr* expr);
     value::Value arithmetic(ast::BinaryOperator op, const value::Value& lhs, const value::Value& rhs,
                             ast::QualType lhsType, ast::QualType rhsType, ast::QualType resultType,
                             const ast::Expr* where);
+    // The operations of arithmetic.hpp with their terms; checked() reports their undefined behaviour.
+    value::Value integerOperation(value::IntegerOperator op, const value::Value& lhs, const value::Value& rhs,
+                                  value::IntegerFormat format, const ast::Expr* where);
+    value::Value floatOperation(value::FloatOperator op, const value::Value& lhs, const value::Value& rhs,
+                                value::FloatFormat format, const ast::Expr* where);
+    value::Value shiftOperation(value::ShiftOperator op, const value::Value& lhs, value::IntegerFormat lhsFormat,
+                                const value::Value& rhs, value::IntegerFormat rhsFormat, const ast::Expr* where);
     value::Value pointerOffset(const value::Value& pointer, const value::Value& index, ast::QualType pointerType,
                                bool subtract, const ast::Expr* where);
+    value::Value pointerDifference(const value::Value& lhs, const value::Value& rhs, ast::QualType pointerType,
+                                   ast::QualType resultType, const ast::Expr* where);
     value::Value comparison(ast::BinaryOperator op, const ast::BinaryExpr* expr);
     value::Value logical(const ast::BinaryExpr* expr);
     value::Value assignment(const ast::BinaryExpr* expr, bool isValueUsed);
@@ -222,7 +264,7 @@ private:
     Address functionAddress(const ast::FunctionDecl* decl);
     LValue member(const ast::MemberExpr* expr);
     /// An object that holds the value of a struct or union rvalue expression, with the initialization state and
-    /// origins of its bytes: the object read for an lvalue, the result object of a call, or a new temporary.
+    /// terms of its bytes: the object read for an lvalue, the result object of a call, or a new temporary.
     Address recordObject(const ast::Expr* expr);
     /// A heap object that lives until the instruction of `owner` (the current frame if null) has finished.
     Address temporary(std::uint64_t size, Frame* owner, const ast::Expr* where);
@@ -230,29 +272,54 @@ private:
     /// Reads a scalar or the bytes of a record. A read of uninitialized bytes asks the oracle (UninitializedRead) and
     /// stores the answer, so that later reads agree. `site` is the expression that designates the object.
     value::Value load(const LValue& object, ast::QualType type, const ast::Expr* site);
+    /// The scalar of `type` in `bytes`, for which memory knows `term`, with its term.
+    value::Value decodeLoaded(std::span<const std::byte> bytes, const TypeInfo& type, const RangeTerm& term,
+                              const ast::Expr* site);
+    /// A read of a scalar with uninitialized bytes: an input, stored at `address`. `bytes` are the current bytes.
+    value::Value loadUninitialized(Address address, ast::QualType type, const TypeInfo& info,
+                                   std::span<const std::byte> bytes, const ast::Expr* site);
+    /// Attaches the term of `result`, a scalar of `type` read from `bytes`, for which memory knows `term`.
+    void attachLoadedTerm(value::Value& result, const RangeTerm& term, std::span<const std::byte> bytes,
+                          const TypeInfo& type, const ast::Expr* site);
     value::Value loadBitField(const LValue& object, const TypeInfo& type, const ast::Expr* site);
     /// Writes a value of `type`; returns the value the object then holds (truncated for bit-fields).
     value::Value store(const LValue& object, ast::QualType type, const value::Value& stored, const ast::Expr* where);
     /// Writes the value of a struct or union rvalue expression to `destination`, with the initialization state and
-    /// origins of its bytes.
+    /// terms of its bytes.
     void storeRecord(Address destination, std::uint64_t size, const ast::Expr* source);
+    /// The bytes of a struct or union object as a value. Its term is opaque if a byte depends on inputs, so that
+    /// writeRecord keeps that dependency.
+    value::Value loadRecord(Address address, std::uint64_t size, const ast::Expr* where);
+    /// Writes the bytes of a struct or union value; they are opaque if the value has a term.
+    void writeRecord(Address address, std::span<const std::byte> bytes, std::optional<value::TermId> term,
+                     const ast::Expr* where);
     /// Memory::copy with the failing side reported.
     void copyObject(Address destination, Address source, std::uint64_t size, const ast::Expr* where);
     std::vector<std::byte> readBytes(Address address, std::uint64_t size, const ast::Expr* where);
-    void writeBytes(Address address, std::span<const std::byte> bytes, const ast::Expr* where);
-    /// The size of a type, also of a variable length array type in the current frame.
-    std::uint64_t sizeOf(ast::QualType type, const ast::Expr* where);
-    std::uint64_t arraySize(const ast::ArrayType* array);
+    /// Memory::write, with the term of the scalar the bytes represent if `term` is not null.
+    void writeBytes(Address address, std::span<const std::byte> bytes, const ast::Expr* where,
+                    const StoredTerm* term = nullptr);
+    /// The size of a type, also of a variable length array type in the current frame. `dependsOnInputs`, if given, is
+    /// set if the size of a variable length array in the type depends on inputs.
+    std::uint64_t sizeOf(ast::QualType type, const ast::Expr* where, bool* dependsOnInputs = nullptr);
+    std::uint64_t arraySize(const ast::ArrayType* array, bool* dependsOnInputs = nullptr);
     [[nodiscard]] SourceLocation locationOf(const ast::Expr* where) const {
         return where != nullptr ? where->location() : location_;
     }
 
     // ---- conversions.cpp ----
     value::Value castValue(ast::CastKind kind, const ast::Expr* operand, ast::QualType to, const ast::Expr* where);
-    /// Converts a scalar value between types as assignment does (C17 6.3.1); keeps the origin if the conversion
-    /// preserves every value.
+    /// Converts a scalar value between types as assignment does (C17 6.3.1), with the term of the conversion.
     value::Value convert(const value::Value& value, const TypeInfo& from, const TypeInfo& to, const ast::Expr* where);
     value::Value convert(const value::Value& value, ast::QualType from, ast::QualType to, const ast::Expr* where);
+    /// value::convertInteger with its term; `value` itself if the formats are equal.
+    value::Value convertInteger(const value::Value& value, value::IntegerFormat from, value::IntegerFormat to,
+                                const ast::Expr* where);
+    /// value::toBool with its term.
+    value::Value toBool(const value::Value& value, value::ScalarFormat from, const ast::Expr* where);
+    /// A conversion from or to a floating type, between different types, with its term.
+    value::Value convertFloating(const value::Value& value, const TypeInfo& from, const TypeInfo& to,
+                                 const ast::Expr* where);
     value::Value zeroOf(const TypeInfo& type) const;
 
     // ---- initialization.cpp ----
@@ -293,6 +360,28 @@ private:
     void afterCondition(const ConditionEvent& event);
     void reportUndefined(value::UndefinedBehavior kind, const ast::Expr* where);
 
+    // ---- terms.cpp ----
+    /// Whether the run records terms (not in replay mode, RunOptions::terms).
+    [[nodiscard]] bool recordsTerms() const { return options_.terms.maxTerms > 0; }
+    /// Attaches `term`, which the evaluator recorded for `value` or read from memory; with RunOptions::checkTerms, the
+    /// run ends if the term does not evaluate to the value. In place, so that values are not moved. The frequent
+    /// operations call it (and the TermTable) only if an operand has a term, so that operations on values without
+    /// terms, as in programs without inputs, do nothing else: recording unconditionally, with only the checks of the
+    /// TermTable, cost 5 % of the run time.
+    void attach(value::Value& value, std::optional<value::TermId> term, const ast::Expr* where) {
+        value.setTerm(term);
+        if (options_.checkTerms && term) {
+            checkTerm(value, where);
+        }
+    }
+    void checkTerm(const value::Value& value, const ast::Expr* where) const;
+    /// The term of a value computed by an operation without a term kind: opaque if the value depends on inputs.
+    [[nodiscard]] std::optional<value::TermId> opaqueIf(bool dependsOnInputs) const {
+        return dependsOnInputs ? terms_.opaque() : std::nullopt;
+    }
+    /// Memory::markOpaque, if the run records terms.
+    void markOpaque(Address address, std::uint64_t size);
+
     std::shared_ptr<const Program> program_;
     const Program& code_;
     ast::AstContext& context_;
@@ -330,5 +419,19 @@ private:
     const value::Value* returnValue_ = nullptr; // \result during a ReturnEvent
     SourceLocation location_;                   // of the statement being executed, for messages
 };
+
+/// What the undefined behaviour is, for messages (events.cpp).
+[[nodiscard]] std::string_view describe(value::UndefinedBehavior kind);
+
+/// Whether a scalar compares unequal to 0, which is what conditions and the operands of `!`, `&&` and `||` test
+/// (C17 6.8.4.1p2, 6.5.3.3p5, 6.5.13p3, ...).
+[[nodiscard]] inline bool isNonZero(const value::Value& scalar) {
+    return scalar.kind() == value::Value::Kind::Integer ? scalar.bits() != 0 : value::toBool(scalar).bits() != 0;
+}
+
+/// For RunOptions::checkTerms: what is wrong with `term` as the term of `value`, which the run computed; nullopt if it
+/// evaluates to exactly that value with the run's inputs, or is the opaque term.
+[[nodiscard]] std::optional<std::string> termMismatch(const value::TermTable& terms, value::TermId term,
+                                                      const value::Value& value);
 
 } // namespace nitwit::interp

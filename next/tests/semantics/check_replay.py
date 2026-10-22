@@ -4,7 +4,9 @@ tools/difftest/difftest.py maintains (tools/difftest/README.md, "Semantics tests
 log, and that stderr holds only the harness's markers. For an expected error, the marker (which names the error
 function) is compared with that of a native GCC run.
 
-Usage: check_replay.py <nitwit> <program.c> <32|64>
+Usage: check_replay.py <nitwit> <program.c> <32|64> [nitwit option...]
+
+The options are passed to nitwit before the program, e.g. --check-terms (src/driver/README.md).
 """
 
 import signal
@@ -45,7 +47,7 @@ def native_markers(program: Path, bits: str, inputs: Path | None) -> list[bytes]
     return difftest.markers(run.stderr)
 
 
-def main(nitwit: str, program: Path, bits: str) -> int:
+def main(nitwit: str, program: Path, bits: str, options: list[str]) -> int:
     inputs = program.with_suffix(".inputs")
     expected_stdout = program.with_name(f"{program.stem}.expected-{bits}").read_bytes()
     status_path = program.with_name(f"{program.stem}.expected-status")
@@ -55,7 +57,7 @@ def main(nitwit: str, program: Path, bits: str) -> int:
     with tempfile.TemporaryDirectory(prefix="nitwit-semantics-") as directory:
         log = Path(directory) / "input.log"
         command = [nitwit, "--replay", str(inputs) if inputs.exists() else "", "--input-log", str(log), f"-{bits}",
-                   str(program)]
+                   *options, str(program)]
         run = subprocess.run(command, capture_output=True, timeout=TIMEOUT_SECONDS, cwd=directory)
         actual_log = log.read_bytes() if log.exists() else b""
 
@@ -84,7 +86,7 @@ def main(nitwit: str, program: Path, bits: str) -> int:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
+    if len(sys.argv) < 4:
         print(__doc__, file=sys.stderr)
         sys.exit(2)
-    sys.exit(main(sys.argv[1], Path(sys.argv[2]), sys.argv[3]))
+    sys.exit(main(sys.argv[1], Path(sys.argv[2]), sys.argv[3], sys.argv[4:]))

@@ -1,8 +1,10 @@
 #pragma once
 
 // Validation of a violation witness: runs the program with a monitor of the witness as observer and input oracle,
-// restarts with fixed inputs where a constraint asks for a value, and decides the verdict.
+// restarts with the inputs the search finds where a waypoint does not have the outcome the witness needs, and decides
+// the verdict.
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <ostream>
@@ -33,7 +35,10 @@ struct ProgramInput {
 struct ValidationOptions {
     std::string errorFunction = "reach_error";
     interp::RunOptions run;
-    std::uint32_t maxRestarts = 1000;
+    /// The most restarts for any witness; restartLimit() gives fewer to witnesses with few waypoints.
+    std::uint32_t maxRestarts = 10000;
+    /// The most atoms of the clauses a run keeps for the search (validate/README.md, "Search"): at most about 80 MB.
+    std::size_t maxKeptAtoms = 1'000'000;
     /// The value of inputs that are neither fixed nor hinted, converted to the requested type (pointers get null).
     std::int64_t defaultInput = 0;
     /// Progress of the validation (segments reached, restarts, why a run ended); null for none.

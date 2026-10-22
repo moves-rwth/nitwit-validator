@@ -84,7 +84,7 @@ void Execution::initializeRecord(Address address, ast::QualType type, const ast:
         const Address memberAddress = address + layout.fieldOffsets[field->index()];
         if (field->isBitField()) {
             (void)store({.address = memberAddress,
-                         .bitWidth = field->bitWidth(),
+                         .bitWidth = static_cast<std::uint16_t>(field->bitWidth()),
                          .bitOffset = layout.bitOffsets[field->index()]},
                         field->type(), rvalue(initializer), initializer);
             return;

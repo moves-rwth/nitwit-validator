@@ -1,5 +1,6 @@
 #include "validate/restart.hpp"
 
+#include <algorithm>
 #include <format>
 #include <optional>
 #include <print>
@@ -31,7 +32,18 @@ std::string describeInput(value::InputId id, const ProvidedInput& input, const P
                        input.key.occurrence);
 }
 
+// Each waypoint needs a restart where the search predicts its outcome, and some a few more where a prediction fails or
+// a later waypoint changes an input that an earlier one needs (a loop counter needs one per iteration); 16 more cover
+// witnesses with few waypoints. The hard cap bounds the runs of long witnesses.
+constexpr std::uint32_t baseRestarts = 16;
+constexpr std::uint32_t restartsPerWaypoint = 2;
+
 } // namespace
+
+std::uint32_t restartLimit(const ValidationOptions& options, std::size_t waypoints) {
+    const std::size_t limit = baseRestarts + restartsPerWaypoint * waypoints;
+    return static_cast<std::uint32_t>(std::min<std::size_t>(limit, options.maxRestarts));
+}
 
 ValidationResult validateWithRuns(const witness::YamlWitness& witness, const ProgramInput& program,
                                   const ValidationOptions& options, DiagnosticEngine& diagnostics,
@@ -54,14 +66,19 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
     ConstraintCompiler constraints(program, diagnostics);
     WitnessOracle oracle(program.context, options.defaultInput);
     SegmentMonitor monitor(witness.violationSequences.front(), program, options.errorFunction, constraints, oracle,
-                           options.log);
+                           options.log, options.maxKeptAtoms);
     if (const std::optional<std::string>& inconsistency = monitor.inconsistency()) {
         return {.verdict = Verdict::Unsupported,
                 .message = "the witness does not fit the program: " + *inconsistency,
                 .runs = 0,
                 .segmentsReached = 0};
     }
-    // Every confirmation comes from one complete run: a restart begins again at main with more inputs fixed.
+    std::size_t waypoints = 0;
+    for (const witness::Segment& segment : witness.violationSequences.front().segments) {
+        waypoints += segment.waypoints.size();
+    }
+    const std::uint32_t maxRestarts = restartLimit(options, waypoints);
+    // Every confirmation comes from one complete run: a restart begins again at main with other inputs.
     for (std::uint32_t runs = 1;; ++runs) {
         oracle.beginRun();
         monitor.beginRun(runs);
@@ -71,21 +88,29 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
             verdict.runs = runs;
             return verdict;
         }
-        if (runs > options.maxRestarts) {
+        if (runs > maxRestarts) {
             return {.verdict = Verdict::Unknown,
-                    .message =
-                        std::format("the limit of {} restarts was reached: {}", options.maxRestarts, monitor.reason()),
+                    .message = std::format("the limit of {} restarts was reached: {}", maxRestarts, monitor.reason()),
                     .runs = runs,
                     .segmentsReached = monitor.segmentsPassed()};
         }
-        for (const Fix& fix : monitor.fixes()) {
-            const ProvidedInput& input = oracle.input(fix.input);
+        for (const Change& change : monitor.changes()) {
+            const ProvidedInput& input = oracle.input(change.input);
             if (options.log != nullptr) {
-                std::println(*options.log, "run {}: fixing {} to {}", runs,
-                             describeInput(fix.input, input, program, monitor),
-                             toString(program.context, fix.value, input.type));
+                std::println(*options.log, "run {}: fixing {} to {} ({})", runs,
+                             describeInput(change.input, input, program, monitor),
+                             toString(program.context, change.value, input.type), nameOf(change.method));
             }
-            oracle.fix(input.key, fix.value);
+            oracle.fix(input.key, change.value);
+        }
+        // Runs are deterministic: one with the inputs of an earlier run would end as it did.
+        if (const std::optional<std::uint32_t> earlier = oracle.repeatedRun()) {
+            return {.verdict = Verdict::LeftWitness,
+                    .message = std::format("the execution left the witness: {}; the search proposes the inputs of "
+                                           "run {} again",
+                                           monitor.reason(), *earlier),
+                    .runs = runs,
+                    .segmentsReached = monitor.segmentsPassed()};
         }
     }
 }

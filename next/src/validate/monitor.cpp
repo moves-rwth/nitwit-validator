@@ -18,6 +18,16 @@ bool isTrue(const value::Value& value) {
     return value::toBool(value).bits() != 0;
 }
 
+/// The case label of a switch that `value` takes, if any.
+const ast::CaseStmt* labelOf(const ast::SwitchStmt& stmt, Int128 value) {
+    for (const ast::CaseStmt* label : stmt.cases()) {
+        if (label->low() <= value && value <= label->high()) {
+            return label;
+        }
+    }
+    return nullptr;
+}
+
 std::uint64_t keyOf(witness::WaypointType type, std::uint32_t offset) {
     return (static_cast<std::uint64_t>(type) << 32) | offset;
 }
@@ -59,9 +69,10 @@ std::string_view nameOf(witness::WaypointType type) {
 
 SegmentMonitor::SegmentMonitor(const witness::ViolationSequence& witness, const ProgramInput& program,
                                const std::string& errorFunction, ConstraintCompiler& constraints, WitnessOracle& oracle,
-                               std::ostream* log)
+                               std::ostream* log, std::size_t keptAtoms)
     : segments_(witness.segments), program_(program), errorFunction_(errorFunction), constraints_(constraints),
-      oracle_(oracle), log_(log), locations_(program.sources, program.file, program.originalFile, program.unit) {
+      oracle_(oracle), log_(log), locations_(program.sources, program.file, program.originalFile, program.unit),
+      kept_(keptAtoms) {
     NITWIT_ASSERT(!segments_.empty(), "a violation sequence without segments");
     for (const witness::Segment& segment : segments_) {
         std::unordered_map<std::uint64_t, std::vector<std::uint32_t>>& index = waypointIndex_.emplace_back();
@@ -124,7 +135,9 @@ void SegmentMonitor::beginRun(std::uint32_t run) {
     isAtTarget_ = false;
     state_ = State::Following;
     reason_.clear();
-    fixes_.clear();
+    changes_.clear();
+    kept_.clear();
+    isKeptFull_ = false;
 }
 
 interp::Directive SegmentMonitor::beforeStatement(const interp::StatementEvent& event,
@@ -181,10 +194,11 @@ interp::Directive SegmentMonitor::onUndefinedBehavior(value::UndefinedBehavior, 
 }
 
 // validate/README.md, "Follow, avoid and progress": only the waypoints of the current segment are evaluated, the
-// follow waypoint first. It must pass at its first evaluation point; a failure that fixes inputs restarts the run.
-// Then the avoid waypoints are evaluated: one that passes rejects the execution, unless fixing an input may make it
-// fail, which restarts the run. A passing follow waypoint makes the next segment current. Cascading: after an
-// assumption, the waypoints of that segment are evaluated at the same event, for the same execution of the statement.
+// follow waypoint first. It must pass at its first evaluation point; if it fails, the search may find inputs with which
+// it passes, and the run restarts. Then the avoid waypoints are evaluated: one that passes rejects the execution,
+// unless the search finds inputs with which it fails. A waypoint that has its outcome keeps its requirement for the
+// searches later in the run. A passing follow waypoint makes the next segment current. Cascading: after an assumption,
+// the waypoints of that segment are evaluated at the same event, for the same execution of the statement.
 interp::Directive SegmentMonitor::handle(const Event& event, interp::EvaluationContext& context) {
     if (state_ != State::Following) {
         return interp::Directive::Stop;
@@ -203,37 +217,35 @@ interp::Directive SegmentMonitor::handle(const Event& event, interp::EvaluationC
             case Evaluation::Outcome::Unsupported:
                 return stop(State::Unsupported, std::format("{}: {}", describe(followId), evaluation.reason));
             case Evaluation::Outcome::Fails:
-                if (!evaluation.fixes.empty()) {
-                    fixes_ = std::move(evaluation.fixes);
-                    return stop(State::Restart, std::format("{} failed at {}", describe(followId),
-                                                            locations_.describe(event.location)));
-                }
-                return stop(State::Rejected, std::format("{} did not pass at its first evaluation point, {}{}",
-                                                         describe(followId), locations_.describe(event.location),
-                                                         evaluation.reason.empty() ? "" : ": " + evaluation.reason));
+                return searchOrReject(
+                    followId, evaluation.requirement, context,
+                    std::format("{} failed at {}", describe(followId), locations_.describe(event.location)),
+                    std::format("{} did not pass at its first evaluation point, {}{}", describe(followId),
+                                locations_.describe(event.location),
+                                evaluation.reason.empty() ? "" : ": " + evaluation.reason));
             case Evaluation::Outcome::Undefined:
                 NITWIT_UNREACHABLE("a follow constraint without value fails");
             case Evaluation::Outcome::Passes:
+                keep(evaluation.requirement, context.terms());
                 break;
             }
         }
         for (const std::uint32_t index : here.first(here.size() - (isFollowHere ? 1 : 0))) {
             const WaypointId id{.segment = current_, .index = index};
             Evaluation avoid = evaluate(id, event, context, false);
-            if (avoid.outcome == Evaluation::Outcome::Unsupported) {
+            switch (avoid.outcome) {
+            case Evaluation::Outcome::Unsupported:
                 return stop(State::Unsupported, std::format("{}: {}", describe(id), avoid.reason));
-            }
-            if (avoid.outcome == Evaluation::Outcome::Undefined) {
+            case Evaluation::Outcome::Undefined:
                 return stop(State::Unknown, std::format("{} has no value at {}: {}", describe(id),
                                                         locations_.describe(event.location), avoid.reason));
-            }
-            if (avoid.outcome == Evaluation::Outcome::Passes) {
-                std::string reason = std::format("{} passed at {}", describe(id), locations_.describe(event.location));
-                if (!avoid.fixes.empty()) {
-                    fixes_ = std::move(avoid.fixes);
-                    return stop(State::Restart, std::move(reason));
-                }
-                return stop(State::Rejected, std::move(reason));
+            case Evaluation::Outcome::Passes:
+                return searchOrReject(
+                    id, avoid.requirement, context,
+                    std::format("{} passed at {}", describe(id), locations_.describe(event.location)));
+            case Evaluation::Outcome::Fails:
+                keep(avoid.requirement, context.terms());
+                break;
             }
         }
         if (!isFollowHere) {
@@ -252,7 +264,7 @@ SegmentMonitor::Evaluation SegmentMonitor::evaluate(WaypointId id, const Event& 
     switch (point.type) {
     case witness::WaypointType::Assumption:
         if (!point.constraint) {
-            return {.outcome = Evaluation::Outcome::Unsupported, .fixes = {}, .reason = "it has no constraint"};
+            return {.outcome = Evaluation::Outcome::Unsupported, .requirement = {}, .reason = "it has no constraint"};
         }
         return evaluateConstraint(id, event, context, isFollow, ast::QualType());
     case witness::WaypointType::Branching:
@@ -271,70 +283,59 @@ SegmentMonitor::Evaluation SegmentMonitor::evaluate(WaypointId id, const Event& 
 }
 
 // A constraint passes when all its conjuncts hold, evaluated in the current state (validate/README.md, "Values"). A
-// failing follow constraint collects the fixes of its false conjuncts; a passing avoid constraint gets the fix of its
-// first conjunct that a fix may make false.
+// follow constraint needs `c != 0` of each conjunct c, a clause each; an avoid constraint needs `c == 0` of one of
+// them, evaluated like `&&` up to the first false one ("Search").
 SegmentMonitor::Evaluation SegmentMonitor::evaluateConstraint(WaypointId id, const Event& event,
                                                               interp::EvaluationContext& context, bool isFollow,
                                                               ast::QualType resultType) {
     const std::expected<const CompiledConstraint*, std::string> compiled =
         constraints_.compile(id, waypoint(id).constraint->value, context.function(), event.location, resultType);
     if (!compiled) {
-        return {.outcome = Evaluation::Outcome::Unsupported, .fixes = {}, .reason = compiled.error()};
+        return {.outcome = Evaluation::Outcome::Unsupported, .requirement = {}, .reason = compiled.error()};
     }
-    const std::vector<Conjunct>& conjuncts = (*compiled)->conjuncts;
     Evaluation evaluation;
-    std::vector<value::Value> values; // of the conjuncts, while all hold
-    for (const Conjunct& conjunct : conjuncts) {
+    Clause someConjunctFails;
+    for (const Conjunct& conjunct : (*compiled)->conjuncts) {
         const std::expected<value::Value, std::string> value = context.evaluate(conjunct.expr);
         if (!value && !isFollow) {
             // `&&` evaluates this conjunct, since all before it hold: the constraint has no value.
-            return {.outcome = Evaluation::Outcome::Undefined, .fixes = {}, .reason = value.error()};
+            return {.outcome = Evaluation::Outcome::Undefined, .requirement = {}, .reason = value.error()};
+        }
+        const std::optional<value::TermId> term = value ? value->term() : std::nullopt;
+        if (isFollow) {
+            evaluation.requirement.push_back({{.term = term, .op = value::Comparison::NotEqual, .constant = 0}});
+        } else {
+            someConjunctFails.push_back({.term = term, .op = value::Comparison::Equal, .constant = 0});
         }
         if (!value) {
             evaluation.outcome = Evaluation::Outcome::Fails;
             evaluation.reason = std::format("the constraint cannot be evaluated: {}", value.error());
             continue;
         }
-        if (isTrue(*value)) {
-            values.push_back(*value);
-            continue;
-        }
-        evaluation.outcome = Evaluation::Outcome::Fails;
-        if (!isFollow) {
-            return evaluation; // an avoid constraint with a false conjunct does not pass
-        }
-        const std::optional<Fix> fix = resolve(conjunct, *value, true, context);
-        const auto isSameInput = [&](const Fix& other) {
-            return fix && other.input == fix->input;
-        };
-        if (fix && std::ranges::none_of(evaluation.fixes, isSameInput)) {
-            evaluation.fixes.push_back(*fix);
-        }
-    }
-    if (!isFollow && evaluation.outcome == Evaluation::Outcome::Passes) {
-        for (std::size_t i = 0; i < conjuncts.size(); ++i) {
-            if (std::optional<Fix> fix = resolve(conjuncts[i], values[i], false, context)) {
-                evaluation.fixes.push_back(std::move(*fix));
-                break;
+        if (!isTrue(*value)) {
+            evaluation.outcome = Evaluation::Outcome::Fails;
+            if (!isFollow) {
+                break; // an avoid constraint with a false conjunct does not pass
             }
         }
+    }
+    if (!isFollow) {
+        evaluation.requirement.push_back(std::move(someConjunctFails));
     }
     return evaluation;
 }
 
-// Witness format 2.x, "branching": the outcome of the condition, or for a switch the case value or default. A case
-// value that a follow waypoint asks for fixes an unfixed input like the equality `condition == value`; a passing avoid
-// waypoint fixes it to a value that no avoid waypoint at the switch avoids. Outcomes are taken as they are.
+// Witness format 2.x, "branching": the outcome of the condition, or for a switch the case value or default.
 SegmentMonitor::Evaluation SegmentMonitor::evaluateBranching(WaypointId id, const Event& event,
                                                              interp::EvaluationContext& context, bool isFollow) {
     const witness::Waypoint& point = waypoint(id);
     if (!point.constraint) {
-        return {.outcome = Evaluation::Outcome::Unsupported, .fixes = {}, .reason = "it has no constraint"};
+        return {.outcome = Evaluation::Outcome::Unsupported, .requirement = {}, .reason = "it has no constraint"};
     }
     const std::expected<BranchExpectation, std::string> expectation =
         constraints_.branch(id, point.constraint->value, context.function(), event.location);
     if (!expectation) {
-        return {.outcome = Evaluation::Outcome::Unsupported, .fixes = {}, .reason = expectation.error()};
+        return {.outcome = Evaluation::Outcome::Unsupported, .requirement = {}, .reason = expectation.error()};
     }
     const interp::ConditionEvent& condition = *event.condition;
     const bool isSwitch = condition.construct == interp::ConditionEvent::Construct::Switch;
@@ -342,131 +343,112 @@ SegmentMonitor::Evaluation SegmentMonitor::evaluateBranching(WaypointId id, cons
         expectation->kind == BranchExpectation::Kind::True || expectation->kind == BranchExpectation::Kind::False;
     if (isSwitch == isOutcome) {
         return {.outcome = Evaluation::Outcome::Unsupported,
-                .fixes = {},
+                .requirement = {},
                 .reason = std::format("the constraint '{}' does not fit a branching at '{}'", point.constraint->value,
                                       nameOf(condition.construct))};
     }
-    if (isOutcome) {
-        const bool passes = condition.outcome == (expectation->kind == BranchExpectation::Kind::True);
-        return {
-            .outcome = passes ? Evaluation::Outcome::Passes : Evaluation::Outcome::Fails, .fixes = {}, .reason = {}};
-    }
-
-    Evaluation evaluation;
-    const auto* switchStmt = ast::cast<ast::SwitchStmt>(condition.stmt);
-    const ast::QualType type = switchStmt->condition()->type();
-    const auto addFix = [&](const Bound& bound) {
-        std::optional<Fix> fix = fixFor(condition.switchValue, type, bound);
-        if (fix) {
-            evaluation.fixes.push_back(std::move(*fix));
-        }
-        return fix.has_value();
-    };
     bool passes = false;
-    if (expectation->kind == BranchExpectation::Kind::Default) {
+    std::vector<Clause> requirement;
+    if (isOutcome) {
+        const bool isTrueExpected = expectation->kind == BranchExpectation::Kind::True;
+        passes = condition.outcome == isTrueExpected;
+        // A follow waypoint needs its outcome, an avoid waypoint the other one.
+        const bool needsTrue = isTrueExpected == isFollow;
+        requirement.push_back({{.term = condition.term,
+                                .op = needsTrue ? value::Comparison::NotEqual : value::Comparison::Equal,
+                                .constant = 0}});
+    } else if (expectation->kind == BranchExpectation::Kind::Default) {
         passes = condition.switchLabel == nullptr || ast::isa<ast::DefaultStmt>(condition.switchLabel);
+        requirement = defaultRequirement(condition, isFollow, passes);
     } else {
-        const value::Value expected = valueOf(program_.context, expectation->caseValue, type);
-        passes = expected.bits() == condition.switchValue.bits();
-        if (!passes && isFollow) {
-            addFix({.op = value::Comparison::Equal, .constant = expected, .type = type});
-        }
+        // A case value in a GNU range `case lo ... hi:` takes the range's label, like any value in it.
+        const auto* switchStmt = ast::cast<ast::SwitchStmt>(condition.stmt);
+        const value::Value caseValue =
+            valueOf(program_.context, expectation->caseValue, switchStmt->condition()->type());
+        const ast::CaseStmt* label = labelOf(*switchStmt, caseValue.signedBits());
+        passes = label != nullptr ? condition.switchLabel == label : caseValue.bits() == condition.switchValue.bits();
+        requirement = caseRequirement(condition.term, label, caseValue.signedBits(), isFollow);
     }
-    if (passes && !isFollow && isUnfixedInput(condition.switchValue)) {
-        for (const value::Value& candidate : unavoidedValues(event, context)) {
-            if (addFix({.op = value::Comparison::Equal, .constant = candidate, .type = type})) {
-                break;
-            }
-        }
-    }
-    evaluation.outcome = passes ? Evaluation::Outcome::Passes : Evaluation::Outcome::Fails;
-    return evaluation;
+    return {.outcome = passes ? Evaluation::Outcome::Passes : Evaluation::Outcome::Fails,
+            .requirement = std::move(requirement),
+            .reason = {}};
 }
 
-// The values of a switch that no avoid waypoint of the current segment at it avoids, so that one fix satisfies all of
-// them (validation-crafted/switch.3A1 avoids two cases and default): the case values in source order, then the
-// smallest non-negative value that matches no case label, unless default is avoided.
-std::vector<value::Value> SegmentMonitor::unavoidedValues(const Event& event, interp::EvaluationContext& context) {
-    const auto* switchStmt = ast::cast<ast::SwitchStmt>(event.condition->stmt);
-    const ast::QualType type = switchStmt->condition()->type();
-    std::vector<UInt128> avoided; // the bits of avoided case values in the switch's type
-    bool isDefaultAvoided = false;
-    for (const std::uint32_t i : waypointsAt(current_, witness::WaypointType::Branching, event.location)) {
-        const WaypointId id{.segment = current_, .index = i};
-        const witness::Waypoint& point = waypoint(id);
-        if (point.action != witness::WaypointAction::Avoid || !point.constraint) {
-            continue;
-        }
-        const std::expected<BranchExpectation, std::string> expectation =
-            constraints_.branch(id, point.constraint->value, context.function(), event.location);
-        if (expectation && expectation->kind == BranchExpectation::Kind::Default) {
-            isDefaultAvoided = true;
-        } else if (expectation && expectation->kind == BranchExpectation::Kind::Case) {
-            avoided.push_back(valueOf(program_.context, expectation->caseValue, type).bits());
-        }
+// validate/README.md, "Search": the default branch needs `t != v` for every case label (`t < lo || t > hi` for a
+// range); avoided, `t == v` for one of the labels, and while it is avoided, the label the run took.
+std::vector<Clause> SegmentMonitor::defaultRequirement(const interp::ConditionEvent& condition, bool isFollow,
+                                                       bool passes) const {
+    const auto* switchStmt = ast::cast<ast::SwitchStmt>(condition.stmt);
+    if (!isFollow && !passes) {
+        const auto* label = ast::cast<ast::CaseStmt>(condition.switchLabel);
+        return caseRequirement(condition.term, label, label->low(), true);
     }
-    std::vector<value::Value> values;
-    const auto add = [&](Int128 number) {
-        value::Value candidate = valueOf(program_.context, number, type);
-        if (!std::ranges::contains(avoided, candidate.bits())) {
-            values.push_back(std::move(candidate));
-        }
-    };
-    std::vector<std::pair<Int128, Int128>> ranges;
+    std::vector<Clause> requirement;
+    Clause someCase;
     for (const ast::CaseStmt* label : switchStmt->cases()) {
-        add(label->low());
-        ranges.emplace_back(label->low(), label->high());
+        if (!isFollow) {
+            someCase.push_back({.term = condition.term, .op = value::Comparison::Equal, .constant = label->low()});
+        } else {
+            requirement.push_back(caseRequirement(condition.term, label, label->low(), false).front());
+        }
     }
-    if (!isDefaultAvoided) {
-        std::sort(ranges.begin(), ranges.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
-        Int128 free = 0;
-        for (const auto& [low, high] : ranges) {
-            if (low > free) {
-                break;
+    if (!isFollow) {
+        requirement.push_back(std::move(someCase));
+    }
+    return requirement;
+}
+
+// A case value v needs `t == v`, avoided `t != v`; in a range, `t >= lo` and `t <= hi`, avoided `t < lo || t > hi`.
+std::vector<Clause> SegmentMonitor::caseRequirement(std::optional<value::TermId> term, const ast::CaseStmt* label,
+                                                    Int128 caseValue, bool isTaken) {
+    if (label == nullptr || label->low() == label->high()) {
+        return {{{.term = term,
+                  .op = isTaken ? value::Comparison::Equal : value::Comparison::NotEqual,
+                  .constant = caseValue}}};
+    }
+    if (isTaken) {
+        return {{{.term = term, .op = value::Comparison::GreaterEqual, .constant = label->low()}},
+                {{.term = term, .op = value::Comparison::LessEqual, .constant = label->high()}}};
+    }
+    // Leaving the range gives lo - 1 or hi + 1: the non-negative one first, as with candidates.
+    const Atom below{.term = term, .op = value::Comparison::Less, .constant = label->low()};
+    const Atom above{.term = term, .op = value::Comparison::Greater, .constant = label->high()};
+    return {label->low() > 0 ? Clause{below, above} : Clause{above, below}};
+}
+
+interp::Directive SegmentMonitor::searchOrReject(WaypointId id, const std::vector<Clause>& requirement,
+                                                 interp::EvaluationContext& context, std::string reason,
+                                                 std::string rejection) {
+    std::vector<SearchInput> inputs;
+    inputs.reserve(oracle_.inputCount());
+    for (std::uint32_t i = 0; i < oracle_.inputCount(); ++i) {
+        const ProvidedInput& input = oracle_.input(value::InputId{i});
+        inputs.push_back({.value = input.value,
+                          .type = input.type,
+                          .source = input.source,
+                          .history = oracle_.fixedValues(input.key)});
+    }
+    SearchResult result = search(program_.context, context.terms(), requirement, kept_, inputs);
+    const bool isRestart = !result.changes.empty();
+    stop(isRestart ? State::Restart : State::Rejected,
+         isRestart || rejection.empty() ? std::move(reason) : std::move(rejection));
+    if (log_ != nullptr) {
+        std::println(*log_, "run {}: {} {}", run_, describe(id), result.explanation);
+    }
+    changes_ = std::move(result.changes);
+    return interp::Directive::Stop;
+}
+
+void SegmentMonitor::keep(const std::vector<Clause>& requirement, const value::TermTable& terms) {
+    for (const Clause& clause : requirement) {
+        if (kept_.keep(terms, clause) == KeptClauses::Outcome::Full && !isKeptFull_) {
+            isKeptFull_ = true;
+            if (log_ != nullptr) {
+                std::println(*log_, "run {}: the kept clauses reach the limit of their atoms; no more in this run",
+                             run_);
             }
-            free = std::max(free, high + 1);
         }
-        add(free);
     }
-    return values;
-}
-
-// validate/README.md, "Values": a conjunct is made true or false by fixing the input that is the origin of its
-// subject, or of its own value, if that input is neither fixed nor hinted.
-std::optional<Fix> SegmentMonitor::resolve(const Conjunct& conjunct, const value::Value& value, bool makeTrue,
-                                           interp::EvaluationContext& context) {
-    if (conjunct.subject != nullptr) {
-        const std::expected<value::Value, std::string> subject = context.evaluate(conjunct.subject);
-        const std::expected<value::Value, std::string> constant = context.evaluate(conjunct.constant);
-        if (!subject || !constant) {
-            return std::nullopt;
-        }
-        const value::Comparison op = makeTrue ? conjunct.op : negated(conjunct.op);
-        return fixFor(*subject, conjunct.subject->type(), {.op = op, .constant = *constant, .type = conjunct.type});
-    }
-    const ast::QualType type = conjunct.expr->type();
-    if (!isArithmetic(program_.context, type)) {
-        return std::nullopt;
-    }
-    const value::Comparison op = makeTrue ? value::Comparison::NotEqual : value::Comparison::Equal;
-    return fixFor(value, type, {.op = op, .constant = valueOf(program_.context, 0, type), .type = type});
-}
-
-std::optional<Fix> SegmentMonitor::fixFor(const value::Value& subject, ast::QualType subjectType, const Bound& bound) {
-    if (!isUnfixedInput(subject)) {
-        return std::nullopt;
-    }
-    const value::InputId input = *subject.origin();
-    std::optional<value::Value> chosen =
-        chooseInput(program_.context, std::span(&bound, 1), subjectType, oracle_.input(input).type);
-    if (!chosen) {
-        return std::nullopt;
-    }
-    return Fix{.input = input, .value = std::move(*chosen)};
-}
-
-bool SegmentMonitor::isUnfixedInput(const value::Value& value) const {
-    return value.origin().has_value() && oracle_.input(*value.origin()).source == InputSource::Default;
 }
 
 // validate/README.md, "Values": `\result op constant` of a function_return waypoint at this call. A follow waypoint

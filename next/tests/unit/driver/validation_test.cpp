@@ -1,5 +1,5 @@
 // The validation mode of the driver (driver/README.md): files, property, front end, witness format, result line and
-// exit codes (docs/exit-codes.md).
+// exit codes (docs/exit-codes.md). The witness gives its input as a hint, which needs no search.
 
 #include "driver/validation.hpp"
 
@@ -43,10 +43,10 @@ constexpr std::string_view witness = R"(- entry_type: violation_sequence
   content:
   - segment:
     - waypoint:
-        type: assumption
+        type: function_return
         action: follow
-        location: {file_name: program.c, line: 5, column: 5}
-        constraint: {value: a == 5, format: c_expression}
+        location: {file_name: program.c, line: 4, column: 35}
+        constraint: {value: "\\result == 5", format: acsl_expression}
   - segment:
     - waypoint:
         type: target
@@ -103,7 +103,7 @@ TEST_F(ValidationTest, AConfirmedWitnessIsValidated) {
 TEST_F(ValidationTest, TheLogGoesToItsStreamWithVerbose) {
     command_.verbose = true;
     EXPECT_EQ(run(), 0);
-    EXPECT_TRUE(log_.str().contains("run 1: fixing input 0")) << log_.str();
+    EXPECT_TRUE(log_.str().contains("run 1: segment 1 of 2 passed at 4:35 (function_return)")) << log_.str();
 }
 
 TEST_F(ValidationTest, AWitnessThatIsNotConfirmedFails) {
@@ -156,7 +156,7 @@ TEST_F(ValidationTest, GraphmlWitnessesAreNotSupportedYet) {
 
 TEST_F(ValidationTest, ConstraintErrorsArePrintedAsDiagnostics) {
     std::string text(witness);
-    text.replace(text.find("a == 5"), 6, "q == 5");
+    text.replace(text.find("\\\\result == 5"), 13, "q == 5");
     command_.witness = write("witness.yml", text);
     EXPECT_EQ(run(), 4);
     EXPECT_TRUE(output_.str().contains("<constraint>:1:1: error: use of undeclared identifier 'q'\n")) << output_.str();
@@ -166,12 +166,12 @@ TEST_F(ValidationTest, WitnessLinesOfPreprocessedProgramsArePresumedLines) {
     // The directive makes the front end run cpp; the witness refers to the lines of program.c.
     command_.program = write("program.c", std::string("#define FIVE 5\n") + std::string(program));
     std::string text(witness);
-    text.replace(text.find("line: 5"), 7, "line: 6");
+    text.replace(text.find("line: 4"), 7, "line: 5");
     text.replace(text.find("line: 6, column: 9"), 7, "line: 7");
-    text.replace(text.find("a == 5"), 6, "a == FIVE - 0");
+    text.replace(text.find("== 5"), 4, "== FIVE - 0");
     command_.witness = write("witness.yml", text);
     EXPECT_EQ(run(), 4) << output_.str(); // FIVE is a macro, unknown to constraints
-    text.replace(text.find("a == FIVE - 0"), 13, "a == 5");
+    text.replace(text.find("== FIVE - 0"), 11, "== 5");
     command_.witness = write("witness.yml", text);
     EXPECT_EQ(run(), 0) << output_.str();
 }

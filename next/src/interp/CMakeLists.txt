@@ -23,6 +23,7 @@ nitwit_add_module(interp
         lvalues.cpp
         memory.cpp
         statements.cpp
+        terms.cpp
         type_info.cpp
     DEPENDS nitwit_sema nitwit_value m) # m: the host libm computes the math functions
 

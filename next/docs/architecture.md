@@ -127,9 +127,12 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
 - **Restarts:** suppose a follow waypoint like `x == 5` or the branching `if (n - x <= 0)` fails, and the value
   depends on an input through its term. The validator then solves for an input value that gives the waypoint its
   outcome without breaking the waypoints the run already passed, fixes it, and restarts the run from the beginning
-  (`validate/README.md`, "Search"). Likewise, an avoid constraint that holds makes the validator change an input so
-  that it does not. Runs are deterministic, so every confirmation comes from one concrete execution, in which every
-  waypoint was evaluated on that run's values. The number of restarts is bounded.
+  (`validate/README.md`, "Search"). Likewise, an avoid waypoint that passes makes the validator change an input so
+  that it does not. The search never runs the program to try a value: each restart comes from one prediction. Runs
+  are deterministic, so every confirmation comes from one concrete execution, in which every waypoint was evaluated
+  on that run's values. A run with the inputs of an earlier run, and no value tried since, is not made: it and the
+  search after it would repeat that run. The number of restarts grows with the number of waypoints, up to a fixed
+  bound.
 - **The verdict** is computed from:
   - whether the error function was called;
   - the monitor's state: target reached, waiting, or rejected;

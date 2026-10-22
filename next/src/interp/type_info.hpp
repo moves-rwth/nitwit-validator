@@ -10,6 +10,7 @@
 #include "ast/decl.hpp"
 #include "ast/type.hpp"
 #include "support/target.hpp"
+#include "value/term.hpp"
 #include "value/value.hpp"
 
 namespace nitwit::interp {
@@ -48,6 +49,13 @@ struct TypeInfo {
     [[nodiscard]] bool isBytes() const {
         return representation == Representation::Record || representation == Representation::VaList
                || representation == Representation::Complex;
+    }
+    /// The format of a scalar type's values, as terms record it.
+    [[nodiscard]] value::ScalarFormat scalarFormat() const {
+        if (representation == Representation::Floating) {
+            return floating;
+        }
+        return integer;
     }
 };
 

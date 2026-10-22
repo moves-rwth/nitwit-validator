@@ -1,8 +1,9 @@
 #pragma once
 
 // Values the validator chooses for inputs: the conversions between the arithmetic types of a constraint and of an
-// input, and values that satisfy a relation `x op constant` (validate/README.md, "Values").
+// input, values that satisfy a relation `x op constant` (validate/README.md, "Values"), and the identity of values.
 
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
@@ -41,6 +42,12 @@ struct Bound {
 
 /// Whether `value op bound.constant` holds in the bound's type.
 [[nodiscard]] bool satisfies(ast::AstContext& context, const value::Value& value, const Bound& bound);
+
+/// Whether two scalars have the same representation: NaN is the same as NaN, 0.0 not the same as -0.0.
+[[nodiscard]] bool isSame(const value::Value& a, const value::Value& b);
+
+/// A hash of a scalar's representation: values that are the same have the same hash.
+[[nodiscard]] std::uint64_t hashOf(const value::Value& value);
 
 /// A scalar value as text, for the log: integers in decimal (signed if `type` is), floating values in the shortest
 /// form that reads back exactly, pointers in hexadecimal.
