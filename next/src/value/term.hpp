@@ -72,6 +72,10 @@ struct TermLimits {
     std::uint32_t maxTerms = 1U << 21;
     /// A result whose term would be deeper gets the opaque term, so that loops like `x = x * 31 + c` stay cheap.
     std::uint16_t maxDepth = 64;
+
+    /// The size of the table up to which inputs get terms, twice `maxTerms`. Each input with a term is a term of the
+    /// table, so an input numbered this or higher has the opaque term or none.
+    [[nodiscard]] std::size_t maxInputs() const { return 2 * std::size_t{maxTerms}; }
 };
 
 /// Input values that replace the values of the run when terms are evaluated.
@@ -210,7 +214,7 @@ private:
     static constexpr TermId opaqueTerm{0}; // the first term of every table with maxTerms > 0
 
     /// The size of the table up to which inputs, and conversions of inputs, get terms: twice the size limit.
-    [[nodiscard]] std::size_t inputCap() const { return 2 * std::size_t{limits_.maxTerms}; }
+    [[nodiscard]] std::size_t inputCap() const { return limits_.maxInputs(); }
     /// Records `term` with `operands`, of which at least one has a term.
     [[nodiscard]] std::optional<TermId> record(Term term, std::initializer_list<Operand> operands);
     [[nodiscard]] std::optional<TermId> recordLogical(TermKind kind, const Value& lhs, ScalarFormat lhsFormat,

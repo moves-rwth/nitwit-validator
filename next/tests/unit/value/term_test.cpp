@@ -1013,6 +1013,8 @@ TEST(TermLimitsTest, InputsBeyondTwiceTheSizeLimitGetTheOpaqueTerm) {
     EXPECT_EQ(table.size(), 4u);
     EXPECT_EQ(table.input(InputId{3}, integer(3, s32), s32), table.opaque());
     EXPECT_EQ(table.size(), 4u);
+    // Inputs numbered maxInputs() and up never get a term (WitnessOracle records no more).
+    EXPECT_EQ(TermLimits{.maxTerms = 2}.maxInputs(), 4u);
 }
 
 // ---- The opaque term ----

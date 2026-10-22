@@ -161,6 +161,20 @@ TEST_F(OracleTest, TheRunKeepsTheAnswers) {
     EXPECT_EQ(oracle.input(value::InputId{1}).value.bits(), 1u);
 }
 
+TEST_F(OracleTest, RequestsBeyondTheRecordedOnesAreAnsweredButNotKept) {
+    WitnessOracle oracle(context(), 3, 2);
+    oracle.fix({.site = callAt(6, 35), .occurrence = 2},
+               valueOf(context(), 9, context().builtin(ast::BuiltinKind::Int)));
+    EXPECT_EQ(provided(oracle, requestAt(6, 35, 0, 0)), "3");
+    EXPECT_EQ(provided(oracle, requestAt(6, 35, 1, 1)), "3");
+    EXPECT_EQ(provided(oracle, requestAt(6, 35, 2, 2)), "9");
+    EXPECT_EQ(provided(oracle, requestAt(6, 35, 3, 3)), "3");
+    EXPECT_EQ(oracle.inputCount(), 2u);
+    oracle.beginRun();
+    EXPECT_EQ(provided(oracle, requestAt(6, 35, 0, 0)), "3");
+    EXPECT_EQ(oracle.inputCount(), 1u);
+}
+
 TEST_F(OracleTest, FixedInputsWinOverHints) {
     WitnessOracle oracle(context());
     const ast::QualType intType = context().builtin(ast::BuiltinKind::Int);

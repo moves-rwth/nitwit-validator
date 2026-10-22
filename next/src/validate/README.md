@@ -284,8 +284,10 @@ one prediction.
   function (exit 242, 250). Keeping the conditions of all branchings of a run, or a concolic search with an SMT solver
   (`docs/plan.md`, "later"), would cover them.
 - **Unsupported constructs** of the interpreter end a run with exit 4: threads (`pthread_create`) and `setjmp`.
-- Long runs can exhaust the host's memory before the interpreter's memory limit, probably through the memory model's
-  growing table of dead heap allocations; the driver then reports exit code 251.
+- Long runs can exhaust the host's memory before the interpreter's memory limit, e.g. through the memory model's
+  growing table of dead heap allocations; the driver then reports exit code 251. A run that requests inputs without
+  end stays bounded: the oracle records the first `TermLimits::maxInputs` requests of a run (112 bytes each, at most
+  470 MB), and later ones have the opaque term, which the search never changes.
 
 ## Tests
 

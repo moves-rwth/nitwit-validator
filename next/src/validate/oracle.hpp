@@ -14,6 +14,7 @@
 #include "ast/expr.hpp"
 #include "interp/oracle.hpp"
 #include "support/int128.hpp"
+#include "value/term.hpp"
 #include "value/value.hpp"
 
 namespace nitwit::validate {
@@ -38,8 +39,12 @@ struct ProvidedInput {
 
 class WitnessOracle final : public interp::InputOracle {
 public:
-    /// `defaultValue` is the value of inputs that are neither fixed nor hinted, converted to their type.
-    explicit WitnessOracle(ast::AstContext& context, Int128 defaultValue = 0);
+    /// `defaultValue` is the value of inputs that are neither fixed nor hinted, converted to their type. Only the first
+    /// `recordedInputs` requests of a run are recorded for input(): later ones are numbered beyond the inputs that get
+    /// terms (value::TermLimits::maxInputs), so the search never changes them, and a run that requests inputs without
+    /// end does not exhaust the memory.
+    explicit WitnessOracle(ast::AstContext& context, Int128 defaultValue = 0,
+                           std::size_t recordedInputs = value::TermLimits{}.maxInputs());
 
     /// Forgets the requests and the hint of the previous run; fixed inputs stay. Runs are numbered from 1.
     void beginRun();
@@ -60,9 +65,9 @@ public:
 
     value::Value provide(const interp::InputRequest& request) override;
 
-    /// A request of the current run; precondition: the run made it.
+    /// A recorded request of the current run; precondition: the run made it, and it is below inputCount().
     [[nodiscard]] const ProvidedInput& input(value::InputId id) const;
-    /// The number of requests of the current run.
+    /// The number of recorded requests of the current run: all of them, up to `recordedInputs`.
     [[nodiscard]] std::size_t inputCount() const { return inputs_.size(); }
 
 private:
@@ -94,12 +99,13 @@ private:
 
     ast::AstContext& context_;
     Int128 defaultValue_;
+    std::size_t recordedInputs_;
     // Iterated only where the order does not matter: it is by address.
     std::map<InputKey, History, KeyLess> fixed_;
     std::uint32_t run_ = 0;
     RunStart next_;                     // of the run after the current one, as far as values are fixed now
     std::vector<RunStart> runStarts_;   // by run - 1
-    std::vector<ProvidedInput> inputs_; // of the current run, indexed by InputId
+    std::vector<ProvidedInput> inputs_; // the recorded requests of the current run, indexed by InputId
     std::optional<Hint> hint_;
 };
 

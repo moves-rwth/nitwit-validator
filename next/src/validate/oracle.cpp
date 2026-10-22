@@ -9,8 +9,8 @@
 
 namespace nitwit::validate {
 
-WitnessOracle::WitnessOracle(ast::AstContext& context, Int128 defaultValue)
-    : context_(context), defaultValue_(defaultValue) {}
+WitnessOracle::WitnessOracle(ast::AstContext& context, Int128 defaultValue, std::size_t recordedInputs)
+    : context_(context), defaultValue_(defaultValue), recordedInputs_(recordedInputs) {}
 
 void WitnessOracle::beginRun() {
     inputs_.clear();
@@ -66,13 +66,14 @@ std::optional<std::uint32_t> WitnessOracle::repeatedRun() const {
 }
 
 value::Value WitnessOracle::provide(const interp::InputRequest& request) {
-    NITWIT_ASSERT(static_cast<std::size_t>(request.id) == inputs_.size(), "inputs are numbered in request order");
-    ProvidedInput& input =
-        inputs_.emplace_back(ProvidedInput{.key = {.site = request.site, .occurrence = request.occurrence},
-                                           .type = request.type,
-                                           .source = InputSource::Default,
-                                           .function = request.function,
-                                           .value = {}});
+    const auto index = static_cast<std::size_t>(request.id);
+    NITWIT_ASSERT(index == inputs_.size() || (index >= recordedInputs_ && inputs_.size() == recordedInputs_),
+                  "inputs are numbered in request order");
+    ProvidedInput input{.key = {.site = request.site, .occurrence = request.occurrence},
+                        .type = request.type,
+                        .source = InputSource::Default,
+                        .function = request.function,
+                        .value = {}};
     if (const auto found = fixed_.find(input.key); found != fixed_.end()) {
         input.source = InputSource::Fixed;
         input.value = found->second.values.back();
@@ -85,12 +86,15 @@ value::Value WitnessOracle::provide(const interp::InputRequest& request) {
     } else {
         input.value = value::Value::integer(0, sema::integerFormat(context_, request.type)); // a pointer: null
     }
-    return input.value;
+    if (index >= recordedInputs_) {
+        return input.value;
+    }
+    return inputs_.emplace_back(std::move(input)).value;
 }
 
 const ProvidedInput& WitnessOracle::input(value::InputId id) const {
     const auto index = static_cast<std::size_t>(id);
-    NITWIT_ASSERT(index < inputs_.size(), "an input the run did not request");
+    NITWIT_ASSERT(index < inputs_.size(), "an input the run did not request, or one beyond the recorded ones");
     return inputs_[index];
 }
 

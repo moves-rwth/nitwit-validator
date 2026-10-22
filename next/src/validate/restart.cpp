@@ -64,7 +64,7 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
                 .segmentsReached = 0};
     }
     ConstraintCompiler constraints(program, diagnostics);
-    WitnessOracle oracle(program.context, options.defaultInput);
+    WitnessOracle oracle(program.context, options.defaultInput, options.run.terms.maxInputs());
     SegmentMonitor monitor(witness.violationSequences.front(), program, options.errorFunction, constraints, oracle,
                            options.log, options.maxKeptAtoms);
     if (const std::optional<std::string>& inconsistency = monitor.inconsistency()) {
