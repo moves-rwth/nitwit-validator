@@ -67,6 +67,7 @@ struct LValue {
                 .addressTermId = term.value_or(value::TermId{})};
     }
 };
+static_assert(sizeof(LValue) == 16, "an LValue is returned in two registers");
 
 /// The arguments of a call: their values and the types of the argument expressions (after the conversions sema
 /// inserted), which a callee needs to convert them to its parameter types or to fetch them with va_arg.
