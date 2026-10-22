@@ -185,6 +185,8 @@ TEST(ReplayObserverTest, StopsAtErrorFunctionsWithoutDefinition) {
     struct NoContext final : interp::EvaluationContext {
         std::expected<value::Value, std::string> evaluate(const ast::Expr*) override { return value::Value(); }
         [[nodiscard]] const ast::FunctionDecl* function() const override { return nullptr; }
+        [[nodiscard]] const value::TermTable& terms() const override { return table; }
+        value::TermTable table{DataModel::ILP32};
     } evaluation;
     EXPECT_EQ(observer.afterArguments({.call = nullptr, .callee = defined, .arguments = {}}, evaluation),
               interp::Directive::Continue);

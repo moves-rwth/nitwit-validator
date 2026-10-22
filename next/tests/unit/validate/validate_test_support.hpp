@@ -111,6 +111,7 @@ public:
 
     std::expected<value::Value, std::string> evaluate(const ast::Expr* expr) override;
     [[nodiscard]] const ast::FunctionDecl* function() const override { return function_; }
+    [[nodiscard]] const value::TermTable& terms() const override { return terms_; }
 
     /// Before the statement that starts here.
     void statement(std::uint32_t line, std::uint32_t column);
@@ -158,6 +159,7 @@ private:
     std::uint32_t inputs_ = 0;
     std::unordered_map<const ast::Expr*, std::uint32_t> occurrences_;
     const value::Value* result_ = nullptr; // during a return event
+    value::TermTable terms_;
 };
 
 class ValidateTest : public ::testing::Test {
@@ -452,7 +454,8 @@ private:
 
 inline FakeExecution::FakeExecution(ValidateTest& fixture, interp::InputOracle& oracle,
                                     interp::ExecutionObserver& observer)
-    : fixture_(fixture), oracle_(oracle), observer_(observer), function_(fixture.functionNamed("main")) {}
+    : fixture_(fixture), oracle_(oracle), observer_(observer), function_(fixture.functionNamed("main")),
+      terms_(fixture.context().target().dataModel()) {}
 
 inline void FakeExecution::obey(interp::Directive directive) const {
     if (directive == interp::Directive::Stop) {

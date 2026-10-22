@@ -29,6 +29,7 @@
 #include "interp/program.hpp"
 #include "interp/type_info.hpp"
 #include "value/arithmetic.hpp"
+#include "value/term.hpp"
 #include "value/value.hpp"
 
 namespace nitwit::interp {
@@ -114,6 +115,7 @@ public:
     // EvaluationContext
     std::expected<value::Value, std::string> evaluate(const ast::Expr* expr) override;
     [[nodiscard]] const ast::FunctionDecl* function() const override;
+    [[nodiscard]] const value::TermTable& terms() const override { return terms_; }
 
     // LibraryContext
     [[nodiscard]] Memory& memory() override { return memory_; }
@@ -301,6 +303,7 @@ private:
     /// The library objects by name; the keys name their allocations, so the map outlives memory_.
     std::unordered_map<std::string, Address> libraryObjects_;
     Memory memory_;
+    value::TermTable terms_;
 
     std::vector<Address> functionAddresses_; // by FunctionId; 0 for weak functions without definition
     std::unordered_map<Address, FunctionId> functionsAt_;

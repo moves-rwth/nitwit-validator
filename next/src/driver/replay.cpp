@@ -348,7 +348,10 @@ ReplayOutcome replay(const ReplayOptions& options) {
     }
     ReplayOracle oracle((*loaded)->context, options.inputs, options.inputLog);
     ReplayObserver observer;
-    interp::Interpreter interpreter((*loaded)->program, oracle, observer, {.output = &std::cout});
+    interp::RunOptions runOptions;
+    runOptions.output = &std::cout;
+    runOptions.terms.maxTerms = 0; // replay has no use for terms
+    interp::Interpreter interpreter((*loaded)->program, oracle, observer, runOptions);
     const interp::RunResult result = interpreter.run();
     std::cout.flush();
     switch (result.termination) {

@@ -15,6 +15,7 @@
 #include "ast/stmt.hpp"
 #include "support/source_manager.hpp"
 #include "value/arithmetic.hpp"
+#include "value/term.hpp"
 #include "value/value.hpp"
 
 namespace nitwit::interp {
@@ -31,6 +32,10 @@ public:
 
     /// The function whose frame is current.
     [[nodiscard]] virtual const ast::FunctionDecl* function() const = 0;
+
+    /// The terms of the run so far (value/README.md, "Terms"); the terms of values in events and of evaluated
+    /// expressions refer to it.
+    [[nodiscard]] virtual const value::TermTable& terms() const = 0;
 };
 
 /// Before a statement executes: every statement in a block, the body of a loop or `if` each time it is entered, and
@@ -52,6 +57,8 @@ struct ConditionEvent {
     // none matched and there is no default).
     value::Value switchValue;
     const ast::Stmt* switchLabel = nullptr;
+    // The term of the controlling expression's value, if it has one (for Switch also switchValue.term()).
+    std::optional<value::TermId> term{};
 };
 
 /// After the arguments of a call were evaluated, before the callee runs.

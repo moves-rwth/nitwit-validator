@@ -32,6 +32,7 @@ struct RunOptions {
     std::uint32_t maxCallDepth = 100000;    // nested calls
     std::uint64_t memoryLimit = 4ull << 30; // bytes of live heap and stack objects
     std::ostream* output = nullptr;         // where printf and puts write; null discards the output
+    value::TermLimits terms{};              // maxTerms 0 records no terms (replay)
 };
 
 enum class Termination : std::uint8_t {

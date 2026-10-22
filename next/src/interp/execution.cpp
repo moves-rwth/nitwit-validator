@@ -45,7 +45,8 @@ std::string_view memoryErrorText(MemoryErrorKind kind) {
 Execution::Execution(std::shared_ptr<const Program> program, InputOracle& oracle, ExecutionObserver& observer,
                      RunOptions options)
     : program_(std::move(program)), code_(*program_), context_(program_->context), types_(program_->types),
-      oracle_(oracle), observer_(observer), options_(options), memory_(types_.target().pointerBits()) {}
+      oracle_(oracle), observer_(observer), options_(options), memory_(types_.target().pointerBits()),
+      terms_(types_.target().dataModel(), options.terms) {}
 
 Execution::~Execution() = default;
 
