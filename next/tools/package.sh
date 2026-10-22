@@ -28,8 +28,7 @@ install -m 755 "$nitwit" "$archive/bin/nitwit64"
 install -m 755 release/nitwit.sh release/smoketest.sh "$archive/"
 install -m 644 release/README.md release/THIRD-PARTY.md "$archive/"
 install -m 644 release/smoketest/* "$archive/smoketest/"
-# The repository's license; next/ has none of its own.
-install -m 644 ../LICENSE "$archive/LICENSE"
+install -m 644 LICENSE "$archive/LICENSE"
 
 # The notices of the statically linked code (THIRD-PARTY.md).
 install -m 644 release/licenses/* "$archive/licenses/"

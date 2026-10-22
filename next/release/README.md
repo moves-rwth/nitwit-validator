@@ -46,5 +46,5 @@ Ubuntu's package `gcc-multilib` provides `cpp` and the system headers for both d
 
 ## License
 
-NITWIT is licensed under the New BSD license, see `LICENSE`. The executables contain third-party code, see
-`THIRD-PARTY.md`.
+NITWIT is licensed under the New BSD license (BSD-3-Clause), see `LICENSE`. The executables contain third-party code,
+see `THIRD-PARTY.md`.

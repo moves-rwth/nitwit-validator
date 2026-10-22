@@ -42,7 +42,7 @@ nitwit/
 ├── smoketest/          smoketest.c, smoketest.yml, unreach-call.prp
 ├── README.md           for users of the archive (release/README.md)
 ├── THIRD-PARTY.md      third-party code in the executables (release/THIRD-PARTY.md)
-├── LICENSE             the repository's license
+├── LICENSE             NITWIT's license (LICENSE)
 └── licenses/
     ├── VERSIONS                    source revision, compiler and C/C++ library packages of the build
     ├── yaml-cpp-LICENSE, pugixml-LICENSE.md
@@ -98,9 +98,10 @@ ships.
 
 ## Licensing
 
-NITWIT is under the New BSD license (`LICENSE` of the repository). The static executables contain yaml-cpp and
-pugixml (MIT), glibc (LGPL-2.1-or-later) and libstdc++/libgcc (GPL-3.0 with the GCC Runtime Library Exception, with
-third-party parts under the HP and SGI STL notices, MIT and BSL-1.0). `release/THIRD-PARTY.md` lists them, and
+NITWIT 4 is under the New BSD license (BSD-3-Clause, `LICENSE`); the archive ships that file, not the 3.x license at
+the root of the repository. The static executables contain yaml-cpp and pugixml (MIT), glibc (LGPL-2.1-or-later) and
+libstdc++/libgcc (GPL-3.0 with the GCC Runtime Library Exception, with third-party parts under the HP and SGI STL
+notices, MIT and BSL-1.0). `release/THIRD-PARTY.md` lists them, and
 `tools/package.sh` copies their notices into `licenses/`. The LGPL requires that users can relink NITWIT with a
 modified glibc; the complete source of NITWIT is public, so they can rebuild it. Keep `release/THIRD-PARTY.md` in step
 with `cmake/Dependencies.cmake`, and `release/licenses/libstdc++-notices` with the compiler.
