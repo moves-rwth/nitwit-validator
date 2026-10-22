@@ -180,10 +180,10 @@ private:
     value::Value call(const ast::CallExpr* call, bool isValueUsed, Address* object = nullptr);
     /// The called function; null for a pointer to no function.
     const FunctionEntity* resolveCallee(const ast::CallExpr* call);
-    /// The result of a call in the representation of the call's type; empty for void. `from` is the type of the
-    /// result, if the callee is a function of the program.
-    std::optional<value::Value> inCallType(value::Value result, std::string_view callee, const TypeInfo* from,
-                                           const TypeInfo& type, const ast::Expr* where);
+    /// The result of a call in the representation of the call's type, with the term of the conversion; empty for
+    /// void.
+    std::optional<value::Value> inCallType(value::Value result, std::string_view callee, const TypeInfo& type,
+                                           const ast::Expr* where);
     void evaluateArguments(const ast::CallExpr* call, Arguments& arguments);
     /// Runs a function of the program; the result has no value if the function ended without returning one.
     Returned invoke(const FunctionEntity& function, Arguments& arguments, const ast::CallExpr* site);

@@ -478,6 +478,28 @@ int main(void) {
         ElementsAre("opaque", "opaque", "opaque", "-", "opaque", "opaque"));
 }
 
+TEST_F(TermsTest, CallsThroughAPointerOfAnotherTypeConvertTheResult) {
+    oracle_.answers = {300};
+    EXPECT_THAT(
+        termsAt(R"(int __VERIFIER_nondet_int(void);
+int id(int v) { return v; }
+unsigned char low(int v) { return v; }
+_Bool truth(int v) { return v; }
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    long r = ((long (*)(int))id)(x);
+    unsigned char c = ((unsigned char (*)(int))id)(x);
+    _Bool b = ((_Bool (*)(int))id)(x);
+    int same = ((int (*)(int))id)(x);
+    _Bool fromLow = ((_Bool (*)(int))low)(x); // 44 in a register of _Bool's format
+    _Bool t = truth(x);
+    return r == 300 && c == 44 && b && fromLow && t;
+})",
+                13,
+                {variable("r"), variable("c"), variable("b"), variable("same"), variable("fromLow"), variable("t")}),
+        ElementsAre("(s64)x0", "(u8)x0", "(bool)x0", "x0", "(bool)(u8)x0", "(bool)x0"));
+}
+
 TEST_F(TermsTest, BitFieldsOfInputsAreOpaque) {
     oracle_.answers = {5, 1 << 3};
     EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);

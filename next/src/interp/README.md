@@ -216,7 +216,9 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
   after the last argument, or after the function returned is undefined. Library functions with a va_list get the
   remaining arguments instead.
 - **Calls through a pointer of another type** (C17 6.5.2.2p9) convert scalar arguments and results like the
-  registers that pass them; a struct where a scalar is expected, or the other way round, is undefined.
+  registers that pass them; a struct where a scalar is expected, or the other way round, is undefined. The conversion
+  of a result with a term starts from the format of its term, which is the format of the callee's type; a term of
+  `_Bool`'s format other than a conversion to `_Bool` gets one, since it may be an `unsigned char`.
 - **Pass-through builtins** (`__builtin_expect`, `__builtin_expect_with_probability`, `__builtin_assume_aligned`)
   return their first argument converted to the result type, with the term of the conversion.
 - **Statement expressions** are lowered in place, behind a jump over them, and run as a range of the function's
