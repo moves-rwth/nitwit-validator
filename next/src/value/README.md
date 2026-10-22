@@ -25,7 +25,9 @@ validator can ask what the value would be with other inputs (`validate/README.md
 - **Strict terms:** while the observer evaluates a witness constraint, the interpreter opens a
   `TermTable::StrictScope`. The terms recorded in it are strict (`Term::strict`): like the constraint's evaluation,
   their evaluation stops at any undefined behaviour of their operation, where the program continues after some.
-  Their operands recorded outside the scope keep the program's semantics.
+  Their operands recorded outside the scope keep the program's semantics. A scope with `isStrict` false suspends
+  strictness for terms that belong to the program, such as the conversion to `_Bool` of an input that a constraint
+  reads first.
 - **Inputs:** `TermTable::input` registers the run's value of an input with its term, at most once per run and in any
   order. Inputs are numbered in request order (`InputId`).
 - **The opaque term** stands for any value that depends on inputs in a way the table does not record: results of
@@ -90,9 +92,10 @@ exactly the target's arithmetic, and the host's `long double` is the x87 extende
   continues with (signed overflow, invalid shifts, an out-of-range conversion whose value differs between the data
   models) or ends the run (division by 0, also in the left operand of `&&` and `||` and in the condition of `?:`);
   which of "ends the run" and "unknown" wins in operations, in `&&` and in `?:`; strict terms (the flag, nested
-  scopes, any undefined behaviour ending the run, subterms from outside the scope); `&&`, `||` and `?:` with missing
-  operands, with a right operand that the left one makes irrelevant, and with constant operands; the kind, operator
-  and formats every building function records; constants with their formats, also the selected operand of `?:`;
+  scopes, a scope that suspends strictness, any undefined behaviour ending the run, subterms from outside the scope);
+  `&&`, `||` and `?:` with missing operands, with a right operand that the left one makes irrelevant, and with
+  constant operands; the kind, operator and formats every building function records; constants with their formats,
+  also the selected operand of `?:`;
   inputs registered out of order, in a full table and beyond their cap, and conversions of inputs likewise (but not
   conversions of other terms), each recorded once past the size limit, per kind, formats and strictness, and again
   after `clear()`; nothing recorded without an operand with a term; the opaque term (in every table, after

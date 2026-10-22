@@ -1,6 +1,8 @@
 #include "value/term.hpp"
 
 #include <algorithm>
+#include <limits>
+#include <type_traits>
 
 #include "support/assert.hpp"
 
@@ -81,6 +83,15 @@ bool isConversion(TermKind kind) {
     return kind == TermKind::ConvertInteger || kind == TermKind::ToBool || kind == TermKind::IntegerToFloat
            || kind == TermKind::FloatToInteger || kind == TermKind::ConvertFloat;
 }
+
+// conversionKey packs the TermId of the input into bits 0 to 31, the kind into 32 to 39, the strictness into 40 and
+// the codes of the two formats into 41 to 50 and 51 to 60.
+static_assert(std::numeric_limits<std::underlying_type_t<TermId>>::digits <= 32, "a TermId takes 32 bits of the key");
+static_assert(std::numeric_limits<std::underlying_type_t<TermKind>>::digits <= 8, "a TermKind takes 8 bits of the key");
+static_assert(std::numeric_limits<decltype(IntegerFormat::bits)>::digits <= 8,
+              "the code of an integer format, 2 * bits + isSigned, is below 512");
+static_assert(std::numeric_limits<std::underlying_type_t<FloatFormat>>::digits <= 9,
+              "the code of a floating format, 512 + its value, is below 1024");
 
 /// A number that tells formats apart, below 2^10.
 std::uint64_t formatCode(const ScalarFormat& format) {

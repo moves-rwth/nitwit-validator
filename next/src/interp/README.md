@@ -262,7 +262,9 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
 - **Conditions:** every `ConditionEvent` (`if`, loops, `?:`, `switch`) carries the term of the controlling
   expression's value, for a `switch` that of the promoted value, which `switchValue` carries too. A `for` without
   condition has none.
-- **Constraints** of the observer are evaluated in a `TermTable::StrictScope`.
+- **Constraints** of the observer are evaluated in a `TermTable::StrictScope`. The terms of an input that a constraint
+  requests (the first read of an uninitialized object) belong to the program, which stores the input: they are not
+  strict.
 - **Opaque values:** a value computed from an operand with a term by an operation without a term kind gets
   `TermTable::opaque()`, so that it never becomes a constant of a later term:
   - library functions: the result, if an argument has a term or the function reads bytes that depend on inputs
@@ -347,16 +349,16 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
 - `tests/unit/interp/terms_test.cpp`, every run with the consistency check: input terms; copies (assignment,
   arguments, results, pointers, records, `?:` of records, `va_arg`); conversions (also pointers sign-extended to wider
   integers and back, results of calls through a pointer of another type); `_Bool` values (inputs, bytes of another
-  type, arguments and results, a chain of 40 calls); integer and floating arithmetic, shifts, `++`, `--`, compound
-  assignments (also with signed overflow) and atomic read-modify-writes; comparisons, `!`, `&&`, `||` (with the
-  operand the run did not evaluate) and `?:` (also GNU `?:`); opaque values from partial overwrites, partly
-  initialized reads, type punning, library functions (and that copying functions keep terms, and those that write
-  pointer values do not), pointer arithmetic, bit-fields, variable length array sizes, the overflow builtins, `alloca`
-  and `__VERIFIER_nondet_memory`; table lookups without term; the terms of condition events; the depth limit,
-  conversions of inputs in a full table (also a loop of them, followed by an input) and runs without terms; strict
-  terms of constraints and the program's terms after them; the check's comparison (`termMismatch`) with wrong terms,
-  formats and floating values, and a check that finds strict terms wrong: the run ends with the first mismatch when
-  the observer returns.
+  type, arguments and results, a chain of 40 calls, conversions through a narrowing); integer and floating
+  arithmetic, shifts, `++`, `--`, compound assignments (also with signed overflow) and atomic read-modify-writes;
+  comparisons, `!`, `&&`, `||` (with the operand the run did not evaluate) and `?:` (also GNU `?:`); opaque values
+  from partial overwrites, partly initialized reads, type punning, library functions (and that copying functions keep
+  terms, and those that write pointer values do not), pointer arithmetic, bit-fields, variable length array sizes,
+  the overflow builtins, `alloca` and `__VERIFIER_nondet_memory`; table lookups without term; the terms of condition
+  events; the depth limit, conversions of inputs in a full table (also a loop of them, followed by an input) and runs
+  without terms; strict terms of constraints, and not strict the program's terms after them and those of an input
+  that a constraint reads first; the check's comparison (`termMismatch`) with wrong terms, formats and floating
+  values, and a check that finds strict terms wrong: the run ends with the first mismatch when the observer returns.
 - `tests/semantics/`: the programs of the semantics suite (see `tools/difftest/README.md`) must print the expected
   output under `-32` and `-64`, also with the consistency check of the terms (CTest label `semantics`).
 - `tools/difftest/`: Csmith programs and corpus programs with random inputs; the interpreter must agree with the
