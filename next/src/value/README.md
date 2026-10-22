@@ -91,5 +91,5 @@ exactly the target's arithmetic, and the host's `long double` is the x87 extende
   inputs registered out of order, in a full table and beyond their cap; nothing recorded without an operand with a
   term; the opaque term (in every table, after `clear()`, as the result of operations on it and over the depth and
   size limits); `maxTerms` 0; shared subterms (a term used 60 times, a 64-level chain with each level used twice, a
-  65535-level chain evaluated without recursion); `inputs()`, `origin()`, `clear()`, and the assertions on
-  preconditions.
+  65535-level chain evaluated without recursion); `inputs()`, `subterms()`, `resultFormat()`, `origin()`, `clear()`,
+  and the assertions on preconditions.

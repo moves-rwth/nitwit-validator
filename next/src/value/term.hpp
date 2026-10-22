@@ -177,6 +177,11 @@ public:
     [[nodiscard]] bool isOpaque(TermId id) const;
     /// The inputs a term depends on, in ascending order; none for the opaque term.
     [[nodiscard]] std::vector<InputId> inputs(TermId id) const;
+    /// The terms that `id` depends on, and `id`, in ascending order: every operand comes before the terms that use it.
+    [[nodiscard]] std::vector<TermId> subterms(TermId id) const;
+    /// The format of a term's value: an int for comparisons, `!`, `&&` and `||`, a _Bool for ToBool, the target format
+    /// of conversions and the result format of Conditional, else the term's format. Precondition: not the opaque term.
+    [[nodiscard]] ScalarFormat resultFormat(TermId id) const;
     /// The input a term is derived from through conversions between scalar types only (ConvertInteger, ToBool,
     /// IntegerToFloat, FloatToInteger, ConvertFloat); nullopt for any other term.
     [[nodiscard]] std::optional<InputId> origin(TermId id) const;

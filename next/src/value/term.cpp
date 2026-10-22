@@ -16,6 +16,8 @@ using Outcome = std::expected<Value, NoValue>;
 /// The type of the result of comparisons, `!`, `&&` and `||`: int (C17 6.5.3.3p5, 6.5.8p6, 6.5.9p3, 6.5.13p3,
 /// 6.5.14p3).
 constexpr IntegerFormat intFormat{.bits = 32, .isSigned = true};
+/// The format of _Bool, which ToBool converts to (C17 6.3.1.2).
+constexpr IntegerFormat boolFormat{.bits = 8, .isSigned = false};
 
 std::span<const TermId> operandsOf(const Term& term) {
     return std::span(term.operands).first(term.operandCount);
@@ -79,29 +81,6 @@ bool isTrue(const Value& value) {
 bool keepsOrigin(TermKind kind) {
     return kind == TermKind::ConvertInteger || kind == TermKind::ToBool || kind == TermKind::IntegerToFloat
            || kind == TermKind::FloatToInteger || kind == TermKind::ConvertFloat;
-}
-
-/// The terms that `root` depends on, and `root`, in ascending order: operands have smaller ids than the terms that use
-/// them, so this order has every operand before its users. Taking the largest pending term each time takes the copies
-/// of a term, one per use, one after another, so that each term is listed once.
-std::vector<TermId> subterms(const TermTable& table, TermId root) {
-    std::vector<TermId> result;
-    std::vector<TermId> pending{root}; // a max-heap
-    while (!pending.empty()) {
-        std::ranges::pop_heap(pending);
-        const TermId current = pending.back();
-        pending.pop_back();
-        if (!result.empty() && result.back() == current) {
-            continue; // another path to the same term
-        }
-        result.push_back(current);
-        for (const TermId operand : operandsOf(table.term(current))) {
-            pending.push_back(operand);
-            std::ranges::push_heap(pending);
-        }
-    }
-    std::ranges::reverse(result);
-    return result;
 }
 
 } // namespace
@@ -240,13 +219,67 @@ bool TermTable::isOpaque(TermId id) const {
 
 std::vector<InputId> TermTable::inputs(TermId id) const {
     std::vector<InputId> result;
-    for (const TermId subterm : subterms(*this, id)) {
+    for (const TermId subterm : subterms(id)) {
         if (const Term& current = term(subterm); current.kind == TermKind::Input) {
             result.push_back(inputOf(current)); // unique: an input has one term per run
         }
     }
     std::ranges::sort(result);
     return result;
+}
+
+std::vector<TermId> TermTable::subterms(TermId id) const {
+    // Operands have smaller ids than the terms that use them. Taking the largest pending term each time takes the
+    // copies of a term, one per use, one after another, so that each term is listed once.
+    std::vector<TermId> result;
+    std::vector<TermId> pending{id}; // a max-heap
+    while (!pending.empty()) {
+        std::ranges::pop_heap(pending);
+        const TermId current = pending.back();
+        pending.pop_back();
+        if (!result.empty() && result.back() == current) {
+            continue; // another path to the same term
+        }
+        result.push_back(current);
+        for (const TermId operand : operandsOf(term(current))) {
+            pending.push_back(operand);
+            std::ranges::push_heap(pending);
+        }
+    }
+    std::ranges::reverse(result);
+    return result;
+}
+
+ScalarFormat TermTable::resultFormat(TermId id) const {
+    const Term& current = term(id);
+    switch (current.kind) {
+    case TermKind::IntegerCompare:
+    case TermKind::FloatCompare:
+    case TermKind::LogicalNot:
+    case TermKind::LogicalAnd:
+    case TermKind::LogicalOr:
+        return intFormat;
+    case TermKind::ToBool:
+        return boolFormat;
+    case TermKind::ConvertInteger:
+    case TermKind::IntegerToFloat:
+    case TermKind::FloatToInteger:
+    case TermKind::ConvertFloat:
+    case TermKind::Conditional:
+        return current.secondFormat;
+    case TermKind::Opaque:
+        NITWIT_UNREACHABLE("the opaque term has no value");
+    case TermKind::Input:
+    case TermKind::Constant:
+    case TermKind::IntegerBinary:
+    case TermKind::Shift:
+    case TermKind::IntegerNegate:
+    case TermKind::IntegerComplement:
+    case TermKind::FloatBinary:
+    case TermKind::FloatNegate:
+        break;
+    }
+    return current.format;
 }
 
 std::optional<InputId> TermTable::origin(TermId id) const {
@@ -265,7 +298,7 @@ std::optional<InputId> TermTable::origin(TermId id) const {
 std::expected<Value, NoValue> TermTable::evaluate(TermId id, const Substitution& substitution) const {
     // Shared subterms would make a recursive evaluation exponential, and terms may be TermLimits::maxDepth deep: each
     // subterm is evaluated once, in ascending order, without recursion.
-    const std::vector<TermId> order = subterms(*this, id);
+    const std::vector<TermId> order = subterms(id);
     std::vector<Outcome> outcomes;
     outcomes.reserve(order.size()); // the operands point into it
     for (const TermId current : order) {
