@@ -102,7 +102,7 @@ class TermsTest : public InterpreterTest {
 protected:
     /// Runs `text` with the check of the terms; it must return normally.
     RunResult runChecked(std::string text, DataModel model = DataModel::LP64, RunOptions options = {}) {
-        options.checkTerms = true;
+        options.checkTerms = &termMismatch;
         RunResult result = run(std::move(text), model, options);
         EXPECT_EQ(result.termination, Termination::Returned) << result.message;
         return result;
@@ -236,8 +236,7 @@ TEST_F(TermsTest, RecordResultsKeepTerms) {
 // ---- Operations ----
 
 TEST_F(TermsTest, ConversionsAreRecorded) {
-    EXPECT_THAT(
-        termsAt(R"(int __VERIFIER_nondet_int(void);
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
 double __VERIFIER_nondet_double(void);
 int main(void) {
     int x = __VERIFIER_nondet_int();
@@ -249,15 +248,17 @@ int main(void) {
     int i = d;
     double e = x;
     long w = __builtin_expect(x, 0);
+    int q = (int)(long)(void *)(long)x;
     return 0;
 })",
-                13,
-                {variable("l"), variable("c"), variable("b"), variable("f"), variable("i"), variable("e"),
-                 variable("w"),
-                 [&](const ast::FunctionDecl* f) {
-                     return castTo(ast::BuiltinKind::Short, ref("x", f));
-                 }}),
-        ElementsAre("(s64)x0", "(u8)x0", "(bool)x0", "(float)x1", "(s32)x1", "(double)x0", "(s64)x0", "(s16)x0"));
+                        14,
+                        {variable("l"), variable("c"), variable("b"), variable("f"), variable("i"), variable("e"),
+                         variable("w"), variable("q"),
+                         [&](const ast::FunctionDecl* f) {
+                             return castTo(ast::BuiltinKind::Short, ref("x", f));
+                         }}),
+                ElementsAre("(s64)x0", "(u8)x0", "(bool)x0", "(float)x1", "(s32)x1", "(double)x0", "(s64)x0",
+                            "(s32)(s64)(u64)(s64)x0", "(s16)x0"));
 }
 
 TEST_F(TermsTest, PointersConvertedToWiderIntegersAreSignExtended) {
@@ -426,6 +427,35 @@ int main(void) {
                 ElementsAre("opaque", "opaque", "(s8)x0", "-", "opaque", "x0", "-", "opaque"));
 }
 
+TEST_F(TermsTest, LibraryFunctionsThatWritePointerValuesMakeThemOpaque) {
+    oracle_.answers = {1};
+    EXPECT_THAT(
+        termsAt(R"(int __VERIFIER_nondet_int(void);
+int sprintf(char *, const char *, ...);
+long strtol(const char *, char **, int);
+char *strchr(const char *, int);
+int main(void) {
+    int i = __VERIFIER_nondet_int();
+    char s[8] = "1a2b3";
+    char buf[32];
+    sprintf(buf, "%p", (void *)(s + i));
+    char b = buf[3];
+    sprintf(buf, "%s", s + i);
+    char t = buf[0];
+    char *end;
+    strtol(s + i, &end, 10);
+    long n = end - s;
+    char *found = strchr(s + i, 'b');
+    char *fixed;
+    strtol(s, &fixed, 10);
+    return 0;
+})",
+                19,
+                {variable("b"), variable("t"), variable("end"), variable("n"), variable("found"), variable("fixed")}),
+        // `%s` prints the bytes the pointer points to, which depend on no input.
+        ElementsAre("opaque", "-", "opaque", "opaque", "opaque", "-"));
+}
+
 TEST_F(TermsTest, PointerArithmeticWithInputsIsOpaque) {
     oracle_.answers = {2};
     EXPECT_THAT(
@@ -447,6 +477,128 @@ int main(void) {
                 {variable("p"), variable("q"), variable("d"), variable("v"), variable("first"), variable("second")}),
         // The address of an object is no dependency of its value (interp/README.md, "Terms").
         ElementsAre("opaque", "opaque", "opaque", "-", "opaque", "opaque"));
+}
+
+TEST_F(TermsTest, TableLookupsAreAddressDependenciesWithoutTerm) {
+    // A known imprecision (interp/README.md, "Terms"): glibc's isdigit(c) reads a table at index c.
+    oracle_.answers = {'7'};
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
+const unsigned short **__ctype_b_loc(void);
+int main(void) {
+    int c = __VERIFIER_nondet_int();
+    const unsigned short *entry = &(*__ctype_b_loc())[c];
+    int d = *entry & 2048;
+    return d == 0;
+})",
+                        7, {variable("entry"), variable("d")}),
+                ElementsAre("opaque", "-"));
+}
+
+// ---- Builtins and calls ----
+
+TEST_F(TermsTest, VariadicArgumentsKeepTheirTerms) {
+    oracle_.answers = {-2};
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
+long first(int n, ...) {
+    __builtin_va_list ap;
+    __builtin_va_start(ap, n);
+    unsigned u = __builtin_va_arg(ap, unsigned);
+    long l = __builtin_va_arg(ap, long);
+    __builtin_va_end(ap);
+    return u + l;
+}
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    return first(2, x, (long)x) == 0;
+})",
+                        8, {variable("u"), variable("l")}),
+                // The argument is an int; va_arg reads it as unsigned.
+                ElementsAre("(u32)x0", "(s64)x0"));
+}
+
+TEST_F(TermsTest, CallsThroughAPointerOfAnotherTypeConvertTheResult) {
+    oracle_.answers = {300};
+    EXPECT_THAT(
+        termsAt(R"(int __VERIFIER_nondet_int(void);
+int id(int v) { return v; }
+unsigned char low(int v) { return v; }
+_Bool truth(int v) { return v; }
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    long r = ((long (*)(int))id)(x);
+    unsigned char c = ((unsigned char (*)(int))id)(x);
+    _Bool b = ((_Bool (*)(int))id)(x);
+    int same = ((int (*)(int))id)(x);
+    _Bool fromLow = ((_Bool (*)(int))low)(x); // 44 in a register of _Bool's format
+    _Bool t = truth(x);
+    return r == 300 && c == 44 && b && fromLow && t;
+})",
+                13,
+                {variable("r"), variable("c"), variable("b"), variable("same"), variable("fromLow"), variable("t")}),
+        ElementsAre("(s64)x0", "(u8)x0", "(bool)x0", "x0", "(bool)(u8)x0", "(bool)x0"));
+}
+
+TEST_F(TermsTest, BoolValuesGetTheTermOfAConversionToBoolOnce) {
+    // _Bool has the format of unsigned char: a term of that format gets a conversion to _Bool where a _Bool is
+    // expected, unless it is one. Inputs of type _Bool have one; arguments and results keep it.
+    oracle_.answers = {257, 1, 1};
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
+_Bool __VERIFIER_nondet_bool(void);
+void *memcpy(void *, const void *, unsigned long);
+_Bool get(_Bool *p) { return *p; }
+_Bool down(_Bool b, int n) { return n == 0 ? b : down(b, n - 1); }
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    unsigned char c = x;
+    _Bool b;
+    memcpy(&b, &c, 1); // the byte 1 of unsigned char (u8)x0, which gives 44 for x0 = 300
+    _Bool r = get(&b);
+    _Bool n = __VERIFIER_nondet_bool();
+    _Bool d = down(n, 40);
+    _Bool u;
+    _Bool v = u;
+    return 0;
+})",
+                        16, {variable("b"), variable("r"), variable("n"), variable("d"), variable("v")}),
+                ElementsAre("(u8)x0", "(bool)(u8)x0", "(bool)x1", "(bool)x1", "(bool)x2"));
+}
+
+TEST_F(TermsTest, AtomicReadModifyWritesAreRecorded) {
+    oracle_.answers = {4};
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int y = 1;
+    int old = __atomic_fetch_add(&y, x, 5);
+    int added = y;
+    __atomic_fetch_nand(&y, 3, 5);
+    int swapped = __sync_bool_compare_and_swap(&y, 0, 1);
+    return 0;
+})",
+                        9, {variable("old"), variable("added"), variable("y"), variable("swapped")}),
+                // A compare-and-swap compares without a term kind.
+                ElementsAre("-", "(1 + x0)", "~((1 + x0) & 3)", "opaque"));
+}
+
+TEST_F(TermsTest, OverflowBuiltinsAllocaAndNondetMemory) {
+    oracle_.answers = {8, 1, 2};
+    EXPECT_THAT(
+        termsAt(R"(int __VERIFIER_nondet_int(void);
+void __VERIFIER_nondet_memory(void *, unsigned long);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int r;
+    int overflowed = __builtin_add_overflow(x, 1, &r);
+    char *block = __builtin_alloca(x);
+    unsigned char bytes[2];
+    __VERIFIER_nondet_memory(bytes, sizeof bytes);
+    unsigned char second = bytes[1];
+    unsigned short both = *(unsigned short *)bytes;
+    return 0;
+})",
+                12, {variable("overflowed"), variable("r"), variable("block"), variable("second"), variable("both")}),
+        // Every byte of __VERIFIER_nondet_memory is an input.
+        ElementsAre("opaque", "opaque", "opaque", "x2", "opaque"));
 }
 
 TEST_F(TermsTest, BitFieldsOfInputsAreOpaque) {
@@ -526,6 +678,29 @@ int main(void) {
                 ElementsAre("(((x0 + 1) + 2) + 3)", "opaque"));
 }
 
+TEST_F(TermsTest, ConversionsOfInputsKeepTheirTermsInAFullTable) {
+    // Past the size limit, each conversion of an input is recorded once: the loop of 200 conversions takes one term
+    // of the cap of 200, and leaves room for the inputs after it.
+    oracle_.answers = {3, 4, 5};
+    RunOptions options;
+    options.terms.maxTerms = 100;
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int s = 0;
+    for (int i = 0; i < 200; i++) s = x + i; // fills the table
+    unsigned char c = 0;
+    for (int i = 0; i < 200; i++) c = x;
+    long y = __VERIFIER_nondet_int();
+    int z = x + 1;
+    int w = __VERIFIER_nondet_int();
+    return 0;
+})",
+                        11, {variable("x"), variable("c"), variable("y"), variable("z"), variable("w")},
+                        DataModel::LP64, options),
+                ElementsAre("x0", "(u8)x0", "(s64)x1", "opaque", "x2"));
+}
+
 TEST_F(TermsTest, WithoutTermsNothingIsRecorded) {
     RunOptions options;
     options.terms.maxTerms = 0;
@@ -547,14 +722,17 @@ int main(void) {
     EXPECT_EQ(terms, 0u);
 }
 
-TEST_F(TermsTest, TheTermsOfConstraintsAreStrict) {
-    std::optional<bool> isStrict;
+TEST_F(TermsTest, TheTermsOfConstraintsAreStrictAndThoseOfTheProgramNot) {
+    std::optional<bool> isConstraintStrict;
+    std::optional<bool> isProgramStrict;
     observer_.onStatement = [&](const StatementEvent& event, EvaluationContext& context) {
-        if (sources_.lineColumn(event.stmt->location()).line == 4) {
-            const ast::Expr* sum = analyzed(binary(ast::BinaryOperator::Add, ref("x", context.function()), integer(1)));
-            const auto value = context.evaluate(sum);
+        const std::uint32_t line = sources_.lineColumn(event.stmt->location()).line;
+        ast::Expr* expr = line == 4 ? binary(ast::BinaryOperator::Add, ref("x", context.function()), integer(1))
+                                    : ref("y", context.function());
+        if (line == 4 || line == 5) {
+            const auto value = context.evaluate(analyzed(expr));
             if (value && value->term()) {
-                isStrict = context.terms().term(*value->term()).strict;
+                (line == 4 ? isConstraintStrict : isProgramStrict) = context.terms().term(*value->term()).strict;
             }
         }
         return Directive::Continue;
@@ -562,12 +740,58 @@ TEST_F(TermsTest, TheTermsOfConstraintsAreStrict) {
     runChecked(R"(int __VERIFIER_nondet_int(void);
 int main(void) {
     int x = __VERIFIER_nondet_int();
-    return x + 1 > 0;
+    int y = x + 1;
+    return y > 0;
 })");
-    EXPECT_EQ(isStrict, true);
+    EXPECT_EQ(isConstraintStrict, true);
+    // The program computes x + 1 after the constraint was evaluated: its term is not strict.
+    EXPECT_EQ(isProgramStrict, false);
 }
 
 // ---- The consistency check ----
+
+/// A check that finds every strict term wrong, as a wrong term of an operation in a constraint would be.
+std::optional<std::string> strictTermsAreWrong(const value::TermTable& terms, value::TermId term,
+                                               const value::Value& /*value*/) {
+    if (!terms.term(term).strict) {
+        return std::nullopt;
+    }
+    return std::format("term {} is wrong on purpose", std::to_underlying(term));
+}
+
+TEST_F(TermsTest, AMismatchInAConstraintEndsTheRunWhenTheObserverReturns) {
+    oracle_.answers = {1};
+    std::vector<std::string> errors;
+    std::vector<std::uint32_t> lines;
+    observer_.onStatement = [&](const StatementEvent& event, EvaluationContext& context) {
+        const std::uint32_t line = sources_.lineColumn(event.stmt->location()).line;
+        lines.push_back(line);
+        if (line == 4) {
+            for (const unsigned addend : {1U, 2U}) {
+                const auto value = context.evaluate(
+                    analyzed(binary(ast::BinaryOperator::Add, ref("x", context.function()), integer(addend))));
+                errors.push_back(value ? "no error" : value.error());
+            }
+        }
+        return Directive::Continue;
+    };
+    RunOptions options;
+    options.checkTerms = &strictTermsAreWrong;
+    const RunResult result = run(R"(int __VERIFIER_nondet_int(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int y = x + 1;
+    return y;
+})",
+                                 DataModel::LP64, options);
+    // Each evaluation fails; the run ends with the first mismatch, before the statement in line 4.
+    ASSERT_EQ(errors.size(), 2u);
+    EXPECT_THAT(errors[0], HasSubstr("internal error: term"));
+    EXPECT_NE(errors[1], errors[0]);
+    EXPECT_EQ(result.termination, Termination::Unsupported);
+    EXPECT_EQ(result.message, errors[0]);
+    EXPECT_EQ(lines, (std::vector<std::uint32_t>{3, 4}));
+}
 
 TEST(TermMismatchTest, ATermThatGivesAnotherValueIsReportedWithItsOperation) {
     constexpr value::IntegerFormat s32{.bits = 32, .isSigned = true};
@@ -605,7 +829,7 @@ TEST(TermMismatchTest, FloatingValuesAreComparedBitForBit) {
 TEST_F(TermsTest, TheCheckPassesForRunsThatEndAtUndefinedBehaviour) {
     oracle_.answers = {0};
     RunOptions options;
-    options.checkTerms = true;
+    options.checkTerms = &termMismatch;
     const RunResult result = run(R"(int __VERIFIER_nondet_int(void);
 int main(void) {
     int x = __VERIFIER_nondet_int();

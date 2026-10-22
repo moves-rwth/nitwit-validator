@@ -75,7 +75,7 @@ struct RangeTerm {
 /// The accesses of raw bytes between Memory::beginRawAccesses and endRawAccesses.
 struct RawAccesses {
     bool readsInputs = false; // whether read() read bytes that depend on inputs
-    /// The ranges written by write() without a term and by fill(), as address and size.
+    /// The ranges written by write() without a term and by fill(), as address and size; adjacent ranges are merged.
     std::vector<std::pair<Address, std::uint64_t>> writes{};
 };
 
@@ -106,6 +106,8 @@ public:
     /// allocations end in LIFO order). Its addresses can be reused by later stack allocations.
     void popStack(Address base);
 
+    /// Reads bytes. Although const, it notes whether they depend on inputs while raw accesses are recorded
+    /// (beginRawAccesses).
     [[nodiscard]] std::expected<void, MemoryError> read(Address address, std::span<std::byte> out) const;
 
     /// What readScalar tells besides the bytes.

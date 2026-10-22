@@ -216,7 +216,8 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
   after the last argument, or after the function returned is undefined. Library functions with a va_list get the
   remaining arguments instead.
 - **Calls through a pointer of another type** (C17 6.5.2.2p9) convert scalar arguments and results like the
-  registers that pass them; a struct where a scalar is expected, or the other way round, is undefined.
+  registers that pass them; a struct where a scalar is expected, or the other way round, is undefined. The conversion
+  of a result with a term starts from the format of its term, which is the format of the type the callee returned.
 - **Pass-through builtins** (`__builtin_expect`, `__builtin_expect_with_probability`, `__builtin_assume_aligned`)
   return their first argument converted to the result type, with the term of the conversion.
 - **Statement expressions** are lowered in place, behind a jump over them, and run as a range of the function's
@@ -238,7 +239,8 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
 (`Execution::attach`); `terms.cpp` has the consistency check.
 
 - **Inputs:** every input request (`__VERIFIER_nondet_*`, a function without definition, an uninitialized read)
-  registers its answer, normalized to the requested type, as an input (`TermTable::input`).
+  registers its answer, normalized to the requested type, as an input (`TermTable::input`); a `_Bool` gets a ToBool
+  term over it (below).
 - **Operations:** where the evaluator applies an operation of arithmetic.hpp, it calls the `TermTable` function of
   the same name: unary and binary arithmetic, shifts, comparisons, compound assignments, `++` and `--` (with the
   promotion and the conversion back), and every conversion between scalar types, also to `_Bool`. `!`, `&&`, `||` and
@@ -248,6 +250,13 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   ends the run before a term is recorded.
 - **Pointers converted to wider integers** are sign-extended (see "Conversions"): the term converts to the signed
   integer of the pointer's width first, and then to the target, so that it gives the run's value.
+- **`_Bool` values** have the format of `unsigned char`, so that a term of that format may give other values than 0
+  and 1; a ToBool term gives only those. A conversion to `_Bool` (`Execution::toBool`; also of the arguments and
+  results of calls with `_Bool` parameters and results) records a ToBool term, unless the operand's term is one
+  already, also behind integer conversions, which keep 0 and 1 (`c ? b : d` promotes `_Bool` operands to `int`): then
+  the result has that term. Inputs of type `_Bool`, also uninitialized `_Bool` objects, get a ToBool term over their
+  input term (`requestInput`). A `_Bool` read from bytes written as another type, and `?:` of `_Bool` values with a
+  condition that depends on inputs, keep their terms up to the next conversion.
 - **Copies keep the term:** assignment, initialization, arguments, results, `va_arg` (with a conversion between the
   signed and the unsigned type), and memory (below).
 - **Conditions:** every `ConditionEvent` (`if`, loops, `?:`, `switch`) carries the term of the controlling
@@ -257,11 +266,14 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
 - **Opaque values:** a value computed from an operand with a term by an operation without a term kind gets
   `TermTable::opaque()`, so that it never becomes a constant of a later term:
   - library functions: the result, if an argument has a term or the function reads bytes that depend on inputs
-    (`Memory::beginRawAccesses`). The bytes the function writes with `write` and `fill` become opaque if it reads such
-    bytes or if an argument other than a pointer has a term (also a size: `memset(p, 0, n)` with an input-derived `n`
-    makes the zeros opaque); a pointer argument only tells where the bytes are, as the address of a store does.
-    Functions that copy bytes (`memcpy`, `memmove`, `strcpy`, `strdup`, `realloc`, ...) copy their terms
-    (`Memory::copy`); `memset` with arguments without terms clears them;
+    (`Memory::beginRawAccesses`); so also a pointer that `strchr`, `strstr`, `memchr` and the like compute from an
+    input-derived pointer. The bytes the function writes with `write` and `fill` become opaque if it reads such bytes
+    or if an argument other than a pointer has a term (also a size: `memset(p, 0, n)` with an input-derived `n` makes
+    the zeros opaque). A pointer argument only tells where the bytes are, as the address of a store does, unless the
+    function writes a value computed from a pointer argument (`LibraryResult::writesPointerValues`): a pointer printed
+    with `%p` by `sprintf` and its relatives, the end pointer of `strtol` and its relatives. Functions that copy bytes
+    (`memcpy`, `memmove`, `strcpy`, `strdup`, `realloc`, ...) copy their terms (`Memory::copy`); `memset` with
+    arguments without terms clears them;
   - pointer arithmetic (`p + i`, `&a[i]`, `p - q`, `++p`, `&p->member` past offset 0) with a pointer, an index or an
     element size (a variable length array) that depends on inputs, and `sizeof` of such an array;
   - bit-fields: a field read from storage that depends on inputs, and the storage after it got a value with a term or
@@ -279,16 +291,31 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   `copy` carries the terms; a range that lies only partly in the copied bytes is opaque in the copy. Bytes written
   without term (`fill`, string literals, initializers) have none; the end of an object's lifetime and
   `markUninitialized` remove them.
-- **The consistency check** (`RunOptions::checkTerms`, the hidden replay option `--check-terms`) evaluates every term
-  the run records or reads from memory with the run's inputs and compares the result with the value bit for bit; a
-  mismatch ends the run with "internal error: the term of <operation> gives ...". The semantics suite runs with it.
+- **The consistency check** (`RunOptions::checkTerms` with `termMismatch`, the hidden replay option `--check-terms`)
+  evaluates every term that an operation records (`Execution::attach`) or a load reads from memory, also the strict
+  terms of constraints, with the run's inputs and compares the result with the value bit for bit; a mismatch ends the
+  run with "internal error: the term of <operation> gives ...". A mismatch found while the observer evaluates a
+  constraint fails that evaluation, and the run ends with the first one when the observer returns.
+  - Terms set by construction are not evaluated: the input terms of answers (`requestInput`), a pointer's term taken
+    from the address of its object (`pointerTo`), the result of a call that keeps its callee's term because the term
+    has the format of the call's type (`inCallType`), and the opaque term. They are exact because they pass a term
+    on unchanged.
+  - The check cannot see a term that is missing where a value depends on inputs. `terms_test.cpp` covers those: it
+    expects the term of each kind of operation, copy and conversion, and the opaque term from each operation without
+    a term kind (above).
+  - The semantics suite runs with it, and so do the end-to-end tests of the validator, which evaluate constraints.
+    `terms_test.cpp` also passes a check that finds the strict terms wrong on purpose, for how a mismatch in a
+    constraint ends the run.
 - **Known imprecisions:** these dependencies are not recorded.
   - Implicit flows: a value assigned under a condition that depends on an input (`if (x > 0) y = 1;`) does not depend
     on that input. Which branch the run takes is the waypoints' business, not the terms'.
   - Addresses: a value read from or written to an object does not depend on the object's address. `a[i]` with an
     input-derived `i` has the term that `a[i]` holds in this run (none for constant elements), although another `i`
-    reads another element; the pointer `&a[i]` is opaque. Equally, which object a struct `?:` selects is not
-    recorded.
+    reads another element; the pointer `&a[i]` is opaque. Table lookups are such reads: glibc's ctype macros read
+    `isdigit(c)` as `(*__ctype_b_loc())[c] & 2048`, which has no term for an input-derived `c`. Equally, which object
+    a struct `?:` selects is not recorded. Addresses also depend on the sizes of earlier objects: after
+    `p = malloc(n)` with an input-derived `n`, `p` is opaque, but `q = malloc(4)` has no term, although where it lies
+    depends on `n`; so do the addresses of objects after a variable length array of input-derived size.
   - Over-approximations, which make values opaque that the inputs do not change: opaque bit-field storage stays
     opaque until it is overwritten as a whole without term; all bytes a library function writes are opaque if one
     depends on inputs.
@@ -318,13 +345,18 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   calls in both data models, outputs confirmed with GCC), `termination_test.cpp` (how runs end, undefined behaviour,
   limits), `inputs_test.cpp` (oracle requests, uninitialized reads) and `evaluation_context_test.cpp`.
 - `tests/unit/interp/terms_test.cpp`, every run with the consistency check: input terms; copies (assignment,
-  arguments, results, pointers, records, `?:` of records); conversions (also pointers sign-extended to wider
-  integers); integer and floating arithmetic, shifts, `++`, `--` and compound assignments (also with signed overflow);
-  comparisons, `!`, `&&`, `||` (with the operand the run did not evaluate) and `?:` (also GNU `?:`); opaque values from
-  partial overwrites, partly initialized reads, type punning, library functions (and that copying functions keep
-  terms), pointer arithmetic, bit-fields and variable length array sizes; the terms of condition events; the depth
-  limit and runs without terms; strict terms of constraints; the check's comparison (`termMismatch`) with wrong
-  terms, formats and floating values.
+  arguments, results, pointers, records, `?:` of records, `va_arg`); conversions (also pointers sign-extended to wider
+  integers and back, results of calls through a pointer of another type); `_Bool` values (inputs, bytes of another
+  type, arguments and results, a chain of 40 calls); integer and floating arithmetic, shifts, `++`, `--`, compound
+  assignments (also with signed overflow) and atomic read-modify-writes; comparisons, `!`, `&&`, `||` (with the
+  operand the run did not evaluate) and `?:` (also GNU `?:`); opaque values from partial overwrites, partly
+  initialized reads, type punning, library functions (and that copying functions keep terms, and those that write
+  pointer values do not), pointer arithmetic, bit-fields, variable length array sizes, the overflow builtins, `alloca`
+  and `__VERIFIER_nondet_memory`; table lookups without term; the terms of condition events; the depth limit,
+  conversions of inputs in a full table (also a loop of them, followed by an input) and runs without terms; strict
+  terms of constraints and the program's terms after them; the check's comparison (`termMismatch`) with wrong terms,
+  formats and floating values, and a check that finds strict terms wrong: the run ends with the first mismatch when
+  the observer returns.
 - `tests/semantics/`: the programs of the semantics suite (see `tools/difftest/README.md`) must print the expected
   output under `-32` and `-64`, also with the consistency check of the terms (CTest label `semantics`).
 - `tools/difftest/`: Csmith programs and corpus programs with random inputs; the interpreter must agree with the

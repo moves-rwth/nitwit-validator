@@ -50,7 +50,7 @@ FunctionDecl casts 'void (void)' <8:6>
       CastExpr (void) ToVoid 'void' <19:5>
         DeclRefExpr i (VarDecl at 3:5) 'int' lvalue <19:11>
     ExpressionStmt <20:5>
-      CastExpr (union number) NoOp 'union number' <20:5>
+      CastExpr (union number) ToUnion 'union number' <20:5>
         ImplicitCastExpr LValueToRValue 'double' <20:19>
           DeclRefExpr d (VarDecl at 4:8) 'double' lvalue <20:19>
     ExpressionStmt <21:5>

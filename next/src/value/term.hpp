@@ -12,6 +12,7 @@
 #include <initializer_list>
 #include <optional>
 #include <span>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -66,7 +67,8 @@ struct Term {
 };
 
 struct TermLimits {
-    /// The number of terms of a run, beyond which only inputs get terms, up to twice the number; 0 records none.
+    /// The number of terms of a run, beyond which only inputs and conversions of inputs get terms (each conversion of
+    /// an input once), up to twice the number; 0 records none.
     std::uint32_t maxTerms = 1U << 21;
     /// A result whose term would be deeper gets the opaque term, so that loops like `x = x * 31 + c` stay cheap.
     std::uint16_t maxDepth = 64;
@@ -120,7 +122,8 @@ public:
     // result's term, or nullopt if no operand has a term (Value::term()). That check is inline, so that operations on
     // values without terms cost no call. An operand without a term is recorded as a constant of its value, which must
     // be a value of the operand's format. A result with an opaque operand, or whose term would exceed a limit
-    // (TermLimits), gets the opaque term.
+    // (TermLimits), gets the opaque term. A conversion of an input exceeds the size limit only at 2 * `maxTerms`, as
+    // inputs do; past the size limit, the same conversion of the same input gives the same term.
 
     /// Registers the run's value of an input, at most once per run, in any order. Inputs get a term even in a full
     /// table, so that the search can change them, until the table holds 2 * `maxTerms` terms; after that they get the
@@ -182,10 +185,6 @@ public:
     /// The format of a term's value: an int for comparisons, `!`, `&&` and `||`, a _Bool for ToBool, the target format
     /// of conversions and the result format of Conditional, else the term's format. Precondition: not the opaque term.
     [[nodiscard]] ScalarFormat resultFormat(TermId id) const;
-    /// The input a term is derived from through conversions between scalar types only (ConvertInteger, ToBool,
-    /// IntegerToFloat, FloatToInteger, ConvertFloat); nullopt for any other term.
-    [[nodiscard]] std::optional<InputId> origin(TermId id) const;
-
     /// The value of a term when the inputs in `substitution` have those values instead of the run's; with an empty
     /// substitution, the value the run computed. Undefined behaviour gives the value the run continues with
     /// (arithmetic.hpp, endsRun).
@@ -207,7 +206,8 @@ private:
 
     static constexpr TermId opaqueTerm{0}; // the first term of every table with maxTerms > 0
 
-    [[nodiscard]] bool hasRoomFor(std::size_t count) const { return terms_.size() + count <= limits_.maxTerms; }
+    /// The size of the table up to which inputs, and conversions of inputs, get terms: twice the size limit.
+    [[nodiscard]] std::size_t inputCap() const { return 2 * std::size_t{limits_.maxTerms}; }
     /// Records `term` with `operands`, of which at least one has a term.
     [[nodiscard]] std::optional<TermId> record(Term term, std::initializer_list<Operand> operands);
     [[nodiscard]] std::optional<TermId> recordLogical(TermKind kind, const Value& lhs, ScalarFormat lhsFormat,
@@ -228,6 +228,8 @@ private:
     std::vector<Term> terms_;
     std::vector<Value> values_;    // the values of constants and the run's values of inputs
     std::vector<bool> registered_; // by InputId: whether the input has a term
+    /// Past the size limit, the conversions of inputs, by input, kind, formats and strictness (record()).
+    std::unordered_map<std::uint64_t, TermId> inputConversions_;
 };
 
 // The building functions check for operands with terms inline.

@@ -106,7 +106,7 @@ bool isSame(const value::Value& a, const value::Value& b) {
     return false;
 }
 
-std::string describe(const value::Value& value) {
+std::string valueText(const value::Value& value) {
     switch (value.kind()) {
     case value::Value::Kind::Integer: {
         // The canonical 128 bits.
@@ -140,17 +140,26 @@ std::optional<std::string> termMismatch(const value::TermTable& terms, value::Te
     }
     std::string actual = "an unknown value";
     if (evaluated) {
-        actual = describe(*evaluated);
+        actual = valueText(*evaluated);
     } else if (evaluated.error() == value::NoValue::EndsRun) {
         actual = "the end of the run";
     }
     return std::format("the term of {} gives {}, but the run computed {}", operationOf(terms.term(term)), actual,
-                       describe(value));
+                       valueText(value));
 }
 
-void Execution::checkTerm(const value::Value& value, const ast::Expr* where) const {
-    if (const std::optional<std::string> mismatch = termMismatch(terms_, *value.term(), value)) {
-        stop(Termination::Unsupported, "internal error: " + *mismatch, locationOf(where));
+void Execution::checkTerm(const value::Value& value, const ast::Expr* where) {
+    if (const std::optional<std::string> mismatch = options_.checkTerms(terms_, *value.term(), value)) {
+        RunEnd end{.termination = Termination::Unsupported,
+                   .exitStatus = 0,
+                   .message = "internal error: " + *mismatch,
+                   .location = locationOf(where)};
+        // evaluate() turns a RunEnd into an error for the observer: obey() ends the run with the first mismatch when
+        // the observer returns, also if it evaluated more constraints after it.
+        if (!termMismatch_) {
+            termMismatch_ = end;
+        }
+        throw end;
     }
 }
 

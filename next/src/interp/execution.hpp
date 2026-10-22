@@ -67,6 +67,7 @@ struct LValue {
                 .addressTermId = term.value_or(value::TermId{})};
     }
 };
+static_assert(sizeof(LValue) == 16, "an LValue is returned in two registers");
 
 /// The arguments of a call: their values and the types of the argument expressions (after the conversions sema
 /// inserted), which a callee needs to convert them to its parameter types or to fetch them with va_arg.
@@ -180,10 +181,10 @@ private:
     value::Value call(const ast::CallExpr* call, bool isValueUsed, Address* object = nullptr);
     /// The called function; null for a pointer to no function.
     const FunctionEntity* resolveCallee(const ast::CallExpr* call);
-    /// The result of a call in the representation of the call's type; empty for void. `from` is the type of the
-    /// result, if the callee is a function of the program.
-    std::optional<value::Value> inCallType(value::Value result, std::string_view callee, const TypeInfo* from,
-                                           const TypeInfo& type, const ast::Expr* where);
+    /// The result of a call in the representation of the call's type, with the term of the conversion; empty for
+    /// void.
+    std::optional<value::Value> inCallType(value::Value result, std::string_view callee, const TypeInfo& type,
+                                           const ast::Expr* where);
     void evaluateArguments(const ast::CallExpr* call, Arguments& arguments);
     /// Runs a function of the program; the result has no value if the function ended without returning one.
     Returned invoke(const FunctionEntity& function, Arguments& arguments, const ast::CallExpr* site);
@@ -196,7 +197,7 @@ private:
     /// The value a library function returned, or the end of the run it asks for.
     std::optional<value::Value> libraryResult(const FunctionEntity& function, LibraryResult result,
                                               const ast::CallExpr* site);
-    /// A value from the oracle, with its input term; also counts the request.
+    /// A value from the oracle, with its input term (a _Bool, with its conversion to _Bool); also counts the request.
     value::Value requestInput(InputRequest::Kind kind, const ast::Expr* site, ast::QualType type,
                               const ast::FunctionDecl* function);
     /// The value a function without definition returns: from the oracle for scalar types, zero for others.
@@ -315,7 +316,8 @@ private:
     /// value::convertInteger with its term; `value` itself if the formats are equal.
     value::Value convertInteger(const value::Value& value, value::IntegerFormat from, value::IntegerFormat to,
                                 const ast::Expr* where);
-    /// value::toBool with its term.
+    /// value::toBool with its term; a value whose term is a conversion to _Bool, also behind integer conversions, gives
+    /// that term.
     value::Value toBool(const value::Value& value, value::ScalarFormat from, const ast::Expr* where);
     /// A conversion from or to a floating type, between different types, with its term.
     value::Value convertFloating(const value::Value& value, const TypeInfo& from, const TypeInfo& to,
@@ -364,17 +366,17 @@ private:
     /// Whether the run records terms (not in replay mode, RunOptions::terms).
     [[nodiscard]] bool recordsTerms() const { return options_.terms.maxTerms > 0; }
     /// Attaches `term`, which the evaluator recorded for `value` or read from memory; with RunOptions::checkTerms, the
-    /// run ends if the term does not evaluate to the value. In place, so that values are not moved. The frequent
+    /// run ends if the check finds the term wrong. In place, so that values are not moved. The frequent
     /// operations call it (and the TermTable) only if an operand has a term, so that operations on values without
     /// terms, as in programs without inputs, do nothing else: recording unconditionally, with only the checks of the
     /// TermTable, cost 5 % of the run time.
     void attach(value::Value& value, std::optional<value::TermId> term, const ast::Expr* where) {
         value.setTerm(term);
-        if (options_.checkTerms && term) {
+        if (options_.checkTerms != nullptr && term) {
             checkTerm(value, where);
         }
     }
-    void checkTerm(const value::Value& value, const ast::Expr* where) const;
+    void checkTerm(const value::Value& value, const ast::Expr* where);
     /// The term of a value computed by an operation without a term kind: opaque if the value depends on inputs.
     [[nodiscard]] std::optional<value::TermId> opaqueIf(bool dependsOnInputs) const {
         return dependsOnInputs ? terms_.opaque() : std::nullopt;
@@ -418,6 +420,9 @@ private:
     std::optional<HostStack> hostStack_;        // of the thread that runs
     const value::Value* returnValue_ = nullptr; // \result during a ReturnEvent
     SourceLocation location_;                   // of the statement being executed, for messages
+    /// The end of the run at the first term that RunOptions::checkTerms finds wrong, kept for a mismatch found while
+    /// the observer evaluates a constraint.
+    std::optional<RunEnd> termMismatch_;
 };
 
 /// What the undefined behaviour is, for messages (events.cpp).
@@ -428,10 +433,5 @@ private:
 [[nodiscard]] inline bool isNonZero(const value::Value& scalar) {
     return scalar.kind() == value::Value::Kind::Integer ? scalar.bits() != 0 : value::toBool(scalar).bits() != 0;
 }
-
-/// For RunOptions::checkTerms: what is wrong with `term` as the term of `value`, which the run computed; nullopt if it
-/// evaluates to exactly that value with the run's inputs, or is the opaque term.
-[[nodiscard]] std::optional<std::string> termMismatch(const value::TermTable& terms, value::TermId term,
-                                                      const value::Value& value);
 
 } // namespace nitwit::interp

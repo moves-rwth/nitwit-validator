@@ -208,9 +208,10 @@ ast::CastKind Sema::castKind(const ast::Expr* expr, ast::QualType from, ast::Qua
         return sourcePointee.unqualified() == targetPointee.unqualified() ? ast::CastKind::NoOp
                                                                           : ast::CastKind::BitCast;
     }
-    if (target == TypeClass::Record && source == TypeClass::Record
-        && context_.canonical(from).unqualified() != context_.canonical(to).unqualified()) {
-        return ast::CastKind::ToUnion;
+    if (target == TypeClass::Record
+        && (source != TypeClass::Record
+            || context_.canonical(from).unqualified() != context_.canonical(to).unqualified())) {
+        return ast::CastKind::ToUnion; // from a scalar or from a record of another type
     }
     return ast::CastKind::NoOp;
 }

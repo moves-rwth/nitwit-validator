@@ -94,17 +94,23 @@ TEST(CommandLineTest, AReplay) {
     EXPECT_EQ(parsed->replay->terms, ReplayOptions::Terms::None);
 }
 
-TEST(CommandLineTest, AReplayWithTerms) {
+TEST(CommandLineTest, AReplayThatRecordsTerms) {
     const auto recorded = parse({"--replay", "in.txt", "--terms", "prog.c"});
     ASSERT_TRUE(recorded.has_value()) << recorded.error();
     ASSERT_TRUE(recorded->replay.has_value());
     EXPECT_EQ(recorded->replay->terms, ReplayOptions::Terms::Record);
+}
+
+TEST(CommandLineTest, AReplayThatChecksTerms) {
     const auto checked = parse({"--check-terms", "--replay", "in.txt", "prog.c"});
     ASSERT_TRUE(checked.has_value()) << checked.error();
     ASSERT_TRUE(checked->replay.has_value());
     EXPECT_EQ(checked->replay->terms, ReplayOptions::Terms::Check);
-    // Only for replay, and only once.
+}
+
+TEST(CommandLineTest, TermOptionsOnlyForOneReplay) {
     EXPECT_EQ(exitOf({"--terms", "-w", "w.yml", "prog.c"}), exitUsage);
+    EXPECT_EQ(exitOf({"--check-terms", "prog.c"}), exitUsage);
     EXPECT_EQ(exitOf({"--replay", "in.txt", "--terms", "--check-terms", "prog.c"}), exitUsage);
 }
 

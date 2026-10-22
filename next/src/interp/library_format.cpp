@@ -243,6 +243,7 @@ private:
             if (specification.length != Length::None) {
                 invalid(specification);
             }
+            call_.noteWrittenPointerValue(); // the output, which sprintf writes, shows a pointer argument
             return host(specification, "",
                         reinterpret_cast<const void*>(static_cast<std::uintptr_t>(
                             call_.pointerArgument(nextArgument(specification, ScalarType::Pointer)))));

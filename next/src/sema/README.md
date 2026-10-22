@@ -148,9 +148,9 @@ declarations, `return` with or without a value), is accepted with a warning.
 - **Arrays in rvalue structures:** `f().a[1]` and `(c ? s : t).a` decay an array member of a structure that is not
   an object. The interpreter keeps the structure in a temporary object for the duration of the full expression
   (C17 6.2.4p8), which the pointer of the decay points into.
-- **Transparent unions:** an argument for a transparent-union parameter is a `ToUnion` cast whose operand already has
-  the type of the member it initializes (sema converts to it first, e.g. `NullToPointer` for `0`): the first member
-  whose type is compatible with the operand's.
+- **Casts to unions** (GNU) are `ToUnion` casts whose operand has the type of the member it initializes: the first
+  member whose type is compatible with the operand's (a scalar or a record of another type). An argument for a
+  transparent-union parameter is one too; sema converts it to the member's type first (e.g. `NullToPointer` for `0`).
 - **Statement expressions:** the value is that of `StatementExpr::valueStatement()`, the last statement of the body
   if it is an expression statement, also under labels.
 - **Atomic builtins** (`__atomic_*`, `__sync_*`) are the evaluator's, as plain single-threaded operations on memory;

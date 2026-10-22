@@ -269,6 +269,16 @@ TEST_F(ExpressionsTest, Casts) {
                                              "  DeclRefExpr x (VarDecl at 1:5) 'int' lvalue\n");
     EXPECT_EQ(typeOf("int x;", "(const int)x"), "int");
     EXPECT_EQ(typeOf("union u { int i; float f; }; int x;", "(union u)x"), "union u");
+    // GNU: the operand initializes the member of its type.
+    EXPECT_EQ(dumpExpr("union u { int i; float f; }; int x;", "(union u)(float)x"),
+              "CastExpr (union u) ToUnion 'union u'\n"
+              "  CastExpr (float) IntegralToFloating 'float'\n"
+              "    ImplicitCastExpr LValueToRValue 'int'\n"
+              "      DeclRefExpr x (VarDecl at 1:34) 'int' lvalue\n");
+    EXPECT_EQ(dumpExpr("struct s { int a; }; union u { struct s s; int i; }; struct s v;", "(union u)v"),
+              "CastExpr (union u) ToUnion 'union u'\n"
+              "  ImplicitCastExpr LValueToRValue 'struct s'\n"
+              "    DeclRefExpr v (VarDecl at 1:63) 'struct s' lvalue\n");
     EXPECT_EQ(errorOf("struct s { int a; } v; void f(void) { (int)v; }"),
               "1:39: aggregate value used where a scalar was expected");
     EXPECT_EQ(errorOf("double d; void f(void) { (int *)d; }"), "1:26: cannot convert between pointer and floating "

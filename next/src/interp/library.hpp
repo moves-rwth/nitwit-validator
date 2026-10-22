@@ -63,8 +63,12 @@ struct LibraryResult {
     value::Value value;
     int status = 0;
     std::string message;
+    /// Whether the function wrote bytes that depend on the value of a pointer argument, not only on the bytes it points
+    /// to: a pointer printed with %p, the end pointer of strtol. The evaluator then makes the written bytes opaque if a
+    /// pointer argument depends on inputs (interp/README.md, "Terms").
+    bool writesPointerValues = false;
 
-    static LibraryResult returning(value::Value value) { return {Kind::Return, std::move(value), 0, {}}; }
+    static LibraryResult returning(value::Value value) { return {Kind::Return, std::move(value), 0, {}, false}; }
 };
 
 using LibraryFunction = LibraryResult (*)(LibraryContext& context, const LibraryCall& call);

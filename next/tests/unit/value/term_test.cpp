@@ -9,6 +9,7 @@
 #include <functional>
 #include <limits>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -925,6 +926,73 @@ TEST(TermLimitsTest, InputsGetATermInAFullTable) {
     EXPECT_EQ(table.inputs(*y.term()), std::vector{secondInput});
 }
 
+TEST(TermLimitsTest, ConversionsOfInputsGetATermInAFullTable) {
+    TermTable table(lp64, TermLimits{.maxTerms = 2});
+    const Value x = registered(table, firstInput, integer(-1, s32), s32);
+    EXPECT_EQ(table.integerNegate(x, s32), table.opaque()); // full
+    const Value narrow = withTerm(table.convertInteger(x, s32, u8));
+    EXPECT_FALSE(table.isOpaque(*narrow.term()));
+    EXPECT_TRUE(evaluatesTo(table.evaluate(*narrow.term(), replacing(firstInput, integer(300, s32))), integer(44, u8)));
+    // Only conversions of an input itself, and other operations on inputs not at all.
+    EXPECT_EQ(table.convertInteger(narrow, u8, s32), table.opaque());
+    EXPECT_EQ(table.integerComplement(x, s32), table.opaque());
+    EXPECT_EQ(table.size(), 3u);
+}
+
+TEST(TermLimitsTest, ConversionsOfInputsShareTheCapOfInputs) {
+    // The opaque term, the input and two conversions of it fill twice the size limit.
+    TermTable table(lp64, TermLimits{.maxTerms = 2});
+    const Value x = registered(table, firstInput, integer(5, s32), s32);
+    const std::optional<TermId> wide = table.convertInteger(x, s32, s64);
+    EXPECT_FALSE(table.isOpaque(*wide));
+    EXPECT_FALSE(table.isOpaque(*table.integerToFloat(x, s32, FloatFormat::Float)));
+    EXPECT_EQ(table.size(), 4u);
+    EXPECT_EQ(table.toBool(x, s32), table.opaque());
+    EXPECT_EQ(table.input(secondInput, integer(1, s32), s32), table.opaque());
+    EXPECT_EQ(table.convertInteger(x, s32, s64), wide); // recorded already
+    EXPECT_EQ(table.size(), 4u);
+}
+
+TEST(TermLimitsTest, PastTheSizeLimitEachConversionOfAnInputIsRecordedOnce) {
+    // A loop that converts an input again and again leaves room for later inputs.
+    TermTable table(lp64, TermLimits{.maxTerms = 2});
+    const Value x = registered(table, firstInput, integer(300, s32), s32);
+    const std::optional<TermId> narrow = table.convertInteger(x, s32, u8);
+    for (int i = 0; i < 100; ++i) {
+        EXPECT_EQ(table.convertInteger(x, s32, u8), narrow);
+    }
+    const Value y = registered(table, secondInput, integer(1, s32), s32);
+    EXPECT_FALSE(table.isOpaque(*y.term()));
+    EXPECT_EQ(table.size(), 4u);
+    EXPECT_TRUE(evaluatesTo(table.evaluate(*narrow, replacing(firstInput, integer(257, s32))), integer(1, u8)));
+}
+
+TEST(TermLimitsTest, ConversionsOfAnInputDifferInKindFormatsAndStrictness) {
+    TermTable table(lp64, TermLimits{.maxTerms = 4});
+    const Value x = registered(table, firstInput, integer(300, s32), s32);
+    EXPECT_FALSE(table.isOpaque(*table.integerBinary(IntegerOperator::Add, x, integer(1, s32), s32))); // full
+    const std::optional<TermId> signedNarrow = table.convertInteger(x, s32, s8);
+    const std::optional<TermId> narrow = table.convertInteger(x, s32, u8);
+    const std::optional<TermId> truth = table.toBool(x, s32);
+    std::optional<TermId> strictNarrow;
+    {
+        const TermTable::StrictScope strict(table);
+        strictNarrow = table.convertInteger(x, s32, u8);
+        EXPECT_EQ(table.convertInteger(x, s32, u8), strictNarrow);
+    }
+    EXPECT_EQ(table.size(), 8u);
+    EXPECT_EQ((std::set<std::optional<TermId>>{narrow, signedNarrow, truth, strictNarrow}).size(), 4u);
+    EXPECT_TRUE(table.term(*strictNarrow).strict);
+    EXPECT_EQ(table.convertInteger(x, s32, u8), narrow);
+    EXPECT_EQ(table.toBool(x, s32), truth);
+    EXPECT_EQ(narrow, TermId{5});
+    // Each run starts without them.
+    table.clear();
+    const Value again = registered(table, firstInput, integer(300, s32), s32);
+    EXPECT_FALSE(table.isOpaque(*table.integerBinary(IntegerOperator::Add, again, integer(1, s32), s32)));
+    EXPECT_EQ(table.convertInteger(again, s32, u8), TermId{4});
+}
+
 TEST(TermLimitsTest, MaxTermsZeroRecordsNothing) {
     TermTable table(lp64, TermLimits{.maxTerms = 0});
     EXPECT_FALSE(table.opaque().has_value());
@@ -958,7 +1026,6 @@ TEST(TermOpaqueTest, EveryTableHasAnOpaqueTerm) {
         EXPECT_EQ(table.term(*opaque).kind, TermKind::Opaque);
         EXPECT_TRUE(failsWith(table.evaluate(*opaque, {}), NoValue::Unknown));
         EXPECT_TRUE(table.inputs(*opaque).empty());
-        EXPECT_FALSE(table.origin(*opaque).has_value());
         EXPECT_EQ(table.size(), 1u);
         table.clear();
     }
@@ -1170,10 +1237,9 @@ TEST(TermDagTest, DeepTermIsEvaluatedWithoutRecursion) {
     // An odd number of complements: ~-1.
     EXPECT_TRUE(evaluatesTo(table.evaluate(*value.term(), replacing(firstInput, integer(-1, s32))), integer(0, s32)));
     EXPECT_EQ(table.inputs(*value.term()), std::vector{firstInput});
-    EXPECT_FALSE(table.origin(*value.term()).has_value());
 }
 
-// ---- Inputs and origins ----
+// ---- Inputs and formats ----
 
 TEST(TermTableTest, InputsAreSortedAndUnique) {
     TermTable table(lp64);
@@ -1229,25 +1295,6 @@ TEST(TermTableTest, ResultFormatsAreThoseOfTheOperationsValue) {
         ASSERT_TRUE(term.has_value());
         EXPECT_EQ(table.resultFormat(*term), format) << std::to_underlying(table.term(*term).kind);
     }
-}
-
-TEST(TermTableTest, OriginFollowsConversionsOnly) {
-    TermTable table(lp64);
-    const Value x = registered(table, firstInput, integer(1, s32), s32);
-    const Value wide = withTerm(table.convertInteger(x, s32, s64));
-    const Value asDouble = withTerm(table.integerToFloat(wide, s64, FloatFormat::Double));
-    const Value asFloat = withTerm(table.convertFloat(asDouble, FloatFormat::Double, FloatFormat::Float));
-    const Value back = withTerm(table.floatToInteger(asFloat, FloatFormat::Float, s16));
-    const Value boolean = withTerm(table.toBool(back, s16));
-    EXPECT_EQ(table.origin(*x.term()), firstInput);
-    EXPECT_EQ(table.origin(*back.term()), firstInput);
-    EXPECT_EQ(table.origin(*boolean.term()), firstInput);
-
-    const Value sum = withTerm(table.integerBinary(IntegerOperator::Add, x, integer(1, s32), s32));
-    EXPECT_FALSE(table.origin(*sum.term()).has_value());
-    EXPECT_FALSE(table.origin(*withTerm(table.convertInteger(sum, s32, u8)).term()).has_value());
-    EXPECT_FALSE(table.origin(*withTerm(table.logicalNot(x, s32)).term()).has_value());
-    EXPECT_FALSE(table.origin(*withTerm(table.integerNegate(x, s32)).term()).has_value());
 }
 
 TEST(TermTableTest, ClearForgetsTheRun) {

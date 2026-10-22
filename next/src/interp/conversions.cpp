@@ -99,10 +99,18 @@ value::Value Execution::convertInteger(const value::Value& value, value::Integer
     return result;
 }
 
+// _Bool has the format of unsigned char: of the terms of that format, only a conversion to _Bool is known to give 0 or
+// 1 for every input. The conversion to _Bool of such a term, also behind integer conversions, which keep 0 and 1 (the
+// promotion of a _Bool to int, as in `c ? b : d`), is that term (interp/README.md, "Terms").
 value::Value Execution::toBool(const value::Value& value, value::ScalarFormat from, const ast::Expr* where) {
     value::Value result = value::toBool(value);
-    if (value.term()) {
-        attach(result, terms_.toBool(value, from), where);
+    if (const std::optional<value::TermId> term = value.term()) {
+        value::TermId operand = *term;
+        while (terms_.term(operand).kind == value::TermKind::ConvertInteger) {
+            operand = terms_.term(operand).operands[0];
+        }
+        attach(result, terms_.term(operand).kind == value::TermKind::ToBool ? operand : terms_.toBool(value, from),
+               where);
     }
     return result;
 }
