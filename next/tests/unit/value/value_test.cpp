@@ -71,20 +71,6 @@ TEST(ValueTest, CanonicalFormForEveryFormat) {
     }
 }
 
-TEST(ValueTest, IntegersHaveNoOriginByDefault) {
-    EXPECT_FALSE(Value::integer(5, s32).origin().has_value());
-}
-
-TEST(ValueTest, OriginCanBeSetAndCleared) {
-    Value value = Value::integer(5, s32);
-    value.setOrigin(InputId{3});
-    EXPECT_EQ(value.origin(), InputId{3});
-    const Value copy = value;
-    EXPECT_EQ(copy.origin(), InputId{3});
-    value.setOrigin(std::nullopt);
-    EXPECT_FALSE(value.origin().has_value());
-}
-
 TEST(ValueTest, TermCanBeSetAndCleared) {
     Value value = Value::ofDouble(1.0);
     EXPECT_FALSE(value.term().has_value());

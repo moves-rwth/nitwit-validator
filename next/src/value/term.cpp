@@ -51,10 +51,9 @@ bool hasFormat(const Value& value, const ScalarFormat& format) {
     NITWIT_UNREACHABLE("unknown float format");
 }
 
-/// `value` without what the run knows about it: the values a table stores and evaluates have neither term nor origin.
+/// `value` without its term: the values a table stores and evaluates have none.
 Value detached(Value value) {
     value.setTerm(std::nullopt);
-    value.setOrigin(std::nullopt);
     return value;
 }
 

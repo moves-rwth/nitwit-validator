@@ -74,7 +74,7 @@ public:
     /// function can then process a large range block by block.
     void requireReadable(Address address, std::uint64_t size) const;
     void write(Address address, std::span<const std::byte> bytes) const;
-    /// memmove semantics, with initialization state and origins (Memory::copy).
+    /// memmove semantics, with initialization state and terms (Memory::copy).
     void copy(Address destination, Address source, std::uint64_t size) const;
     void fill(Address address, std::byte value, std::uint64_t size) const;
     [[nodiscard]] UInt128 readInteger(Address address, ScalarType type) const;

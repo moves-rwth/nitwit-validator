@@ -168,11 +168,13 @@ struct Memory::State {
     std::vector<Allocation> liveStack;
     std::vector<Allocation> deadStack;
 
-    struct Origin {
+    /// The term of a range of bytes: the term written for exactly this range, or none for opaque bytes.
+    struct TermRange {
         std::uint64_t size = 0;
-        value::InputId input{};
+        std::optional<StoredTerm> stored{};
     };
-    std::map<Address, Origin> origins; // non-overlapping ranges, by start address
+    std::map<Address, TermRange> terms;     // non-overlapping ranges inside one allocation each, by start address
+    std::optional<RawAccesses> rawAccesses; // while they are recorded
 
     std::uint64_t liveBytes = 0;
     // The allocation found last; most accesses hit the same object as the previous one. It points into the vectors
@@ -307,7 +309,10 @@ struct Memory::State {
         allocation.isAlive = false;
         allocation.bytes.reset();
         allocation.initialized.reset();
-        dropOrigins(allocation.base, allocation.size);
+        // Term ranges lie inside one allocation, so no part of them remains.
+        if (!terms.empty()) {
+            terms.erase(terms.lower_bound(allocation.base), terms.lower_bound(allocation.end()));
+        }
         liveBytes -= allocation.size;
     }
 
@@ -348,34 +353,84 @@ struct Memory::State {
         }
     }
 
-    void dropOrigins(Address address, std::uint64_t size) {
-        if (origins.empty() || size == 0) {
-            return;
-        }
-        auto first = origins.lower_bound(address);
-        if (first != origins.begin()) {
+    /// The first term range that ends after `address`.
+    std::map<Address, TermRange>::iterator firstTermAfter(Address address) {
+        auto first = terms.lower_bound(address);
+        if (first != terms.begin()) {
             const auto previous = std::prev(first);
             if (previous->first + previous->second.size > address) {
-                first = previous;
+                return previous;
             }
         }
-        origins.erase(first, origins.lower_bound(address + size));
+        return first;
     }
 
-    /// Copies the origins that lie entirely inside the source range, replacing those of the destination range.
-    void copyOrigins(Address destination, Address source, std::uint64_t size) {
-        if (origins.empty()) {
-            return;
-        }
-        std::vector<std::pair<Address, Origin>> copied;
-        for (auto it = origins.lower_bound(source); it != origins.end() && it->first + it->second.size <= source + size;
-             ++it) {
-            copied.emplace_back(it->first - source + destination, it->second);
-        }
-        dropOrigins(destination, size);
-        origins.insert(copied.begin(), copied.end());
+    // Every load and store asks for terms, and programs without inputs have none: the callers check for an empty map
+    // first, so that such programs pay one comparison.
+
+    [[nodiscard]] RangeTerm termOf(Address address, std::uint64_t size) {
+        return terms.empty() ? RangeTerm{} : lookUpTerm(address, size);
     }
+    /// The term of the range; precondition for this and the following functions: the map is not empty.
+    [[nodiscard]] RangeTerm lookUpTerm(Address address, std::uint64_t size);
+
+    /// Removes the terms of the bytes of the range; the parts of their ranges outside it become opaque.
+    void clearTerms(Address address, std::uint64_t size) {
+        if (!terms.empty()) {
+            removeTerms(address, size);
+        }
+    }
+    void removeTerms(Address address, std::uint64_t size);
+
+    /// Copies the terms of the source range, replacing those of the destination range. A term range that lies only
+    /// partly in the source becomes opaque in the destination.
+    void copyTerms(Address destination, Address source, std::uint64_t size);
 };
+
+RangeTerm Memory::State::lookUpTerm(Address address, std::uint64_t size) {
+    const auto first = firstTermAfter(address);
+    if (size == 0 || first == terms.end() || first->first >= address + size) {
+        return {};
+    }
+    // Term ranges do not overlap, so one that matches the range exactly is the only one in it.
+    if (first->first == address && first->second.size == size && first->second.stored) {
+        return {.kind = RangeTerm::Kind::Stored, .stored = *first->second.stored};
+    }
+    return {.kind = RangeTerm::Kind::Opaque, .stored = {}};
+}
+
+void Memory::State::removeTerms(Address address, std::uint64_t size) {
+    const Address end = address + size;
+    const auto first = firstTermAfter(address);
+    const auto last = terms.lower_bound(end);
+    if (size == 0 || first == last) {
+        return;
+    }
+    const Address before = first->first;
+    const auto lastOverlapping = std::prev(last);
+    const Address after = lastOverlapping->first + lastOverlapping->second.size;
+    terms.erase(first, last);
+    if (before < address) {
+        terms.emplace(before, TermRange{.size = address - before, .stored = std::nullopt});
+    }
+    if (after > end) {
+        terms.emplace(end, TermRange{.size = after - end, .stored = std::nullopt});
+    }
+}
+
+void Memory::State::copyTerms(Address destination, Address source, std::uint64_t size) {
+    std::vector<std::pair<Address, TermRange>> copied;
+    const Address end = source + size;
+    for (auto it = firstTermAfter(source); it != terms.end() && it->first < end; ++it) {
+        const Address begin = std::max(it->first, source);
+        const Address rangeEnd = std::min(it->first + it->second.size, end);
+        const bool isWhole = begin == it->first && rangeEnd == it->first + it->second.size;
+        copied.emplace_back(begin - source + destination,
+                            TermRange{.size = rangeEnd - begin, .stored = isWhole ? it->second.stored : std::nullopt});
+    }
+    clearTerms(destination, size);
+    terms.insert(copied.begin(), copied.end());
+}
 
 Memory::Memory(unsigned pointerBits) : state_(std::make_unique<State>(pointerBits)) {}
 
@@ -422,6 +477,9 @@ std::expected<void, MemoryError> Memory::read(Address address, std::span<std::by
     }
     return state_->access(address, out.size(), Access::Read).transform([&](const Allocation* allocation) {
         std::memcpy(out.data(), allocation->at(address), out.size());
+        if (std::optional<RawAccesses>& accesses = state_->rawAccesses; accesses && !accesses->readsInputs) {
+            accesses->readsInputs = state_->termOf(address, out.size()).kind != RangeTerm::Kind::None;
+        }
     });
 }
 
@@ -437,7 +495,11 @@ std::expected<Memory::ScalarRead, MemoryError> Memory::readScalar(Address addres
     const HostArray<std::uint8_t>& bitmap = (*allocation)->initialized;
     ScalarRead result;
     result.isInitialized = !bitmap || allBitsSet(bitmap.get(), address - (*allocation)->base, out.size());
-    result.origin = origin(address, out.size());
+    // Only assigned if there are terms: a conditional value of RangeTerm costs store-forwarding stalls on every load
+    // (measured: 10 % of the run time of programs without inputs).
+    if (!state_->terms.empty()) {
+        result.term = state_->lookUpTerm(address, out.size());
+    }
     return result;
 }
 
@@ -448,7 +510,29 @@ std::expected<void, MemoryError> Memory::write(Address address, std::span<const 
     return state_->access(address, bytes.size(), Access::Write).transform([&](const Allocation* allocation) {
         std::memcpy(allocation->at(address), bytes.data(), bytes.size());
         state_->markInitialized(*allocation, address, bytes.size());
-        state_->dropOrigins(address, bytes.size());
+        state_->clearTerms(address, bytes.size());
+        if (state_->rawAccesses) {
+            state_->rawAccesses->writes.emplace_back(address, bytes.size());
+        }
+    });
+}
+
+std::expected<void, MemoryError> Memory::write(Address address, std::span<const std::byte> bytes,
+                                               const StoredTerm& term) {
+    if (bytes.empty()) {
+        return {};
+    }
+    return state_->access(address, bytes.size(), Access::Write).transform([&](const Allocation* allocation) {
+        std::memcpy(allocation->at(address), bytes.data(), bytes.size());
+        state_->markInitialized(*allocation, address, bytes.size());
+        // Most often, the object held a value with a term before: then no other range overlaps it.
+        if (const auto same = state_->terms.find(address);
+            same != state_->terms.end() && same->second.size == bytes.size()) {
+            same->second.stored = term;
+            return;
+        }
+        state_->clearTerms(address, bytes.size());
+        state_->terms.emplace(address, State::TermRange{.size = bytes.size(), .stored = term});
     });
 }
 
@@ -477,7 +561,9 @@ std::expected<void, MemoryError> Memory::copy(Address destination, Address sourc
     }
     std::memmove((*to)->at(destination), (*from)->at(source), size);
     State::copyInitialization(**to, destination, **from, source, size);
-    state_->copyOrigins(destination, source, size);
+    if (!state_->terms.empty()) {
+        state_->copyTerms(destination, source, size);
+    }
     return {};
 }
 
@@ -488,7 +574,10 @@ std::expected<void, MemoryError> Memory::fill(Address address, std::byte value, 
     return state_->access(address, size, Access::Write).transform([&](const Allocation* allocation) {
         std::memset(allocation->at(address), std::to_integer<int>(value), size);
         state_->markInitialized(*allocation, address, size);
-        state_->dropOrigins(address, size);
+        state_->clearTerms(address, size);
+        if (state_->rawAccesses) {
+            state_->rawAccesses->writes.emplace_back(address, size);
+        }
     });
 }
 
@@ -520,7 +609,7 @@ std::expected<void, MemoryError> Memory::markUninitialized(Address address, std:
     for (std::uint64_t i = 0; i < size; ++i) {
         assignBit(target.initialized.get(), address - target.base + i, false);
     }
-    state_->dropOrigins(address, size);
+    state_->clearTerms(address, size);
     return {};
 }
 
@@ -536,18 +625,28 @@ std::optional<AllocationInfo> Memory::find(Address address) const {
                           .name = allocation->name};
 }
 
-void Memory::setOrigin(Address address, std::uint64_t size, value::InputId input) {
-    NITWIT_ASSERT(size > 0, "an origin needs at least one byte");
-    state_->dropOrigins(address, size);
-    state_->origins.emplace(address, State::Origin{.size = size, .input = input});
+RangeTerm Memory::term(Address address, std::uint64_t size) const {
+    return state_->termOf(address, size);
 }
 
-std::optional<value::InputId> Memory::origin(Address address, std::uint64_t size) const {
-    const auto found = state_->origins.find(address);
-    if (found == state_->origins.end() || found->second.size != size) {
-        return std::nullopt;
+void Memory::markOpaque(Address address, std::uint64_t size) {
+    if (size == 0) {
+        return;
     }
-    return found->second.input;
+    state_->clearTerms(address, size);
+    state_->terms.emplace(address, State::TermRange{.size = size, .stored = std::nullopt});
+}
+
+void Memory::beginRawAccesses() {
+    NITWIT_ASSERT(!state_->rawAccesses, "raw accesses are already being recorded");
+    state_->rawAccesses.emplace();
+}
+
+RawAccesses Memory::endRawAccesses() {
+    NITWIT_ASSERT(state_->rawAccesses.has_value(), "raw accesses are not being recorded");
+    RawAccesses accesses = std::move(*state_->rawAccesses);
+    state_->rawAccesses.reset();
+    return accesses;
 }
 
 std::uint64_t Memory::liveBytes() const {

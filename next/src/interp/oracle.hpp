@@ -33,7 +33,7 @@ public:
     virtual ~InputOracle() = default;
 
     /// A value in the representation of `request.type` (see sema::integerFormat and sema::floatFormat). The
-    /// interpreter sets the value's origin to `request.id`.
+    /// interpreter registers it as the input `request.id` of its terms (value::TermTable::input).
     virtual value::Value provide(const InputRequest& request) = 0;
 };
 

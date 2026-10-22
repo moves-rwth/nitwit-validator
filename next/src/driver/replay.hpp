@@ -89,10 +89,16 @@ private:
 };
 
 struct ReplayOptions {
+    /// The terms of the run (interp/README.md, "Terms"), for testing them: replay records none, unless the hidden
+    /// option `--terms` asks to record them as validation does, or `--check-terms` to record and check them
+    /// (interp::RunOptions::checkTerms).
+    enum class Terms : std::uint8_t { None, Record, Check };
+
     std::string inputs;
     std::string inputLog;
     DataModel dataModel = DataModel::ILP32;
     std::string program;
+    Terms terms = Terms::None;
 };
 
 /// How the process ends after a replay.

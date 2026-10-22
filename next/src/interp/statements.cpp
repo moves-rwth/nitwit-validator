@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <format>
+#include <optional>
 
 #include "ast/casting.hpp"
 #include "interp/execution.hpp"
@@ -65,14 +66,21 @@ void Execution::execute(Frame& frame, std::uint32_t begin, const InstructionRang
                     break;
                 case OpCode::Branch: {
                     countStep(); // also counts loops whose bodies have no statements
-                    const bool outcome = instruction.expr == nullptr || test(instruction.expr);
+                    bool outcome = true;
+                    std::optional<value::TermId> term;
+                    if (instruction.expr != nullptr) {
+                        const value::Value value = condition(instruction.expr);
+                        outcome = isNonZero(value);
+                        term = value.term();
+                    }
                     afterCondition({.construct = instruction.construct,
                                     .stmt = instruction.stmt,
                                     .conditional = nullptr,
                                     .location = instruction.location,
                                     .outcome = outcome,
                                     .switchValue = {},
-                                    .switchLabel = nullptr});
+                                    .switchLabel = nullptr,
+                                    .term = term});
                     if (outcome) {
                         ++pc;
                     } else {
@@ -128,14 +136,14 @@ void Execution::execute(Frame& frame, std::uint32_t begin, const InstructionRang
 }
 
 // C17 6.8.6.4p3: the value of the expression is returned. A struct or union is copied, with the initialization state
-// and the origins of its bytes, into a temporary of the caller, since this frame's objects end now.
+// and the terms of its bytes, into a temporary of the caller, since this frame's objects end now.
 Returned Execution::returnedValue(const ast::Expr* expr) {
     const TypeInfo type = types_.describe(expr->type());
     if (type.representation == Representation::Record && frames_.size() >= 2) {
         const Address source = recordObject(expr);
         const Address object = temporary(type.size, frames_[frames_.size() - 2], expr);
         copyObject(object, source, type.size, expr);
-        return {.value = value::Value::ofBytes(readBytes(object, type.size, expr)), .object = object};
+        return {.value = loadRecord(object, type.size, expr), .object = object};
     }
     value::Value result = rvalue(expr);
     if (result.kind() == value::Value::Kind::None) {
@@ -162,7 +170,8 @@ std::uint32_t Execution::switchTarget(const Frame& frame, const Instruction& ins
                     .location = instruction.location,
                     .outcome = label != nullptr,
                     .switchValue = condition,
-                    .switchLabel = label});
+                    .switchLabel = label,
+                    .term = condition.term()});
     return match != nullptr ? match->target : table.defaultTarget;
 }
 
@@ -211,13 +220,14 @@ void Execution::evaluateArraySizes(Frame& frame, ast::QualType type) {
                 if (types_.describe(sizeExpression->type()).integer.isSigned && count.signedBits() < 0) {
                     undefined("a variable length array with a negative size", sizeExpression);
                 }
-                const auto size = static_cast<std::uint64_t>(count.bits());
-                const auto known =
-                    std::ranges::find_if(frame.arraySizes, [&](const auto& entry) { return entry.first == array; });
+                const ArraySize size{.array = array,
+                                     .count = static_cast<std::uint64_t>(count.bits()),
+                                     .dependsOnInputs = count.term().has_value()};
+                const auto known = std::ranges::find(frame.arraySizes, array, &ArraySize::array);
                 if (known != frame.arraySizes.end()) {
-                    known->second = size;
+                    *known = size;
                 } else {
-                    frame.arraySizes.emplace_back(array, size);
+                    frame.arraySizes.push_back(size);
                 }
             }
             current = array->element().type();

@@ -14,4 +14,5 @@ nitwit_add_unit_test(interp
         lowering_test.cpp
         memory_test.cpp
         termination_test.cpp
+        terms_test.cpp
     DEPENDS nitwit_interp nitwit_parse nitwit_sema) # sema: its table of builtins, for library_dispatch_test.cpp

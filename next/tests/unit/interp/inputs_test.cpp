@@ -1,5 +1,5 @@
 // Nondeterministic inputs: __VERIFIER_nondet_* calls, functions without definition and uninitialized reads go to the
-// oracle; the origins of the values follow copies and conversions.
+// oracle. Their terms are in terms_test.cpp.
 
 #include <gtest/gtest.h>
 
@@ -8,50 +8,7 @@
 namespace nitwit::interp::test {
 namespace {
 
-using ::testing::ElementsAre;
-
-/// Builds an expression for the function whose frame is current.
-using Builder = std::function<ast::Expr*(const ast::FunctionDecl* function)>;
-
-class InputsTest : public InterpreterTest {
-protected:
-    /// The origins of the values of `expressions`, evaluated before the statement in line `line` of main, as text:
-    /// the input id, or "-" for none.
-    std::vector<std::string> originsAt(std::string program, std::uint32_t line, std::vector<Builder> expressions) {
-        std::vector<std::string> origins;
-        observer_.onStatement = [&](const StatementEvent& event, EvaluationContext& context) {
-            if (sources_.lineColumn(event.stmt->location()).line != line) {
-                return Directive::Continue;
-            }
-            for (const Builder& build : expressions) {
-                const ast::Expr* expr = analyzed(build(context.function()));
-                if (expr == nullptr) {
-                    origins.emplace_back("invalid");
-                    continue;
-                }
-                const auto value = context.evaluate(expr);
-                if (!value) {
-                    origins.push_back("error: " + value.error());
-                } else if (value->origin()) {
-                    origins.push_back(std::to_string(std::to_underlying(*value->origin())));
-                } else {
-                    origins.emplace_back("-");
-                }
-            }
-            return Directive::Continue;
-        };
-        const RunResult result = run(std::move(program));
-        EXPECT_EQ(result.termination, Termination::Returned) << result.message;
-        return origins;
-    }
-
-    /// A reference to a variable of the current function.
-    Builder variable(std::string name) {
-        return [this, name](const ast::FunctionDecl* function) {
-            return ref(name, function);
-        };
-    }
-};
+using InputsTest = InterpreterTest;
 
 TEST_F(InputsTest, NondetCallsAskTheOracle) {
     oracle_.answers = {-5, 300};
@@ -229,112 +186,6 @@ int main(void) { double d = __VERIFIER_nondet_double(); return (int)(d * 2); })"
     EXPECT_EQ(ast::typeToString(oracle_.requests[0].type), "double");
 }
 
-TEST_F(InputsTest, OriginsFollowCopiesAndConversions) {
-    EXPECT_THAT(originsAt(R"(int __VERIFIER_nondet_int(void);
-int id(int v) { return v; }
-int main(void) {
-    int x = __VERIFIER_nondet_int();
-    int y = x;
-    long z = x;
-    char c = x;
-    int w = x + 0;
-    int r = id(x);
-    unsigned u = x;
-    return 0;
-})",
-                          11,
-                          {variable("x"), variable("y"), variable("z"), variable("c"), variable("w"), variable("r"),
-                           variable("u"),
-                           [&](const ast::FunctionDecl* f) { return castTo(ast::BuiltinKind::LongLong, ref("x", f)); },
-                           [&](const ast::FunctionDecl* f) {
-                               return castTo(ast::BuiltinKind::Double, ref("x", f));
-                           }}),
-                ElementsAre("0", "0", "0", "0", "-", "0", "0", "0", "0"));
-}
-
-TEST_F(InputsTest, ConversionsThatChangeTheValueKeepTheOrigin) {
-    // The origin means "derived from this input only through conversions"; operations drop it.
-    EXPECT_THAT(originsAt(R"(double __VERIFIER_nondet_double(void);
-int main(void) {
-    double d = __VERIFIER_nondet_double();
-    float f = d;
-    int i = d;
-    _Bool b = d;
-    int n = !d;
-    return 0;
-})",
-                          8,
-                          {variable("f"), variable("i"), variable("b"), variable("n"),
-                           [&](const ast::FunctionDecl* f) {
-                               return castTo(ast::BuiltinKind::Char, ref("d", f));
-                           }}),
-                ElementsAre("0", "0", "0", "-", "0"));
-}
-
-TEST_F(InputsTest, OriginsMoveWithCopiedRecords) {
-    EXPECT_THAT(originsAt(R"(int __VERIFIER_nondet_int(void);
-struct P { int a; int b; };
-int main(void) {
-    struct P p;
-    p.a = 1;
-    p.b = __VERIFIER_nondet_int();
-    struct P q = p;
-    q.a = __VERIFIER_nondet_int();
-    return 0;
-})",
-                          9,
-                          {[&](const ast::FunctionDecl* f) { return member(ref("q", f), "b"); },
-                           [&](const ast::FunctionDecl* f) { return member(ref("q", f), "a"); },
-                           [&](const ast::FunctionDecl* f) {
-                               return member(ref("p", f), "a");
-                           }}),
-                ElementsAre("0", "1", "-"));
-}
-
-constexpr const char* recordProgram = R"(int __VERIFIER_nondet_int(void);
-struct S { int a; int b; };
-struct S id(struct S s) { return s; }
-int g(struct S s) {
-    return s.a;
-}
-int main(void) {
-    struct S s;
-    s.a = __VERIFIER_nondet_int();
-    struct S r = id(s);
-    int v = g(s);
-    return 0;
-})";
-
-TEST_F(InputsTest, RecordArgumentsKeepOriginsAndInitializationState) {
-    // In g, s.a is still the input, and s.b is still uninitialized: reading it is another input.
-    EXPECT_THAT(originsAt(recordProgram, 5,
-                          {[&](const ast::FunctionDecl* f) { return member(ref("s", f), "a"); },
-                           [&](const ast::FunctionDecl* f) {
-                               return member(ref("s", f), "b");
-                           }}),
-                ElementsAre("0", "1"));
-    ASSERT_EQ(oracle_.requests.size(), 2);
-    EXPECT_EQ(oracle_.requests[1].kind, InputRequest::Kind::UninitializedRead);
-}
-
-TEST_F(InputsTest, RecordResultsKeepOrigins) {
-    EXPECT_THAT(originsAt(recordProgram, 12, {[&](const ast::FunctionDecl* f) {
-                              return member(ref("r", f), "a");
-                          }}),
-                ElementsAre("0"));
-}
-
-TEST_F(InputsTest, PassThroughBuiltinsKeepOrigins) {
-    EXPECT_THAT(originsAt(R"(int __VERIFIER_nondet_int(void);
-int main(void) {
-    int x = __VERIFIER_nondet_int();
-    long e = __builtin_expect(x, 0);
-    return 0;
-})",
-                          5, {variable("e")}),
-                ElementsAre("0"));
-}
-
 TEST_F(InputsTest, DeclarationsReachedAgainMakeObjectsIndeterminate) {
     // C17 6.2.4p6: each iteration's x is a new indeterminate value, so each read is a new input.
     oracle_.answers = {1, 2, 3};
@@ -349,16 +200,6 @@ TEST_F(InputsTest, DeclarationsReachedAgainMakeObjectsIndeterminate) {
 })"),
               123);
     EXPECT_EQ(oracle_.requests.size(), 3);
-}
-
-TEST_F(InputsTest, UninitializedReadsHaveOrigins) {
-    EXPECT_THAT(originsAt(R"(int main(void) {
-    int x;
-    int y = x;
-    return 0;
-})",
-                          4, {variable("y")}),
-                ElementsAre("0"));
 }
 
 } // namespace

@@ -57,11 +57,6 @@ public:
     [[nodiscard]] long double asLongDouble() const;
     [[nodiscard]] std::span<const std::byte> asBytes() const;
 
-    /// The nondeterministic input this value is derived from only through copies and conversions, if any; the
-    /// interpreter decides which conversions keep it (interp/README.md, "Origins").
-    [[nodiscard]] std::optional<InputId> origin() const { return origin_; }
-    void setOrigin(std::optional<InputId> origin) { origin_ = origin; }
-
     /// How this value was computed from the inputs of the run, if it depends on any (term.hpp).
     [[nodiscard]] std::optional<TermId> term() const { return term_; }
     void setTerm(std::optional<TermId> term) { term_ = term; }
@@ -81,7 +76,6 @@ private:
     explicit Value(Payload payload) : payload_(std::move(payload)) {}
 
     Payload payload_;
-    std::optional<InputId> origin_;
     std::optional<TermId> term_;
 };
 

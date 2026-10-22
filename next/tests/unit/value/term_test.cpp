@@ -119,8 +119,8 @@ const char* describe(NoValue reason) {
     if (actual->kind() != expected.value.kind() || representation(*actual) != representation(expected.value)) {
         return ::testing::AssertionFailure() << describe(*actual) << " instead of " << describe(expected.value);
     }
-    if (actual->term() || actual->origin()) {
-        return ::testing::AssertionFailure() << "the value has a term or an origin";
+    if (actual->term()) {
+        return ::testing::AssertionFailure() << "the value has a term";
     }
     return ::testing::AssertionSuccess();
 }
@@ -222,9 +222,7 @@ TEST(TermTableTest, InputTermRecordsTheInput) {
 
 TEST(TermTableTest, InputEvaluatesToTheRunValueOrTheSubstitutedOne) {
     TermTable table(lp64);
-    Value runValue = Value::ofDouble(2.5);
-    runValue.setOrigin(firstInput);
-    const Value x = registered(table, firstInput, runValue, FloatFormat::Double);
+    const Value x = registered(table, firstInput, Value::ofDouble(2.5), FloatFormat::Double);
     EXPECT_TRUE(evaluatesTo(table.evaluate(*x.term(), {}), Value::ofDouble(2.5)));
     EXPECT_TRUE(
         evaluatesTo(table.evaluate(*x.term(), replacing(firstInput, Value::ofDouble(-1.0))), Value::ofDouble(-1.0)));
@@ -254,8 +252,7 @@ TEST(TermTableTest, InputsNotSubstitutedKeepTheirRunValue) {
 TEST(TermTableTest, OperandWithoutTermBecomesAConstant) {
     TermTable table(lp64);
     const Value x = registered(table, firstInput, integer(10, s32), s32);
-    Value five = integer(5, s32);
-    five.setOrigin(secondInput); // an origin without a term: the constant does not keep it
+    const Value five = integer(5, s32);
     const std::optional<TermId> sum = table.integerBinary(IntegerOperator::Add, five, x, s32);
     ASSERT_TRUE(sum.has_value());
     const Term& term = table.term(*sum);
@@ -265,7 +262,7 @@ TEST(TermTableTest, OperandWithoutTermBecomesAConstant) {
     EXPECT_EQ(constant.kind, TermKind::Constant);
     EXPECT_EQ(constant.depth, 0u);
     EXPECT_EQ(table.constantOf(constant).bits(), 5u);
-    EXPECT_FALSE(table.constantOf(constant).origin().has_value());
+    EXPECT_FALSE(table.constantOf(constant).term().has_value());
     EXPECT_TRUE(evaluatesTo(table.evaluate(term.operands[0], replacing(firstInput, integer(1, s32))), integer(5, s32)));
 }
 
