@@ -300,8 +300,9 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
     on that input. Which branch the run takes is the waypoints' business, not the terms'.
   - Addresses: a value read from or written to an object does not depend on the object's address. `a[i]` with an
     input-derived `i` has the term that `a[i]` holds in this run (none for constant elements), although another `i`
-    reads another element; the pointer `&a[i]` is opaque. Equally, which object a struct `?:` selects is not
-    recorded.
+    reads another element; the pointer `&a[i]` is opaque. Table lookups are such reads: glibc's ctype macros read
+    `isdigit(c)` as `(*__ctype_b_loc())[c] & 2048`, which has no term for an input-derived `c`. Equally, which object
+    a struct `?:` selects is not recorded.
   - Over-approximations, which make values opaque that the inputs do not change: opaque bit-field storage stays
     opaque until it is overwritten as a whole without term; all bytes a library function writes are opaque if one
     depends on inputs.
@@ -331,13 +332,15 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   calls in both data models, outputs confirmed with GCC), `termination_test.cpp` (how runs end, undefined behaviour,
   limits), `inputs_test.cpp` (oracle requests, uninitialized reads) and `evaluation_context_test.cpp`.
 - `tests/unit/interp/terms_test.cpp`, every run with the consistency check: input terms; copies (assignment,
-  arguments, results, pointers, records, `?:` of records); conversions (also pointers sign-extended to wider
-  integers); integer and floating arithmetic, shifts, `++`, `--` and compound assignments (also with signed overflow);
-  comparisons, `!`, `&&`, `||` (with the operand the run did not evaluate) and `?:` (also GNU `?:`); opaque values from
-  partial overwrites, partly initialized reads, type punning, library functions (and that copying functions keep
-  terms), pointer arithmetic, bit-fields and variable length array sizes; the terms of condition events; the depth
-  limit and runs without terms; strict terms of constraints; the check's comparison (`termMismatch`) with wrong
-  terms, formats and floating values.
+  arguments, results, pointers, records, `?:` of records, `va_arg`); conversions (also pointers sign-extended to wider
+  integers and back, results of calls through a pointer of another type); integer and floating arithmetic, shifts,
+  `++`, `--`, compound assignments (also with signed overflow) and atomic read-modify-writes; comparisons, `!`, `&&`,
+  `||` (with the operand the run did not evaluate) and `?:` (also GNU `?:`); opaque values from partial overwrites,
+  partly initialized reads, type punning, library functions (and that copying functions keep terms, and those that
+  write pointer values do not), pointer arithmetic, bit-fields, variable length array sizes, the overflow builtins,
+  `alloca` and `__VERIFIER_nondet_memory`; table lookups without term; the terms of condition events; the depth limit,
+  conversions of inputs in a full table and runs without terms; strict terms of constraints and the program's terms
+  after them; the check's comparison (`termMismatch`) with wrong terms, formats and floating values.
 - `tests/semantics/`: the programs of the semantics suite (see `tools/difftest/README.md`) must print the expected
   output under `-32` and `-64`, also with the consistency check of the terms (CTest label `semantics`).
 - `tools/difftest/`: Csmith programs and corpus programs with random inputs; the interpreter must agree with the

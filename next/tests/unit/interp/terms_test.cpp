@@ -236,8 +236,7 @@ TEST_F(TermsTest, RecordResultsKeepTerms) {
 // ---- Operations ----
 
 TEST_F(TermsTest, ConversionsAreRecorded) {
-    EXPECT_THAT(
-        termsAt(R"(int __VERIFIER_nondet_int(void);
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
 double __VERIFIER_nondet_double(void);
 int main(void) {
     int x = __VERIFIER_nondet_int();
@@ -249,15 +248,17 @@ int main(void) {
     int i = d;
     double e = x;
     long w = __builtin_expect(x, 0);
+    int q = (int)(long)(void *)(long)x;
     return 0;
 })",
-                13,
-                {variable("l"), variable("c"), variable("b"), variable("f"), variable("i"), variable("e"),
-                 variable("w"),
-                 [&](const ast::FunctionDecl* f) {
-                     return castTo(ast::BuiltinKind::Short, ref("x", f));
-                 }}),
-        ElementsAre("(s64)x0", "(u8)x0", "(bool)x0", "(float)x1", "(s32)x1", "(double)x0", "(s64)x0", "(s16)x0"));
+                        14,
+                        {variable("l"), variable("c"), variable("b"), variable("f"), variable("i"), variable("e"),
+                         variable("w"), variable("q"),
+                         [&](const ast::FunctionDecl* f) {
+                             return castTo(ast::BuiltinKind::Short, ref("x", f));
+                         }}),
+                ElementsAre("(s64)x0", "(u8)x0", "(bool)x0", "(float)x1", "(s32)x1", "(double)x0", "(s64)x0",
+                            "(s32)(s64)(u64)(s64)x0", "(s16)x0"));
 }
 
 TEST_F(TermsTest, PointersConvertedToWiderIntegersAreSignExtended) {
@@ -478,6 +479,43 @@ int main(void) {
         ElementsAre("opaque", "opaque", "opaque", "-", "opaque", "opaque"));
 }
 
+TEST_F(TermsTest, TableLookupsAreAddressDependenciesWithoutTerm) {
+    // A known imprecision (interp/README.md, "Terms"): glibc's isdigit(c) reads a table at index c.
+    oracle_.answers = {'7'};
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
+const unsigned short **__ctype_b_loc(void);
+int main(void) {
+    int c = __VERIFIER_nondet_int();
+    const unsigned short *entry = &(*__ctype_b_loc())[c];
+    int d = *entry & 2048;
+    return d == 0;
+})",
+                        7, {variable("entry"), variable("d")}),
+                ElementsAre("opaque", "-"));
+}
+
+// ---- Builtins and calls ----
+
+TEST_F(TermsTest, VariadicArgumentsKeepTheirTerms) {
+    oracle_.answers = {-2};
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
+long first(int n, ...) {
+    __builtin_va_list ap;
+    __builtin_va_start(ap, n);
+    unsigned u = __builtin_va_arg(ap, unsigned);
+    long l = __builtin_va_arg(ap, long);
+    __builtin_va_end(ap);
+    return u + l;
+}
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    return first(2, x, (long)x) == 0;
+})",
+                        8, {variable("u"), variable("l")}),
+                // The argument is an int; va_arg reads it as unsigned.
+                ElementsAre("(u32)x0", "(s64)x0"));
+}
+
 TEST_F(TermsTest, CallsThroughAPointerOfAnotherTypeConvertTheResult) {
     oracle_.answers = {300};
     EXPECT_THAT(
@@ -498,6 +536,44 @@ int main(void) {
                 13,
                 {variable("r"), variable("c"), variable("b"), variable("same"), variable("fromLow"), variable("t")}),
         ElementsAre("(s64)x0", "(u8)x0", "(bool)x0", "x0", "(bool)(u8)x0", "(bool)x0"));
+}
+
+TEST_F(TermsTest, AtomicReadModifyWritesAreRecorded) {
+    oracle_.answers = {4};
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int y = 1;
+    int old = __atomic_fetch_add(&y, x, 5);
+    int added = y;
+    __atomic_fetch_nand(&y, 3, 5);
+    int swapped = __sync_bool_compare_and_swap(&y, 0, 1);
+    return 0;
+})",
+                        9, {variable("old"), variable("added"), variable("y"), variable("swapped")}),
+                // A compare-and-swap compares without a term kind.
+                ElementsAre("-", "(1 + x0)", "~((1 + x0) & 3)", "opaque"));
+}
+
+TEST_F(TermsTest, OverflowBuiltinsAllocaAndNondetMemory) {
+    oracle_.answers = {8, 1, 2};
+    EXPECT_THAT(
+        termsAt(R"(int __VERIFIER_nondet_int(void);
+void __VERIFIER_nondet_memory(void *, unsigned long);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int r;
+    int overflowed = __builtin_add_overflow(x, 1, &r);
+    char *block = __builtin_alloca(x);
+    unsigned char bytes[2];
+    __VERIFIER_nondet_memory(bytes, sizeof bytes);
+    unsigned char second = bytes[1];
+    unsigned short both = *(unsigned short *)bytes;
+    return 0;
+})",
+                12, {variable("overflowed"), variable("r"), variable("block"), variable("second"), variable("both")}),
+        // Every byte of __VERIFIER_nondet_memory is an input.
+        ElementsAre("opaque", "opaque", "opaque", "x2", "opaque"));
 }
 
 TEST_F(TermsTest, BitFieldsOfInputsAreOpaque) {
@@ -575,6 +651,24 @@ int main(void) {
 })",
                         6, {variable("y"), variable("z")}, DataModel::LP64, options),
                 ElementsAre("(((x0 + 1) + 2) + 3)", "opaque"));
+}
+
+TEST_F(TermsTest, ConversionsOfInputsKeepTheirTermsInAFullTable) {
+    oracle_.answers = {3, 4};
+    RunOptions options;
+    options.terms.maxTerms = 100;
+    EXPECT_THAT(termsAt(R"(int __VERIFIER_nondet_int(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int s = 0;
+    for (int i = 0; i < 200; i++) s = x + i; // fills the table
+    unsigned char c = x;
+    long y = __VERIFIER_nondet_int();
+    int z = x + 1;
+    return 0;
+})",
+                        9, {variable("x"), variable("c"), variable("y"), variable("z")}, DataModel::LP64, options),
+                ElementsAre("x0", "(u8)x0", "(s64)x1", "opaque"));
 }
 
 TEST_F(TermsTest, WithoutTermsNothingIsRecorded) {
