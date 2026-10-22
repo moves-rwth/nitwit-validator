@@ -1,7 +1,8 @@
-# Module `validate` (stage 6)
+# Module `validate` (stages 6 and 7)
 
 Validates a witness by running the program with an `ExecutionObserver` (the monitor) and an `InputOracle`, restarting
-with other inputs where that can help. It decides the verdict and the exit code (`docs/exit-codes.md`).
+with inputs that the search predicts to give a waypoint its outcome. It decides the verdict and the exit code
+(`docs/exit-codes.md`).
 
 - `validator.hpp`: the API, `validate` and `exitCode`.
 - `support_check.hpp`: the witness features NITWIT rejects before running ("Structure" below).
@@ -10,6 +11,7 @@ with other inputs where that can help. It decides the verdict and the exit code 
   values.
 - `monitor.hpp`: the segment monitor, the observer of a run ("Follow, avoid and progress").
 - `oracle.hpp`: the input oracle: fixed inputs, hints, defaults ("Values").
+- `search.hpp`: the search for inputs that give a waypoint the outcome it needs ("Search").
 - `values.hpp`: the conversions and the choice of values that satisfy a relation.
 - `restart.hpp`: the restart loop, with the run as a parameter, so that tests can script runs.
 - `verdict.hpp`: the verdict of the final run.
@@ -91,12 +93,12 @@ from 1. A column 0 or beyond the end of the line (one past its text still counts
 All waypoints are evaluated in the state of the run, on the values the inputs have in it. At an event, the follow
 waypoint of the current segment is evaluated first, then its avoid waypoints there.
 
-- **Follow:** a follow waypoint must pass at its first evaluation point. If it fails and its failure fixes inputs
-  ("Values"), the run restarts; otherwise the execution has left the witness and is rejected (exit 241). A passing
-  follow waypoint makes the next segment current.
+- **Follow:** a follow waypoint must pass at its first evaluation point. If it fails and the search finds inputs with
+  which it may pass ("Search"), the run restarts with them; otherwise the execution has left the witness and is
+  rejected (exit 241). A passing follow waypoint makes the next segment current.
 - **Avoid:** an avoid waypoint of the current segment that passes rejects the execution (exit 241), also where the
-  follow waypoint passed at the same event, unless fixing an input may make it fail ("Values"): then the run
-  restarts, and the next run evaluates it again on the fixed input. An avoid constraint without value (undefined
+  follow waypoint passed at the same event, unless the search finds inputs with which it may fail ("Search"): then
+  the run restarts with them, and the next run evaluates it again. An avoid constraint without value (undefined
   behaviour, an invalid read in a conjunct that `&&` evaluates) makes the verdict UNKNOWN (exit 4): whether it passes
   is not decided.
 - **Cascading:** one event can complete several segments only through `assumption` waypoints at the same statement,
@@ -122,8 +124,8 @@ waypoint of the current segment is evaluated first, then its avoid waypoints the
 
 ### Values
 
-An input is *fixed* by an earlier run, *hinted* by a function_return waypoint, or else gets the *default*. The origin
-of a value is the input it is derived from only through copies and conversions (`interp/README.md`, "Origins").
+An input is *fixed* by an earlier run (by the search, "Search" below), *hinted* by a function_return waypoint, or else
+gets the *default*.
 
 - **Hints:** a `function_return` waypoint of the current segment at a call whose result is an input. Its relations of
   `\result` with a constant (`==`, `!=`, `<`, `<=`, `>`, `>=`, either side) give the value of the call's input request.
@@ -132,80 +134,89 @@ of a value is the input it is derived from only through copies and conversions (
   - The value is chosen in the type of the comparison and must survive the conversion to the call's type and back
     (`\result >= 255U` for an `unsigned char` gives 255; `== 300` for a `char` gives no hint).
   - Hints are computed at the call event, where constants are evaluated in the current frame.
-- **Fixes of follow waypoints:** a conjunct `x op c` of a follow `assumption` or `function_return` constraint that
-  fails, where `x`'s value has an unfixed input as its origin, fixes that input and restarts the run.
-  - `x` is taken without the conversions sema inserts for the comparison (promotions, usual arithmetic conversions).
-    The value is chosen for `x` as for hints (`x < c` gives `c - 1`, `x != c` gives 0, or 1 if `c` is 0), then
-    converted to the input's type, from which it must convert back to the same value.
-  - A conjunct that is no relation with a constant (`flag`, `(char)x`) counts as `conjunct != 0` when its own value has
-    an unfixed input as its origin.
-  - The case value of a follow `branching` waypoint at a `switch` fixes the switched value in the same way, as 3.x
-    did by turning it into the assumption `condition == value`.
-  - `&&`-conjunctions are split. The failing conjuncts of one constraint fix all their inputs before one restart.
-- **Fixes of avoid waypoints:** a passing avoid constraint fixes the input of its first conjunct that a fix may make
-  false, in the same way: `x op c` gets a value for the negated relation (`x == c` gives 0, or 1 if `c` is 0), another
-  conjunct the value 0. At a `switch`, a passing avoid waypoint fixes the switched value to the first value that no
-  avoid waypoint of the segment at this `switch` avoids: a case value in source order, else (unless `default` is
-  avoided) the smallest non-negative value that matches no case label. `validation-crafted/switch.3A1` avoids two cases
-  and `default` at one `switch`. Outcomes of other branchings are taken as they are (stage 7).
-- **Restarts** are only made when at least one input gets fixed, and fixed inputs stay fixed, so every run fixes more
-  inputs than the one before. The number of restarts is limited (`ValidationOptions::maxRestarts`).
 - **Every confirmation comes from one complete run** in which all follow waypoints passed and no avoid waypoint passed,
-  on the inputs of that run. A fix only chooses the inputs of the next run, so a fix that does not have the intended
-  effect (an origin through type punning, `interp/README.md`, "Origins") costs a restart, never soundness.
+  on the inputs of that run. The search only chooses the inputs of the next run, so a prediction that does not hold
+  (the program takes another path, a term is not what the program computes) costs a restart, never soundness.
 - **Defaults:** `ValidationOptions::defaultInput`, 0, converted to the requested type; pointers get null. NITWIT 3.x
   effectively used 1; on the sample, 1 confirms one witness more, on `validation-crafted` six fewer.
 - **Escapes:** producer escapes like `"\result"` in double quotes are repaired by the witness parser.
-- **Stage 7 replaces the fixes by the search below.**
 
-### Search (stage 7, being implemented)
+### Search
 
 The witness says where the execution must go: at each waypoint, which outcome it needs. The run says how the outcome
 depends on the inputs: values derived from inputs carry terms (`value/README.md`, "Terms"). When a waypoint does not
 have the outcome it needs, the validator solves for inputs that give it, without running the program, and restarts
-with them. It never tries values by running the program, so each restart costs one run and comes from one prediction.
+with them (`search.hpp`). It never tries values by running the program, so each restart costs one run and comes from
+one prediction.
 
 - **Requirements:** what a waypoint evaluation needs, as clauses of atoms `term op constant`, every clause needing one
-  atom that holds:
+  atom that holds; the constant is converted to the format of the term's value:
 
   | Waypoint | Requirement |
   |---|---|
   | follow `branching` at `if`, a loop or `?:`, outcome b | `t != 0` if b, else `t == 0`, for the condition's term `t` |
   | follow `branching` at `switch`, case value v | `t == v` |
-  | follow `branching` at `switch`, `default` | `t != v` for every case value v, one clause each |
+  | follow `branching` at `switch`, `default` | `t != v` for every case label v, one clause each; `t < lo \|\| t > hi` for a range |
   | follow `assumption`, `function_return` | `c != 0` for each conjunct c, one clause each |
   | avoid `branching`, outcome b | `t == 0` if b, else `t != 0` |
-  | avoid `branching` at `switch` | `t != v` for an avoided case value v; `t == v` for one of the case values if `default` is avoided |
-  | avoid `assumption`, `function_return` | one clause: `c == 0` for one of the conjuncts c |
+  | avoid `branching` at `switch`, case value v | `t != v` |
+  | avoid `branching` at `switch`, `default` | one clause: `t == v` for one of the case labels v (the first value of a range) |
+  | avoid `assumption`, `function_return` | one clause: `c == 0` for one of the conjuncts c up to the first false one |
 
-  A conjunct or condition without a term depends on no input the validator can change: if it does not hold, no input
-  is changed for it. An atom whose term is the opaque term (`TermTable::isOpaque`: the value depends on inputs in a way
-  the terms do not record) is unknown, and no input is changed for it either.
+- **Unknown atoms:** an atom without a term (a conjunct or condition that depends on no input, or only through control
+  flow, or has no value) and an atom on the opaque term (`TermTable::isOpaque`) are unknown. No input is changed for
+  them, and they count against no value.
 - **Kept clauses:** the requirements of every waypoint evaluation of the run that had its outcome (a follow waypoint
   that passed, an avoid waypoint that did not), as far as they have terms. New input values must keep them, so that
   the next run passes the same waypoints again.
-- **Changeable inputs:** inputs of the run with the default value or a value fixed by an earlier run; not hinted
-  inputs (the witness gave their value). Inputs with the default value are tried first, then fixed ones; within each
-  group, later requests first.
-- **Solving** a requirement that does not hold, greedily and without backtracking across clauses: each clause that
-  does not hold gets its first atom that can be made to hold; the values chosen for earlier clauses stay.
-  - An atom `t op c` is first decomposed: `t != 0` of `a && b` needs both, of `a || b` one of them (tried in order),
-    of `!a` needs `a == 0`; `t == 0` the negations; a comparison `a op' b` whose value must be non-zero is the atom
-    `a op' b`, with the side that has no changeable input evaluated as the constant.
-  - **Inversion:** if a changeable input occurs once in the side that has changeable inputs, and the path to it has
-    only invertible operations (conversions; `+`, `-`, `^` and `~` with the other operand fixed; unary `-`; `*` by an
-    odd constant in an unsigned format), the value for the side is chosen as for hints (`values.hpp`, `choose`) and
-    inverted down to the input.
-  - **Candidates** otherwise, and for any input of the atom that inversion cannot reach: the input's run value ± 1,
-    0, 1, −1, and each constant of the term ± 1, in this order, each checked by evaluating the term.
-  - A value is taken only if, evaluated with all values chosen so far, it makes the atom hold, keeps every kept clause
-    that mentions the input (a clause whose value becomes unknown does not count against it), and converts back
-    unchanged from the input's type. Values an input was fixed to in earlier runs are tried after all others.
-  - If every clause of the requirement then holds (or is unknown, because the run did not evaluate an operand), the
-    chosen values become fixed inputs and the run restarts; otherwise the waypoint fails as before (exit 241).
+- **Changeable inputs:** inputs of the run of arithmetic types with the default value or a value fixed by an earlier
+  run; not hinted inputs (the witness gave their value). Inputs with the default value are tried first, then fixed
+  ones; within each group, later requests first: a later input changes less of the path to the waypoint.
+- **Solving** a requirement greedily over its clauses, in order, without backtracking across clauses. A clause that
+  does not hold gets its first atom that can be made to hold; values chosen for earlier clauses may change for later
+  ones only as far as the earlier clauses keep holding.
+  - **Decomposition:** `t != 0` of `a && b` needs both (solving `b` keeps `a`), of `a || b` one of them, tried
+    in order; `t == 0` the negations; `!a` and a conversion to `_Bool` pass the atom on to `a`. A comparison
+    `a op' b` that must hold (or fail: `a op'' b` with the negated operator) is a relation of its two sides. An operand
+    the run did not evaluate (`a && b` where `a` was false) is unknown: making `a` hold is all the search can do there.
+  - **Inversion:** if a changeable input occurs once in one side of the relation, and the path to it has only
+    invertible operations (conversions; `+`, `-`, `^` with the other operand's value; `~`; unary `-`; `*` by an odd
+    factor in an unsigned format), the value for the side is chosen as for hints (`values.hpp`, `choose`: `x < c`
+    gives `c - 1`, `x != c` gives 0, or 1 if `c` is 0) with the other side's value as the constant, and inverted down
+    to the input. A conversion is inverted only where the value converts back unchanged (`(int)c == 300` has no
+    `char` c).
+  - **Candidates** follow, for every input of the relation, also those that inversion cannot reach: the input's run
+    value + 1 and − 1, 0, 1, −1, then the constant of the atom and the constants of the terms, each with its
+    neighbours − 1 and + 1. At most 8 inputs per relation and 8 constants are tried, so that the cost is a small
+    multiple of evaluating the terms.
+  - **A value is taken** only if, evaluated with all values chosen so far, it is a value of the input's type (a
+    `_Bool` is 0 or 1), makes the relation hold, makes no kept clause and no earlier clause of the requirement that
+    mentions the input false, and makes neither them nor the clause being solved end the run (`NoValue::EndsRun`:
+    division by zero, any undefined behaviour in the strict terms of a constraint). A clause whose value becomes
+    unknown does not count against a value. Values the input was fixed to in earlier runs are tried after all others,
+    so that two waypoints do not keep changing one input back and forth.
+  - If every clause of the requirement then holds or is unknown, and at least one input has a new value, the new
+    values become fixed inputs and the run restarts (`fixing input 3 (...) to 5 (inversion)` in the log); otherwise
+    the waypoint fails as before (exit 241). The log (`-v`) says what the waypoint needed and what was chosen, e.g.
+    ``run 3: the follow waypoint of segment 5 (branching at 12:3) needs `in7 != 0`; input 7 := 1 (inversion)``.
+- **Switches:** the rules of stage 6 follow from the requirements. A case value of a follow waypoint gives the
+  switched value that value; its `default` excludes every case label. An avoid waypoint at `default` that passes gets
+  the first case label that the kept clauses allow, so that the avoid waypoints evaluated before it at the `switch`
+  keep failing; one at a case value gets another value (0, or 1 for the case 0). An avoid waypoint after it in the
+  segment that the new value makes pass costs another restart (`validation-crafted/switch.3A1` avoids two cases and
+  `default` at one `switch`).
 - **Restarts** happen only when at least one input gets a new value. Fixed inputs may get another value in a later
-  run when the search needs it and the kept clauses allow it. The number of restarts is limited
-  (`ValidationOptions::maxRestarts`, scaled with the number of waypoints).
+  run when the search needs it and the kept clauses allow it. A waypoint can need a restart for each prediction that
+  fails, and a loop counter one per iteration, so the number of restarts is limited to 16 plus 2 per waypoint of the
+  witness, and at most `ValidationOptions::maxRestarts` (10,000; `restartLimit`).
+- **Examples:**
+  - `if (tmp)` after `tmp = __VERIFIER_nondet_int()`, which the witness wants true: `in0 != 0` gives tmp := 1.
+  - The input check of RERS programs, `if ((input != 1) && (input != 2) && ...) return -2;`, which the witness wants
+    false, followed by `if (input == 3)`, which it wants true: the first run gives input := 1 (the first conjunct made
+    false), the second input := 3. The kept check is unknown with 3, since the second run did not evaluate
+    `input != 2`, so it does not count against 3, and the third run passes both.
+  - A loop counter, `while (i <= a) i++;` with a = 100, that the witness passes 33 times: the run keeps `0 <= a` to
+    `32 <= a` and then needs `!(33 <= a)`, so a := 32. With a = 0 instead, each iteration needs a restart.
 - **Limits of the search:** it cannot predict values through operations without term kinds (pointer arithmetic,
   library functions, bit-fields, dependencies through control flow that no waypoint covers), relations where an
   input occurs more than once and candidates do not help (`x * x == 49`), and witnesses without waypoints between
@@ -214,15 +225,20 @@ with them. It never tries values by running the program, so each restart costs o
 
 ## Known gaps
 
-- Witnesses without values (most of Automizer, Taipan, Kojak, Goblint and Mopsa) need the value search of stage 7, and
-  so do constraints on computed values (`a == 10` after `a = a - n`, `validation-crafted/while.3A1`).
+- The interpreter does not record terms yet (stage 7, in progress): until it does, the search changes no input of a
+  real run, and only hints give inputs values. Witnesses without values (most of Automizer, Taipan, Kojak, Goblint
+  and Mopsa) and constraints on computed values (`a == 10` after `a = a - n`, `validation-crafted/while.3A1`) need it.
 - Long runs can exhaust the host's memory before the interpreter's memory limit, probably through the memory model's
   growing table of dead heap allocations; the driver then reports exit code 251.
 
 ## Tests
 
 - `tests/unit/validate/`: each rule above, with small programs, witnesses built in code, and scripted runs
-  (`validate_test_support.hpp`); `end_to_end_test.cpp` with the interpreter.
+  (`validate_test_support.hpp`, whose `FakeExecution` records terms as the interpreter does);
+  `end_to_end_test.cpp` with the interpreter; `search_test.cpp` the search on term tables built by hand, one test
+  per rule (inversion through every invertible operation, candidates, kept clauses, unknown atoms, `&&` and `||`,
+  switches, avoid waypoints, the order of inputs and values) and the examples above (the input check of RERS, a loop
+  counter, `if (tmp)`).
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness and checks the stage's exit criteria on
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`;
   - `validation-crafted` (expected results in `*.witness-validation.yml`);

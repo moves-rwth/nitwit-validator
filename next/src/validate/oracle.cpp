@@ -21,7 +21,12 @@ void WitnessOracle::hint(const ast::CallExpr* call, value::Value value) {
 }
 
 void WitnessOracle::fix(InputKey key, value::Value value) {
-    fixed_.insert_or_assign(key, std::move(value));
+    fixed_[key].push_back(std::move(value));
+}
+
+std::span<const value::Value> WitnessOracle::fixedValues(InputKey key) const {
+    const auto found = fixed_.find(key);
+    return found != fixed_.end() ? std::span<const value::Value>(found->second) : std::span<const value::Value>();
 }
 
 value::Value WitnessOracle::provide(const interp::InputRequest& request) {
@@ -30,21 +35,21 @@ value::Value WitnessOracle::provide(const interp::InputRequest& request) {
         inputs_.emplace_back(ProvidedInput{.key = {.site = request.site, .occurrence = request.occurrence},
                                            .type = request.type,
                                            .source = InputSource::Default,
-                                           .function = request.function});
+                                           .function = request.function,
+                                           .value = {}});
     if (const auto found = fixed_.find(input.key); found != fixed_.end()) {
         input.source = InputSource::Fixed;
-        return found->second;
-    }
-    if (hint_ && hint_->call == request.site) {
+        input.value = found->second.back();
+    } else if (hint_ && hint_->call == request.site) {
         input.source = InputSource::Hinted;
-        value::Value value = std::move(hint_->value);
+        input.value = std::move(hint_->value);
         hint_.reset();
-        return value;
+    } else if (isArithmetic(context_, request.type)) {
+        input.value = valueOf(context_, defaultValue_, request.type);
+    } else {
+        input.value = value::Value::integer(0, sema::integerFormat(context_, request.type)); // a pointer: null
     }
-    if (isArithmetic(context_, request.type)) {
-        return valueOf(context_, defaultValue_, request.type);
-    }
-    return value::Value::integer(0, sema::integerFormat(context_, request.type)); // a pointer: null
+    return input.value;
 }
 
 const ProvidedInput& WitnessOracle::input(value::InputId id) const {

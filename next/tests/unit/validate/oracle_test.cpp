@@ -90,6 +90,29 @@ TEST_F(OracleTest, FixedInputsAreKeyedBySiteAndOccurrence) {
     EXPECT_EQ(oracle.input(value::InputId{1}).key.occurrence, 1u);
 }
 
+TEST_F(OracleTest, AFixedInputMayBeFixedAgainAndKeepsItsHistory) {
+    WitnessOracle oracle(context());
+    const ast::QualType intType = context().builtin(ast::BuiltinKind::Int);
+    const InputKey key{.site = callAt(6, 35), .occurrence = 0};
+    EXPECT_TRUE(oracle.fixedValues(key).empty());
+    oracle.fix(key, valueOf(context(), 9, intType));
+    oracle.fix(key, valueOf(context(), 4, intType));
+    EXPECT_EQ(provided(oracle, requestAt(6, 35, 0)), "4");
+    ASSERT_EQ(oracle.fixedValues(key).size(), 2u);
+    EXPECT_EQ(toString(context(), oracle.fixedValues(key)[0], intType), "9");
+}
+
+TEST_F(OracleTest, TheRunKeepsTheAnswers) {
+    WitnessOracle oracle(context(), 3);
+    oracle.hint(callAt(9, 38), valueOf(context(), 1, context().builtin(ast::BuiltinKind::Bool)));
+    (void)oracle.provide(requestAt(6, 35, 0));
+    (void)oracle.provide(requestAt(9, 38, 1));
+    EXPECT_EQ(oracle.inputCount(), 2u);
+    EXPECT_EQ(toString(context(), oracle.input(value::InputId{0}).value, context().builtin(ast::BuiltinKind::Int)),
+              "3");
+    EXPECT_EQ(oracle.input(value::InputId{1}).value.bits(), 1u);
+}
+
 TEST_F(OracleTest, FixedInputsWinOverHints) {
     WitnessOracle oracle(context());
     const ast::QualType intType = context().builtin(ast::BuiltinKind::Int);

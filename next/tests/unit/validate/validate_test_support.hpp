@@ -2,7 +2,8 @@
 
 // For the validation tests: a fixture that analyzes a small C program (so that events carry real AST nodes and
 // locations), builds witnesses in code, and validates them with scripted runs. A script reports the events of an
-// execution through FakeExecution, which also evaluates constraints over variables it holds, with origins.
+// execution through FakeExecution, which also evaluates constraints over variables it holds, and records terms as the
+// interpreter does (value/README.md, "Terms").
 
 #include <cstdint>
 #include <expected>
@@ -103,21 +104,27 @@ class ValidateTest;
 /// One scripted execution. Each event method reports the event at the AST node found at the line and column, and
 /// ends the script (by the exception Stopped) when the observer stops the run. Constraints are evaluated over the
 /// variables the script assigned; reading one that was never assigned asks the oracle, as the interpreter does.
+/// Values derived from inputs carry terms: the inputs, and the operations of the expressions the fake evaluates.
 class FakeExecution final : public interp::EvaluationContext {
 public:
     struct Stopped {};
 
     FakeExecution(ValidateTest& fixture, interp::InputOracle& oracle, interp::ExecutionObserver& observer);
 
+    /// A witness constraint: its terms are strict, and any undefined behaviour is an error, as in the interpreter.
     std::expected<value::Value, std::string> evaluate(const ast::Expr* expr) override;
     [[nodiscard]] const ast::FunctionDecl* function() const override { return function_; }
     [[nodiscard]] const value::TermTable& terms() const override { return terms_; }
 
     /// Before the statement that starts here.
     void statement(std::uint32_t line, std::uint32_t column);
-    /// After the condition of the if, loop or `?:` at this keyword or `?`; its outcome is the condition's value.
+    /// The statement that starts here: its event, then a declaration's initializers or the assignment `x = e` to a
+    /// variable.
+    void execute(std::uint32_t line, std::uint32_t column);
+    /// After the condition of the if, loop or `?:` at this keyword or `?`; its outcome is the condition's value, and
+    /// the event carries its term.
     bool branch(std::uint32_t line, std::uint32_t column);
-    /// The same with a given outcome, for conditions the fake cannot evaluate.
+    /// The same with a given outcome and no term, for conditions the fake cannot evaluate.
     bool branch(std::uint32_t line, std::uint32_t column, bool outcome);
     /// After the condition of the switch here: the case label taken, or null.
     const ast::Stmt* switchOn(std::uint32_t line, std::uint32_t column);
@@ -132,8 +139,9 @@ public:
     value::Value number(std::string_view name, Int128 number);
     /// The value of an assigned integer variable.
     [[nodiscard]] Int128 integer(std::string_view name) const;
-    /// `value` converted to the type of variable `name`, as an initialization converts it; the origin stays.
-    value::Value convertedTo(std::string_view name, const value::Value& value) const;
+    /// `value`, an int or a floating value, converted to the type of variable `name` as an initialization converts it,
+    /// with its term.
+    value::Value convertedTo(std::string_view name, const value::Value& value);
     /// The function whose frame is current; `main` at first.
     void enter(std::string_view function);
 
@@ -143,6 +151,8 @@ private:
     };
 
     void obey(interp::Directive directive) const;
+    /// The value of an expression of the program; the fake must be able to evaluate it.
+    value::Value programValue(const ast::Expr* expr);
     value::Value eval(const ast::Expr* expr);
     value::Value cast(const ast::Expr* expr, ast::CastKind kind, const ast::Expr* operand);
     value::Value binary(const ast::BinaryExpr* expr);
@@ -150,6 +160,9 @@ private:
     value::Value request(interp::InputRequest::Kind kind, const ast::Expr* site, ast::QualType type,
                          const ast::FunctionDecl* function);
     const ast::VarDecl* variable(std::string_view name) const;
+    value::ScalarFormat formatOf(ast::QualType type) const;
+    /// Records the term of an arithmetic result and stops a constraint at undefined behaviour.
+    value::Value checked(const value::Result& result, std::optional<value::TermId> term) const;
 
     ValidateTest& fixture_;
     interp::InputOracle& oracle_;
@@ -160,6 +173,7 @@ private:
     std::unordered_map<const ast::Expr*, std::uint32_t> occurrences_;
     const value::Value* result_ = nullptr; // during a return event
     value::TermTable terms_;
+    bool isConstraint_ = false; // while a constraint is evaluated
 };
 
 class ValidateTest : public ::testing::Test {
@@ -467,14 +481,38 @@ inline void FakeExecution::statement(std::uint32_t line, std::uint32_t column) {
     obey(observer_.beforeStatement({.stmt = fixture_.statementAt(line, column)}, *this));
 }
 
+inline void FakeExecution::execute(std::uint32_t line, std::uint32_t column) {
+    const ast::Stmt* stmt = fixture_.statementAt(line, column);
+    obey(observer_.beforeStatement({.stmt = stmt}, *this));
+    if (const auto* declaration = ast::dyn_cast<ast::DeclarationStmt>(stmt)) {
+        for (const ast::Decl* decl : declaration->decls()) {
+            if (const auto* var = ast::dyn_cast<ast::VarDecl>(decl); var != nullptr && var->initializer()) {
+                variables_.insert_or_assign(var, programValue(var->initializer()));
+            }
+        }
+        return;
+    }
+    const auto* expression = ast::dyn_cast<ast::ExpressionStmt>(stmt);
+    const auto* assignment =
+        expression != nullptr ? ast::dyn_cast<ast::BinaryExpr>(ast::ignoreParens(expression->expr())) : nullptr;
+    const auto* target = assignment != nullptr && assignment->op() == ast::BinaryOperator::Assign
+                             ? ast::dyn_cast<ast::DeclRefExpr>(ast::ignoreParens(assignment->lhs()))
+                             : nullptr;
+    const auto* var = target != nullptr ? ast::dyn_cast<ast::VarDecl>(target->decl()) : nullptr;
+    if (var == nullptr) {
+        throw std::runtime_error(std::format("the fake cannot execute the statement at {}:{}", line, column));
+    }
+    variables_.insert_or_assign(var, programValue(assignment->rhs()));
+}
+
 inline bool FakeExecution::branch(std::uint32_t line, std::uint32_t column) {
     const ast::Expr* condition = nullptr;
-    (void)fixture_.conditionAt(line, column, condition);
-    const std::expected<value::Value, std::string> value = evaluate(condition);
-    if (!value) {
-        throw std::runtime_error("the fake cannot evaluate the condition: " + value.error());
-    }
-    return branch(line, column, value::toBool(*value).bits() != 0);
+    interp::ConditionEvent event = fixture_.conditionAt(line, column, condition);
+    const value::Value value = programValue(condition);
+    event.outcome = value::toBool(value).bits() != 0;
+    event.term = value.term();
+    obey(observer_.afterCondition(event, *this));
+    return event.outcome;
 }
 
 inline bool FakeExecution::branch(std::uint32_t line, std::uint32_t column, bool outcome) {
@@ -488,15 +526,13 @@ inline bool FakeExecution::branch(std::uint32_t line, std::uint32_t column, bool
 inline const ast::Stmt* FakeExecution::switchOn(std::uint32_t line, std::uint32_t column) {
     const ast::Expr* condition = nullptr;
     interp::ConditionEvent event = fixture_.conditionAt(line, column, condition);
-    const std::expected<value::Value, std::string> value = evaluate(condition);
-    if (!value) {
-        throw std::runtime_error("the fake cannot evaluate the switch condition: " + value.error());
-    }
+    const value::Value value = programValue(condition);
     const auto* switchStmt = ast::cast<ast::SwitchStmt>(event.stmt);
-    event.switchValue = *value;
+    event.switchValue = value;
+    event.term = value.term();
     event.switchLabel = switchStmt->defaultStmt();
     for (const ast::CaseStmt* label : switchStmt->cases()) {
-        if (label->low() <= value->signedBits() && value->signedBits() <= label->high()) {
+        if (label->low() <= value.signedBits() && value.signedBits() <= label->high()) {
             event.switchLabel = label;
         }
     }
@@ -550,25 +586,31 @@ inline Int128 FakeExecution::integer(std::string_view name) const {
     return found->second.signedBits();
 }
 
-inline value::Value FakeExecution::convertedTo(std::string_view name, const value::Value& value) const {
+inline value::Value FakeExecution::convertedTo(std::string_view name, const value::Value& value) {
     ast::AstContext& context = fixture_.context();
     const ast::QualType to = variable(name)->type();
     const bool isFloating = value.kind() != value::Value::Kind::Integer;
     const value::FloatFormat from = value.kind() == value::Value::Kind::Float        ? value::FloatFormat::Float
                                     : value.kind() == value::Value::Kind::LongDouble ? value::FloatFormat::LongDouble
                                                                                      : value::FloatFormat::Double;
-    // Integers are canonical: extended to 128 bits as their own type's signedness asks.
-    const value::IntegerFormat wide{.bits = 128, .isSigned = true};
+    // The source of an integer is an int: the scripts convert the results of __VERIFIER_nondet_int.
+    const value::IntegerFormat fromInteger{.bits = 32, .isSigned = true};
     value::Value converted;
+    std::optional<value::TermId> term;
     if (sema::isFloating(context, to)) {
         const value::FloatFormat format = sema::floatFormat(context, to);
-        converted = isFloating ? value::convertFloat(value, from, format) : value::integerToFloat(value, wide, format);
+        converted =
+            isFloating ? value::convertFloat(value, from, format) : value::integerToFloat(value, fromInteger, format);
+        term =
+            isFloating ? terms_.convertFloat(value, from, format) : terms_.integerToFloat(value, fromInteger, format);
     } else {
         const value::IntegerFormat format = sema::integerFormat(context, to);
         converted = isFloating ? value::floatToInteger(value, from, format, context.target().dataModel()).value
                                : value::convertInteger(value, format);
+        term =
+            isFloating ? terms_.floatToInteger(value, from, format) : terms_.convertInteger(value, fromInteger, format);
     }
-    converted.setOrigin(value.origin());
+    converted.setTerm(term);
     return converted;
 }
 
@@ -590,6 +632,13 @@ inline const ast::VarDecl* FakeExecution::variable(std::string_view name) const 
     throw std::runtime_error(std::format("no variable {}", name));
 }
 
+inline value::ScalarFormat FakeExecution::formatOf(ast::QualType type) const {
+    if (sema::isFloating(fixture_.context(), type)) {
+        return sema::floatFormat(fixture_.context(), type);
+    }
+    return sema::integerFormat(fixture_.context(), type);
+}
+
 inline value::Value FakeExecution::request(interp::InputRequest::Kind kind, const ast::Expr* site, ast::QualType type,
                                            const ast::FunctionDecl* function) {
     const interp::InputRequest request{.kind = kind,
@@ -599,16 +648,41 @@ inline value::Value FakeExecution::request(interp::InputRequest::Kind kind, cons
                                        .type = type,
                                        .function = function};
     value::Value value = oracle_.provide(request);
-    value.setOrigin(request.id);
+    value.setTerm(terms_.input(request.id, value, formatOf(type)));
     return value;
 }
 
 inline std::expected<value::Value, std::string> FakeExecution::evaluate(const ast::Expr* expr) {
+    const value::TermTable::StrictScope strict(terms_);
+    isConstraint_ = true;
+    try {
+        value::Value value = eval(expr);
+        isConstraint_ = false;
+        return value;
+    } catch (const EvaluationError& error) {
+        isConstraint_ = false;
+        return std::unexpected(error.message);
+    }
+}
+
+inline value::Value FakeExecution::programValue(const ast::Expr* expr) {
     try {
         return eval(expr);
     } catch (const EvaluationError& error) {
-        return std::unexpected(error.message);
+        throw std::runtime_error("the fake cannot evaluate an expression of the program: " + error.message);
     }
+}
+
+inline value::Value FakeExecution::checked(const value::Result& result, std::optional<value::TermId> term) const {
+    if (result.undefinedBehavior == value::UndefinedBehavior::DivisionByZero) {
+        throw EvaluationError{"division by zero"};
+    }
+    if (isConstraint_ && result.undefinedBehavior != value::UndefinedBehavior::None) {
+        throw EvaluationError{"undefined behaviour"};
+    }
+    value::Value value = result.value;
+    value.setTerm(term);
+    return value;
 }
 
 inline value::Value FakeExecution::read(const ast::VarDecl* var, const ast::Expr* site) {
@@ -663,12 +737,17 @@ inline value::Value FakeExecution::eval(const ast::Expr* expr) {
     case ast::ExprKind::Unary: {
         const auto* unary = ast::cast<ast::UnaryExpr>(expr);
         const value::Value operand = eval(unary->operand());
-        const value::IntegerFormat format = sema::integerFormat(context, expr->type());
         switch (unary->op()) {
-        case ast::UnaryOperator::Minus:
-            return value::integerNegate(operand, format).value;
-        case ast::UnaryOperator::LogicalNot:
-            return value::Value::integer(value::toBool(operand).bits() == 0 ? 1 : 0, format);
+        case ast::UnaryOperator::Minus: {
+            const value::IntegerFormat format = sema::integerFormat(context, expr->type());
+            return checked(value::integerNegate(operand, format), terms_.integerNegate(operand, format));
+        }
+        case ast::UnaryOperator::LogicalNot: {
+            value::Value result = value::Value::integer(value::toBool(operand).bits() == 0 ? 1 : 0,
+                                                        sema::integerFormat(context, expr->type()));
+            result.setTerm(terms_.logicalNot(operand, formatOf(unary->operand()->type())));
+            return result;
+        }
         default:
             break;
         }
@@ -687,6 +766,7 @@ inline value::Value FakeExecution::eval(const ast::Expr* expr) {
     throw EvaluationError{"the fake cannot evaluate this expression"};
 }
 
+// The conversions between arithmetic types, with their terms.
 inline value::Value FakeExecution::cast(const ast::Expr* expr, ast::CastKind kind, const ast::Expr* operand) {
     ast::AstContext& context = fixture_.context();
     if (kind == ast::CastKind::LValueToRValue) {
@@ -698,51 +778,83 @@ inline value::Value FakeExecution::cast(const ast::Expr* expr, ast::CastKind kin
         return read(var, expr);
     }
     const value::Value value = eval(operand);
-    // As the interpreter: conversions between arithmetic types keep the origin (interp/README.md, "Origins").
+    const value::ScalarFormat from = formatOf(operand->type());
+    const value::ScalarFormat to = formatOf(expr->type());
     value::Value converted;
+    std::optional<value::TermId> term;
     switch (kind) {
     case ast::CastKind::NoOp:
         return value;
     case ast::CastKind::IntegralCast:
-        converted = value::convertInteger(value, sema::integerFormat(context, expr->type()));
+        converted = value::convertInteger(value, std::get<value::IntegerFormat>(to));
+        term = terms_.convertInteger(value, std::get<value::IntegerFormat>(from), std::get<value::IntegerFormat>(to));
         break;
     case ast::CastKind::IntegralToBoolean:
     case ast::CastKind::FloatingToBoolean:
         converted = value::toBool(value);
+        term = terms_.toBool(value, from);
         break;
     case ast::CastKind::IntegralToFloating:
-        converted = value::integerToFloat(value, sema::integerFormat(context, operand->type()),
-                                          sema::floatFormat(context, expr->type()));
+        converted =
+            value::integerToFloat(value, std::get<value::IntegerFormat>(from), std::get<value::FloatFormat>(to));
+        term = terms_.integerToFloat(value, std::get<value::IntegerFormat>(from), std::get<value::FloatFormat>(to));
         break;
+    case ast::CastKind::FloatingToIntegral:
+        return checked(
+            value::floatToInteger(value, std::get<value::FloatFormat>(from), std::get<value::IntegerFormat>(to),
+                                  context.target().dataModel()),
+            terms_.floatToInteger(value, std::get<value::FloatFormat>(from), std::get<value::IntegerFormat>(to)));
     case ast::CastKind::FloatingCast:
-        converted = value::convertFloat(value, sema::floatFormat(context, operand->type()),
-                                        sema::floatFormat(context, expr->type()));
+        converted = value::convertFloat(value, std::get<value::FloatFormat>(from), std::get<value::FloatFormat>(to));
+        term = terms_.convertFloat(value, std::get<value::FloatFormat>(from), std::get<value::FloatFormat>(to));
         break;
     default:
         throw EvaluationError{"the fake cannot evaluate this cast"};
     }
-    converted.setOrigin(value.origin());
+    converted.setTerm(term);
     return converted;
 }
 
+// Integer arithmetic, comparisons, `&&` and `||`, with their terms.
 inline value::Value FakeExecution::binary(const ast::BinaryExpr* expr) {
     ast::AstContext& context = fixture_.context();
     const value::IntegerFormat intFormat = sema::integerFormat(context, expr->type());
     if (expr->op() == ast::BinaryOperator::LogicalAnd || expr->op() == ast::BinaryOperator::LogicalOr) {
-        const bool lhs = value::toBool(eval(expr->lhs())).bits() != 0;
-        if (lhs == (expr->op() == ast::BinaryOperator::LogicalOr)) {
-            return value::Value::integer(lhs ? 1 : 0, intFormat);
+        const bool isOr = expr->op() == ast::BinaryOperator::LogicalOr;
+        const value::Value lhs = eval(expr->lhs());
+        const value::ScalarFormat lhsFormat = formatOf(expr->lhs()->type());
+        const value::ScalarFormat rhsFormat = formatOf(expr->rhs()->type());
+        const bool left = value::toBool(lhs).bits() != 0;
+        if (left == isOr) {
+            value::Value result = value::Value::integer(left ? 1 : 0, intFormat);
+            result.setTerm(isOr ? terms_.logicalOr(lhs, lhsFormat, nullptr, rhsFormat)
+                                : terms_.logicalAnd(lhs, lhsFormat, nullptr, rhsFormat));
+            return result;
         }
-        return value::Value::integer(value::toBool(eval(expr->rhs())).bits(), intFormat);
+        const value::Value rhs = eval(expr->rhs());
+        value::Value result = value::Value::integer(value::toBool(rhs).bits(), intFormat);
+        result.setTerm(isOr ? terms_.logicalOr(lhs, lhsFormat, &rhs, rhsFormat)
+                            : terms_.logicalAnd(lhs, lhsFormat, &rhs, rhsFormat));
+        return result;
     }
     const value::Value lhs = eval(expr->lhs());
     const value::Value rhs = eval(expr->rhs());
     const ast::QualType operandType = expr->lhs()->type();
     const auto compare = [&](value::Comparison comparison) {
-        const bool holds = sema::isFloating(context, operandType)
-                               ? value::floatCompare(comparison, lhs, rhs, sema::floatFormat(context, operandType))
-                               : value::integerCompare(comparison, lhs, rhs, sema::integerFormat(context, operandType));
-        return value::Value::integer(holds ? 1 : 0, intFormat);
+        value::Value result;
+        if (sema::isFloating(context, operandType)) {
+            const value::FloatFormat format = sema::floatFormat(context, operandType);
+            result = value::Value::integer(value::floatCompare(comparison, lhs, rhs, format) ? 1 : 0, intFormat);
+            result.setTerm(terms_.floatCompare(comparison, lhs, rhs, format));
+        } else {
+            const value::IntegerFormat format = sema::integerFormat(context, operandType);
+            result = value::Value::integer(value::integerCompare(comparison, lhs, rhs, format) ? 1 : 0, intFormat);
+            result.setTerm(terms_.integerCompare(comparison, lhs, rhs, format));
+        }
+        return result;
+    };
+    const auto arithmetic = [&](value::IntegerOperator op) {
+        return checked(value::integerBinary(op, lhs, rhs, intFormat), terms_.integerBinary(op, lhs, rhs, intFormat));
     };
     switch (expr->op()) {
     case ast::BinaryOperator::Equal:
@@ -758,18 +870,15 @@ inline value::Value FakeExecution::binary(const ast::BinaryExpr* expr) {
     case ast::BinaryOperator::GreaterEqual:
         return compare(value::Comparison::GreaterEqual);
     case ast::BinaryOperator::Add:
-        return value::integerBinary(value::IntegerOperator::Add, lhs, rhs, intFormat).value;
+        return arithmetic(value::IntegerOperator::Add);
     case ast::BinaryOperator::Sub:
-        return value::integerBinary(value::IntegerOperator::Sub, lhs, rhs, intFormat).value;
+        return arithmetic(value::IntegerOperator::Sub);
     case ast::BinaryOperator::Mul:
-        return value::integerBinary(value::IntegerOperator::Mul, lhs, rhs, intFormat).value;
-    case ast::BinaryOperator::Div: {
-        const value::Result quotient = value::integerBinary(value::IntegerOperator::Div, lhs, rhs, intFormat);
-        if (quotient.undefinedBehavior != value::UndefinedBehavior::None) {
-            throw EvaluationError{"division by zero"};
-        }
-        return quotient.value;
-    }
+        return arithmetic(value::IntegerOperator::Mul);
+    case ast::BinaryOperator::Div:
+        return arithmetic(value::IntegerOperator::Div);
+    case ast::BinaryOperator::Rem:
+        return arithmetic(value::IntegerOperator::Rem);
     default:
         throw EvaluationError{"the fake cannot evaluate this operator"};
     }

@@ -7,6 +7,7 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <span>
 #include <vector>
 
 #include "ast/context.hpp"
@@ -32,6 +33,7 @@ struct ProvidedInput {
     ast::QualType type;
     InputSource source = InputSource::Default;
     const ast::FunctionDecl* function = nullptr; // the called function, for calls
+    value::Value value;                          // the answer
 };
 
 class WitnessOracle final : public interp::InputOracle {
@@ -47,13 +49,17 @@ public:
     void hint(const ast::CallExpr* call, value::Value value);
     void clearHint() { hint_.reset(); }
 
-    /// Answers the request with this key with `value` in all later runs.
+    /// Answers the request with this key with `value` in later runs, until it is fixed to another value.
     void fix(InputKey key, value::Value value);
+    /// The values the request with this key was fixed to, oldest first; the last one is its value now.
+    [[nodiscard]] std::span<const value::Value> fixedValues(InputKey key) const;
 
     value::Value provide(const interp::InputRequest& request) override;
 
     /// A request of the current run; precondition: the run made it.
     [[nodiscard]] const ProvidedInput& input(value::InputId id) const;
+    /// The number of requests of the current run.
+    [[nodiscard]] std::size_t inputCount() const { return inputs_.size(); }
 
 private:
     struct KeyLess {
@@ -71,8 +77,9 @@ private:
 
     ast::AstContext& context_;
     Int128 defaultValue_;
-    std::map<InputKey, value::Value, KeyLess> fixed_; // only looked up, never iterated: the order is by address
-    std::vector<ProvidedInput> inputs_;               // of the current run, indexed by InputId
+    // By key, the values it was fixed to. Only looked up, never iterated: the order is by address.
+    std::map<InputKey, std::vector<value::Value>, KeyLess> fixed_;
+    std::vector<ProvidedInput> inputs_; // of the current run, indexed by InputId
     std::optional<Hint> hint_;
 };
 
