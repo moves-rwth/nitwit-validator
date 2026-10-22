@@ -302,11 +302,44 @@ int main(void) {
 }
 )";
 
+// The witnesses of the next six tests avoid the condition of the error, so no run confirms them. With the
+// interpreter's terms, the search changes the input so that the avoid waypoint fails, and the run ends without error.
+
+constexpr std::string_view avoidedCaseProgram = R"(extern int __VERIFIER_nondet_int(void);
+extern void reach_error(void);
+int main(void) {
+  int x = __VERIFIER_nondet_int();
+  switch (x) {
+  case 0: reach_error(); break;
+  default: break;
+  }
+  return 0;
+}
+)";
+
+constexpr std::string_view narrowingProgram = R"(extern int __VERIFIER_nondet_int(void);
+extern void reach_error(void);
+int main(void) {
+  int x = __VERIFIER_nondet_int();
+  unsigned char c = x;
+  if (c == 0) reach_error();
+  return 0;
+}
+)";
+
 TEST_F(EndToEndTest, AnAvoidWaypointOnTheDefaultOfAnInputIsEvaluatedOnIt) {
+    // The error needs x == 0, which the default 0 gives and the witness avoids.
+    build(std::string(avoidProgram));
+    for (const auto& [line, column] : {std::pair{5u, 3u}, std::pair{6u, 5u}}) {
+        const ValidationResult result =
+            validate(sequence({{avoid(WaypointType::Assumption, line, column, "x == 0"), target(6, 5)}}));
+        EXPECT_NE(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    }
+}
+
+TEST_F(EndToEndTest, AnAvoidWaypointOnTheDefaultOfAnInputChangesTheInput) {
     // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
     GTEST_SKIP() << "needs the terms of the interpreter";
-
-    // The error needs x == 0, which the witness avoids: the default 0 passes the avoid waypoint, and x is fixed to 1.
     build(std::string(avoidProgram));
     for (const auto& [line, column] : {std::pair{5u, 3u}, std::pair{6u, 5u}}) {
         const ValidationResult result =
@@ -317,38 +350,31 @@ TEST_F(EndToEndTest, AnAvoidWaypointOnTheDefaultOfAnInputIsEvaluatedOnIt) {
 }
 
 TEST_F(EndToEndTest, AnAvoidedCaseOfTheDefaultOfAnInputIsEvaluatedOnIt) {
+    build(std::string(avoidedCaseProgram));
+    const ValidationResult result = validate(sequence({{avoid(WaypointType::Branching, 5, 3, "0"), target(6, 11)}}));
+    EXPECT_NE(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+}
+
+TEST_F(EndToEndTest, AnAvoidedCaseOfTheDefaultOfAnInputChangesTheInput) {
     // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
     GTEST_SKIP() << "needs the terms of the interpreter";
-
-    build(R"(extern int __VERIFIER_nondet_int(void);
-extern void reach_error(void);
-int main(void) {
-  int x = __VERIFIER_nondet_int();
-  switch (x) {
-  case 0: reach_error(); break;
-  default: break;
-  }
-  return 0;
-}
-)");
+    build(std::string(avoidedCaseProgram));
     const ValidationResult result = validate(sequence({{avoid(WaypointType::Branching, 5, 3, "0"), target(6, 11)}}));
     EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
     EXPECT_EQ(result.runs, 2u);
 }
 
-TEST_F(EndToEndTest, AnAvoidWaypointFixesAnInputThroughANarrowingConversion) {
+TEST_F(EndToEndTest, AnAvoidWaypointOnANarrowedInputIsEvaluatedOnIt) {
+    build(std::string(narrowingProgram));
+    const ValidationResult result =
+        validate(sequence({{avoid(WaypointType::Assumption, 6, 3, "c == 0"), target(6, 15)}}));
+    EXPECT_NE(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+}
+
+TEST_F(EndToEndTest, AnAvoidWaypointChangesAnInputThroughANarrowingConversion) {
     // TODO(stage 7): runs once the interpreter records terms; without them the search changes no input.
     GTEST_SKIP() << "needs the terms of the interpreter";
-
-    build(R"(extern int __VERIFIER_nondet_int(void);
-extern void reach_error(void);
-int main(void) {
-  int x = __VERIFIER_nondet_int();
-  unsigned char c = x;
-  if (c == 0) reach_error();
-  return 0;
-}
-)");
+    build(std::string(narrowingProgram));
     const ValidationResult result =
         validate(sequence({{avoid(WaypointType::Assumption, 6, 3, "c == 0"), target(6, 15)}}));
     EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
