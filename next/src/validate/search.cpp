@@ -353,6 +353,12 @@ SearchResult Solver::solve(std::span<const Clause> requirement) {
             needs += std::format("{}`{}`", needs.empty() ? "" : ", ", textOf(clause));
         }
     }
+    if (needs.empty()) {
+        // An avoid function_enter that passes has no requirement; a requirement that holds on the run's values is
+        // one whose terms do not compute what the program did.
+        return {.changes = {},
+                .explanation = "needs another path, which the terms do not describe: no input values found"};
+    }
     const bool hasHistory =
         std::ranges::any_of(inputs_, [](const SearchInput& input) { return !input.history.empty(); });
     for (const bool allowsHistory : {false, true}) {

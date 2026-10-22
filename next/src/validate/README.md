@@ -166,7 +166,9 @@ one prediction.
 
 - **Unknown atoms:** an atom without a term (a conjunct or condition that depends on no input, or only through control
   flow, or has no value) and an atom on the opaque term (`TermTable::isOpaque`) are unknown. No input is changed for
-  them, and they count against no value.
+  them, and they count against no value. A waypoint without a constraint (`function_enter`, a `function_return`
+  without one) has no requirement: an avoid one that passes is rejected, logged as `needs another path, which the
+  terms do not describe`, as is a requirement that holds on the values of the run.
 - **Kept clauses:** the requirements of every waypoint evaluation of the run that had its outcome (a follow waypoint
   that passed, an avoid waypoint that did not), so that the next run passes the same waypoints again (`KeptClauses`).
   - A clause is kept once, and not at all without an atom on a term other than the opaque term: no input can make it

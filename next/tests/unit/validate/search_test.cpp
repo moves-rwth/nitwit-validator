@@ -710,6 +710,10 @@ TEST_F(SearchTest, TheExplanationSaysWhatWasNeededAndChosen) {
                       atom(opaque(), Comparison::Equal, 1)}})
                   .explanation,
               "needs `(unsigned char)in0 == 200 || <opaque> == 1`; input 0 := 200 (inversion)");
+    // An avoid function_enter that passes has no requirement.
+    EXPECT_EQ(solve({}).explanation, "needs another path, which the terms do not describe: no input values found");
+    EXPECT_EQ(solve({{atom(x, Comparison::Equal, 0)}}).explanation,
+              "needs another path, which the terms do not describe: no input values found");
 }
 
 } // namespace
