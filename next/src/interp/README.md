@@ -257,11 +257,14 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
 - **Opaque values:** a value computed from an operand with a term by an operation without a term kind gets
   `TermTable::opaque()`, so that it never becomes a constant of a later term:
   - library functions: the result, if an argument has a term or the function reads bytes that depend on inputs
-    (`Memory::beginRawAccesses`). The bytes the function writes with `write` and `fill` become opaque if it reads such
-    bytes or if an argument other than a pointer has a term (also a size: `memset(p, 0, n)` with an input-derived `n`
-    makes the zeros opaque); a pointer argument only tells where the bytes are, as the address of a store does.
-    Functions that copy bytes (`memcpy`, `memmove`, `strcpy`, `strdup`, `realloc`, ...) copy their terms
-    (`Memory::copy`); `memset` with arguments without terms clears them;
+    (`Memory::beginRawAccesses`); so also a pointer that `strchr`, `strstr`, `memchr` and the like compute from an
+    input-derived pointer. The bytes the function writes with `write` and `fill` become opaque if it reads such bytes
+    or if an argument other than a pointer has a term (also a size: `memset(p, 0, n)` with an input-derived `n` makes
+    the zeros opaque). A pointer argument only tells where the bytes are, as the address of a store does, unless the
+    function writes a value computed from a pointer argument (`LibraryResult::writesPointerValues`): a pointer printed
+    with `%p` by `sprintf` and its relatives, the end pointer of `strtol` and its relatives. Functions that copy bytes
+    (`memcpy`, `memmove`, `strcpy`, `strdup`, `realloc`, ...) copy their terms (`Memory::copy`); `memset` with
+    arguments without terms clears them;
   - pointer arithmetic (`p + i`, `&a[i]`, `p - q`, `++p`, `&p->member` past offset 0) with a pointer, an index or an
     element size (a variable length array) that depends on inputs, and `sizeof` of such an array;
   - bit-fields: a field read from storage that depends on inputs, and the storage after it got a value with a term or

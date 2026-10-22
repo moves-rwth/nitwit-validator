@@ -426,6 +426,35 @@ int main(void) {
                 ElementsAre("opaque", "opaque", "(s8)x0", "-", "opaque", "x0", "-", "opaque"));
 }
 
+TEST_F(TermsTest, LibraryFunctionsThatWritePointerValuesMakeThemOpaque) {
+    oracle_.answers = {1};
+    EXPECT_THAT(
+        termsAt(R"(int __VERIFIER_nondet_int(void);
+int sprintf(char *, const char *, ...);
+long strtol(const char *, char **, int);
+char *strchr(const char *, int);
+int main(void) {
+    int i = __VERIFIER_nondet_int();
+    char s[8] = "1a2b3";
+    char buf[32];
+    sprintf(buf, "%p", (void *)(s + i));
+    char b = buf[3];
+    sprintf(buf, "%s", s + i);
+    char t = buf[0];
+    char *end;
+    strtol(s + i, &end, 10);
+    long n = end - s;
+    char *found = strchr(s + i, 'b');
+    char *fixed;
+    strtol(s, &fixed, 10);
+    return 0;
+})",
+                19,
+                {variable("b"), variable("t"), variable("end"), variable("n"), variable("found"), variable("fixed")}),
+        // `%s` prints the bytes the pointer points to, which depend on no input.
+        ElementsAre("opaque", "-", "opaque", "opaque", "opaque", "-"));
+}
+
 TEST_F(TermsTest, PointerArithmeticWithInputsIsOpaque) {
     oracle_.answers = {2};
     EXPECT_THAT(

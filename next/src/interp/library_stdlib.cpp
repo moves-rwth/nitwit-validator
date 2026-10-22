@@ -166,6 +166,7 @@ LibraryResult convert(const Call& call, ScalarType type, bool binaryPrefix) {
         call.setErrno(ERANGE);
     }
     if (endPointer != 0) {
+        call.noteWrittenPointerValue(); // the end pointer is nptr plus the length of the number
         call.writeInteger(endPointer, parsed.end, ScalarType::Pointer);
     }
     return call.returnInteger(parsed.value, type);

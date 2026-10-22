@@ -95,11 +95,17 @@ public:
     /// Stores `value` in errno (the library object behind __errno_location).
     void setErrno(int value) const;
 
+    /// Notes that the bytes this call writes depend on the value of a pointer argument (LibraryResult::
+    /// writesPointerValues). Call it where such a value is computed.
+    void noteWrittenPointerValue() const { writesPointerValues_ = true; }
+    [[nodiscard]] bool writesPointerValues() const { return writesPointerValues_; }
+
 private:
     [[noreturn]] void memoryError(bool isWrite, const MemoryError& error) const;
 
     LibraryContext& context_;
     const LibraryCall& call_;
+    mutable bool writesPointerValues_ = false; // the functions get the call as const
 };
 
 /// Reads the bytes of an object one after the other, fetching them in blocks that do not extend beyond the object.
@@ -133,7 +139,9 @@ template <Implementation implementation>
 LibraryResult entryPoint(LibraryContext& context, const LibraryCall& libraryCall) {
     const Call call(context, libraryCall);
     try {
-        return implementation(call);
+        LibraryResult result = implementation(call);
+        result.writesPointerValues = call.writesPointerValues();
+        return result;
     } catch (Stop& stop) {
         return std::move(stop.result);
     }

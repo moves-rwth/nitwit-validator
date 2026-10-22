@@ -371,7 +371,8 @@ std::optional<value::Value> Execution::callLibrary(const FunctionEntity& functio
     }
     // Library functions have no term kind (interp/README.md, "Terms"): the result is opaque if it depends on inputs,
     // through an argument or through bytes the function reads. So are the bytes it writes, except that a pointer
-    // argument only tells where they are, as the address of a store does.
+    // argument only tells where they are, as the address of a store does, unless the function writes a value computed
+    // from a pointer argument (LibraryResult::writesPointerValues).
     memory_.beginRawAccesses();
     LibraryResult result = function.library(*this, call);
     const RawAccesses accesses = memory_.endRawAccesses();
@@ -380,7 +381,7 @@ std::optional<value::Value> Execution::callLibrary(const FunctionEntity& functio
     for (std::size_t i = 0; i < arguments.values.size(); ++i) {
         if (arguments.values[i].term()) {
             isResultDerived = true;
-            areBytesDerived = areBytesDerived || argumentTypes[i] != ScalarType::Pointer;
+            areBytesDerived = areBytesDerived || argumentTypes[i] != ScalarType::Pointer || result.writesPointerValues;
         }
     }
     if (areBytesDerived) {
