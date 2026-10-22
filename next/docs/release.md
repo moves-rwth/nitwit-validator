@@ -64,7 +64,8 @@ The tool-info module `benchexec/tools/nitwit.py`:
   task's data model before `-w`. `nitwit.sh` passes all arguments unchanged to `bin/nitwit32`, which reads `-32` and
   `-64` itself, from any working directory. `bin/nitwit64` is only there for `REQUIRED_PATHS` and direct calls;
 - maps the exit codes of `docs/exit-codes.md`, which are those of 3.x: 0 and 245 are FALSE, 251 OUT OF MEMORY, 4, 5,
-  241, 242, 243 and 250 UNKNOWN, all others ERROR. 252 is UNKNOWN in the fork, but ERROR in BenchExec 3.35.
+  241, 242, 243 and 250 UNKNOWN, all others ERROR. 252 is UNKNOWN in the fork, but ERROR in BenchExec 3.35, so NITWIT
+  4 does not use it for now.
 
 Differences from 3.x's `nitwit.sh`:
 
@@ -75,6 +76,7 @@ Differences from 3.x's `nitwit.sh`:
 | program or witness file missing | 255 (ERROR) | 3 (ERROR) |
 | no `-w` | 255 (ERROR) | 240 (ERROR) |
 | `-32`/`-64` twice, or both | the last one counts | wrong command line: 3 (ERROR) |
+| the error function is called, but the witness was not followed to its target (format 2.x) | 252 (UNKNOWN in the fork, ERROR in BenchExec 3.35) | 241 (UNKNOWN), with its own result line |
 | missing executable | 255 (ERROR) | 255 (ERROR) |
 | `-h`, `--help` | usage, 0 | unknown option: usage, 3 |
 | working directory | must be the archive's directory | any |

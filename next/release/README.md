@@ -38,11 +38,10 @@ Ubuntu's package `gcc-multilib` provides `cpp` and the system headers for both d
 | 3 | wrong command line, or a file cannot be read | ERROR |
 | 4 | unsupported program, witness or property, or a limit of NITWIT | UNKNOWN |
 | 240 | no witness given | ERROR |
-| 241 | the program left the witness | UNKNOWN |
+| 241 | the program left the witness, or called the error function before the witness reached its target | UNKNOWN |
 | 242 | the program finished without calling the error function | UNKNOWN |
 | 250 | the witness reached its target, but the error function was not called | UNKNOWN |
 | 251 | out of memory | OUT OF MEMORY |
-| 252 | the error function was called, but the witness was not followed to its target | UNKNOWN (BenchExec 3.35: ERROR) |
 | 255 | `nitwit.sh`: `bin/nitwit32` is missing or not executable | ERROR |
 
 ## License

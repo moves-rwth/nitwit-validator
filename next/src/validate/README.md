@@ -113,7 +113,7 @@ waypoint of the current segment is evaluated first, then its avoid waypoints the
   | Outcome | Exit code |
   |---|---|
   | the error function is called at the target while the target segment is current | 0 (confirmed) |
-  | the error function is called earlier, or elsewhere | 252 |
+  | the error function is called earlier, or elsewhere | 241 (252 once BenchExec maps it to UNKNOWN, `docs/exit-codes.md`) |
   | the program ends (end of `main`, `exit`) | 242 |
   | the target segment is reached, but the program ends without calling the error function | 250 |
   | the program aborts, `__VERIFIER_assume` fails, undefined behaviour without a defined result, a limit | 4 |

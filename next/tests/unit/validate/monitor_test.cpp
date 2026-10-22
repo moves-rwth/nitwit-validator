@@ -34,7 +34,7 @@ TEST_F(MonitorTest, TheErrorFunctionBeforeTheTargetSegmentIsNoConfirmation) {
     const ValidationResult result = validate(sequence({{follow(WaypointType::Assumption, 9, 5, "1")}, {target(7, 9)}}),
                                              [](FakeExecution& x) { return runInputs(x, true); });
     EXPECT_EQ(result.verdict, Verdict::ErrorBeforeTarget) << result.message;
-    EXPECT_EQ(exitCode(result), 252);
+    EXPECT_EQ(exitCode(result), 241);
     EXPECT_EQ(result.message, "the target was not reached: 'reach_error' was called at 7:9 in segment 1 of 2");
 }
 
