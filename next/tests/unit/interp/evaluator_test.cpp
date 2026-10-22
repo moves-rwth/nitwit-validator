@@ -131,6 +131,20 @@ printf("%x %d\n", u.u, u.bytes[3]);)"),
               "3f800000 63\n");
 }
 
+TEST_P(EvaluatorTest, CastsToUnionsInitializeTheMemberOfTheOperandType) {
+    // GNU, "Cast to a Union Type".
+    EXPECT_EQ(print("union U { int i; float f; double d; }; struct S { int a, b; }; union V { long l; struct S s; };\n"
+                    "union U g = (union U)1.5;",
+                    R"(int x = 3;
+union U v = (union U)(float)x;
+union U w = (union U)x;
+union U z; z = (union U)2.5;
+struct S s = {1, 2};
+union V u = (union V)s;
+printf("%g %d %g %g %d %d\n", v.f, w.i, z.d, g.d, u.s.a, u.s.b);)"),
+              "3 3 2.5 1.5 1 2\n");
+}
+
 TEST_P(EvaluatorTest, CommaAndBinaryConditional) {
     EXPECT_EQ(print("", R"(int x = 0, y = 5;
 int a = x ?: 7; int b = y ?: 7; int c = (x = 3, x + 1);
