@@ -102,7 +102,7 @@ class TermsTest : public InterpreterTest {
 protected:
     /// Runs `text` with the check of the terms; it must return normally.
     RunResult runChecked(std::string text, DataModel model = DataModel::LP64, RunOptions options = {}) {
-        options.checkTerms = true;
+        options.checkTerms = &termMismatch;
         RunResult result = run(std::move(text), model, options);
         EXPECT_EQ(result.termination, Termination::Returned) << result.message;
         return result;
@@ -750,6 +750,49 @@ int main(void) {
 
 // ---- The consistency check ----
 
+/// A check that finds every strict term wrong, as a wrong term of an operation in a constraint would be.
+std::optional<std::string> strictTermsAreWrong(const value::TermTable& terms, value::TermId term,
+                                               const value::Value& /*value*/) {
+    if (!terms.term(term).strict) {
+        return std::nullopt;
+    }
+    return std::format("term {} is wrong on purpose", std::to_underlying(term));
+}
+
+TEST_F(TermsTest, AMismatchInAConstraintEndsTheRunWhenTheObserverReturns) {
+    oracle_.answers = {1};
+    std::vector<std::string> errors;
+    std::vector<std::uint32_t> lines;
+    observer_.onStatement = [&](const StatementEvent& event, EvaluationContext& context) {
+        const std::uint32_t line = sources_.lineColumn(event.stmt->location()).line;
+        lines.push_back(line);
+        if (line == 4) {
+            for (const unsigned addend : {1U, 2U}) {
+                const auto value = context.evaluate(
+                    analyzed(binary(ast::BinaryOperator::Add, ref("x", context.function()), integer(addend))));
+                errors.push_back(value ? "no error" : value.error());
+            }
+        }
+        return Directive::Continue;
+    };
+    RunOptions options;
+    options.checkTerms = &strictTermsAreWrong;
+    const RunResult result = run(R"(int __VERIFIER_nondet_int(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int y = x + 1;
+    return y;
+})",
+                                 DataModel::LP64, options);
+    // Each evaluation fails; the run ends with the first mismatch, before the statement in line 4.
+    ASSERT_EQ(errors.size(), 2u);
+    EXPECT_THAT(errors[0], HasSubstr("internal error: term"));
+    EXPECT_NE(errors[1], errors[0]);
+    EXPECT_EQ(result.termination, Termination::Unsupported);
+    EXPECT_EQ(result.message, errors[0]);
+    EXPECT_EQ(lines, (std::vector<std::uint32_t>{3, 4}));
+}
+
 TEST(TermMismatchTest, ATermThatGivesAnotherValueIsReportedWithItsOperation) {
     constexpr value::IntegerFormat s32{.bits = 32, .isSigned = true};
     constexpr value::IntegerFormat u32{.bits = 32, .isSigned = false};
@@ -786,7 +829,7 @@ TEST(TermMismatchTest, FloatingValuesAreComparedBitForBit) {
 TEST_F(TermsTest, TheCheckPassesForRunsThatEndAtUndefinedBehaviour) {
     oracle_.answers = {0};
     RunOptions options;
-    options.checkTerms = true;
+    options.checkTerms = &termMismatch;
     const RunResult result = run(R"(int __VERIFIER_nondet_int(void);
 int main(void) {
     int x = __VERIFIER_nondet_int();

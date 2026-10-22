@@ -366,13 +366,13 @@ private:
     /// Whether the run records terms (not in replay mode, RunOptions::terms).
     [[nodiscard]] bool recordsTerms() const { return options_.terms.maxTerms > 0; }
     /// Attaches `term`, which the evaluator recorded for `value` or read from memory; with RunOptions::checkTerms, the
-    /// run ends if the term does not evaluate to the value. In place, so that values are not moved. The frequent
+    /// run ends if the check finds the term wrong. In place, so that values are not moved. The frequent
     /// operations call it (and the TermTable) only if an operand has a term, so that operations on values without
     /// terms, as in programs without inputs, do nothing else: recording unconditionally, with only the checks of the
     /// TermTable, cost 5 % of the run time.
     void attach(value::Value& value, std::optional<value::TermId> term, const ast::Expr* where) {
         value.setTerm(term);
-        if (options_.checkTerms && term) {
+        if (options_.checkTerms != nullptr && term) {
             checkTerm(value, where);
         }
     }
@@ -420,8 +420,8 @@ private:
     std::optional<HostStack> hostStack_;        // of the thread that runs
     const value::Value* returnValue_ = nullptr; // \result during a ReturnEvent
     SourceLocation location_;                   // of the statement being executed, for messages
-    /// The end of the run for a term that does not give its value (RunOptions::checkTerms), kept for a mismatch found
-    /// while the observer evaluates a constraint.
+    /// The end of the run at the first term that RunOptions::checkTerms finds wrong, kept for a mismatch found while
+    /// the observer evaluates a constraint.
     std::optional<RunEnd> termMismatch_;
 };
 
@@ -433,10 +433,5 @@ private:
 [[nodiscard]] inline bool isNonZero(const value::Value& scalar) {
     return scalar.kind() == value::Value::Kind::Integer ? scalar.bits() != 0 : value::toBool(scalar).bits() != 0;
 }
-
-/// For RunOptions::checkTerms: what is wrong with `term` as the term of `value`, which the run computed; nullopt if it
-/// evaluates to exactly that value with the run's inputs, or is the opaque term.
-[[nodiscard]] std::optional<std::string> termMismatch(const value::TermTable& terms, value::TermId term,
-                                                      const value::Value& value);
 
 } // namespace nitwit::interp

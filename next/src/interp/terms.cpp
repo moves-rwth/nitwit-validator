@@ -149,13 +149,17 @@ std::optional<std::string> termMismatch(const value::TermTable& terms, value::Te
 }
 
 void Execution::checkTerm(const value::Value& value, const ast::Expr* where) {
-    if (const std::optional<std::string> mismatch = termMismatch(terms_, *value.term(), value)) {
-        // evaluate() turns a RunEnd into an error for the observer: obey() ends the run when the observer returns.
-        termMismatch_ = RunEnd{.termination = Termination::Unsupported,
-                               .exitStatus = 0,
-                               .message = "internal error: " + *mismatch,
-                               .location = locationOf(where)};
-        throw *termMismatch_;
+    if (const std::optional<std::string> mismatch = options_.checkTerms(terms_, *value.term(), value)) {
+        RunEnd end{.termination = Termination::Unsupported,
+                   .exitStatus = 0,
+                   .message = "internal error: " + *mismatch,
+                   .location = locationOf(where)};
+        // evaluate() turns a RunEnd into an error for the observer: obey() ends the run with the first mismatch when
+        // the observer returns, also if it evaluated more constraints after it.
+        if (!termMismatch_) {
+            termMismatch_ = end;
+        }
+        throw end;
     }
 }
 

@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <string>
 
@@ -27,17 +28,28 @@ class Program;
 [[nodiscard]] std::expected<std::shared_ptr<const Program>, Error> buildProgram(const ast::TranslationUnit& unit,
                                                                                 ast::AstContext& context);
 
+/// A check of the terms of a run (RunOptions::checkTerms): what is wrong with `term` as the term of `value`, which the
+/// run computed; nullopt if nothing is.
+using TermCheck = std::optional<std::string> (*)(const value::TermTable& terms, value::TermId term,
+                                                 const value::Value& value);
+
+/// The consistency check of the terms (terms.cpp): `term` must evaluate to exactly `value` with the run's inputs,
+/// unless it is the opaque term.
+[[nodiscard]] std::optional<std::string> termMismatch(const value::TermTable& terms, value::TermId term,
+                                                      const value::Value& value);
+
 struct RunOptions {
     std::uint64_t maxSteps = 0;             // statements, conditions and calls executed; 0 = unlimited
     std::uint32_t maxCallDepth = 100000;    // nested calls
     std::uint64_t memoryLimit = 4ull << 30; // bytes of live heap and stack objects
     std::ostream* output = nullptr;         // where printf and puts write; null discards the output
     value::TermLimits terms{};              // maxTerms 0 records no terms (replay)
-    /// For testing the recording of terms: evaluates every term the run records for an operation or reads from memory,
-    /// also in a constraint, with the run's inputs, and ends the run (Unsupported, "internal error: ...") if it does
-    /// not give the value the run computed. Terms set by construction (inputs, pointers to objects, results of calls)
-    /// are not evaluated, and a missing term goes unnoticed (interp/README.md, "Terms").
-    bool checkTerms = false;
+    /// For testing the recording of terms: termMismatch, or null for no check. The run applies it to every term it
+    /// records for an operation or reads from memory, also in a constraint, and ends (Unsupported, "internal error:
+    /// ...") at the first mismatch. Terms set by construction (inputs, pointers to objects, results of calls whose term
+    /// has the format of the call's type) are not checked, and a missing term goes unnoticed (interp/README.md,
+    /// "Terms"). Tests also pass checks that find mismatches on purpose, to see how a mismatch ends the run.
+    TermCheck checkTerms = nullptr;
 };
 
 enum class Termination : std::uint8_t {

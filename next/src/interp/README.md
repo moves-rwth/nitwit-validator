@@ -291,17 +291,21 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   `copy` carries the terms; a range that lies only partly in the copied bytes is opaque in the copy. Bytes written
   without term (`fill`, string literals, initializers) have none; the end of an object's lifetime and
   `markUninitialized` remove them.
-- **The consistency check** (`RunOptions::checkTerms`, the hidden replay option `--check-terms`) evaluates every term
-  that an operation records (`Execution::attach`) or a load reads from memory, also the strict terms of constraints,
-  with the run's inputs and compares the result with the value bit for bit; a mismatch ends the run with "internal
-  error: the term of <operation> gives ...", also when it is found while the observer evaluates a constraint.
+- **The consistency check** (`RunOptions::checkTerms` with `termMismatch`, the hidden replay option `--check-terms`)
+  evaluates every term that an operation records (`Execution::attach`) or a load reads from memory, also the strict
+  terms of constraints, with the run's inputs and compares the result with the value bit for bit; a mismatch ends the
+  run with "internal error: the term of <operation> gives ...". A mismatch found while the observer evaluates a
+  constraint fails that evaluation, and the run ends with the first one when the observer returns.
   - Terms set by construction are not evaluated: the input terms of answers (`requestInput`), a pointer's term taken
     from the address of its object (`pointerTo`), the result of a call that keeps its callee's term because the term
     has the format of the call's type (`inCallType`), and the opaque term. They are exact because they pass a term
     on unchanged.
-  - The check cannot see a term that is missing where a value depends on inputs: the reviews and the opaque cases
-    below cover those.
+  - The check cannot see a term that is missing where a value depends on inputs. `terms_test.cpp` covers those: it
+    expects the term of each kind of operation, copy and conversion, and the opaque term from each operation without
+    a term kind (above).
   - The semantics suite runs with it, and so do the end-to-end tests of the validator, which evaluate constraints.
+    `terms_test.cpp` also passes a check that finds the strict terms wrong on purpose, for how a mismatch in a
+    constraint ends the run.
 - **Known imprecisions:** these dependencies are not recorded.
   - Implicit flows: a value assigned under a condition that depends on an input (`if (x > 0) y = 1;`) does not depend
     on that input. Which branch the run takes is the waypoints' business, not the terms'.
