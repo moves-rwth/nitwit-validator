@@ -28,6 +28,12 @@ enum class UndefinedBehavior : std::uint8_t {
     FloatToIntegerOverflow, // C17 6.3.1.4p1; the value is what GCC-compiled code gives on x86 (see arithmetic.cpp)
 };
 
+/// Whether the interpreter ends a run at `kind` (interp/README.md, "Undefined behaviour"). After the other kinds the
+/// run continues with the value that comes with them.
+[[nodiscard]] constexpr bool endsRun(UndefinedBehavior kind) {
+    return kind == UndefinedBehavior::DivisionByZero;
+}
+
 struct Result {
     Value value;
     UndefinedBehavior undefinedBehavior = UndefinedBehavior::None;

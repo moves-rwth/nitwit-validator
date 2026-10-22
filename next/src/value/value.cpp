@@ -21,6 +21,9 @@ static_assert(std::endian::native == std::endian::little);
 
 namespace nitwit::value {
 
+// Values are copied by every operation, and a term table stores one per constant and input.
+static_assert(sizeof(Value) <= 64, "values must stay small");
+
 namespace {
 
 constexpr std::size_t x87Bytes = 10; // 64-bit significand, 15-bit exponent, sign
