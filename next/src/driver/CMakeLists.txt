@@ -11,7 +11,7 @@ add_executable(nitwit main.cpp)
 target_link_libraries(nitwit PRIVATE nitwit_driver)
 target_compile_definitions(nitwit PRIVATE NITWIT_VERSION="${PROJECT_VERSION}")
 nitwit_set_warnings(nitwit)
-if(NITWIT_STATIC)
-    # The release archive runs on any x86-64 Linux, whatever its C and C++ libraries (docs/release.md).
-    target_link_options(nitwit PRIVATE -static)
+if(NITWIT_STATIC_RUNTIME)
+    # The release executable needs no C++ runtime on the host, only glibc (docs/release.md).
+    target_link_options(nitwit PRIVATE -static-libstdc++ -static-libgcc)
 endif()

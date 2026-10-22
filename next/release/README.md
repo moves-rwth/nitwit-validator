@@ -25,7 +25,8 @@ Source code and documentation: <https://github.com/moves-rwth/nitwit-validator>
 
 ## Requirements
 
-Linux on x86-64. The executables are statically linked and need no libraries. Programs with preprocessor directives
+Linux on x86-64 with glibc 2.38 or later (Ubuntu 24.04 has 2.39; `licenses/VERSIONS` names the oldest glibc for this
+build). The executables contain the C++ runtime and need no other library. Programs with preprocessor directives
 other than line markers and `#pragma` are preprocessed by the `cpp` on the `PATH`; without it, they give UNKNOWN.
 Ubuntu's package `gcc-multilib` provides `cpp` and the system headers for both data models.
 
