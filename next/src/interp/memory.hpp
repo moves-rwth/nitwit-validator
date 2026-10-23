@@ -33,7 +33,7 @@ enum class MemoryErrorKind : std::uint8_t {
     NullPointer,      // access below the lowest address any region uses (64 KiB), e.g. through a null pointer
     InvalidAddress,   // no allocation contains the address or ends exactly at it
     OutOfBounds,      // the access starts inside an allocation or exactly at its end, and ends beyond it
-    DeadObject,       // a freed heap block, or a stack object whose lifetime ended
+    DeadObject,       // a freed heap block or a gap in a range of merged ones, or a stack object whose lifetime ended
     ReadOnlyWrite,    // write to a ReadOnly allocation
     CodeAccess,       // read or write of a function
     InvalidFree,      // free of an address that is not the base of a live heap block
@@ -148,7 +148,9 @@ public:
     /// again holds an indeterminate value (C17 6.2.4p6). The range must be writable.
     [[nodiscard]] std::expected<void, MemoryError> markUninitialized(Address address, std::uint64_t size);
 
-    /// The allocation that contains `address` or ends exactly at it (a one-past-the-end pointer), alive or dead.
+    /// The allocation that contains `address` or ends exactly at it (a one-past-the-end pointer), alive or dead. For a
+    /// range of merged dead heap blocks (free), it is the whole range, from the start of its first block to the end of
+    /// its last, with the gaps between them.
     [[nodiscard]] std::optional<AllocationInfo> find(Address address) const;
 
     /// What is known about the inputs the bytes of the range depend on.

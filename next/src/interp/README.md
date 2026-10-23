@@ -193,9 +193,10 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
 - **Endless loops without effect:** the lowering marks a jump back over instructions that are all statement events or
   branches on a nonzero integer literal or without condition (`Instruction::closesEndlessLoop`): `L: goto L;`,
   `while (1);`, `for (;;) {}`, `do ; while (1);`. Once the jump is taken, the function runs these instructions for
-  ever, and they change nothing: no expression is evaluated (so no call, no input, no volatile read), no declaration
-  or end of scope runs. The pattern is narrow on purpose: a condition `x`, or `if (0) ;` in the body, is not marked
-  (the jump of `continue` in `while (1) { continue; }` is).
+  ever, and they change nothing: no expression other than an integer literal is evaluated (so no call, no input, no
+  volatile read), no declaration or end of scope runs. The pattern is narrow on purpose: a condition `x`, or
+  `if (0) ;` in the body, is not marked (the jump of `continue` in `while (1) { continue; }` is). Endless loops it
+  misses, such as `for (;;) { continue; }`, `while ('a');` or `if (1) ; else ;` in the body, run on as before.
   With `RunOptions::endsEndlessLoops`, which validation sets, the run ends with `Termination::EndlessLoop` at the
   second time the jump is taken, after one whole round, at the location of the round's first instruction. Replay does
   not set it and runs on, as the native program hangs: the difftest harness reports a timeout for both, and a run that
