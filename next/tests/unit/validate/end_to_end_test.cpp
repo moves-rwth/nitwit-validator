@@ -230,15 +230,16 @@ int main(void) {
     EXPECT_TRUE(log().contains("to 13 (inversion)")) << log();
 }
 
-TEST_F(EndToEndTest, TheSearchChangesAnEarlyInputOfARunWithMoreInputsThanGetTerms) {
-    // With maxTerms 4, inputs numbered 8 and higher have the opaque term, and the oracle keeps only the first 8.
+TEST_F(EndToEndTest, TheSearchChangesTheLastInputWithATermOfARunWithMoreInputs) {
+    // With maxTerms 4, the table holds 8 terms: the opaque term and inputs 0 to 6. Input 6 is the last input with a
+    // term, which the oracle must keep (it keeps the first 8); the others have the opaque term.
     build(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
 int main(void) {
-    int x = __VERIFIER_nondet_int();
-    int c = x == 5;
+    int c = 0;
     for (int i = 0; i < 100; i++) {
-        __VERIFIER_nondet_int();
+        int x = __VERIFIER_nondet_int();
+        if (i == 6) c = x;
     }
     if (c) reach_error();
     return 0;
@@ -249,7 +250,7 @@ int main(void) {
         validate(sequence({{follow(WaypointType::Branching, 9, 5, "true")}, {target(9, 12)}}));
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
     EXPECT_EQ(result.runs, 2u);
-    EXPECT_TRUE(log().contains("fixing input 0 (the call of __VERIFIER_nondet_int at 4:35, occurrence 0) to 5"))
+    EXPECT_TRUE(log().contains("fixing input 6 (the call of __VERIFIER_nondet_int at 6:39, occurrence 6) to 1"))
         << log();
 }
 
@@ -274,6 +275,30 @@ int main(void) {
     EXPECT_EQ(exitCode(result), 4);
     EXPECT_EQ(result.message, "the program entered an endless loop without effect at test.c:4:5, the execution is "
                               "infeasible in segment 1 of 1");
+}
+
+TEST_F(EndToEndTest, ARunThatEndsInAnEndlessLoopIsRetriedWithOtherDefaults) {
+    // assume(x != 0) as an endless loop: with x = 0 the run is infeasible, with x = 1 it reaches the error.
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+void assume(int c) {
+  if (!c) {
+    L: ;
+    goto L;
+  }
+}
+int main(void) {
+  int x = __VERIFIER_nondet_int();
+  assume(x != 0);
+  reach_error();
+  return 0;
+}
+)");
+    options_.retryDefaultInput = 1;
+    const ValidationResult result = validate(sequence({{target(12, 3)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: no waypoint failed; one more run with inputs 1 by default")) << log();
 }
 
 TEST_F(EndToEndTest, ALoopCounterBoundedByAnInput) {

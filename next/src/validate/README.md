@@ -118,16 +118,19 @@ waypoint of the current segment is evaluated first, then its avoid waypoints the
   | the error function is called earlier, or elsewhere | 241 (252 once BenchExec maps it to UNKNOWN, `docs/exit-codes.md`) |
   | the program ends (end of `main`, `exit`) | 242 |
   | the target segment is reached, but the program ends without calling the error function | 250 |
-  | the program aborts, `__VERIFIER_assume` fails or the program enters an endless loop without effect (both infeasible), undefined behaviour without a defined result, a limit | 4 |
+  | the program aborts, `__VERIFIER_assume` fails (infeasible), the program enters an endless loop without effect (infeasible), undefined behaviour without a defined result, a limit | 4 |
   | a construct the interpreter does not support, a constraint that does not compile, an unsupported witness, a witness that does not fit the program, an avoid constraint without value | 4 |
   | the program exceeds the memory limit | 251 |
 
 - **Endless loops without effect** (`interp/README.md`, "Execution: behaviour to keep"): a run that enters a loop that
   never leaves and changes nothing, like `ldv_assume_label: goto ldv_assume_label;`, with which the
   ldv-linux-4.0-rc1-mav programs assume a false condition, would run for ever without calling the error function. It
-  ends after one round of the loop (`RunOptions::endsEndlessLoops`), which gives the monitor every event the loop can
-  give: a later round has the same state, and a run that passes a follow waypoint in the loop never leaves it, so no
-  confirmation is lost. The verdict is UNKNOWN (exit 4), as for a failed `__VERIFIER_assume`.
+  ends after one round of the loop (`RunOptions::endsEndlessLoops`). Within a segment, every round is identical: the
+  program's state does not change, so the monitor evaluates the same waypoints with the same outcome. The segment
+  changes in the loop only when a follow waypoint there passes, and after that the target cannot be reached, since the
+  run never leaves the loop. So no confirmation is lost; what ending the run may change is a verdict that a later
+  round would have given otherwise, e.g. 241 (a follow waypoint in the loop that fails in a later segment) into 4. The
+  verdict is UNKNOWN (exit 4), as for a failed `__VERIFIER_assume`.
 
 ### Values
 
@@ -150,7 +153,8 @@ gets the *default*.
   ends without confirmation and without a waypoint that failed leaves nothing to the search; only the inputs between
   the waypoints decided its path, as in witnesses with the target only. The trigger is that rule, whatever ended the
   run: the monitor followed the witness to the end of the run (`main` returned, `exit`, `abort`, a failed
-  `__VERIFIER_assume`, undefined behaviour, an unsupported construct, the interpreter's memory or call-depth limit), or
+  `__VERIFIER_assume`, an endless loop without effect, undefined behaviour, an unsupported construct, the interpreter's
+  memory or call-depth limit), or
   the error function was called elsewhere than at the target; and the run gave some arithmetic input the default (else
   one more run would repeat it). One more run then gives those inputs 1, the fixed inputs keeping their values, and
   never more than one. It confirms, or the verdict is that of the run before: a waypoint that fails in it ends it

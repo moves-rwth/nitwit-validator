@@ -62,7 +62,7 @@ enum class Verdict : std::uint8_t {
     ErrorBeforeTarget,  // the error function was called before the target segment was reached, or not at the target
     TargetWithoutError, // the target segment was reached, but the program did not call the error function
     Unsupported,        // the witness or the program uses something NITWIT does not support
-    Unknown,            // limits, undefined behaviour, abort, infeasible runs (__VERIFIER_assume)
+    Unknown,            // limits, undefined behaviour, abort, infeasible runs (__VERIFIER_assume, endless loops)
     OutOfMemory,        // the program exceeded the memory limit
 };
 
