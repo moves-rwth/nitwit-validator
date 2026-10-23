@@ -1,7 +1,7 @@
 # NITWIT 4: evaluation against NITWIT 3.x (stage 9)
 
-NITWIT 4.0 (`next` 9cb2810) and NITWIT 3.x (`master` a0f305b) as SV-COMP violation-witness validators on 1000
-unreach-call witnesses of SV-COMP 2026, at SV-COMP's 90 s, 2026-10-22.
+NITWIT 4.0 (branch `next`, now `main`, at 3450903) and NITWIT 3.x (`master`, now `old`, at 8e093bf) as SV-COMP
+violation-witness validators on 1000 unreach-call witnesses of SV-COMP 2026, at SV-COMP's 90 s, 2026-10-22.
 
 - **Confirmations:** 4.0 confirms 577 of the 851 witnesses of buggy programs, 3.x 312. Without Paulina's crafted
   witnesses: 540 of 751 (3.x: 294). 4.0 confirms 277 witnesses that 3.x does not, and loses 12 (below).
@@ -25,11 +25,11 @@ unreach-call witnesses of SV-COMP 2026, at SV-COMP's 90 s, 2026-10-22.
   to one with the same violation sequence: 41 valid (must be confirmed), 59 invalid (must be rejected), all on buggy
   programs.
 - **Binaries:**
-  - NITWIT 4.0.0: `nitwit-4.0.0.zip` built by `tools/package.sh` from `next` at 9cb2810 (GCC 14.2, preset `release`,
+  - NITWIT 4.0.0: `nitwit-4.0.0.zip` built by `tools/package.sh` from `next` at 3450903 (GCC 14.2, preset `release`,
     libstdc++ and libgcc static), unpacked; `nitwit/nitwit.sh`. Its `licenses/VERSIONS` says "source revision
     unknown", because git in WSL cannot read a worktree checked out by Windows git.
-  - NITWIT 3.x: `master` at a0f305b (3.0.0 with the P1/P2 fixes), exported with `git archive`, built with its
-    `build.sh` (Release, GCC 13.3; `make -j4` instead of `-j8`; its last step, the submission archive, fails for lack
+  - NITWIT 3.x: `master` (now `old`) at 8e093bf (3.0.0 with the P1/P2 fixes), exported with `git archive`, built with
+    its `build.sh` (Release, GCC 13.3; `make -j4` instead of `-j8`; its last step, the submission archive, fails for lack
     of `dos2unix` after `bin/` is complete); its `nitwit.sh`, `bin/nitwit32` (32-bit) and `bin/nitwit64`.
 - **Command line:** BenchExec's order, `nitwit.sh -p <prp> -32|-64 -w <witness> <program>`, from the directory of
   `nitwit.sh` (3.x's calls `./bin/nitwit$bits`). `<prp>` is sv-benchmarks' `c/properties/unreach-call.prp` (tag
@@ -173,7 +173,7 @@ CPU time (user + system) and memory per run, all 1000 witnesses:
 
 ## After the fixes of stage 9
 
-The evaluation led to four changes (`next` at d6e5c04), measured on the same sample, binaries built the same way:
+The evaluation led to four changes (`next` at a997479), measured on the same sample, binaries built the same way:
 
 - **NITWIT's own memory:** the oracle kept every input request of a run (112 bytes each); it now keeps only those that
   can have a term. The memory model merges adjacent freed heap blocks. No run uses more than 1 GB (before: 11 runs,
@@ -212,7 +212,7 @@ two confirmations that need restarts of the search (0.4 to 1.6 s, 0.5 to 1.1 s).
   is known only for Paulina's crafted witnesses.
 - **Sample:** stratified by producer (100 each), not weighted like SV-COMP's witnesses; only unreach-call and format
   2.x. GraphML (stage 8) is not part of it.
-- **4.0 build:** `next` at 9cb2810, before the fix round of the interpreter (terms) that is in progress.
+- **4.0 build:** `next` at 3450903 for the main tables, before the fixes in "After the fixes of stage 9".
 
 ## Reproducing
 
