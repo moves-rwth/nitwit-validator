@@ -28,9 +28,9 @@ should be far faster than 3.x, which re-parses the source text on every executio
 
 ## Where the code lives
 
-The new code lives in `next/` on the branch `next` of this repository. That way it can use the test files in
-`testfiles/`, and NITWIT 3.x can be built from `master` for comparisons. When NITWIT 4 replaces 3.x, `next/` moves to the
-root of the repository.
+The new code lives in `next/` on the branch `main` of this repository (called `next` until NITWIT 4 replaced 3.x). That
+way it can use the test files in `testfiles/`, and NITWIT 3.x can be built from the branch `old` (formerly `master`)
+for comparisons. `next/` is to move to the root of the repository.
 
 ## Stages
 
@@ -66,7 +66,7 @@ wave 8:  release (9)
 
 ## Way of working
 
-The integrator is the main session. It owns the public API headers, `docs/` and the branch `next`.
+The integrator is the main session. It owns the public API headers, `docs/` and the branch `main`.
 
 1. **API first.** For each module, the integrator writes the public header(s), a short module `README.md` and the test
    plan, and commits them. API changes after that go through the integrator.

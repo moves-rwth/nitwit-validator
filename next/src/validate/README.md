@@ -106,6 +106,14 @@ waypoint of the current segment is evaluated first, then its avoid waypoints the
   `1`, at one location. After a follow assumption passed, the waypoints of the next segment are evaluated at the same
   event: its follow waypoint, if it is an assumption at this statement, must pass there, and its avoid waypoints there
   are evaluated.
+  - The format does not say whether consecutive assumptions at one statement refer to one execution or to successive
+    ones. NITWIT reads them as one, which the first-evaluation rule implies, and rejects witnesses whose assumptions at
+    one statement contradict each other within one execution. CPAchecker also writes one segment per call of a function
+    with an assumption at its `{` (`choice == 0`, then `choice == 2`); those witnesses are not confirmed (1 of 1000 in
+    the evaluation, `docs/evaluation.md`). Reading such an assumption as the statement's next execution when it cannot
+    hold at this one confirms that witness, but also witnesses that contradict themselves within one execution, so
+    NITWIT keeps the strict reading. Identical per-call values (`2`, `2`, `2`) cannot be told apart from repeated
+    assumptions about one execution in any reading.
 - **When the avoid waypoints of a new segment start:** a segment that became current by a cascaded assumption
   evaluates its avoid waypoints at that event, for the same execution of the statement. A segment that became current
   by any other waypoint type (branching, function_enter, function_return) evaluates its waypoints from the next event
