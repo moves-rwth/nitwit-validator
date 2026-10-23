@@ -55,7 +55,7 @@ C++23 as far as GCC 14 and Clang 20 with libstdc++ 14 support it.
 - **Every public header starts with one or two sentences** on what the module part is for.
 - **Document public functions in one line.** Add more only for preconditions, ownership or error behaviour.
 - **No comments that restate the code.** No commented-out code. No change logs in comments.
-- **No `TODO`** without a reference to the plan, e.g. `// TODO(stage 7): ...`.
+- **No `TODO`** without a reference to an item of `docs/roadmap.md`, e.g. `// TODO(roadmap, GraphML): ...`.
 - **Write full English sentences, and keep them short.**
 
 ## Tests
@@ -75,7 +75,7 @@ C++23 as far as GCC 14 and Clang 20 with libstdc++ 14 support it.
 
 ## Review checklist
 
-The fresh reviewer agent uses this list, and so should every author before handing over.
+Every author goes through this list before handing a change over, and every reviewer uses it.
 
 1. **Correctness:** C or witness-format semantics as specified (with citations); edge cases (empty input, maximum
    values, 32 vs. 64 bit); error paths.

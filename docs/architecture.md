@@ -1,5 +1,24 @@
 # NITWIT 4: architecture
 
+## Goals
+
+1. **The job of NITWIT 3.x:** validate violation witnesses for `unreach-call` by executing the program concretely, with
+   the command line and the exit codes of 3.x, so that BenchExec and fm-tools work unchanged.
+2. **Clean and modular:** a real C front end (lexer, parser, semantic analysis) produces a typed AST. A separate
+   interpreter executes it, with a precise memory model. The witness layer only observes the execution and supplies
+   nondeterministic values. Each module has a small public API and its own tests.
+3. **Correct by construction and by comparison:** C semantics are checked against GCC and Clang (differential testing,
+   `tools/difftest/README.md`), witness validation against the SV-COMP 2026 witness corpus and NITWIT 3.x.
+4. **Designed for search and for further properties:**
+   - deterministic runs with restarts, so that nondeterministic values can be searched;
+   - terms, which record how a value was computed from the nondeterministic inputs;
+   - exact source ranges for every token;
+   - undefined-behaviour detection, which the properties `no-overflow` and `valid-memsafety` need
+     (`docs/roadmap.md`).
+
+Understandable, maintainable code comes first, performance second. Executing a typed AST, instead of re-parsing the
+source text of every statement as 3.x does, makes NITWIT fast anyway.
+
 ## Data flow
 
 ```
@@ -49,8 +68,10 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
   on as one `Pragma` token, and the parser applies `pack` (to record layouts) and `weak`.
 - For any other directive it reports that the file needs preprocessing. The driver then runs the system `cpp`
   (`-m32`/`-m64`, line markers kept) and lexes the result.
-- Columns in lines that contain macro invocations are approximate in that case. An own preprocessor that tracks
-  expansion locations is a later stage.
+- NITWIT has no preprocessor of its own, because few programs need one: of the 19,693 programs of the SV-COMP 2026
+  corpus, 31 contain `#include` and 3 `#define`. Columns in lines that contain macro invocations are approximate after
+  `cpp`, and the validator uses a column only where the text before it is unchanged (`src/validate/README.md`,
+  "Evaluation points"). An own preprocessor that tracks expansion locations is on the roadmap (`docs/roadmap.md`).
 
 ### AST
 
@@ -88,7 +109,7 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
 - **Values** are bit patterns plus a representation: integers and pointers up to 128 bits, `float`, `double`,
   `long double` (x87, as on the target), and byte blobs for structs and unions. The C type is not part of the value; it
   comes from the AST node. A value derived from nondeterministic inputs carries a *term*: the arithmetic operations
-  that computed it from them (`value/README.md`, "Terms"; stage 7, before that only the input it was copied from).
+  that computed it from them (`src/value/README.md`, "Terms").
   Memory keeps the terms of stored scalars in a shadow map.
 - **Lowering:** each function body is lowered to a flat list of instructions:
   - `Evaluate`, `Declare` (initializer, VLA allocation), `Branch`, `Jump`, `Switch`, `Return`, `EndScope`;
@@ -117,7 +138,7 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
 - A **monitor** per witness format consumes the events and tracks the progress through the witness:
   - format 2.x: the current segment, evaluation points, first-evaluation semantics for follow waypoints, avoid
     waypoints;
-  - format 1.0: the automaton.
+  - format 1.0 (not implemented, `docs/roadmap.md`): the automaton.
 - **Constraints** are C expressions. They are parsed with the C parser and checked by `sema` in the scope that is
   visible at the waypoint's location. `\result` refers to the return value of the call being observed.
 - **The input oracle** answers requests in this order:
