@@ -270,6 +270,23 @@ TEST_F(TerminationTest, LoopsWithEffectsOrConditionsAreNotEndless) {
     }
 }
 
+TEST_F(TerminationTest, AJumpAmongTheInstructionsOfALoopLeavesThem) {
+    // The jump of `goto L` passes over the jump of `goto B`, which leaves the instructions between L and A: they are no
+    // endless loop, although each of them is a statement event or a jump.
+    const RunResult result = run(R"(int main(void) {
+    int x = 0;
+    goto L;
+B:  if (++x == 100) return 3;
+    goto A;
+L:  ;
+    goto B;
+A:  goto L;
+})",
+                                 DataModel::LP64, {.maxSteps = 100'000, .endsEndlessLoops = true});
+    EXPECT_EQ(result.termination, Termination::Returned) << result.message;
+    EXPECT_EQ(result.exitStatus, 3);
+}
+
 TEST_F(TerminationTest, WithoutTheOptionAnEndlessLoopRunsLikeANativeRun) {
     const RunResult result = run("int main(void) { L: goto L; }", DataModel::LP64, {.maxSteps = 1000});
     EXPECT_EQ(result.termination, Termination::LimitReached);
