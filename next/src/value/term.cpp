@@ -147,10 +147,11 @@ std::optional<TermId> TermTable::input(InputId id, const Value& value, ScalarFor
     if (limits_.maxTerms == 0) {
         return std::nullopt;
     }
-    if (terms_.size() >= inputCap()) {
+    const std::uint32_t index = std::to_underlying(id);
+    // Each input with a term is a term of the table, so in request order the second condition follows from the first.
+    if (terms_.size() >= inputCap() || index >= inputCap()) {
         return opaque();
     }
-    const std::uint32_t index = std::to_underlying(id);
     if (index >= registered_.size()) {
         registered_.resize(index + std::size_t{1});
     }

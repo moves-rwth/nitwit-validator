@@ -293,8 +293,10 @@ one prediction.
 - **Unsupported constructs** of the interpreter end a run with exit 4: threads (`pthread_create`) and `setjmp`.
 - Long runs can exhaust the host's memory before the interpreter's memory limit, e.g. through the memory model's
   growing table of dead heap allocations; the driver then reports exit code 251. A run that requests inputs without
-  end stays bounded: the oracle records the first `TermLimits::maxInputs` requests of a run (112 bytes each, at most
-  470 MB), and later ones have the opaque term, which the search never changes.
+  end stays bounded in the validator: the oracle records the first `TermLimits::maxInputs` requests of a run (112
+  bytes each, at most 470 MB), and later ones have the opaque term (`TermTable::input`), which the search never
+  changes. The search reads the recorded inputs it needs from the oracle (`SearchInputs`) instead of a copy of all of
+  them per search. With the term table (at most about 400 MB), such a run stays below 900 MB.
 
 ## Tests
 

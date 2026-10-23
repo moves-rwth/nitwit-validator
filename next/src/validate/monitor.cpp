@@ -32,6 +32,25 @@ std::uint64_t keyOf(witness::WaypointType type, std::uint32_t offset) {
     return (static_cast<std::uint64_t>(type) << 32) | offset;
 }
 
+/// The recorded inputs of the run, as the search asks for them.
+class OracleInputs final : public SearchInputs {
+public:
+    explicit OracleInputs(const WitnessOracle& oracle) : oracle_(oracle) {}
+    [[nodiscard]] std::size_t size() const override { return oracle_.inputCount(); }
+    [[nodiscard]] SearchInput at(value::InputId id) const override {
+        const ProvidedInput& input = oracle_.input(id);
+        return {.value = input.value,
+                .type = input.type,
+                .source = input.source,
+                .history = oracle_.fixedValues(input.key)};
+    }
+    // An input has values from earlier runs exactly if it was fixed.
+    [[nodiscard]] bool hasHistory() const override { return oracle_.gaveFixedValue(); }
+
+private:
+    const WitnessOracle& oracle_;
+};
+
 std::string_view nameOf(interp::ConditionEvent::Construct construct) {
     switch (construct) {
     case interp::ConditionEvent::Construct::If:
@@ -424,16 +443,7 @@ std::vector<Clause> SegmentMonitor::caseRequirement(std::optional<value::TermId>
 interp::Directive SegmentMonitor::searchOrReject(WaypointId id, const std::vector<Clause>& requirement,
                                                  interp::EvaluationContext& context, std::string reason,
                                                  std::string rejection) {
-    std::vector<SearchInput> inputs;
-    inputs.reserve(oracle_.inputCount());
-    for (std::uint32_t i = 0; i < oracle_.inputCount(); ++i) {
-        const ProvidedInput& input = oracle_.input(value::InputId{i});
-        inputs.push_back({.value = input.value,
-                          .type = input.type,
-                          .source = input.source,
-                          .history = oracle_.fixedValues(input.key)});
-    }
-    SearchResult result = search(program_.context, context.terms(), requirement, kept_, inputs);
+    SearchResult result = search(program_.context, context.terms(), requirement, kept_, OracleInputs(oracle_));
     const bool isRestart = !result.changes.empty();
     stop(isRestart ? State::Restart : State::Rejected,
          isRestart || rejection.empty() ? std::move(reason) : std::move(rejection));

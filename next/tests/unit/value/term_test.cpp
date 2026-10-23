@@ -1013,8 +1013,20 @@ TEST(TermLimitsTest, InputsBeyondTwiceTheSizeLimitGetTheOpaqueTerm) {
     EXPECT_EQ(table.size(), 4u);
     EXPECT_EQ(table.input(InputId{3}, integer(3, s32), s32), table.opaque());
     EXPECT_EQ(table.size(), 4u);
-    // Inputs numbered maxInputs() and up never get a term (WitnessOracle records no more).
-    EXPECT_EQ(TermLimits{.maxTerms = 2}.maxInputs(), 4u);
+}
+
+TEST(TermLimitsTest, InputsNumberedFromMaxInputsGetTheOpaqueTerm) {
+    // Whatever the order of the requests: the validator keeps the inputs below maxInputs only.
+    const TermLimits limits{.maxTerms = 2};
+    TermTable table(lp64, limits);
+    const auto at = [](std::size_t id) {
+        return InputId{static_cast<std::uint32_t>(id)};
+    };
+    EXPECT_EQ(table.input(at(limits.maxInputs()), integer(1, s32), s32), table.opaque());
+    EXPECT_EQ(table.input(at(limits.maxInputs() + 7), integer(1, s32), s32), table.opaque());
+    const std::optional<TermId> below = table.input(at(limits.maxInputs() - 1), integer(1, s32), s32);
+    ASSERT_TRUE(below.has_value());
+    EXPECT_FALSE(table.isOpaque(*below));
 }
 
 // ---- The opaque term ----

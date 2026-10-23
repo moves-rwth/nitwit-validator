@@ -73,8 +73,9 @@ struct TermLimits {
     /// A result whose term would be deeper gets the opaque term, so that loops like `x = x * 31 + c` stay cheap.
     std::uint16_t maxDepth = 64;
 
-    /// The size of the table up to which inputs get terms, twice `maxTerms`. Each input with a term is a term of the
-    /// table, so an input numbered this or higher has the opaque term or none.
+    /// Twice `maxTerms`: the size of the table up to which inputs get terms, and the bound of the InputIds that get
+    /// one. An input numbered this or higher gets the opaque term (TermTable::input), whatever the order of the
+    /// requests, so that the validator need not keep later inputs for the search.
     [[nodiscard]] std::size_t maxInputs() const { return 2 * std::size_t{maxTerms}; }
 };
 
@@ -134,8 +135,8 @@ public:
 
     /// Registers the run's value of an input, at most once per run, in any order. Inputs get a term even in a full
     /// table, so that the search can change them, until the table holds 2 * `maxTerms` terms; after that they get the
-    /// opaque term, so that a loop reading inputs without end does not exhaust the memory. Nullopt only if `maxTerms`
-    /// is 0.
+    /// opaque term, so that a loop reading inputs without end does not exhaust the memory. Inputs numbered
+    /// `TermLimits::maxInputs` or higher always get the opaque term. Nullopt only if `maxTerms` is 0.
     [[nodiscard]] std::optional<TermId> input(InputId id, const Value& value, ScalarFormat format);
     [[nodiscard]] std::optional<TermId> integerBinary(IntegerOperator op, const Value& lhs, const Value& rhs,
                                                       IntegerFormat format);

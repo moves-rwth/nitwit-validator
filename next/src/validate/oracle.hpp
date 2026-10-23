@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <map>
 #include <optional>
 #include <span>
@@ -14,7 +15,6 @@
 #include "ast/expr.hpp"
 #include "interp/oracle.hpp"
 #include "support/int128.hpp"
-#include "value/term.hpp"
 #include "value/value.hpp"
 
 namespace nitwit::validate {
@@ -40,16 +40,18 @@ struct ProvidedInput {
 class WitnessOracle final : public interp::InputOracle {
 public:
     /// `defaultValue` is the value of inputs that are neither fixed nor hinted, converted to their type. Only the first
-    /// `recordedInputs` requests of a run are recorded for input(): later ones are numbered beyond the inputs that get
-    /// terms (value::TermLimits::maxInputs), so the search never changes them, and a run that requests inputs without
+    /// `recordedInputs` requests of a run are recorded for input(). The validator passes value::TermLimits::maxInputs:
+    /// later requests have the opaque term, so the search never changes them, and a run that requests inputs without
     /// end does not exhaust the memory.
     explicit WitnessOracle(ast::AstContext& context, Int128 defaultValue = 0,
-                           std::size_t recordedInputs = value::TermLimits{}.maxInputs());
+                           std::size_t recordedInputs = std::numeric_limits<std::size_t>::max());
 
     /// Forgets the requests and the hint of the previous run; fixed inputs stay. Runs are numbered from 1.
     void beginRun();
     /// Answers the requests that are neither fixed nor hinted with `defaultValue` from now on.
     void setDefault(Int128 defaultValue) { defaultValue_ = defaultValue; }
+    /// Whether a recorded request of the current run was answered with a fixed value.
+    [[nodiscard]] bool gaveFixedValue() const { return gaveFixedValue_; }
 
     /// Answers the next request made at `call` with `value`, a value of the call's type (validate/README.md,
     /// "Values": hints of function_return waypoints). A later hint replaces an unused one.
@@ -109,6 +111,7 @@ private:
     std::vector<RunStart> runStarts_;   // by run - 1
     std::vector<ProvidedInput> inputs_; // the recorded requests of the current run, indexed by InputId
     std::optional<Hint> hint_;
+    bool gaveFixedValue_ = false; // to a recorded request of the current run
 };
 
 } // namespace nitwit::validate

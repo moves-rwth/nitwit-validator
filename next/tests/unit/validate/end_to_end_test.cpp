@@ -230,6 +230,29 @@ int main(void) {
     EXPECT_TRUE(log().contains("to 13 (inversion)")) << log();
 }
 
+TEST_F(EndToEndTest, TheSearchChangesAnEarlyInputOfARunWithMoreInputsThanGetTerms) {
+    // With maxTerms 4, inputs numbered 8 and higher have the opaque term, and the oracle keeps only the first 8.
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    int c = x == 5;
+    for (int i = 0; i < 100; i++) {
+        __VERIFIER_nondet_int();
+    }
+    if (c) reach_error();
+    return 0;
+}
+)");
+    options_.run.terms.maxTerms = 4;
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 9, 5, "true")}, {target(9, 12)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("fixing input 0 (the call of __VERIFIER_nondet_int at 4:35, occurrence 0) to 5"))
+        << log();
+}
+
 TEST_F(EndToEndTest, ALoopCounterBoundedByAnInput) {
     build(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);

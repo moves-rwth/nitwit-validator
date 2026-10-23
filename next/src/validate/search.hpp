@@ -72,6 +72,19 @@ struct SearchInput {
     std::span<const value::Value> history;     // the values the input was fixed to in earlier runs
 };
 
+/// The inputs of a run as the search sees them, by InputId. The search asks only for the inputs its relations mention,
+/// so that a run's inputs (up to millions) need not be copied for each search.
+class SearchInputs {
+public:
+    virtual ~SearchInputs() = default;
+    /// The number of inputs, numbered from 0.
+    [[nodiscard]] virtual std::size_t size() const = 0;
+    /// Precondition: `id` is below size().
+    [[nodiscard]] virtual SearchInput at(value::InputId id) const = 0;
+    /// Whether some input has values from earlier runs (SearchInput::history).
+    [[nodiscard]] virtual bool hasHistory() const = 0;
+};
+
 /// A new value of an input, and how the search found it.
 struct Change {
     enum class Method : std::uint8_t { Inversion, Candidate };
@@ -93,7 +106,12 @@ struct SearchLimits {
 };
 
 /// New values of inputs with which every clause of `requirement` holds or is unknown, while no clause of `kept` becomes
-/// false or ends the run. `inputs` are the inputs of the run, indexed by InputId; `terms` must be the table of the run.
+/// false or ends the run. `inputs` are the inputs of the run, by InputId: every input a term of `terms` mentions, which
+/// must be the table of the run.
+[[nodiscard]] SearchResult search(ast::AstContext& context, const value::TermTable& terms,
+                                  std::span<const Clause> requirement, const KeptClauses& kept,
+                                  const SearchInputs& inputs, SearchLimits limits = {});
+/// The same with the inputs in a span, indexed by InputId.
 [[nodiscard]] SearchResult search(ast::AstContext& context, const value::TermTable& terms,
                                   std::span<const Clause> requirement, const KeptClauses& kept,
                                   std::span<const SearchInput> inputs, SearchLimits limits = {});

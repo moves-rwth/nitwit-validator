@@ -40,7 +40,9 @@ validator can ask what the value would be with other inputs (`validate/README.md
 - **Limits** (`TermLimits`): a result whose term would exceed the depth limit, or would not fit into the size limit
   together with its constants, gets the opaque term. Inputs get a term even in a full table, so that a full table does
   not hide later inputs from the search, until the table holds twice the size limit; later inputs get the opaque term,
-  so that a loop that reads inputs without end does not exhaust the memory. Conversions of an input (ConvertInteger,
+  so that a loop that reads inputs without end does not exhaust the memory. Inputs numbered twice the size limit
+  (`TermLimits::maxInputs`) or higher always get the opaque term, so the validator keeps only the inputs below it for
+  the search (validate/README.md, "Known gaps"). Conversions of an input (ConvertInteger,
   ToBool, IntegerToFloat, FloatToInteger, ConvertFloat with an Input operand) share that cap, since programs often
   convert an input before they use it (`unsigned char c = x;`). Past the size limit, each conversion of an input (by
   kind, formats and strictness) is recorded once and then found again (`inputConversions_`), so that a loop that

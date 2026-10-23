@@ -207,8 +207,8 @@ private:
 /// Solves one requirement greedily over its clauses (validate/README.md, "Search").
 class Solver {
 public:
-    Solver(ast::AstContext& context, const value::TermTable& terms, const KeptClauses& kept,
-           std::span<const SearchInput> inputs, SearchLimits limits)
+    Solver(ast::AstContext& context, const value::TermTable& terms, const KeptClauses& kept, const SearchInputs& inputs,
+           SearchLimits limits)
         : context_(context), terms_(terms), kept_(kept), inputs_(inputs), limits_(limits) {}
 
     SearchResult solve(std::span<const Clause> requirement);
@@ -329,7 +329,7 @@ private:
     ast::AstContext& context_;
     const value::TermTable& terms_;
     const KeptClauses& kept_;
-    std::span<const SearchInput> inputs_;
+    const SearchInputs& inputs_;
     SearchLimits limits_;
     bool allowsHistory_ = false; // whether values inputs were fixed to in earlier runs may be chosen
     value::Substitution chosen_;
@@ -359,8 +359,7 @@ SearchResult Solver::solve(std::span<const Clause> requirement) {
         return {.changes = {},
                 .explanation = "needs another path, which the terms do not describe: no input values found"};
     }
-    const bool hasHistory =
-        std::ranges::any_of(inputs_, [](const SearchInput& input) { return !input.history.empty(); });
+    const bool hasHistory = inputs_.hasHistory();
     for (const bool allowsHistory : {false, true}) {
         if (allowsHistory && !hasHistory) {
             break;
@@ -378,7 +377,7 @@ SearchResult Solver::solve(std::span<const Clause> requirement) {
         }
         SearchResult result;
         for (const auto& [input, value] : chosen_.entries()) {
-            if (isSame(value, inputs_[std::to_underlying(input)].value)) {
+            if (isSame(value, inputs_.at(input).value)) {
                 continue;
             }
             const auto method = std::ranges::find(methods_, input, &std::pair<InputId, Change::Method>::first)->second;
@@ -391,8 +390,7 @@ SearchResult Solver::solve(std::span<const Clause> requirement) {
         for (const char* separator = "; "; const Change& change : result.changes) {
             result.explanation +=
                 std::format("{}input {} := {} ({})", separator, std::to_underlying(change.input),
-                            toString(context_, change.value, inputs_[std::to_underlying(change.input)].type),
-                            nameOf(change.method));
+                            toString(context_, change.value, inputs_.at(change.input).type), nameOf(change.method));
             separator = ", ";
         }
         return result;
@@ -622,7 +620,7 @@ bool Solver::solveRelation(const Relation& relation) {
         order.resize(maxInputsPerRelation);
     }
     for (const InputId input : order) {
-        const SearchInput& info = inputs_[std::to_underlying(input)];
+        const SearchInput info = inputs_.at(input);
         Choices choices(context_, info, allowsHistory_);
         // Inversion needs the input on one side only; the other side is the bound.
         const bool isLeft = std::ranges::binary_search(lhsInputs, input);
@@ -656,7 +654,7 @@ bool Solver::tryValue(InputId input, const Choice& choice, const Relation& relat
     if (isExhausted()) {
         return false;
     }
-    const SearchInput& info = inputs_[std::to_underlying(input)];
+    const SearchInput info = inputs_.at(input);
     // A value of the input's type: a _Bool is 0 or 1.
     const std::optional<Value> converted = convert(context_, choice.value, info.type, info.type);
     if (!converted || !isSame(*converted, choice.value)) {
@@ -972,8 +970,10 @@ std::optional<Value> Solver::offset(const Value& value, Int128 delta, ast::QualT
 std::vector<InputId> Solver::changeable(std::span<const InputId> ids) const {
     std::vector<InputId> result;
     for (const InputId id : ids) {
-        NITWIT_ASSERT(std::to_underlying(id) < inputs_.size(), "a term has an input the run did not request");
-        const SearchInput& input = inputs_[std::to_underlying(id)];
+        // The search reaches inputs through terms only, and so through this function.
+        NITWIT_ASSERT(std::to_underlying(id) < inputs_.size(),
+                      "a term has an input the run did not request, or one the validator did not record");
+        const SearchInput input = inputs_.at(id);
         // Hinted inputs have the witness's values; pointers are not chosen.
         if (input.source != InputSource::Hinted && isArithmetic(context_, input.type) && id != pinned_) {
             result.push_back(id);
@@ -982,7 +982,7 @@ std::vector<InputId> Solver::changeable(std::span<const InputId> ids) const {
     // Default inputs before fixed ones, later requests first: the witness has not given those values, and a later
     // input changes less of the path to the waypoint.
     const auto rank = [&](InputId id) {
-        return std::pair(inputs_[std::to_underlying(id)].source == InputSource::Default ? 0 : 1,
+        return std::pair(inputs_.at(id).source == InputSource::Default ? 0 : 1,
                          -static_cast<std::int64_t>(std::to_underlying(id)));
     };
     std::ranges::sort(result, {}, rank);
@@ -1165,8 +1165,25 @@ std::string_view nameOf(Change::Method method) {
 }
 
 SearchResult search(ast::AstContext& context, const value::TermTable& terms, std::span<const Clause> requirement,
-                    const KeptClauses& kept, std::span<const SearchInput> inputs, SearchLimits limits) {
+                    const KeptClauses& kept, const SearchInputs& inputs, SearchLimits limits) {
     return Solver(context, terms, kept, inputs, limits).solve(requirement);
+}
+
+SearchResult search(ast::AstContext& context, const value::TermTable& terms, std::span<const Clause> requirement,
+                    const KeptClauses& kept, std::span<const SearchInput> inputs, SearchLimits limits) {
+    class SpanInputs final : public SearchInputs {
+    public:
+        explicit SpanInputs(std::span<const SearchInput> inputs) : inputs_(inputs) {}
+        [[nodiscard]] std::size_t size() const override { return inputs_.size(); }
+        [[nodiscard]] SearchInput at(InputId id) const override { return inputs_[std::to_underlying(id)]; }
+        [[nodiscard]] bool hasHistory() const override {
+            return std::ranges::any_of(inputs_, [](const SearchInput& input) { return !input.history.empty(); });
+        }
+
+    private:
+        std::span<const SearchInput> inputs_;
+    };
+    return search(context, terms, requirement, kept, SpanInputs(inputs), limits);
 }
 
 } // namespace nitwit::validate

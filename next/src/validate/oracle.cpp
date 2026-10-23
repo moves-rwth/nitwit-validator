@@ -15,6 +15,7 @@ WitnessOracle::WitnessOracle(ast::AstContext& context, Int128 defaultValue, std:
 void WitnessOracle::beginRun() {
     inputs_.clear();
     hint_.reset();
+    gaveFixedValue_ = false;
     ++run_;
     runStarts_.push_back(next_);
 }
@@ -89,6 +90,7 @@ value::Value WitnessOracle::provide(const interp::InputRequest& request) {
     if (index >= recordedInputs_) {
         return input.value;
     }
+    gaveFixedValue_ = gaveFixedValue_ || input.source == InputSource::Fixed;
     return inputs_.emplace_back(std::move(input)).value;
 }
 
