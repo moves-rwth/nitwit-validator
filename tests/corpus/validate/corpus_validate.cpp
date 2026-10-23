@@ -1,4 +1,4 @@
-// Runs the nitwit executable on the witnesses of stage 6 (docs/plan.md) and checks the stage's exit criteria:
+// Runs the nitwit executable on three sets of witnesses and checks its results:
 // - testfiles: testfiles/yaml-witnesses and the format 2.x witnesses of testfiles/sv-comp-2019; witnesses named
 //   *.invalid must not be confirmed, all others must be;
 // - crafted: validation-crafted with the expected verdicts of its *.witness-validation.yml; at least as many right as
@@ -161,8 +161,8 @@ std::string exitText(std::optional<int> code) {
     return code ? std::to_string(*code) : "-";
 }
 
-/// Whether NITWIT 4 exited as 3.x did. 3.x's 252 (the error function called before the target) is 241 in NITWIT 4 for
-/// now, with its own result line (docs/exit-codes.md); 241 for leaving the witness is a change.
+/// Whether NITWIT 4 exited as 3.x did. 3.x's 252 (the error function called before the target) is 241 in NITWIT 4,
+/// with its own result line (docs/exit-codes.md); 241 for leaving the witness is a change.
 bool isSameExit(const Outcome& outcome, std::optional<int> v3Exit) {
     if (v3Exit == 252 && outcome.exitCode == 241) {
         return outcome.lastLine.starts_with("FAILED: the target was not reached");

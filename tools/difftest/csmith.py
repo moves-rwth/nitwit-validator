@@ -6,7 +6,7 @@ they print a checksum of all globals, which makes them a strong check on integer
 arithmetic.
 
 For every seed, the output directory gets csmith-<seed>.c and csmith-<seed>-m<bits>.i, preprocessed by GCC (the
-system cpp the interpreter will use). With --check, the .c file is compiled and run with GCC, Clang and a sanitizer
+system cpp, which the driver runs too). With --check, the .c file is compiled and run with GCC, Clang and a sanitizer
 build, and the runs are compared. The native builds compile the .c file, not the .i file, because glibc's headers
 expand differently for GCC and Clang (e.g. _Float128 and __malloc__ attributes with arguments, which Clang rejects).
 """

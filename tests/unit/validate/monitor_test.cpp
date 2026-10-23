@@ -306,7 +306,7 @@ TEST_F(MonitorTest, APassingAvoidConstraintOnAnUnfixedInputFixesItToAnotherValue
 TEST_F(MonitorTest, AnAvoidConstraintWithoutRelationFixesItsValueToZero) {
     program(std::string(inputsProgram));
     options_.defaultInput = 1;
-    // The constant 1 has no origin; b is an input and gets 0.
+    // The constant 1 has no term; b is an input and gets 0.
     const ValidationResult result = validate(
         sequence({{avoid(WaypointType::Assumption, 6, 5, "1 && b"), follow(WaypointType::Branching, 6, 5, "false")},
                   {target(9, 5)}}),
