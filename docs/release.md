@@ -87,7 +87,9 @@ Differences from 3.x's `nitwit.sh`:
 
 ## fm-tools
 
-- The archive has one top-level directory and runs on Ubuntu 24.04 (and any x86-64 Linux with glibc ≥ 2.38).
+- The archive has one top-level directory and runs on Ubuntu 24.04 and 26.04, the environment of SV-COMP 2027 (and any
+  x86-64 Linux with glibc ≥ 2.38). fm-weck's smoke test passes in fm-tools' CI job (`ubuntu:26.04`), in fm-weck's
+  container mode and in the competition image `competition-scripts/user:2027`.
 - fm-weck's smoke test is `smoketest.sh`. It calls `nitwit.sh --version`, then validates `smoketest/smoketest.yml` with
   `-32` and with `-64`, with the arguments in the fork's order. It fails unless both runs print `VALIDATED:` and exit
   with 0.

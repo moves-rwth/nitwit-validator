@@ -49,14 +49,17 @@ packageOf() {
 compiler="$(sed -n 's/^CMAKE_CXX_COMPILER:[A-Z]*=//p' "$build/CMakeCache.txt")"
 # The newest glibc symbol version nitwit uses is the oldest glibc it runs with.
 glibc="$(objdump -T "$nitwit" | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -u -V | tail -n 1)"
-if ! revision="$(git -C "$source" describe --always --dirty 2> /dev/null)"; then
+# The commit, not `git describe`: tags of NITWIT 3.x would name the wrong version.
+if revision="$(git -C "$source" rev-parse --short=12 HEAD 2> /dev/null)"; then
+    git -C "$source" diff --quiet HEAD -- || revision="$revision with local changes"
+else
     revision=unknown
     repository="$source"
     while [ "$repository" != / ] && [ ! -e "$repository/.git" ]; do
         repository="$(dirname "$repository")"
     done
     if [ -e "$repository/.git" ]; then
-        echo "package.sh: warning: git describe fails in $repository; the source revision is unknown" >&2
+        echo "package.sh: warning: git fails in $repository; the source revision is unknown" >&2
     fi
 fi
 {
