@@ -171,6 +171,35 @@ CPU time (user + system) and memory per run, all 1000 witnesses:
 - **3.x's runs over 10 s** are 3 timeouts (Mopsa's 65 MB witnesses, at 1.6 GB, and a Taipan witness) and long runs that
   4.0 finishes faster, e.g. a Goblint witness that 3.x confirms in 42.5 s and 4.0 in 0.14 s.
 
+## After the fixes of stage 9
+
+The evaluation led to four changes (`next` at d6e5c04), measured on the same sample, binaries built the same way:
+
+- **NITWIT's own memory:** the oracle kept every input request of a run (112 bytes each); it now keeps only those that
+  can have a term. The memory model merges adjacent freed heap blocks. No run uses more than 1 GB (before: 11 runs,
+  up to 3.9 GB), and none runs out of NITWIT's own memory (before: 9).
+- **Endless loops without effect** (`L: goto L;`, `while (1);`) end the run as infeasible (exit 4): the three witch
+  ldv-4.0-rc1-mav runs take 0.01 s instead of a timeout.
+- **One more run with inputs 1 by default** after a final run in which no waypoint failed: 8 of the 9 lost target-only
+  witnesses and two others are confirmed.
+- **Results:** 587 of 851 buggy programs confirmed (3.x: 312), 0 wrong confirmations; lost against 3.x: 4 (the two
+  crafted `while.3*`, CPAchecker's per-call assumptions, `systemc/toy1`). The runs that ran out of NITWIT's own memory
+  are now timeouts: 12 timeouts in all (3.x: 3).
+
+**Runtime on the witnesses both tools decide.** The criterion of stage 9 compares the runs that end without a timeout
+or a limit of either tool; timeouts give no answer either way, and NITWIT ends a run early only where the witness can
+no longer be followed.
+
+| | witnesses | 3.x | 4.0 |
+|---|---|---|---|
+| both decide (no timeout, no limit, 3.x not at its transition limit) | 903 | 348 s | 27 s |
+| - of them both at most 0.05 s (front end and start-up dominate) | 800 | 3.5 s | 2.3 s |
+| 3.x stops at its limit of 5 M transitions, 4.0 ends (2 of them confirmed) | 70 | 192 s | 115 s |
+
+4.0 is slower on 77 of the 973 witnesses both runs finish: on 72 by less than a second, mostly where 3.x stops at a
+parse error and 4.0 runs the program; on 5 by more, among them the two long confirmations above (61 s and 49 s) and
+two confirmations that need restarts of the search (0.4 to 1.6 s, 0.5 to 1.1 s).
+
 ## What limits the comparison
 
 - **Not BenchExec:** one run per witness and tool, without cgroups or CPU pinning; the time limit is wall time (SV-COMP

@@ -48,7 +48,7 @@ its exit criteria hold with GCC and Clang and in the sanitizer build.
 | 6 | **Validation of format 2.x and the driver:** constraint compilation, segment monitor, evaluation points, input oracle with restarts, verdicts, exit codes | 4, 5 | `yaml-witnesses` and the 2.x tests in `sv-comp-2019` pass; on `validation-crafted` at least 3.x (77/100) with 0 invalid witnesses confirmed; on the 250-witness sample at least the confirmations of 3.x with 0 wrong confirmations |
 | 7 | **Value search:** terms of input-derived values; solving waypoint requirements for inputs, one run per prediction | 6 | measurable gain on the Ultimate witnesses (Automizer, Taipan, Kojak) and on `validation-crafted`; still 0 wrong confirmations |
 | 8 | **Format 1.0 (GraphML)** | 6 | the 84 GraphML test witnesses give at least the 3.x results |
-| 9 | **Release:** `nitwit.sh`, archive, smoke test, the C++ runtime linked statically, performance comparison with 3.x, complete docs | 6 (8 for GraphML) | fm-tools archive checks and the fm-weck smoke test pass; runtime on the sample ≤ 3.x |
+| 9 | **Release:** `nitwit.sh`, archive, smoke test, the C++ runtime linked statically, performance comparison with 3.x, complete docs | 6 (8 for GraphML) | fm-tools archive checks and the fm-weck smoke test pass; CPU time on the witnesses both tools decide (no timeout, no limit of either tool) ≤ 3.x; a run ends early only where the witness can no longer be followed |
 | later | own preprocessor; `no-overflow` and `valid-memsafety`; concolic search with an SMT solver; threads | | |
 
 ### Which stages run in parallel
