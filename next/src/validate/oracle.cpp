@@ -15,6 +15,7 @@ WitnessOracle::WitnessOracle(ast::AstContext& context, Int128 defaultValue, std:
 void WitnessOracle::beginRun() {
     inputs_.clear();
     hint_.reset();
+    gaveDefault_ = false;
     gaveFixedValue_ = false;
     ++run_;
     runStarts_.push_back(next_);
@@ -84,6 +85,7 @@ value::Value WitnessOracle::provide(const interp::InputRequest& request) {
         hint_.reset();
     } else if (isArithmetic(context_, request.type)) {
         input.value = valueOf(context_, defaultValue_, request.type);
+        gaveDefault_ = true;
     } else {
         input.value = value::Value::integer(0, sema::integerFormat(context_, request.type)); // a pointer: null
     }

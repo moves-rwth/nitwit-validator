@@ -140,12 +140,18 @@ gets the *default*.
 - **Defaults:** `ValidationOptions::defaultInput`, 0, converted to the requested type; pointers get null. NITWIT 3.x
   effectively used 1; on the sample, 1 confirms one witness more, on `validation-crafted` six fewer.
 - **One more run with defaults of 1** (`ValidationOptions::retryDefaultInput`, which the driver sets): a final run that
-  ends without confirmation and without a waypoint that failed (the program ended or aborted, or called the error
-  function elsewhere) leaves nothing to the search; only the inputs between the waypoints decided its path, as in
-  witnesses with the target only. One more run then gives those inputs 1, the fixed inputs keeping their values. It
-  confirms, or the verdict is that of the run before: a waypoint that fails in it ends it without a search. Its
-  confirmation comes from one complete run like any other. It may take ten times the events of the run before and
-  `retryExtraEvents` (2^24) more, since 1 keeps loops like `while (__VERIFIER_nondet_int())` going for ever.
+  ends without confirmation and without a waypoint that failed leaves nothing to the search; only the inputs between
+  the waypoints decided its path, as in witnesses with the target only. The trigger is that rule, whatever ended the
+  run: the monitor followed the witness to the end of the run (`main` returned, `exit`, `abort`, a failed
+  `__VERIFIER_assume`, undefined behaviour, an unsupported construct, the interpreter's memory or call-depth limit), or
+  the error function was called elsewhere than at the target; and the run gave some arithmetic input the default (else
+  one more run would repeat it). One more run then gives those inputs 1, the fixed inputs keeping their values, and
+  never more than one. It confirms, or the verdict is that of the run before: a waypoint that fails in it ends it
+  without a search, NITWIT running out of its own memory in it does not end the validation, and the diagnostics of
+  constraints first compiled in it are discarded. Its confirmation comes from one complete run like any other. Since
+  1 keeps loops like `while (__VERIFIER_nondet_int())` going for ever, it may take the events of the run before and
+  `retryExtraEvents` (2^24, about a second) more; events are the statements, conditions, calls and returns that the
+  interpreter reports (`interp/observer.hpp`).
 - **Escapes:** producer escapes like `"\result"` in double quotes are repaired by the witness parser.
 
 ### Search
@@ -289,7 +295,9 @@ one prediction.
   condition no waypoint covers, the run leaves the witness without a failing waypoint: an `assume_abort_if_not` aborts
   or a null pointer is read (exit 4), or the program ends before the target segment or in it without calling the error
   function (exit 242, 250). Keeping the conditions of all branchings of a run, or a concolic search with an SMT solver
-  (`docs/plan.md`, "later"), would cover them.
+  (`docs/plan.md`, "later"), would cover them. The one more run with defaults of 1 ("Defaults") covers a few: on the
+  1000-witness sample of stage 9, ten more confirmations, mostly witnesses with the target only. A run that does not
+  end, like `systemc/toy1` with inputs 0, gets no such run.
 - **Unsupported constructs** of the interpreter end a run with exit 4: threads (`pthread_create`) and `setjmp`.
 - Long runs can exhaust the host's memory before the interpreter's memory limit, e.g. through the memory model's
   growing table of dead heap allocations; the driver then reports exit code 251. A run that requests inputs without

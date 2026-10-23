@@ -28,6 +28,15 @@ void DiagnosticEngine::report(Severity severity, SourceLocation location, std::s
     diagnostics_.push_back(Diagnostic{severity, location, std::move(message)});
 }
 
+void DiagnosticEngine::discardAfter(std::size_t count) {
+    while (diagnostics_.size() > count) {
+        if (diagnostics_.back().severity == Severity::Error) {
+            --errorCount_;
+        }
+        diagnostics_.pop_back();
+    }
+}
+
 std::string DiagnosticEngine::format(const Diagnostic& diagnostic) const {
     if (!diagnostic.location.isValid()) {
         return std::format("{}: {}", severityName(diagnostic.severity), diagnostic.message);

@@ -2,6 +2,7 @@
 
 // Diagnostics about the input (program or witness) collected during one validation.
 
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
@@ -32,6 +33,8 @@ public:
 
     [[nodiscard]] bool hasErrors() const { return errorCount_ > 0; }
     [[nodiscard]] std::span<const Diagnostic> diagnostics() const { return diagnostics_; }
+    /// Removes the diagnostics reported after the first `count`: those of an attempt whose outcome is discarded.
+    void discardAfter(std::size_t count);
 
     /// "file:line:column: error: message"; the position is left out if the location is invalid.
     [[nodiscard]] std::string format(const Diagnostic& diagnostic) const;

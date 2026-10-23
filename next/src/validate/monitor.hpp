@@ -45,9 +45,18 @@ public:
     /// function than its location.function; a #line directive in a program that went through the preprocessor.
     [[nodiscard]] const std::optional<std::string>& inconsistency() const { return inconsistency_; }
 
-    /// Starts following the witness from its first segment; `run` numbers the runs for the log. A run with an event
-    /// budget other than 0 stops as Unknown at the event after that many.
-    void beginRun(std::uint32_t run, std::uint64_t eventBudget = 0);
+    /// How a run is followed: normally, or as the one more run with other defaults (validate/README.md, "Defaults").
+    struct RunMode {
+        /// The events (the statements, conditions, calls and returns the interpreter reports, interp/observer.hpp)
+        /// after which the run stops as Unknown; none for no limit.
+        std::optional<std::uint64_t> eventBudget;
+        /// Whether a waypoint without the outcome the witness needs asks the search; if not, it rejects at once.
+        bool searches = true;
+    };
+
+    /// Starts following the witness from its first segment; `run` numbers the runs for the log.
+    void beginRun(std::uint32_t run, RunMode mode);
+    void beginRun(std::uint32_t run);
     /// The events of the current run so far.
     [[nodiscard]] std::uint64_t events() const { return events_; }
 
@@ -105,7 +114,8 @@ private:
     [[nodiscard]] static std::vector<Clause>
     caseRequirement(std::optional<value::TermId> term, const ast::CaseStmt* label, Int128 caseValue, bool isTaken);
     /// Stops the run after waypoint `id` did not have the outcome the witness needs (`reason`): Restart with the inputs
-    /// the search finds for `requirement`, else Rejected, with `rejection` as the reason if it is not empty.
+    /// the search finds for `requirement`, else Rejected, with `rejection` as the reason if it is not empty. A run that
+    /// does not search (RunMode::searches) is Rejected at once.
     interp::Directive searchOrReject(WaypointId id, const std::vector<Clause>& requirement,
                                      interp::EvaluationContext& context, std::string reason,
                                      std::string rejection = {});
@@ -139,8 +149,8 @@ private:
     std::optional<std::string> inconsistency_;
 
     std::uint32_t run_ = 0;
+    RunMode mode_;
     std::uint64_t events_ = 0;
-    std::uint64_t eventBudget_ = 0; // 0: none
     std::uint32_t current_ = 0;
     bool isAtTarget_ = false;
     State state_ = State::Following;

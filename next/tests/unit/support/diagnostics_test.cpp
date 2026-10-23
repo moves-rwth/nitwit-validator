@@ -15,6 +15,19 @@ TEST(DiagnosticsTest, CountsOnlyErrors) {
     EXPECT_EQ(diagnostics.diagnostics().size(), 2u);
 }
 
+TEST(DiagnosticsTest, DiagnosticsAfterACountCanBeDiscarded) {
+    SourceManager sources;
+    DiagnosticEngine diagnostics(sources);
+    diagnostics.warning({}, "careful");
+    diagnostics.error({}, "broken");
+    diagnostics.discardAfter(1);
+    EXPECT_FALSE(diagnostics.hasErrors());
+    ASSERT_EQ(diagnostics.diagnostics().size(), 1u);
+    EXPECT_EQ(diagnostics.diagnostics()[0].message, "careful");
+    diagnostics.discardAfter(5);
+    EXPECT_EQ(diagnostics.diagnostics().size(), 1u);
+}
+
 TEST(DiagnosticsTest, FormatIncludesPositionWhenKnown) {
     SourceManager sources;
     const FileId file = sources.addFile("a.c", "int x;\n");

@@ -42,11 +42,12 @@ struct ValidationOptions {
     std::size_t maxKeptAtoms = 1'000'000;
     /// The value of inputs that are neither fixed nor hinted, converted to the requested type (pointers get null).
     std::int64_t defaultInput = 0;
-    /// The default of one more run after a final run that ended without confirmation and without a waypoint that
-    /// failed (validate/README.md, "Defaults"); none for no such run.
+    /// The default of one more run after a final run that ended without confirmation, without a waypoint that failed
+    /// and with an input that had the default (validate/README.md, "Defaults"); none for no such run.
     std::optional<std::int64_t> retryDefaultInput;
-    /// The events that run may take beyond ten times those of the run before (a nondeterministic loop condition
-    /// that 1 keeps true would make it endless): 2^24, about a second.
+    /// The events (the statements, conditions, calls and returns the interpreter reports) that run may take beyond
+    /// those of the run before, since a nondeterministic loop condition that 1 keeps true makes it endless: 2^24,
+    /// about a second.
     std::uint64_t retryExtraEvents = std::uint64_t{1} << 24;
     /// Progress of the validation (segments reached, restarts, why a run ended); null for none.
     std::ostream* log = nullptr;

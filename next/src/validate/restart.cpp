@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <format>
+#include <limits>
+#include <new>
 #include <optional>
 #include <print>
 #include <string>
+#include <utility>
 
 #include "ast/casting.hpp"
 #include "validate/constraints.hpp"
@@ -37,16 +40,62 @@ std::string describeInput(value::InputId id, const ProvidedInput& input, const P
 // witnesses with few waypoints. The hard cap bounds the runs of long witnesses.
 constexpr std::uint32_t baseRestarts = 16;
 constexpr std::uint32_t restartsPerWaypoint = 2;
-/// The run with other defaults may take this many events per event of the run before, and
-/// ValidationOptions::retryExtraEvents more.
-constexpr std::uint64_t retryEventsPerEvent = 10;
 
-/// Whether the run ended by itself or at the error function elsewhere, with every waypoint it evaluated passing: the
-/// search had nothing to solve, and only the inputs between the waypoints decided its path (validate/README.md,
-/// "Defaults").
-bool endedWithoutFailedWaypoint(const SegmentMonitor& monitor) {
-    return monitor.state() == SegmentMonitor::State::Following
-           || (monitor.state() == SegmentMonitor::State::ErrorCalled && !monitor.isAtTarget());
+/// Whether one more run with other defaults may confirm what `verdict`, the verdict of the final run, does not
+/// (validate/README.md, "Defaults"): the run ended by itself or at the error function elsewhere, with every waypoint
+/// it evaluated passing, so the search had nothing to solve, and only the inputs between the waypoints decided its
+/// path; and some of those had the default.
+bool isRetried(const ValidationResult& verdict, const SegmentMonitor& monitor, const WitnessOracle& oracle,
+               const ValidationOptions& options) {
+    const bool endedWithoutFailedWaypoint =
+        monitor.state() == SegmentMonitor::State::Following
+        || (monitor.state() == SegmentMonitor::State::ErrorCalled && !monitor.isAtTarget());
+    return verdict.verdict != Verdict::Confirmed && options.retryDefaultInput
+           && *options.retryDefaultInput != options.defaultInput && oracle.gaveDefault() && endedWithoutFailedWaypoint;
+}
+
+/// One more run with other defaults after run `runs`, whose verdict is `verdict`, and never more: its confirmation, or
+/// else `verdict`. The fixed inputs keep their values. The run does not search, and it may take the events of run
+/// `runs` and ValidationOptions::retryExtraEvents more.
+ValidationResult retryWithOtherDefaults(ValidationResult verdict, std::uint32_t runs, WitnessOracle& oracle,
+                                        SegmentMonitor& monitor, const RunFunction& run, const ProgramInput& program,
+                                        const ValidationOptions& options, DiagnosticEngine& diagnostics) {
+    const std::int64_t defaultInput = *options.retryDefaultInput;
+    if (options.log != nullptr) {
+        std::println(*options.log, "run {}: no waypoint failed; one more run with inputs {} by default", runs,
+                     defaultInput);
+    }
+    const std::uint64_t before = monitor.events();
+    const std::uint64_t budget = before <= std::numeric_limits<std::uint64_t>::max() - options.retryExtraEvents
+                                     ? before + options.retryExtraEvents
+                                     : std::numeric_limits<std::uint64_t>::max();
+    const std::size_t diagnosticsBefore = diagnostics.diagnostics().size();
+    oracle.setDefault(defaultInput);
+    oracle.beginRun();
+    monitor.beginRun(runs + 1, {.eventBudget = budget, .searches = false});
+    verdict.runs = runs + 1;
+    try {
+        const interp::RunResult retried = run(oracle, monitor);
+        if (monitor.state() == SegmentMonitor::State::ErrorCalled && monitor.isAtTarget()) {
+            ValidationResult confirmed = verdictOf(retried, monitor, program, options);
+            confirmed.runs = runs + 1;
+            return confirmed;
+        }
+    } catch (const std::bad_alloc&) {
+        // The host's memory ran out in this run only: the verdict stays that of the run before, not 251.
+        if (options.log != nullptr) {
+            std::println(*options.log, "run {}: NITWIT ran out of memory", runs + 1);
+        }
+    }
+    // Diagnostics of constraints first compiled in this run belong to no verdict.
+    diagnostics.discardAfter(diagnosticsBefore);
+    if (options.log != nullptr) {
+        std::println(*options.log,
+                     "run {}: with inputs {} by default, the witness was not confirmed either; the verdict is that of "
+                     "run {}",
+                     runs + 1, defaultInput, runs);
+    }
+    return verdict;
 }
 
 } // namespace
@@ -97,32 +146,10 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
         if (monitor.state() != SegmentMonitor::State::Restart) {
             ValidationResult verdict = verdictOf(result, monitor, program, options);
             verdict.runs = runs;
-            if (verdict.verdict == Verdict::Confirmed || !options.retryDefaultInput
-                || *options.retryDefaultInput == options.defaultInput || !endedWithoutFailedWaypoint(monitor)) {
-                return verdict;
+            if (isRetried(verdict, monitor, oracle, options)) {
+                return retryWithOtherDefaults(std::move(verdict), runs, oracle, monitor, run, program, options,
+                                              diagnostics);
             }
-            // One more run with other defaults, never more: it confirms, or the verdict is that of this run. Its
-            // fixed inputs stay, and a waypoint that fails in it ends it without a search.
-            if (options.log != nullptr) {
-                std::println(*options.log, "run {}: no waypoint failed; one more run with inputs {} by default", runs,
-                             *options.retryDefaultInput);
-            }
-            oracle.setDefault(*options.retryDefaultInput);
-            oracle.beginRun();
-            monitor.beginRun(runs + 1, retryEventsPerEvent * monitor.events() + options.retryExtraEvents);
-            const interp::RunResult retried = run(oracle, monitor);
-            if (monitor.state() == SegmentMonitor::State::ErrorCalled && monitor.isAtTarget()) {
-                ValidationResult confirmed = verdictOf(retried, monitor, program, options);
-                confirmed.runs = runs + 1;
-                return confirmed;
-            }
-            if (options.log != nullptr) {
-                std::println(*options.log,
-                             "run {}: with inputs {} by default, the witness was not confirmed either; "
-                             "the verdict is that of run {}",
-                             runs + 1, *options.retryDefaultInput, runs);
-            }
-            verdict.runs = runs + 1;
             return verdict;
         }
         if (runs > maxRestarts) {

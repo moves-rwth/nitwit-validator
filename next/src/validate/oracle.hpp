@@ -50,6 +50,8 @@ public:
     void beginRun();
     /// Answers the requests that are neither fixed nor hinted with `defaultValue` from now on.
     void setDefault(Int128 defaultValue) { defaultValue_ = defaultValue; }
+    /// Whether the current run answered an arithmetic request with the default, which another default would change.
+    [[nodiscard]] bool gaveDefault() const { return gaveDefault_; }
     /// Whether a recorded request of the current run was answered with a fixed value.
     [[nodiscard]] bool gaveFixedValue() const { return gaveFixedValue_; }
 
@@ -111,6 +113,7 @@ private:
     std::vector<RunStart> runStarts_;   // by run - 1
     std::vector<ProvidedInput> inputs_; // the recorded requests of the current run, indexed by InputId
     std::optional<Hint> hint_;
+    bool gaveDefault_ = false;    // in the current run
     bool gaveFixedValue_ = false; // to a recorded request of the current run
 };
 
