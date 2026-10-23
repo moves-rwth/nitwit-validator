@@ -21,12 +21,13 @@ void requireHeapBlock(const Call& call, Address address) {
     if (!block || block->region != Region::Heap) {
         call.undefinedBehavior(std::format("{} of {:#x}, which is not a heap block", call.name(), address));
     }
+    // Dead blocks first: Memory merges adjacent ones into a range whose base is that of its first block.
+    if (!block->isAlive) {
+        call.undefinedBehavior(std::format("{} of {:#x}, a heap block that was freed before", call.name(), address));
+    }
     if (block->base != address) {
         call.undefinedBehavior(
             std::format("{} of {:#x}, which points into a heap block but not to its start", call.name(), address));
-    }
-    if (!block->isAlive) {
-        call.undefinedBehavior(std::format("{} of {:#x}, a heap block that was freed before", call.name(), address));
     }
 }
 

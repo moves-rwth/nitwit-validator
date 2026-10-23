@@ -22,6 +22,8 @@ namespace {
 /// one-past-the-end address never lies inside another allocation.
 constexpr std::uint64_t gap = 16;
 constexpr std::size_t regionCount = 5;
+/// Dead heap blocks are merged at the earliest after this many frees, so that small programs never pay for it.
+constexpr std::size_t minimumMergeInterval = 1024;
 
 std::size_t indexOf(Region region) {
     return static_cast<std::size_t>(region);
@@ -162,6 +164,10 @@ struct Memory::State {
     // Code, ReadOnly, Global and Heap grow upward: their allocations sorted by base, and the next free address.
     std::array<std::vector<Allocation>, regionCount> upward;
     std::array<Address, regionCount> next{};
+    // Freed heap blocks stay in the table, as their addresses are never reused. So that the table grows with the live
+    // blocks and not with every free, runs of adjacent dead blocks are merged into one dead range from time to time
+    // (mergeDeadHeapBlocks): the dead blocks freed since make up half of the table.
+    std::size_t unmergedDeadHeapBlocks = 0;
     // The stack grows downward. Live allocations are sorted by descending base, so the most recent is at the back.
     // Dead ones lie below all live ones and are sorted by ascending base, so the most recently ended is at the back.
     // They are dropped when a new allocation reuses their addresses.
@@ -314,6 +320,41 @@ struct Memory::State {
             terms.erase(terms.lower_bound(allocation.base), terms.lower_bound(allocation.end()));
         }
         liveBytes -= allocation.size;
+    }
+
+    /// Ends the lifetime of a live heap block, and merges the dead heap blocks once those freed since the last merge
+    /// make up half of the table, so that a merge costs amortized constant time per free.
+    void freeHeapBlock(Allocation& allocation) {
+        kill(allocation);
+        std::vector<Allocation>& heap = upward[indexOf(Region::Heap)];
+        if (++unmergedDeadHeapBlocks > heap.size() / 2 + minimumMergeInterval) {
+            mergeDeadHeapBlocks();
+        }
+    }
+
+    /// Merges each run of adjacent dead heap blocks, between which no live block lies, into one dead range from the
+    /// start of the first to the end of the last. Every byte of a freed block stays dead, and so do the gaps between
+    /// the blocks of a run. A run of blocks with different names is named "heap".
+    void mergeDeadHeapBlocks() {
+        std::vector<Allocation>& heap = upward[indexOf(Region::Heap)];
+        std::size_t kept = 0;
+        for (Allocation& allocation : heap) {
+            if (kept > 0 && !allocation.isAlive && !heap[kept - 1].isAlive) {
+                Allocation& range = heap[kept - 1];
+                range.size = allocation.end() - range.base;
+                if (range.name != allocation.name) {
+                    range.name = "heap";
+                }
+                continue;
+            }
+            if (&heap[kept] != &allocation) {
+                heap[kept] = std::move(allocation);
+            }
+            ++kept;
+        }
+        heap.erase(heap.begin() + static_cast<std::ptrdiff_t>(kept), heap.end());
+        unmergedDeadHeapBlocks = 0;
+        lastFound = nullptr;
     }
 
     void markInitialized(const Allocation& allocation, Address address, std::uint64_t size) {
@@ -497,7 +538,7 @@ std::expected<void, MemoryError> Memory::free(Address address) {
         || !allocation->isAlive) {
         return std::unexpected(MemoryError{.kind = MemoryErrorKind::InvalidFree, .address = address, .size = 0});
     }
-    state_->kill(*allocation);
+    state_->freeHeapBlock(*allocation);
     return {};
 }
 
@@ -666,6 +707,11 @@ RawAccesses Memory::endRawAccesses() {
 
 std::uint64_t Memory::liveBytes() const {
     return state_->liveBytes;
+}
+
+std::size_t Memory::tableSize(Region region) const {
+    return region == Region::Stack ? state_->liveStack.size() + state_->deadStack.size()
+                                   : state_->upward[indexOf(region)].size();
 }
 
 } // namespace nitwit::interp

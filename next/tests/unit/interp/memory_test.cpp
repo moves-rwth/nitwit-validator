@@ -300,6 +300,77 @@ TEST_P(MemoryTest, FreeOfNullDoesNothing) {
     EXPECT_TRUE(memory.free(0).has_value());
 }
 
+TEST_P(MemoryTest, TheTableOfAMallocFreeLoopStaysSmall) {
+    // Without merging, every freed block would keep an entry.
+    std::vector<Address> blocks;
+    for (std::uint64_t i = 0; i < 100'000; ++i) {
+        blocks.push_back(allocate(memory, Region::Heap, 4 + i % 3));
+        ASSERT_TRUE(memory.free(blocks.back()).has_value());
+    }
+    EXPECT_LT(memory.tableSize(Region::Heap), 3000u);
+    // Every freed block stays dead, also its last byte and the address one past it.
+    std::array<std::byte, 1> out{};
+    for (const Address block : {blocks.front(), blocks[50'000], blocks.back()}) {
+        EXPECT_EQ(errorOf(memory.read(block, out)), MemoryErrorKind::DeadObject);
+        EXPECT_EQ(errorOf(memory.read(block + 3, out)), MemoryErrorKind::DeadObject);
+        EXPECT_EQ(errorOf(memory.free(block)), MemoryErrorKind::InvalidFree);
+        ASSERT_TRUE(memory.find(block).has_value());
+        EXPECT_FALSE(memory.find(block)->isAlive);
+        EXPECT_EQ(memory.find(block)->region, Region::Heap);
+    }
+    // Addresses are not reused.
+    EXPECT_GT(allocate(memory, Region::Heap, 4), blocks.back() + 4);
+}
+
+TEST_P(MemoryTest, LiveBlocksBetweenDeadOnesStayLiveAndSeparate) {
+    std::vector<Address> kept;
+    std::vector<Address> freed;
+    for (int i = 0; i < 100'000; ++i) {
+        const Address block = allocate(memory, Region::Heap, 8);
+        if (i % 100 == 0) {
+            kept.push_back(block);
+            continue;
+        }
+        ASSERT_TRUE(memory.free(block).has_value());
+        freed.push_back(block);
+    }
+    // The 1000 live blocks, a dead range between two of them, and the blocks freed since the last merge.
+    EXPECT_LT(memory.tableSize(Region::Heap), 7000u);
+    std::array<std::byte, 8> out{};
+    for (const Address block : kept) {
+        EXPECT_TRUE(memory.write(block, out).has_value());
+        EXPECT_TRUE(memory.find(block)->isAlive);
+        EXPECT_EQ(memory.find(block)->base, block);
+        EXPECT_EQ(memory.find(block)->size, 8u);
+        // The gap after a live block is no object, dead or alive.
+        EXPECT_EQ(errorOf(memory.read(block + 9, out)), MemoryErrorKind::InvalidAddress);
+    }
+    for (const Address block : {freed.front(), freed[50'000], freed.back()}) {
+        EXPECT_EQ(errorOf(memory.read(block, out)), MemoryErrorKind::DeadObject);
+    }
+    for (const Address block : kept) {
+        EXPECT_TRUE(memory.free(block).has_value());
+    }
+}
+
+TEST_P(MemoryTest, TheGapsBetweenMergedDeadBlocksAreDead) {
+    std::vector<Address> blocks;
+    for (int i = 0; i < 5000; ++i) {
+        blocks.push_back(allocate(memory, Region::Heap, 8));
+        ASSERT_TRUE(memory.free(blocks.back()).has_value());
+    }
+    std::array<std::byte, 1> out{};
+    EXPECT_EQ(errorOf(memory.read(blocks[10] + 12, out)), MemoryErrorKind::DeadObject);
+    EXPECT_EQ(memory.find(blocks[10] + 12)->name, "object");
+    // Merged blocks of different names are named "heap".
+    const Address other = memory.allocate(Region::Heap, 8, 8, "temporary").value();
+    ASSERT_TRUE(memory.free(other).has_value());
+    for (int i = 0; i < 5000; ++i) {
+        ASSERT_TRUE(memory.free(allocate(memory, Region::Heap, 8)).has_value());
+    }
+    EXPECT_EQ(memory.find(other)->name, "heap");
+}
+
 TEST_P(MemoryTest, DoubleFreeIsInvalid) {
     const Address block = allocate(memory, Region::Heap, 8);
     ASSERT_TRUE(memory.free(block).has_value());

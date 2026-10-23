@@ -99,8 +99,13 @@ public:
                                                                      std::uint64_t align, std::string_view name);
 
     /// free(): `address` must be 0 (no effect) or the base of a live heap allocation. The block stays in the table as
-    /// dead, and its addresses are not reused, so later accesses are reported as DeadObject.
+    /// dead, and its addresses are not reused, so later accesses are reported as DeadObject. Adjacent dead heap blocks
+    /// are merged into one dead range from time to time: find() then gives the range, and the gaps between its blocks
+    /// are dead too.
     [[nodiscard]] std::expected<void, MemoryError> free(Address address);
+    /// The entries of the allocation table of a region: live allocations and dead ones or dead ranges, for tests of
+    /// how it grows.
+    [[nodiscard]] std::size_t tableSize(Region region) const;
 
     /// Ends the lifetime of the most recently allocated live stack allocation, which must start at `base` (stack
     /// allocations end in LIFO order). Its addresses can be reused by later stack allocations.

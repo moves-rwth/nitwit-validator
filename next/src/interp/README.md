@@ -91,6 +91,14 @@ appear in the log.
 - **Address layout:** deterministic. Each region gets its own part of the address space, and the null page stays
   unmapped. Allocations are separated by gaps of at least 16 bytes. Stack addresses are reused after `popStack`; heap
   addresses are never reused, so use-after-free is always detected.
+- **Dead heap blocks** stay in the allocation table, but runs of adjacent dead blocks (no live block between them) are
+  merged into one dead range once the blocks freed since the last merge make up half of the table, and at the earliest
+  after 1024 frees. So the table grows with the live blocks, not with every `free` (or heap temporary): a
+  `malloc`/`free` loop would otherwise add 56 bytes per iteration, 1.8 GB after 19 s. Every byte of a freed block stays
+  dead, and a double free stays "a heap block that was freed before" (`free` checks for a dead block before it checks
+  the base). What merging changes: the gaps between the blocks of a range are dead too (an access there is DeadObject,
+  not InvalidAddress), `find` gives the range's base and size, and a range of blocks with different names (`heap`,
+  `temporary`) is named `heap`.
 - **Lazy commit:** a large global array (sv-benchmarks has arrays of hundreds of MB) costs host memory only for the
   pages that are written. `calloc`-backed buffers achieve that on Linux.
 - **Terms:** a sparse map from address ranges to the terms of the scalars written there, or to "opaque" (see "Terms").
@@ -334,7 +342,8 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
 
 - `tests/unit/interp/memory_test.cpp`: the memory behaviour above:
   - allocation in every region with sizes 0, 1 and large; alignment; the null page; gaps between allocations;
-  - accesses inside, across the end and one past the end; dead heap blocks; double free; freeing non-base and
+  - accesses inside, across the end and one past the end; dead heap blocks, merged into ranges (the size of the table
+    in a `malloc`/`free` loop, live blocks between dead ones, the gaps of a range); double free; freeing non-base and
     non-heap addresses; LIFO stack reuse;
   - read-only and code protection; initialization per byte;
   - terms written, read back for exactly their range (with their format) and for parts of it (opaque), partly

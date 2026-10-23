@@ -77,6 +77,8 @@ TEST_P(HeapTest, InvalidFreesAreUndefined) {
     EXPECT_TRUE(isUndefined(call("free", {pointer(0x1234)}), "not a heap block"));
     ASSERT_EQ(call("free", {pointer(block)}).kind, LibraryResult::Kind::Return);
     EXPECT_TRUE(isUndefined(call("free", {pointer(block)}), "freed before"));
+    // A freed block may be part of a merged dead range: what counts is that it is dead.
+    EXPECT_TRUE(isUndefined(call("free", {pointer(block + 1)}), "freed before"));
 }
 
 TEST_P(HeapTest, ReallocMovesContentsInitializationAndTerms) {

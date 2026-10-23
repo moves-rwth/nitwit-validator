@@ -132,8 +132,7 @@ int runSteps(const ValidationCommand& command, std::ostream& out, std::ostream& 
 } // namespace
 
 int validateWitness(const ValidationCommand& command, std::ostream& out, std::ostream& log) {
-    // The interpreter limits the program's memory, but the host's can run out first, e.g. in the allocation table of a
-    // program that allocates and frees in a long loop.
+    // The interpreter limits the program's memory, but the host's can run out first (validate/README.md, "Known gaps").
     try {
         return runSteps(command, out, log);
     } catch (const std::bad_alloc&) {
