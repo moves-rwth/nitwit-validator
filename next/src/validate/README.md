@@ -150,8 +150,9 @@ gets the *default*.
   without a search, NITWIT running out of its own memory in it does not end the validation, and the diagnostics of
   constraints first compiled in it are discarded. Its confirmation comes from one complete run like any other. Since
   1 keeps loops like `while (__VERIFIER_nondet_int())` going for ever, it may take the events of the run before and
-  `retryExtraEvents` (2^24, about a second) more; events are the statements, conditions, calls and returns that the
-  interpreter reports (`interp/observer.hpp`).
+  `retryExtraEvents` (2^22) more: about 0.3 s, or 2 s in a loop that requests inputs in every round. Events are the
+  statements, conditions, calls and returns that the interpreter reports (`interp/observer.hpp`). On the 1000-witness
+  sample, the ten confirmations of the extra run take under 0.01 s each, and two extra runs reach the budget.
 - **Escapes:** producer escapes like `"\result"` in double quotes are repaired by the witness parser.
 
 ### Search

@@ -46,9 +46,9 @@ struct ValidationOptions {
     /// and with an input that had the default (validate/README.md, "Defaults"); none for no such run.
     std::optional<std::int64_t> retryDefaultInput;
     /// The events (the statements, conditions, calls and returns the interpreter reports) that run may take beyond
-    /// those of the run before, since a nondeterministic loop condition that 1 keeps true makes it endless: 2^24,
-    /// about a second.
-    std::uint64_t retryExtraEvents = std::uint64_t{1} << 24;
+    /// those of the run before, since a nondeterministic loop condition that 1 keeps true makes it endless: 2^22,
+    /// about 0.3 s, or 2 s in a loop that requests inputs in every round (2^24 took 7.4 s in stateful_check).
+    std::uint64_t retryExtraEvents = std::uint64_t{1} << 22;
     /// Progress of the validation (segments reached, restarts, why a run ended); null for none.
     std::ostream* log = nullptr;
 };

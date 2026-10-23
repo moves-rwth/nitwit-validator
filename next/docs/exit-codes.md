@@ -30,7 +30,7 @@ NITWIT 4 adds no new codes until the BenchExec module knows them. NITWIT's own l
 stack) end with 4 and a message naming the limit. NITWIT sets no time or step limit (`RunOptions::maxSteps` stays 0):
 BenchExec's time limit ends a run that does not finish, and BenchExec reports it as TIMEOUT. The one exception is the
 extra run with inputs 1 by default (`src/validate/README.md`, "Defaults"): it may take the events of the run before
-and 2^24 more; beyond, it ends, and the verdict is that of the run before.
+and 2^22 more; beyond, it ends, and the verdict is that of the run before.
 
 The result line printed before exiting starts with `VALIDATED:` (0), `FAILED:` (241, 242, 250), `ERROR:` (2, 3)
 or `UNKNOWN:` (4, 251).
