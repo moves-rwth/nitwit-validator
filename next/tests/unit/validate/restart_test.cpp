@@ -384,6 +384,44 @@ TEST_F(RestartTest, ARetryThatDoesNotConfirmKeepsTheVerdictOfTheRunBefore) {
     EXPECT_EQ(scriptRuns_, 2);
 }
 
+constexpr std::string_view loopOnInputProgram = R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    if (a == 2) reach_error();
+    while (a) a = a;
+    return 0;
+}
+)";
+
+interp::RunResult runLoopOnInput(FakeExecution& x) {
+    x.statement(4, 5);
+    x.assign("a", x.nondet(4, 35));
+    x.statement(5, 5);
+    if (x.branch(5, 5)) {
+        x.statement(5, 17);
+        x.call(5, 29);
+    }
+    x.statement(6, 5);
+    while (x.branch(6, 5)) {
+        x.statement(6, 15);
+    }
+    x.statement(7, 5);
+    return returned(0);
+}
+
+TEST_F(RestartTest, TheRetryStopsAtItsBudget) {
+    // With a = 1, the loop does not end.
+    program(std::string(loopOnInputProgram));
+    options_.retryDefaultInput = 1;
+    options_.retryExtraEvents = 100;
+    const ValidationResult result = validate(sequence({{target(5, 17)}}), runLoopOnInput);
+    EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message;
+    EXPECT_EQ(result.runs, 2u);
+    // Ten times the events of run 1, and 100.
+    EXPECT_TRUE(log().contains("run 2: the run exceeded its budget of 180 events")) << log();
+}
+
 TEST_F(RestartTest, NoRetryAfterAWaypointFailed) {
     program(std::string(ifInputProgram));
     options_.retryDefaultInput = 1;

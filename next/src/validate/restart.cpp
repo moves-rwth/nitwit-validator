@@ -37,6 +37,9 @@ std::string describeInput(value::InputId id, const ProvidedInput& input, const P
 // witnesses with few waypoints. The hard cap bounds the runs of long witnesses.
 constexpr std::uint32_t baseRestarts = 16;
 constexpr std::uint32_t restartsPerWaypoint = 2;
+/// The run with other defaults may take this many events per event of the run before, and
+/// ValidationOptions::retryExtraEvents more.
+constexpr std::uint64_t retryEventsPerEvent = 10;
 
 /// Whether the run ended by itself or at the error function elsewhere, with every waypoint it evaluated passing: the
 /// search had nothing to solve, and only the inputs between the waypoints decided its path (validate/README.md,
@@ -106,7 +109,7 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
             }
             oracle.setDefault(*options.retryDefaultInput);
             oracle.beginRun();
-            monitor.beginRun(runs + 1);
+            monitor.beginRun(runs + 1, retryEventsPerEvent * monitor.events() + options.retryExtraEvents);
             const interp::RunResult retried = run(oracle, monitor);
             if (monitor.state() == SegmentMonitor::State::ErrorCalled && monitor.isAtTarget()) {
                 ValidationResult confirmed = verdictOf(retried, monitor, program, options);

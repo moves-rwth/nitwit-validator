@@ -45,8 +45,11 @@ public:
     /// function than its location.function; a #line directive in a program that went through the preprocessor.
     [[nodiscard]] const std::optional<std::string>& inconsistency() const { return inconsistency_; }
 
-    /// Starts following the witness from its first segment; `run` numbers the runs for the log.
-    void beginRun(std::uint32_t run);
+    /// Starts following the witness from its first segment; `run` numbers the runs for the log. A run with an event
+    /// budget other than 0 stops as Unknown at the event after that many.
+    void beginRun(std::uint32_t run, std::uint64_t eventBudget = 0);
+    /// The events of the current run so far.
+    [[nodiscard]] std::uint64_t events() const { return events_; }
 
     interp::Directive beforeStatement(const interp::StatementEvent& event, interp::EvaluationContext& context) override;
     interp::Directive afterCondition(const interp::ConditionEvent& event, interp::EvaluationContext& context) override;
@@ -136,6 +139,8 @@ private:
     std::optional<std::string> inconsistency_;
 
     std::uint32_t run_ = 0;
+    std::uint64_t events_ = 0;
+    std::uint64_t eventBudget_ = 0; // 0: none
     std::uint32_t current_ = 0;
     bool isAtTarget_ = false;
     State state_ = State::Following;

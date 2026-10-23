@@ -129,7 +129,9 @@ std::optional<std::string> SegmentMonitor::findInconsistency() const {
     return std::nullopt;
 }
 
-void SegmentMonitor::beginRun(std::uint32_t run) {
+void SegmentMonitor::beginRun(std::uint32_t run, std::uint64_t eventBudget) {
+    events_ = 0;
+    eventBudget_ = eventBudget;
     run_ = run;
     current_ = 0;
     isAtTarget_ = false;
@@ -202,6 +204,9 @@ interp::Directive SegmentMonitor::onUndefinedBehavior(value::UndefinedBehavior, 
 interp::Directive SegmentMonitor::handle(const Event& event, interp::EvaluationContext& context) {
     if (state_ != State::Following) {
         return interp::Directive::Stop;
+    }
+    if (++events_ > eventBudget_ && eventBudget_ != 0) {
+        return stop(State::Unknown, std::format("the run exceeded its budget of {} events", eventBudget_));
     }
     while (true) {
         const std::span<const std::uint32_t> here = waypointsAt(current_, event.type, event.location);

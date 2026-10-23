@@ -144,7 +144,8 @@ gets the *default*.
   function elsewhere) leaves nothing to the search; only the inputs between the waypoints decided its path, as in
   witnesses with the target only. One more run then gives those inputs 1, the fixed inputs keeping their values. It
   confirms, or the verdict is that of the run before: a waypoint that fails in it ends it without a search. Its
-  confirmation comes from one complete run like any other.
+  confirmation comes from one complete run like any other. It may take ten times the events of the run before and
+  `retryExtraEvents` (2^24) more, since 1 keeps loops like `while (__VERIFIER_nondet_int())` going for ever.
 - **Escapes:** producer escapes like `"\result"` in double quotes are repaired by the witness parser.
 
 ### Search
