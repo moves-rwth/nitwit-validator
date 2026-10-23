@@ -31,6 +31,8 @@ std::string describeEnd(const interp::RunResult& run, const ProgramInput& progra
         return std::format("out of memory{}: {}", where, run.message);
     case interp::Termination::LimitReached:
         return std::format("limit reached{}: {}", where, run.message);
+    case interp::Termination::EndlessLoop:
+        return std::format("the program entered an endless loop without effect{}, the execution is infeasible", where);
     }
     std::unreachable();
 }
@@ -107,6 +109,7 @@ ValidationResult verdictOf(const interp::RunResult& run, const SegmentMonitor& m
         return decided(Verdict::OutOfMemory, std::format("{} {}", end, segment));
     case interp::Termination::Abort:
     case interp::Termination::AssumeFailed:
+    case interp::Termination::EndlessLoop:
     case interp::Termination::UndefinedBehavior:
     case interp::Termination::LimitReached:
         return decided(Verdict::Unknown, std::format("{} {}", end, segment));

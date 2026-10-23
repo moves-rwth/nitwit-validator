@@ -24,6 +24,28 @@ using ast::cast;
 using ast::dyn_cast;
 using ast::isa;
 
+/// Whether the expression is an integer literal other than 0, perhaps in parentheses.
+bool isNonZeroLiteral(const ast::Expr* expr) {
+    while (const auto* paren = dyn_cast<ast::ParenExpr>(expr)) {
+        expr = paren->inner();
+    }
+    const auto* literal = dyn_cast<ast::IntegerLiteralExpr>(expr);
+    return literal != nullptr && literal->value().value != 0;
+}
+
+/// Whether an instruction neither has an effect nor leaves the instructions after it: a statement event, or a branch
+/// whose condition is missing (`for (;;)`) or a nonzero integer literal, so that it never jumps.
+bool isWithoutEffectOrExit(const Instruction& instruction) {
+    switch (instruction.op) {
+    case OpCode::Statement:
+        return true;
+    case OpCode::Branch:
+        return instruction.expr == nullptr || isNonZeroLiteral(instruction.expr);
+    default:
+        return false;
+    }
+}
+
 struct BuiltinName {
     std::string_view name;
     Builtin builtin;
@@ -553,6 +575,7 @@ private:
         for (const auto& [jump, label] : gotos_) {
             body_->code[jump].target = labels_.at(label);
         }
+        markEndlessLoops();
         for (const ast::VarDecl* local : definition->locals()) {
             body_->locals.push_back(
                 objectLayout(program_->context, local->type(), nullptr, local->requestedAlignment()));
@@ -563,6 +586,21 @@ private:
         }
         program_->bodies.push_back(std::move(body));
         body_ = nullptr;
+    }
+
+    /// Marks the jumps back over instructions without effect or exit (Instruction::closesEndlessLoop). Once such a jump
+    /// is taken, the function runs these instructions for ever: they never leave, and as they change nothing, every
+    /// round is the same. Calls, reads (also of volatile objects), declarations and the end of scopes are effects, and
+    /// so are the inputs a condition other than a literal could request.
+    void markEndlessLoops() {
+        std::vector<Instruction>& code = body_->code;
+        for (std::uint32_t index = 0; index < code.size(); ++index) {
+            Instruction& jump = code[index];
+            if (jump.op == OpCode::Jump && jump.target <= index) {
+                jump.closesEndlessLoop =
+                    std::all_of(code.begin() + jump.target, code.begin() + index, isWithoutEffectOrExit);
+            }
+        }
     }
 
     std::uint32_t here() const { return static_cast<std::uint32_t>(body_->code.size()); }

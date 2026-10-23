@@ -35,7 +35,9 @@ struct ProgramInput {
 
 struct ValidationOptions {
     std::string errorFunction = "reach_error";
-    interp::RunOptions run;
+    /// An endless loop without effect ends the run as infeasible (validate/README.md, "Verdict"): the program never
+    /// leaves it, so the error function is never called after it.
+    interp::RunOptions run{.endsEndlessLoops = true};
     /// The most restarts for any witness; restartLimit() gives fewer to witnesses with few waypoints.
     std::uint32_t maxRestarts = 10000;
     /// The most atoms of the clauses a run keeps for the search (validate/README.md, "Search"): at most about 80 MB.

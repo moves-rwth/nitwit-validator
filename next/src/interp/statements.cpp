@@ -33,6 +33,8 @@ bool contains(const InstructionRange* range, std::uint32_t pc) {
 void Execution::execute(Frame& frame, std::uint32_t begin, const InstructionRange* range) {
     const std::vector<Instruction>& code = frame.body->code;
     std::uint32_t pc = begin;
+    // Whether a jump that closes an endless loop was taken (Instruction::closesEndlessLoop): the run never leaves it.
+    bool isInEndlessLoop = false;
     const auto jump = [&](std::uint32_t target) {
         if (!contains(range, target)) {
             throw LeaveRange{target};
@@ -89,6 +91,15 @@ void Execution::execute(Frame& frame, std::uint32_t begin, const InstructionRang
                     break;
                 }
                 case OpCode::Jump:
+                    if (instruction.closesEndlessLoop && options_.endsEndlessLoops) {
+                        // The second time round: the observer has seen every event the loop can give.
+                        if (isInEndlessLoop) {
+                            stop(Termination::EndlessLoop, "a loop that never leaves and changes nothing",
+                                 code[instruction.target].stmt != nullptr ? code[instruction.target].stmt->location()
+                                                                          : location_);
+                        }
+                        isInEndlessLoop = true;
+                    }
                     jump(instruction.target);
                     break;
                 case OpCode::Switch:

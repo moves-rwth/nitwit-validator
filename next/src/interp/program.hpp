@@ -45,6 +45,10 @@ enum class OpCode : std::uint8_t {
 struct Instruction {
     OpCode op = OpCode::Statement;
     ConditionEvent::Construct construct = ConditionEvent::Construct::If; // Branch, Switch
+    /// Jump: it closes an endless loop without effect, a cycle from `target` to this jump through statement events and
+    /// branches on a nonzero integer literal only (`L: goto L;`, `while (1);`, `for (;;) {}`), which never leaves and
+    /// never changes the state.
+    bool closesEndlessLoop = false;
     std::uint32_t target = 0;
     std::uint32_t index = 0; // Switch: the table
     /// The number of variable length arrays alive before this instruction. A jump to this instruction ends those

@@ -2,8 +2,11 @@
 // unsupported constructs, the observer, and the limits.
 
 #include <cstddef>
+#include <cstdint>
 #include <format>
 #include <string>
+#include <string_view>
+#include <utility>
 
 #include <gtest/gtest.h>
 
@@ -233,6 +236,43 @@ TEST_F(TerminationTest, TheStepLimitEndsEndlessLoops) {
         run("int main(void) { while (1) {} }", DataModel::LP64, {.maxSteps = 1000, .maxCallDepth = 100});
     EXPECT_EQ(result.termination, Termination::LimitReached);
     EXPECT_EQ(result.steps, 1001);
+}
+
+TEST_F(TerminationTest, AnEndlessLoopWithoutEffectEndsTheRunAfterOneRound) {
+    const RunOptions options{.maxSteps = 100'000, .endsEndlessLoops = true};
+    // The location is that of the first instruction of the loop's round: 2:5, or the body of a do loop at 2:8.
+    const std::pair<std::string_view, std::uint32_t> loops[] = {
+        {"L: goto L;", 21},      {"while (1);", 21},     {"for (;;) {}", 21},
+        {"do ; while (1);", 24}, {"while ((7)) {}", 21}, {"while (1) { continue; }", 21}};
+    for (const auto& [loop, offset] : loops) {
+        const RunResult result = run(std::format("int main(void) {{\n    {}\n}}", loop), DataModel::LP64, options);
+        EXPECT_EQ(result.termination, Termination::EndlessLoop) << loop << ": " << result.message;
+        EXPECT_EQ(result.location.offset, offset) << loop;
+        EXPECT_LT(result.steps, 10u) << loop;
+    }
+}
+
+TEST_F(TerminationTest, TheObserverSeesAWholeRoundOfAnEndlessLoop) {
+    const RunResult result = run("int main(void) {\n    L: ;\n    goto L;\n}", DataModel::LP64,
+                                 {.maxSteps = 100'000, .endsEndlessLoops = true});
+    EXPECT_EQ(result.termination, Termination::EndlessLoop);
+    EXPECT_THAT(observer_.only("S"), ElementsAre("S 2:5", "S 2:8", "S 3:5", "S 2:5", "S 2:8", "S 3:5"));
+}
+
+TEST_F(TerminationTest, LoopsWithEffectsOrConditionsAreNotEndless) {
+    const RunOptions options{.maxSteps = 10'000, .endsEndlessLoops = true};
+    for (const std::string_view loop : {"int x = 0; while (1) x++;", "int x = 0; while (x == 0);", "while (1) f();",
+                                        "volatile int v = 0; while (1) v;", "L: ; int y; goto L;",
+                                        "while (1) { if (0) ; }", "int x = 1; while (x) {}"}) {
+        const RunResult result =
+            run(std::format("void f(void) {{}}\nint main(void) {{\n    {}\n}}", loop), DataModel::LP64, options);
+        EXPECT_EQ(result.termination, Termination::LimitReached) << loop << ": " << result.message;
+    }
+}
+
+TEST_F(TerminationTest, WithoutTheOptionAnEndlessLoopRunsLikeANativeRun) {
+    const RunResult result = run("int main(void) { L: goto L; }", DataModel::LP64, {.maxSteps = 1000});
+    EXPECT_EQ(result.termination, Termination::LimitReached);
 }
 
 TEST_F(TerminationTest, TheCallDepthLimitEndsEndlessRecursion) {

@@ -118,9 +118,16 @@ waypoint of the current segment is evaluated first, then its avoid waypoints the
   | the error function is called earlier, or elsewhere | 241 (252 once BenchExec maps it to UNKNOWN, `docs/exit-codes.md`) |
   | the program ends (end of `main`, `exit`) | 242 |
   | the target segment is reached, but the program ends without calling the error function | 250 |
-  | the program aborts, `__VERIFIER_assume` fails, undefined behaviour without a defined result, a limit | 4 |
+  | the program aborts, `__VERIFIER_assume` fails or the program enters an endless loop without effect (both infeasible), undefined behaviour without a defined result, a limit | 4 |
   | a construct the interpreter does not support, a constraint that does not compile, an unsupported witness, a witness that does not fit the program, an avoid constraint without value | 4 |
   | the program exceeds the memory limit | 251 |
+
+- **Endless loops without effect** (`interp/README.md`, "Execution: behaviour to keep"): a run that enters a loop that
+  never leaves and changes nothing, like `ldv_assume_label: goto ldv_assume_label;`, with which the
+  ldv-linux-4.0-rc1-mav programs assume a false condition, would run for ever without calling the error function. It
+  ends after one round of the loop (`RunOptions::endsEndlessLoops`), which gives the monitor every event the loop can
+  give: a later round has the same state, and a run that passes a follow waypoint in the loop never leaves it, so no
+  confirmation is lost. The verdict is UNKNOWN (exit 4), as for a failed `__VERIFIER_assume`.
 
 ### Values
 

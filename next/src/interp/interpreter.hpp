@@ -50,6 +50,9 @@ struct RunOptions {
     /// has the format of the call's type) are not checked, and a missing term goes unnoticed (interp/README.md,
     /// "Terms"). Tests also pass checks that find mismatches on purpose, to see how a mismatch ends the run.
     TermCheck checkTerms = nullptr;
+    /// Whether a run that enters an endless loop without effect ends (Termination::EndlessLoop) after one round of it,
+    /// instead of running for ever as the program does natively. Validation sets it; replay does not.
+    bool endsEndlessLoops = false;
 };
 
 enum class Termination : std::uint8_t {
@@ -62,6 +65,7 @@ enum class Termination : std::uint8_t {
     Unsupported,       // a construct the interpreter does not support (inline assembly, setjmp, threads, ...)
     OutOfMemory,       // memoryLimit exceeded
     LimitReached,      // maxSteps or maxCallDepth exceeded
+    EndlessLoop,       // RunOptions::endsEndlessLoops: the run entered a loop that never leaves and changes nothing
 };
 
 struct RunResult {

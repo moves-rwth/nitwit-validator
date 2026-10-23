@@ -253,6 +253,29 @@ int main(void) {
         << log();
 }
 
+TEST_F(EndToEndTest, AnEndlessLoopWithoutEffectEndsTheRunAsInfeasible) {
+    // ldv_assume of the ldv-linux-4.0-rc1-mav programs, with an extern object that no file defines (zero here).
+    build(R"(void reach_error(void);
+void ldv_assume(int expression) {
+  if (expression == 0) {
+    ldv_assume_label: ;
+    goto ldv_assume_label;
+  }
+}
+int nr_cpu_ids;
+int main(void) {
+  ldv_assume(nr_cpu_ids > 0);
+  reach_error();
+  return 0;
+}
+)");
+    const ValidationResult result = validate(sequence({{target(11, 3)}}));
+    EXPECT_EQ(result.verdict, Verdict::Unknown) << result.message << "\n" << log();
+    EXPECT_EQ(exitCode(result), 4);
+    EXPECT_EQ(result.message, "the program entered an endless loop without effect at test.c:4:5, the execution is "
+                              "infeasible in segment 1 of 1");
+}
+
 TEST_F(EndToEndTest, ALoopCounterBoundedByAnInput) {
     build(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);

@@ -190,6 +190,17 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
   first. GCC folds trivial arithmetic first (`arr[i()] = f() + 0` calls i first); the interpreter does not.
 - **Steps** (`RunOptions::maxSteps`): statements, controlling expressions and calls, so that loops without statements
   are limited too.
+- **Endless loops without effect:** the lowering marks a jump back over instructions that are all statement events or
+  branches on a nonzero integer literal or without condition (`Instruction::closesEndlessLoop`): `L: goto L;`,
+  `while (1);`, `for (;;) {}`, `do ; while (1);`. Once the jump is taken, the function runs these instructions for
+  ever, and they change nothing: no expression is evaluated (so no call, no input, no volatile read), no declaration
+  or end of scope runs. The pattern is narrow on purpose: a condition `x`, or `if (0) ;` in the body, is not marked
+  (the jump of `continue` in `while (1) { continue; }` is).
+  With `RunOptions::endsEndlessLoops`, which validation sets, the run ends with `Termination::EndlessLoop` at the
+  second time the jump is taken, after one whole round, at the location of the round's first instruction. Replay does
+  not set it and runs on, as the native program hangs: the difftest harness reports a timeout for both, and a run that
+  hits a limit agrees with nothing, so ending replay early would change no comparison but would make replay differ
+  from the native run it mirrors.
 - **Host stack:** calls and expressions recurse on the host stack. `invoke`, `rvalue` and `lvalue` check the frame
   address against the thread's stack bounds (`host_stack.hpp`) and end the run with `LimitReached` ("host stack
   exhausted") when less than 1 MiB is left, before `maxCallDepth` if need be.
@@ -354,7 +365,8 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   oracle and a recording observer for the event sequences (`interpreter_test_support.hpp`): `lowering_test.cpp`
   (statements, conditions, jumps and calls as events), `evaluator_test.cpp` (operators, conversions, objects and
   calls in both data models, outputs confirmed with GCC), `termination_test.cpp` (how runs end, undefined behaviour,
-  limits), `inputs_test.cpp` (oracle requests, uninitialized reads) and `evaluation_context_test.cpp`.
+  limits, endless loops without effect and loops that only look like them), `inputs_test.cpp` (oracle requests,
+  uninitialized reads) and `evaluation_context_test.cpp`.
 - `tests/unit/interp/terms_test.cpp`, every run with the consistency check: input terms; copies (assignment,
   arguments, results, pointers, records, `?:` of records, `va_arg`); conversions (also pointers sign-extended to wider
   integers and back, results of calls through a pointer of another type); `_Bool` values (inputs, bytes of another
