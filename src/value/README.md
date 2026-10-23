@@ -8,8 +8,7 @@ Run-time values and C arithmetic, shared by constant evaluation in `sema` and by
   result, never trapped on. The value that comes with it is what GCC-compiled run-time code gives; for out-of-range
   conversions of `float` and `double` to `unsigned int` it differs between i386 and x86-64, so `floatToInteger` takes
   the data model.
-
-- `term.hpp`: terms, the record of how a value was computed from the inputs of a run (stage 7).
+- `term.hpp`: terms, the record of how a value was computed from the inputs of a run.
 
 ## Terms
 
@@ -70,8 +69,6 @@ validator can ask what the value would be with other inputs (`validate/README.md
   ends the run. Whether the program takes the same path with the substituted inputs is not known to the term: every
   prediction is checked by a run. Terms are DAGs with shared subterms: evaluation visits each subterm once, in
   ascending order and without recursion.
-- **Terms replace origins**, the notion NITWIT used before stage 7: the input a value was derived from through copies
-  and conversions only, which the validator fixed to steer a waypoint.
 
 The host must be x86-64 with SSE (checked at compile time): `float` and `double` arithmetic on the host is then
 exactly the target's arithmetic, and the host's `long double` is the x87 extended format of the target.

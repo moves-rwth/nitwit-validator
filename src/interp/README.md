@@ -10,10 +10,10 @@ Executes the typed AST: memory model, lowering of function bodies, expression ev
 - `library.hpp`: the C library functions, GCC builtins and library objects the interpreter implements, behind
   `LibraryContext`.
 
-## Library: what to implement
+## Library
 
-The functions sv-benchmarks programs call, and the glibc internals that header macros in preprocessed `.i` files expand
-to:
+The library implements the functions sv-benchmarks programs call, and the glibc internals that header macros in
+preprocessed `.i` files expand to:
 
 - **SV-COMP:** `__VERIFIER_assume` (handled by the evaluator, because it ends the run), `__VERIFIER_error`,
   `__assert_fail`, `__assert`, `abort`, `exit`, `_Exit`. `__VERIFIER_atomic_begin` and `__VERIFIER_atomic_end` are
@@ -64,11 +64,12 @@ Behaviour choices of the library:
   nothing.
 - **Math with the host's 64-bit libm in both data models.** `library_math.cpp` is compiled with `-fno-builtin`, so
   that glibc computes every function, not the compiler's inline version. i386's libm (`-m32 -msse2 -mfpmath=sse`)
-  differs in the last bit for many arguments of some functions; share of differing results in the reviewer's
-  measurement: `cbrt` 45 %, `lgamma` 37 %, `sinh` 25 %, `atan2f` 17 %, `expm1` 11 %, `tanh`/`tanhf` 11 %, `log1p`
-  10 %, `log10f` 8 %, `log10` 6 %, `atanf` 5 %, `tanf` 4 %, `erf` 3 %, `sin`, `cos`, `exp`, `log`, `pow`, `sqrt` at most
-  0.3 %; and `fmin(-0.0, 0.0)` gives the other zero. A helper process with the 32-bit libm could remove this
-  difference later. Only `lrint` and `lround`, whose result type differs, follow i386 (0x80000000 out of range).
+  differs in the last bit for many arguments of some functions; measured share of differing results: `cbrt` 45 %,
+  `lgamma` 37 %, `sinh` 25 %, `atan2f` 17 %, `expm1` 11 %, `tanh`/`tanhf` 11 %, `log1p` 10 %, `log10f` 8 %, `log10`
+  6 %, `atanf` 5 %, `tanf` 4 %, `erf` 3 %, `sin`, `cos`, `exp`, `log`, `pow`, `sqrt` at most 0.3 %; and
+  `fmin(-0.0, 0.0)` gives the other zero. A helper process with the 32-bit libm would remove this
+  difference (`docs/roadmap.md`). Only `lrint` and `lround`, whose result type differs, follow i386 (0x80000000 out
+  of range).
 - **Left to the evaluator:**
   - the type-generic builtins whose behaviour depends on argument types: `__builtin_add/sub/mul_overflow` and their
     `_p` forms, `__atomic_*`;
@@ -196,7 +197,7 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
   ever, and they change nothing: no expression other than an integer literal is evaluated (so no call, no input, no
   volatile read), no declaration or end of scope runs. The pattern is narrow on purpose: a condition `x`, or
   `if (0) ;` in the body, is not marked (the jump of `continue` in `while (1) { continue; }` is). Endless loops it
-  misses, such as `for (;;) { continue; }`, `while ('a');` or `if (1) ; else ;` in the body, run on as before.
+  misses, such as `for (;;) { continue; }`, `while ('a');` or `if (1) ; else ;` in the body, run on.
   With `RunOptions::endsEndlessLoops`, which validation sets, the run ends with `Termination::EndlessLoop` at the
   second time the jump is taken, after one whole round, at the location of the round's first instruction. Replay does
   not set it and runs on, as the native program hangs: the difftest harness reports a timeout for both, and a run that
@@ -345,10 +346,10 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
 - **Cost:** operations ask the `TermTable` only if an operand has a term, and memory looks up terms only if it holds
   any, so that values without terms (programs without inputs) cost nothing measurable. Two details matter on this
   path: the operations return one named value each, so that it is constructed in place, and `LValue` fits into two
-  registers. Measured with `gcc-release`, CPU time, best of 9 runs on one core, against the interpreter before terms:
-  Csmith programs without inputs from 6 % faster to 3 % slower (+0.4 % in all); input-heavy corpus programs from 12 %
-  faster (their origins cost more) to 7 % slower; Csmith programs whose globals all depend on inputs 13 % to 19 %
-  slower, with up to 124 MiB for a full table.
+  registers. The cost of the terms, measured with `gcc-release` (CPU time, best of 9 runs on one core) against an
+  interpreter that records only which input a value is a copy of: Csmith programs without inputs from 6 % faster to
+  3 % slower (+0.4 % in all); input-heavy corpus programs from 12 % faster to 7 % slower; Csmith programs whose
+  globals all depend on inputs 13 % to 19 % slower, with up to 124 MiB for a full table.
 
 ## Tests
 

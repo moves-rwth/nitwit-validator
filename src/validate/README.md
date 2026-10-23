@@ -1,4 +1,4 @@
-# Module `validate` (stages 6 and 7)
+# Module `validate`
 
 Validates a witness by running the program with an `ExecutionObserver` (the monitor) and an `InputOracle`, restarting
 with inputs that the search predicts to give a waypoint its outcome. It decides the verdict and the exit code
@@ -18,11 +18,10 @@ with inputs that the search predicts to give a waypoint its outcome. It decides 
 
 ## Semantics of witness format 2.x
 
-The rules of NITWIT 3.x after its P1/P2 fixes (77 of 100 right on `validation-crafted`, no invalid witness
-confirmed), made precise where the test witnesses and `validation-crafted` required it. Where 3.x confirmed invalid
-witnesses, NITWIT 4 deviates: avoid waypoints are evaluated on the inputs of the run, cascaded waypoints refer to the
-same execution, and columns of preprocessed programs must point to unchanged text. The format's own description is in
-sv-witnesses (`README.md`, "violation witnesses").
+The format's own description is in sv-witnesses (`README.md`, "violation witnesses"). The rules below make it
+precise where the test witnesses and `validation-crafted` require it. They differ from those of NITWIT 3.x where 3.x
+confirms invalid witnesses: avoid waypoints are evaluated on the inputs of the run, cascaded waypoints refer to the
+same execution, and columns of preprocessed programs must point to unchanged text.
 
 ### Structure
 
@@ -112,7 +111,7 @@ waypoint of the current segment is evaluated first, then its avoid waypoints the
     with an assumption at its `{` (`choice == 0`, then `choice == 2`); those witnesses are not confirmed (1 of 1000 in
     the evaluation, `docs/evaluation.md`). Reading such an assumption as the statement's next execution when it cannot
     hold at this one confirms that witness, but also witnesses that contradict themselves within one execution, so
-    NITWIT keeps the strict reading. Identical per-call values (`2`, `2`, `2`) cannot be told apart from repeated
+    NITWIT uses the strict reading. Identical per-call values (`2`, `2`, `2`) cannot be told apart from repeated
     assumptions about one execution in any reading.
 - **When the avoid waypoints of a new segment start:** a segment that became current by a cascaded assumption
   evaluates its avoid waypoints at that event, for the same execution of the statement. A segment that became current
@@ -155,23 +154,24 @@ gets the *default*.
 - **Every confirmation comes from one complete run** in which all follow waypoints passed and no avoid waypoint passed,
   on the inputs of that run. The search only chooses the inputs of the next run, so a prediction that does not hold
   (the program takes another path, a term is not what the program computes) costs a restart, never soundness.
-- **Defaults:** `ValidationOptions::defaultInput`, 0, converted to the requested type; pointers get null. NITWIT 3.x
-  effectively used 1; on the sample, 1 confirms one witness more, on `validation-crafted` six fewer.
+- **Defaults:** `ValidationOptions::defaultInput`, 0, converted to the requested type; pointers get null. 0 rather
+  than 1, which NITWIT 3.x effectively uses: as the only default, 1 confirms one witness more on the 250-witness
+  sample, but six fewer on `validation-crafted`.
 - **One more run with defaults of 1** (`ValidationOptions::retryDefaultInput`, which the driver sets): a final run that
   ends without confirmation and without a waypoint that failed leaves nothing to the search; only the inputs between
   the waypoints decided its path, as in witnesses with the target only. The trigger is that rule, whatever ended the
   run: the monitor followed the witness to the end of the run (`main` returned, `exit`, `abort`, a failed
   `__VERIFIER_assume`, an endless loop without effect, undefined behaviour, an unsupported construct, the interpreter's
-  memory or call-depth limit), or
-  the error function was called elsewhere than at the target; and the run gave some arithmetic input the default (else
-  one more run would repeat it). One more run then gives those inputs 1, the fixed inputs keeping their values, and
-  never more than one. It confirms, or the verdict is that of the run before: a waypoint that fails in it ends it
-  without a search, NITWIT running out of its own memory in it does not end the validation, and the diagnostics of
-  constraints first compiled in it are discarded. Its confirmation comes from one complete run like any other. Since
-  1 keeps loops like `while (__VERIFIER_nondet_int())` going for ever, it may take the events of the run before and
-  `retryExtraEvents` (2^22) more: about 0.3 s, or 2 s in a loop that requests inputs in every round. Events are the
-  statements, conditions, calls and returns that the interpreter reports (`interp/observer.hpp`). On the 1000-witness
-  sample, the ten confirmations of the extra run take under 0.01 s each, and two extra runs reach the budget.
+  memory or call-depth limit), or the error function was called elsewhere than at the target; and the run gave some
+  arithmetic input the default (else one more run would repeat it). One more run then gives those inputs 1, the fixed
+  inputs keeping their values, and never more than one. It confirms, or the verdict is that of the run before: a
+  waypoint that fails in it ends it without a search, NITWIT running out of its own memory in it does not end the
+  validation, and the diagnostics of constraints first compiled in it are discarded. Its confirmation comes from one
+  complete run like any other. Since 1 keeps loops like `while (__VERIFIER_nondet_int())` going for ever, it may take
+  the events of the run before and `retryExtraEvents` (2^22) more: about 0.3 s, or 2 s in a loop that requests inputs
+  in every round. Events are the statements, conditions, calls and returns that the interpreter reports
+  (`interp/observer.hpp`). On the 1000-witness sample of `docs/evaluation.md`, the ten confirmations of the extra run
+  take under 0.01 s each, and two extra runs reach the budget.
 - **Escapes:** producer escapes like `"\result"` in double quotes are repaired by the witness parser.
 
 ### Search
@@ -260,7 +260,7 @@ one prediction.
     that it ends without values, and the log says that it stopped (`SearchLimits`).
   - If every clause of the requirement then holds or is unknown, and at least one input has a new value, the new
     values become fixed inputs and the run restarts (`fixing input 3 (...) to 5 (inversion)` in the log); otherwise
-    the waypoint fails as before (exit 241). The log (`-v`) says what the waypoint needed and what was chosen, e.g.
+    the waypoint fails (exit 241). The log (`-v`) says what the waypoint needed and what was chosen, e.g.
     ``run 3: the follow waypoint of segment 5 (branching at 12:3) needs `in7 != 0`; input 7 := 1 (inversion)``.
 - **Switches:** a case value of a follow waypoint gives the switched value that value (any value of a range). Its
   `default` excludes every case label, which gives the smallest non-negative value that is no case value where the
@@ -296,15 +296,15 @@ one prediction.
   library functions, bit-fields, dependencies through control flow that no waypoint covers), relations where an
   input occurs more than once and candidates do not help (`x * x == 49`), and witnesses without waypoints between
   the start and the target. Searching the program's paths for those would cost runs per candidate, which NITWIT does
-  not do. An SMT solver can later replace the candidates behind the same requirements. An avoid assumption evaluated
-  in a hot loop records the strict terms of its constraint at each evaluation and can fill the term table, after which
-  later values get the opaque term.
+  not do. An SMT solver could replace the candidates behind the same requirements (`docs/roadmap.md`). An avoid
+  assumption evaluated in a hot loop records the strict terms of its constraint at each evaluation and can fill the
+  term table, after which later values get the opaque term.
 
 ## Known gaps
 
-- **Values the search does not find** ("Limits of the search"); on the sample, no witness reaches a limit of the
-  search (goals, evaluations, restarts, kept atoms), and with all of them raised a hundredfold every witness ends as
-  before. The waypoints that fail there need:
+- **Values the search does not find** ("Limits of the search"); on the 250-witness sample, no witness reaches a limit
+  of the search (goals, evaluations, restarts, kept atoms), and with all of them raised a hundredfold every witness
+  ends the same way. The waypoints that fail there need:
   - values that depend on inputs only through control flow, or through memory, pointers or library functions that
     terms do not follow: requirements without a term or on the opaque term (the `aws` `byte_buf` programs, the
     `v_FIFO` of btor2c);
@@ -315,17 +315,17 @@ one prediction.
   condition no waypoint covers, the run leaves the witness without a failing waypoint: an `assume_abort_if_not` aborts
   or a null pointer is read (exit 4), or the program ends before the target segment or in it without calling the error
   function (exit 242, 250). Keeping the conditions of all branchings of a run, or a concolic search with an SMT solver
-  (`docs/plan.md`, "later"), would cover them. The one more run with defaults of 1 ("Defaults") covers a few: on the
-  1000-witness sample of stage 9, ten more confirmations, mostly witnesses with the target only. A run that does not
-  end, like `systemc/toy1` with inputs 0, gets no such run.
+  (`docs/roadmap.md`), would cover them. The one more run with defaults of 1 ("Defaults") covers a few: on the
+  1000-witness sample of `docs/evaluation.md`, ten more confirmations, mostly witnesses with the target only. A run
+  that does not end, like `systemc/toy1` with inputs 0, gets no such run.
 - **Unsupported constructs** of the interpreter end a run with exit 4: threads (`pthread_create`) and `setjmp`.
 - Long runs can exhaust the host's memory before the interpreter's memory limit; the driver then reports exit code
-  251. Two tables that grew with the length of a run are bounded. A run that requests inputs without end stays bounded
-  in the validator: the oracle records the first `TermLimits::maxInputs` requests of a run (112 bytes each, at most
-  470 MB), and later ones have the opaque term (`TermTable::input`), which the search never changes. The search reads
-  the recorded inputs it needs from the oracle (`SearchInputs`) instead of a copy of all of them per search. With the
-  term table (at most about 400 MB), such a run stays below 900 MB. The memory model's table of dead heap blocks grows
-  with the live blocks only (interp/README.md, "Memory: behaviour to keep").
+  251. The tables that would grow with the length of a run are bounded. A run that requests inputs without end stays
+  bounded in the validator: the oracle records the first `TermLimits::maxInputs` requests of a run (112 bytes each, at
+  most 470 MB), and later ones have the opaque term (`TermTable::input`), which the search never changes. The search
+  reads the recorded inputs it needs from the oracle (`SearchInputs`) instead of a copy of all of them per search.
+  With the term table (at most about 400 MB), such a run stays below 900 MB. The memory model's table of dead heap
+  blocks grows with the live blocks only (`interp/README.md`, "Memory: behaviour to keep").
 
 ## Tests
 
@@ -341,8 +341,8 @@ one prediction.
   tests of the search over several runs: an input that two waypoints would change back and forth, a run that would
   repeat an earlier one and one that repeats its inputs with a value tried since, case ranges, avoided cases of a
   switch, a repaired clause, the limit of kept clauses.
-- `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness and checks the exit criteria of stage 6 (which
-  stage 7 keeps: 0 wrong confirmations, at least the results of 3.x) on
+- `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness and checks that it confirms no invalid witness
+  and no witness of a correct program, and at least what 3.x confirms, on
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`;
   - `validation-crafted` (expected results in `*.witness-validation.yml`);
   - the 250-witness sample, compared per witness with the 3.x results in `results/2026-10-20-nitwit-strict-v3-*`.

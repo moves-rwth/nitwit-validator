@@ -47,7 +47,7 @@ declarations, `return` with or without a value), is accepted with a warning.
     other attributes are ignored silently. Only the argument of `aligned` is analyzed (typed); the arguments of the
     other attributes stay as the parser built them. As in GCC, a struct, union or enum specifier that does not
     define the type ignores the attributes after its keyword and passes those after its tag to the declaration
-    (`struct S __attribute__((aligned(64))) member;` aligns the member); the parser was changed accordingly.
+    (`struct S __attribute__((aligned(64))) member;` aligns the member); the parser implements this rule.
 - **Record layouts:** the System V ABI as GCC implements it, for i386 and x86-64 (`layout.cpp` describes the rules):
   GCC's bit-field allocation (no straddling of more units of the type's alignment than the type has; zero-width and
   unnamed bit-fields; `long long` bit-fields in 4-byte units on i386), `packed`, `aligned`, `#pragma pack`

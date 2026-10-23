@@ -1,13 +1,14 @@
 # Differential testing against GCC and Clang
 
 A program is run natively, compiled by GCC and by Clang, and by the interpreter, all with the same nondeterministic
-inputs; the observable behaviour must agree. Until the interpreter exists (stage 4), the tools compare the two
-compilers. That comparison is useful on its own: programs on which GCC and Clang disagree, or on which UBSan or ASan
-fire, depend on undefined or implementation-defined behaviour, and are excluded from interpreter comparisons.
+inputs; the observable behaviour must agree. The comparison of the two compilers is useful on its own: programs on
+which GCC and Clang disagree, or on which UBSan or ASan fire, depend on undefined or implementation-defined behaviour,
+and are excluded from interpreter comparisons. `difftest.py run` and `difftest.py semantics` also run the interpreter
+with `--nitwit <executable>`.
 
 ## Contract with the interpreter
 
-The driver will offer (stage 4):
+The driver's replay mode (`src/driver/README.md`):
 
 ```
 nitwit --replay <inputs-file> --input-log <log-file> [-32|-64] <program.c|.i>
@@ -152,5 +153,5 @@ builds of both compilers:
 - `<name>.expected-log-32` and `<name>.expected-log-64`, optional: the input log.
 
 `difftest.py semantics --update` writes the output and status files, and the log files that exist, when all builds
-agree. Once the interpreter exists, CTest (label `semantics`) checks the interpreter against the same files, also with
-the hidden option `--check-terms`, which checks the interpreter's terms against its values (`src/driver/README.md`).
+agree. CTest (label `semantics`) checks the interpreter against the same files, also with the hidden option
+`--check-terms`, which checks the interpreter's terms against its values (`src/driver/README.md`).

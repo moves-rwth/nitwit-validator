@@ -106,7 +106,7 @@ binding, because C's scoping is purely lexical and the parser has to track typed
   large stack (`runWithLargeStack`, at least 256 MiB); it creates no threads itself.
 - The depth of the tree is not bounded by that limit: left-associative operator chains, postfix chains (`a[1][2]`,
   `p->next->next`), pointer declarators, `else if` chains and consecutive labels are parsed in loops and can be
-  arbitrarily deep. Later stages must not assume a bound.
+  arbitrarily deep. Sema, the interpreter and the validator must not assume a bound.
 - One pass over the token vector, with bounded lookahead. The largest corpus file has 48 MB.
 
 ## Tools and tests

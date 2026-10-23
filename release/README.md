@@ -17,8 +17,8 @@ Source code and documentation: <https://github.com/moves-rwth/nitwit-validator>
   `bin/nitwit32`. `bin/nitwit64` is the same program; called directly without `-32` or `-64`, it uses LP64.
 - `-p` reads the error function from an `unreach-call` property file, e.g.
   `CHECK( init(main()), LTL(G ! call(reach_error())) )`; `-e` names it directly. The default is `reach_error`.
-- `-v` prints a log of the validation to stderr. In NITWIT 3.x, `nitwit.sh -v` printed the version; that is
-  `--version` now.
+- `-v` prints a log of the validation to stderr. (NITWIT 3.x's `nitwit.sh -v` printed the version, which is
+  `--version` here.)
 - The last line of the output is the result: `VALIDATED:`, `FAILED:`, `UNKNOWN:` or `ERROR:`, then the reason.
 
 `./smoketest.sh` validates a small witness in both data models.

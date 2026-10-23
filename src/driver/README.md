@@ -1,6 +1,6 @@
-# Module `driver` (stage 6)
+# Module `driver`
 
-The `nitwit` executable: command line, reading files, running the stages, printing the result, exit code.
+The `nitwit` executable: command line, reading files, running the steps below, printing the result, exit code.
 
 ## Command line
 
@@ -20,8 +20,8 @@ nitwit --version
 - **Wrong command lines** give exit code 3: unknown options, an option without its value, an option given twice
   (also `-32` with `-64`), a second program, no program, `--replay` with validation options, `--input-log` without
   `--replay`. `command_line.hpp` parses it.
-- **`-v`:** prints the validation log (segments reached, restarts, why each run ended) to stderr. (In 3.x's
-  `nitwit.sh`, `-v` printed the version; that is `--version` now.)
+- **`-v`:** prints the validation log (segments reached, restarts, why each run ended) to stderr. (NITWIT 3.x's
+  `nitwit.sh -v` printed the version, which is `--version` here.)
 - **`--replay`:** the differential-testing mode (`tools/difftest/README.md`): runs `main` with the inputs file, without
   a witness. The program's output goes to stdout, and the exit status is the program's (or the harness codes).
   - Calls of `__assert_fail`, `__VERIFIER_error` and `reach_error` without a definition end the run with the harness's
@@ -46,8 +46,9 @@ sema and the interpreter all recurse on it.
 | 1. Read the program and the witness | | 3 |
 | 2. Lex the program; if it needs the preprocessor, run `cpp -m32/-m64` on it and lex the output (line markers kept) | `cpp` fails, or lexing fails | 4 |
 | 3. Parse, analyze, build the program | | 4 |
-| 4. Detect the witness format and parse the witness | | 2 |
-| 5. Validate: format 2.x (stage 6), format 1.0 (stage 8, UNKNOWN until then) | | the verdict's code |
+| 4. Detect the witness format; parse a witness in format 2.x | a witness in format 1.0 (GraphML, not supported) | 4 |
+| | the witness cannot be parsed | 2 |
+| 5. Validate the witness (`src/validate/README.md`) | | the verdict's code |
 | NITWIT itself runs out of memory (`std::bad_alloc`) | | 251 |
 
 ## Output

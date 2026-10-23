@@ -6,8 +6,7 @@ directory `nitwit/`.
 ## Building it
 
 ```bash
-cd next
-tools/package.sh [output-dir]       # default output directory: the build directory
+tools/package.sh [output-dir]       # from the root of the repository; default output directory: the build directory
 ```
 
 `tools/package.sh`:
@@ -69,7 +68,7 @@ The tool-info module `benchexec/tools/nitwit.py`:
   `-64` itself, from any working directory. `bin/nitwit64` is only there for `REQUIRED_PATHS` and direct calls;
 - maps the exit codes of `docs/exit-codes.md`, which are those of 3.x: 0 and 245 are FALSE, 251 OUT OF MEMORY, 4, 5,
   241, 242, 243 and 250 UNKNOWN, all others ERROR. 252 is UNKNOWN in the fork, but ERROR in BenchExec 3.35, so NITWIT
-  4 does not use it for now.
+  4 does not use it (`docs/exit-codes.md`).
 
 Differences from 3.x's `nitwit.sh`:
 
@@ -105,8 +104,9 @@ libraries. The CTest test `release_archive` (label `release`) runs it with the `
 
 ## Licensing
 
-NITWIT 4 is under the New BSD license (BSD-3-Clause, `LICENSE`), and the archive ships that file. The executables contain yaml-cpp and pugixml (MIT) and libstdc++/libgcc (GPL-3.0 with the
-GCC Runtime Library Exception, with third-party parts under the HP and SGI STL notices, MIT and BSL-1.0).
+NITWIT 4 is under the New BSD license (BSD-3-Clause, `LICENSE`), and the archive ships that file. The executables
+contain yaml-cpp and pugixml (MIT) and libstdc++/libgcc (GPL-3.0 with the GCC Runtime Library Exception, with
+third-party parts under the HP and SGI STL notices, MIT and BSL-1.0).
 `release/THIRD-PARTY.md` lists them, and `tools/package.sh` copies their notices into `licenses/`. glibc is the
 system's shared library, not part of the archive. Keep `release/THIRD-PARTY.md` in step with
 `cmake/Dependencies.cmake`, and `release/licenses/libstdc++-notices` with the compiler.

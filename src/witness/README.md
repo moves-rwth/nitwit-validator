@@ -7,6 +7,9 @@ validation layer (`validate`) turns the models into monitors and rejects what NI
   (`GraphmlWitness`).
 - `parse.hpp`: `detectFormat`, `parseYamlWitness` (yaml-cpp), `parseGraphmlWitness` (pugixml).
 
+The validation of format 1.0 is not implemented (`docs/roadmap.md`): the driver gives GraphML witnesses UNKNOWN
+without parsing them, and only the tests use `parseGraphmlWitness`.
+
 ## References
 
 - Format 2.x: https://gitlab.com/sosy-lab/benchmarking/sv-witnesses (README and the JSON schemas of 2.0 and 2.1), and
