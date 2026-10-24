@@ -8,7 +8,7 @@ The one exception: NITWIT 4 reports the case of 252 as 241 (see below the table)
 | 0 | witness confirmed: the error function was called and the witness was followed to its target | FALSE |
 | 2 | the witness cannot be parsed | ERROR |
 | 3 | wrong command line, or a file cannot be read | ERROR |
-| 4 | UNKNOWN: unsupported program, witness or property, an interpreter error, or a limit of NITWIT | UNKNOWN |
+| 4 | UNKNOWN: an unsupported program, witness or property, a witness that does not fit the program; the program aborts; an infeasible run (a failed `__VERIFIER_assume`, an endless loop without effect); undefined behaviour without a defined result; a limit of NITWIT (restarts, call depth, host stack) | UNKNOWN |
 | 5 | not used (3.x: the witness reached its target, but the error function was not called; NITWIT 4 uses 250) | UNKNOWN |
 | 240 | no witness given | ERROR |
 | 241 | the witness was left: a follow waypoint failed or an avoid waypoint passed; also the case of 252 | UNKNOWN |
@@ -34,5 +34,6 @@ The extra run with inputs 1 by default (`src/validate/README.md`, "Defaults") ma
 effect (`L: goto L;`, `while (1);`) ends after one round of it with 4, as an infeasible path (`src/validate/README.md`,
 "Verdict").
 
-The result line printed before exiting starts with `VALIDATED:` (0), `FAILED:` (241, 242, 250), `ERROR:` (2, 3)
-or `UNKNOWN:` (4, 251).
+The result line printed before exiting starts with `VALIDATED:` (0), `FAILED:` (241, 242, 250), `ERROR:` (2, and 3
+for a file that cannot be read) or `UNKNOWN:` (4, 251). A wrong command line (3) and a missing witness (240) print no
+result line, but the usage or "no witness given (-w)" on stderr.

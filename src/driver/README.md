@@ -16,10 +16,14 @@ nitwit --version
 - **Error function:** read from the property file. `CHECK( init(main()), LTL(G ! call(reach_error())) )` and the
   `__VERIFIER_error` variant are supported; any other property is reported as UNKNOWN (exit 4). Without `-p` and
   `-e`, it is `reach_error`. Giving both is a wrong command line (exit 3).
-- **Without `-w`:** a program without witness and without `--replay` gives exit code 240.
-- **Wrong command lines** give exit code 3: unknown options, an option without its value, an option given twice
-  (also `-32` with `-64`), a second program, no program, `--replay` with validation options, `--input-log` without
-  `--replay`. `command_line.hpp` parses it.
+- **Without `-w`:** a program without witness and without `--replay` gives exit code 240 ("no witness given (-w)" on
+  stderr).
+- **Wrong command lines** give exit code 3 and print the usage on stderr: unknown options; an option without its
+  value or with an empty value; an option with a value given twice; `-32` or `-64` twice, or both; `--terms` and
+  `--check-terms` together or twice; a second program, no program; `--replay` with validation options; `--input-log`,
+  `--terms` or `--check-terms` without `--replay`. `-v` and `--version` may be repeated. With `--version`, nitwit
+  prints the version and exits with 0 if every argument is well-formed by itself. `command_line.hpp` parses the
+  command line.
 - **`-v`:** prints the validation log (segments reached, restarts, why each run ended) to stderr. (NITWIT 3.x's
   `nitwit.sh -v` printed the version, which is `--version` here.)
 - **`--replay`:** the differential-testing mode (`tools/difftest/README.md`): runs `main` with the inputs file, without
@@ -43,8 +47,10 @@ sema and the interpreter all recurse on it.
 
 | Step | On failure | Exit code |
 |---|---|---|
-| 1. Read the program and the witness | | 3 |
-| 2. Lex the program; if it needs the preprocessor, run `cpp -m32/-m64` on it and lex the output (line markers kept) | `cpp` fails, or lexing fails | 4 |
+| 1. Read the witness and the property file, and take the error function from the property | a file cannot be read | 3 |
+| | a property other than `unreach-call` | 4 |
+| 2. Read and lex the program; if it needs the preprocessor, run `cpp -m32/-m64` on it and lex the output (line markers kept) | the program cannot be read | 3 |
+| | `cpp` fails, or lexing fails | 4 |
 | 3. Parse, analyze, build the program | | 4 |
 | 4. Detect the witness format; parse a witness in format 2.x | a witness in format 1.0 (GraphML, not supported) | 4 |
 | | the witness cannot be parsed | 2 |
@@ -61,5 +67,5 @@ sema and the interpreter all recurse on it.
   - `UNKNOWN:` for unsupported input and limits;
   - `ERROR:` for a witness that cannot be parsed (exit code 2) and files that cannot be read (3), which BenchExec
     reports as ERROR.
-  The reason follows.
+  The reason follows. A wrong command line (3) and a missing witness (240) print no result line.
 - **Exit code:** BenchExec reads only the exit code (`docs/exit-codes.md`).

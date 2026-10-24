@@ -34,8 +34,8 @@ struct CommandLine {
 [[nodiscard]] DataModel defaultDataModel(std::string_view executable);
 
 /// The arguments after the program name, or the exit code for a wrong command line: 240 for a program without witness
-/// (and without --replay), 3 otherwise. Options given twice are wrong, as are -32 and -64 together. `defaultModel`
-/// applies without -32 and -64.
+/// (and without --replay), 3 otherwise. Options given twice are wrong, except -v and --version, as are -32 and -64
+/// together and empty option values. `defaultModel` applies without -32 and -64.
 [[nodiscard]] std::expected<CommandLine, int> parseCommandLine(std::span<const std::string_view> arguments,
                                                                DataModel defaultModel);
 
