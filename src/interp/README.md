@@ -144,19 +144,9 @@ after that, the access reaches the new object, as in a native run.
     `va_copy` over the interpreter's own argument list.
   - Struct arguments and struct return values by value.
   - Recursion depth is limited by `RunOptions::maxCallDepth`.
-- **Library functions:** a function without a definition is first looked up in the interpreter's library:
-  - SV-COMP: `__VERIFIER_nondet_*`, `__VERIFIER_assume`, `__VERIFIER_error`, `__assert_fail`, `abort`, `exit`,
-    `_Exit`;
-  - memory: `malloc`, `calloc`, `realloc`, `free`, `alloca`;
-  - strings: `memcpy`, `memmove`, `memset`, `memcmp`, `strlen`, `strcpy`, `strncpy`, `strcmp`, `strncmp`, `strcat`,
-    `strchr`, `strrchr`, `strdup`;
-  - output: `printf`, `fprintf` to stdout/stderr, `puts`, `putchar`, `sprintf`, `snprintf`;
-  - math (`fabs`, `sqrt`, `floor`, `ceil`, `fmod`, the `isnan`/`isinf` family, ...);
-  - GCC builtins such as `__builtin_expect`, `__builtin_unreachable`, `__builtin_bswap*`, `__builtin_clz/ctz/popcount`,
-    `__builtin_*_overflow`, `__builtin_memcpy`.
-
-  A function found neither as a definition nor in the library returns a value from the oracle (`UndefinedFunction`),
-  and its arguments have no effect.
+- **Library functions:** a function without a definition is looked up among the evaluator's builtins and in the
+  library ("Library"; the order is under "Functions without definition" below). A function found neither as a
+  definition nor there returns a value from the oracle (`UndefinedFunction`), and its arguments have no effect.
 - **Undefined behaviour:**
   - Operations without a defined result end the run with `Termination::UndefinedBehavior` and a message: memory
     errors, integer division by zero, a call through a pointer to no function, a non-void function falling off its
@@ -190,7 +180,7 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
   that keep the representation), then the left operand's address first; for compound assignments the right operand
   first. GCC folds trivial arithmetic first (`arr[i()] = f() + 0` calls i first); the interpreter does not.
 - **Steps** (`RunOptions::maxSteps`): statements, controlling expressions and calls, so that loops without statements
-  are limited too.
+  are limited too. The interpreter executes about 7.4 million steps per second.
 - **Endless loops without effect:** the lowering marks a jump back over instructions that are all statement events or
   branches on a nonzero integer literal or without condition (`Instruction::closesEndlessLoop`): `L: goto L;`,
   `while (1);`, `for (;;) {}`, `do ; while (1);`. Once the jump is taken, the function runs these instructions for
@@ -348,8 +338,9 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   path: the operations return one named value each, so that it is constructed in place, and `LValue` fits into two
   registers. The cost of the terms, measured with `gcc-release` (CPU time, best of 9 runs on one core) against an
   interpreter that records only which input a value is a copy of: Csmith programs without inputs from 6 % faster to
-  3 % slower (+0.4 % in all); input-heavy corpus programs from 12 % faster to 7 % slower; Csmith programs whose
-  globals all depend on inputs 13 % to 19 % slower, with up to 124 MiB for a full table.
+  3 % slower (+0.4 % in all); input-heavy corpus programs from 12 % faster (tracking the copied inputs cost them more
+  than the terms do) to 7 % slower; Csmith programs whose globals all depend on inputs 13 % to 19 % slower, with up to
+  124 MiB for a full table.
 
 ## Tests
 
@@ -363,6 +354,9 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
     overwritten (the rest opaque), marked opaque, copied (overlapping ranges too, parts of ranges opaque), dropped at
     the end of a lifetime; the raw accesses of library functions;
   - deterministic addresses; the limits of the 32-bit address space; a 1 GiB global written at two places only.
+
+  `Memory` was also checked against a per-byte reference model, without a mismatch; that model is not part of the
+  repository.
 - `tests/unit/interp/`: interpreter tests on small programs (source text → output and termination), with a test
   oracle and a recording observer for the event sequences (`interpreter_test_support.hpp`): `lowering_test.cpp`
   (statements, conditions, jumps and calls as events), `evaluator_test.cpp` (operators, conversions, objects and
@@ -384,5 +378,6 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   values, and a check that finds strict terms wrong: the run ends with the first mismatch when the observer returns.
 - `tests/semantics/`: the programs of the semantics suite (see `tools/difftest/README.md`) must print the expected
   output under `-32` and `-64`, also with the consistency check of the terms (CTest label `semantics`).
-- `tools/difftest/`: Csmith programs and corpus programs with random inputs; the interpreter must agree with the
-  native runs.
+- `tools/difftest/`: `difftest.py run --nitwit` compares the interpreter with the GCC and Clang builds of one program
+  with the same inputs; run per program on Csmith programs and on corpus programs with random inputs, it must agree
+  with them (results in `README.md`, "Results").

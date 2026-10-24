@@ -107,12 +107,13 @@ binding, because C's scoping is purely lexical and the parser has to track typed
 - The depth of the tree is not bounded by that limit: left-associative operator chains, postfix chains (`a[1][2]`,
   `p->next->next`), pointer declarators, `else if` chains and consecutive labels are parsed in loops and can be
   arbitrarily deep. Sema, the interpreter and the validator must not assume a bound.
-- One pass over the token vector, with bounded lookahead. The largest corpus file has 48 MB.
+- One pass over the token vector, with bounded lookahead: about 115 MB/s on the corpus. The largest corpus file has
+  48 MB.
 
 ## Tools and tests
 
-- `tools/nitwit-dump/`: a small executable, `nitwit-dump [--tokens|--ast] [-32|-64] <file>`, for debugging and golden
-  tests.
+- `tools/nitwit-dump/`: a small executable, `nitwit-dump [--tokens|--ast|--sema] [-32|-64] <file>`, which prints the
+  tokens, the syntactic AST or the analyzed AST, for debugging and golden tests.
 - `tests/unit/ast/` and `tests/unit/parse/`: type creation and uniquing; the declarator forms; every statement and
   expression form; each GNU extension; typedef/identifier ambiguities (`T * x;` with T a typedef or a variable,
   `(T)(x)`, `sizeof(T)`, shadowing in inner blocks, parameters shadowing typedefs); tag rules; label resolution;

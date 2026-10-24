@@ -3,7 +3,8 @@
 ## Goals
 
 1. **The job of NITWIT 3.x:** validate violation witnesses for `unreach-call` by executing the program concretely, with
-   the command line and the exit codes of 3.x, so that BenchExec and fm-tools work unchanged.
+   the command line and the exit codes of 3.x, so that BenchExec and fm-tools work unchanged. The differences are
+   listed in `docs/release.md` and `docs/exit-codes.md`.
 2. **Clean and modular:** a real C front end (lexer, parser, semantic analysis) produces a typed AST. A separate
    interpreter executes it, with a precise memory model. The witness layer only observes the execution and supplies
    nondeterministic values. Each module has a small public API and its own tests.
@@ -33,15 +34,16 @@ witness.yml ──► witness (model) ─────┤                        
 
 ## Modules and dependencies
 
-Each module is a static library `nitwit_<module>` in `src/<module>/`. A module may only use the modules listed for it,
-and CMake enforces this through the link dependencies.
+Each module is a static library `nitwit_<module>` in `src/<module>/`. A module may only use the modules listed for it.
+CMake enforces this for linking only: every module has all of `src/` as its public include directory
+(`cmake/NitwitModule.cmake`), so a header-only use of an unlisted module is not caught.
 
 | Module | Responsibility | Uses |
 |---|---|---|
 | `support` | source files and locations, diagnostics, target data models, string interning, assertions | – |
 | `value` | run-time values, their byte representation, and C arithmetic with undefined-behaviour reporting | support |
 | `lex` | tokens, lexer, literal decoding, line markers | support |
-| `ast` | AST nodes, types, `AstContext` (arena, type uniquing), AST dump | support |
+| `ast` | AST nodes, types, `AstContext` (arena, type uniquing), AST dump | lex, support |
 | `parse` | recursive-descent parser for C17 plus GNU extensions → untyped AST | lex, ast |
 | `sema` | name resolution, types, layouts, constant evaluation, implicit conversions → typed AST | ast, value |
 | `interp` | memory, lowering to per-function instruction lists, evaluation, builtins | ast, sema, value |
@@ -64,21 +66,23 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
 
 ### Tokens and preprocessing
 
-- The lexer turns a whole file into a `std::vector<Token>`. It handles line markers itself. It passes each `#pragma`
-  on as one `Pragma` token, and the parser applies `pack` (to record layouts) and `weak`.
+- The lexer turns a whole file into a `std::vector<Token>`. It handles line markers, `#line`, `#ident` (skipped) and
+  the null directive itself. It passes each `#pragma` on as one `Pragma` token, and the parser applies `pack` (to
+  record layouts) and `weak`.
 - For any other directive it reports that the file needs preprocessing. The driver then runs the system `cpp`
   (`-m32`/`-m64`, line markers kept) and lexes the result.
 - NITWIT has no preprocessor of its own, because few programs need one: of the 19,693 programs of the SV-COMP 2026
-  corpus, 31 contain `#include` and 3 `#define`. Columns in lines that contain macro invocations are approximate after
-  `cpp`, and the validator uses a column only where the text before it is unchanged (`src/validate/README.md`,
-  "Evaluation points"). An own preprocessor that tracks expansion locations is on the roadmap (`docs/roadmap.md`).
+  corpus, 31 contain `#include` and 3 `#define`; of the 19,752 corpus and test files, 38 need `cpp`. Columns in lines
+  that contain macro invocations are approximate after `cpp`, and the validator uses a column only where the text
+  before it is unchanged (`src/validate/README.md`, "Evaluation points"). An own preprocessor that tracks expansion
+  locations is on the roadmap (`docs/roadmap.md`).
 
 ### AST
 
 - Nodes are plain classes with a kind enum, allocated in the arena of `AstContext` and never freed one by one. Pointers
   between nodes are raw and non-owning.
-- `isa<T>`, `cast<T>` and `dyn_cast<T>` (in `ast/casting.hpp`) test the kind. Code that visits all kinds switches over
-  the kind enum, so the compiler reports missing cases.
+- `isa<T>`, `cast<T>` and `dyn_cast<T>` (in `src/ast/casting.hpp`) test the kind. Code that visits all kinds switches
+  over the kind enum, so the compiler reports missing cases.
 - The parser builds the *syntactic* AST: no types on expressions, names unresolved except for typedef names. It tracks
   typedef names per scope to resolve the C declaration/expression ambiguity.
 - Semantic analysis completes the *same* AST in place:
@@ -148,7 +152,7 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
 - **Restarts:** suppose a follow waypoint like `x == 5` or the branching `if (n - x <= 0)` fails, and the value
   depends on an input through its term. The validator then solves for an input value that gives the waypoint its
   outcome without breaking the waypoints the run already passed, fixes it, and restarts the run from the beginning
-  (`validate/README.md`, "Search"). Likewise, an avoid waypoint that passes makes the validator change an input so
+  (`src/validate/README.md`, "Search"). Likewise, an avoid waypoint that passes makes the validator change an input so
   that it does not. The search never runs the program to try a value: each restart comes from one prediction. Runs
   are deterministic, so every confirmation comes from one concrete execution, in which every waypoint was evaluated
   on that run's values. A run with the inputs of an earlier run, and no value tried since, is not made: it and the

@@ -318,7 +318,9 @@ one prediction.
   (`docs/roadmap.md`), would cover them. The one more run with defaults of 1 ("Defaults") covers a few: on the
   1000-witness sample of `docs/evaluation.md`, ten more confirmations, mostly witnesses with the target only. A run
   that does not end, like `systemc/toy1` with inputs 0, gets no such run.
-- **Unsupported constructs** of the interpreter end a run with exit 4: threads (`pthread_create`) and `setjmp`.
+- **Unsupported constructs** of the interpreter end a run with exit 4: threads (`pthread_create`), `setjmp`/`longjmp`,
+  files, signals, `atexit`, the `scanf` family, inline assembly, arithmetic on complex values and the others listed in
+  `interp/README.md` ("Library") and `sema/README.md`.
 - Long runs can exhaust the host's memory before the interpreter's memory limit; the driver then reports exit code
   251. The tables that would grow with the length of a run are bounded. A run that requests inputs without end stays
   bounded in the validator: the oracle records the first `TermLimits::maxInputs` requests of a run (112 bytes each, at
@@ -341,8 +343,11 @@ one prediction.
   tests of the search over several runs: an input that two waypoints would change back and forth, a run that would
   repeat an earlier one and one that repeats its inputs with a value tried since, case ranges, avoided cases of a
   switch, a repaired clause, the limit of kept clauses.
-- `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness and checks that it confirms no invalid witness
-  and no witness of a correct program, and at least what 3.x confirms, on
-  - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`;
-  - `validation-crafted` (expected results in `*.witness-validation.yml`);
-  - the 250-witness sample, compared per witness with the 3.x results in `results/2026-10-20-nitwit-strict-v3-*`.
+- `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness, as a process with a timeout of 30 s, and checks
+  - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`: every witness confirmed, except
+    those named `*.invalid`, which must not be;
+  - `validation-crafted` (expected results in `*.witness-validation.yml`): no invalid witness confirmed, and at least
+    as many witnesses right as 3.x;
+  - the 250-witness sample (`samples/unreach-call-25-per-producer.tsv`): no witness of a correct program confirmed,
+    and at least as many witnesses of buggy programs (without Paulina's crafted ones) confirmed as 3.x; every
+    difference to the 3.x results in `results/2026-10-20-nitwit-strict-v3-*` is printed.

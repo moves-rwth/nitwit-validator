@@ -1,7 +1,7 @@
 # NITWIT 4: roadmap
 
-The open work, roughly in order. What NITWIT does is described in `README.md` and the module READMEs, how it is built
-in `docs/architecture.md`.
+The open work, roughly in order. What NITWIT does is described in `README.md` and the module READMEs, how it is
+designed in `docs/architecture.md`.
 
 ## Witness format 1.0 (GraphML)
 
@@ -19,13 +19,12 @@ the GraphML witnesses in `testfiles/` give at least the results of NITWIT 3.x.
 ## Exit code 252
 
 NITWIT reports the error function called before the target as 241, because BenchExec 3.35 maps 252 to ERROR
-(`docs/exit-codes.md`). Once BenchExec maps 252 to UNKNOWN, NITWIT exits with 252 again, as 3.x does.
+(`docs/exit-codes.md`). Once BenchExec maps 252 to UNKNOWN, NITWIT exits with 252, as 3.x does.
 
 ## Later
 
 - **An own preprocessor** that records expansion locations, so that columns in lines with macro invocations are exact
-  and NITWIT needs no system `cpp`. Few programs need one: of the 19,693 programs of the SV-COMP 2026 corpus, 31
-  contain `#include` and 3 `#define` (`docs/architecture.md`, "Tokens and preprocessing").
+  and NITWIT needs no system `cpp`. Few programs need one (`docs/architecture.md`, "Tokens and preprocessing").
 - **Other properties:** `no-overflow` and `valid-memsafety`, on the undefined-behaviour reports of the interpreter
   (signed overflow, invalid shifts, memory errors), and termination with the `cycle` waypoints of format 2.x.
 - **An SMT solver behind the search:** a concolic search that replaces the candidates of the search behind the same

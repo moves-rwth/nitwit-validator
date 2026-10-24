@@ -65,7 +65,8 @@ C++23 as far as GCC 14 and Clang 20 with libstdc++ 14 support it.
 - Tests are deterministic, independent of each other, and fast (a unit test well under a second).
 - Each test checks one behaviour, and its name says which one (`LexerTest, LineMarkerSetsPresumedLine`).
 - Test data lives next to the tests (`tests/unit/<module>/data/`), or in `tests/golden/` and `tests/semantics/`.
-- Before reporting work as done, build and test with both compilers and with the `asan` preset.
+- Before a change is merged, it builds and passes the tests with both compilers and with the `asan` preset
+  (`tools/check.sh`).
 
 ## Commits
 
@@ -75,7 +76,7 @@ C++23 as far as GCC 14 and Clang 20 with libstdc++ 14 support it.
 
 ## Review checklist
 
-Every author goes through this list before handing a change over, and every reviewer uses it.
+Every change is checked against this list before it is merged.
 
 1. **Correctness:** C or witness-format semantics as specified (with citations); edge cases (empty input, maximum
    values, 32 vs. 64 bit); error paths.

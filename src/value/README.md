@@ -84,6 +84,8 @@ exactly the target's arithmetic, and the host's `long double` is the x87 extende
   operation with GCC on x86-64 (`-m32` and `-m64`, `-fwrapv` for wrapped results). The tests note where a value is
   hardware behaviour rather than defined C. `data/float_to_integer.txt` holds the results of every floating-to-integer
   conversion for a set of boundary values, generated with gcc-14 `-m64` and `-m32 -msse2 -mfpmath=sse`.
+- The arithmetic was also checked against GCC with 1.5 million random operations, without a mismatch; that probe is
+  not part of the repository.
 - `term_test.cpp`: every term kind is recorded with inputs as the left, the right or both operands and evaluated with
   the run's values and with substituted ones, against the arithmetic.hpp function applied directly (every operator
   and comparison, wrap-around, shifts with mixed formats, conversions that change the value, floating/integer

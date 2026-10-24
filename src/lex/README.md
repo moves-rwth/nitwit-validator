@@ -3,8 +3,8 @@
 Turns a preprocessed C file into a vector of tokens, and decodes literal spellings.
 
 - `token.hpp`: `TokenKind`, `Token`. A token stores its location and length; the spelling is in the source.
-- `lexer.hpp`: `lexFile`. Handles line markers, `#line` and `#ident`, turns each `#pragma` into one Pragma token, and
-  reports other directives through `LexResult::needsPreprocessing`.
+- `lexer.hpp`: `lexFile`. Handles line markers, `#line`, `#ident` and the null directive, turns each `#pragma` into
+  one Pragma token, and reports other directives through `LexResult::needsPreprocessing`.
 - `literals.hpp`: decoding of integer, floating, character and string literals; adjacent string literals are decoded
   together.
 
@@ -36,4 +36,4 @@ Turns a preprocessed C file into a vector of tokens, and decodes literal spellin
 - `tests/corpus/lex/` (label `corpus`): lexes every program in `NITWIT_DATASET_DIR/programs` and the C files in
   `testfiles/`. It checks that only whitespace, comments and skipped directives lie between tokens, that tokens match
   their spelling, and that every literal decodes (adjacent string literals together). It reports the files that need
-  the preprocessor, the pragmas, the warnings and the throughput.
+  the preprocessor, the pragmas, the warnings and the throughput: about 135 MB/s per file.

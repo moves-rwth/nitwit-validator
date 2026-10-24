@@ -24,4 +24,5 @@ without parsing them, and only the tests use `parseGraphmlWitness`.
   the escape repair; multiple and missing `violation_sequence` entries; GraphML key resolution through `<key>`
   declarations, entry/violation/sink nodes, all edge keys, malformed XML. Small witness files live in `data/`.
 - `tests/corpus/witness/` (label `corpus`): parses all witnesses in `NITWIT_DATASET_DIR/witnesses` and the
-  witnesses in `testfiles/`; reports parse errors grouped by message.
+  witnesses in `testfiles/`; reports parse errors grouped by message. The largest corpus witness (235 MB) parses in
+  12.6 s with 1.5 GB.

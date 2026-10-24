@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Configures, builds and tests the presets every hand-over requires, then checks the formatting.
+# Configures, builds and tests the presets every change must pass, then checks the formatting.
 # Usage: tools/check.sh [preset...]   (default: gcc-debug clang-debug asan)
 set -euo pipefail
 cd "$(dirname "$0")/.."
