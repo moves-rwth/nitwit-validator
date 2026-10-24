@@ -40,23 +40,24 @@ the same to BenchExec (`docs/exit-codes.md`).
 ## Results
 
 <!-- The headline numbers of docs/evaluation.md; update both together. -->
-On 1000 unreach-call witnesses of SV-COMP 2026 (100 per producer), NITWIT 4.0 confirms 587 of the 851 witnesses of
-buggy programs, NITWIT 3.x 312. Neither confirms a witness of a correct program or an invalid crafted witness. On the
-903 witnesses both decide, NITWIT 4.0 takes 27 s of CPU time, 3.x 348 s. Details: `docs/evaluation.md`.
+NITWIT 4.0.0 (the release archive, `main` at ad6f5b502146) on the 27,767 unreach-call witnesses of SV-COMP 2026 in
+format 2.x, at SV-COMP's 90 s: it confirms 9,239 of the 14,841 witnesses of buggy programs (62 %) and none of the
+12,792 witnesses of correct programs. On the 11,738 witnesses of buggy programs that the SV-COMP 2026 validators ran
+on, it confirms 6,820, more than any of them alone (the best, Witch, 5,392), and unlike CPAchecker and MetaVal it
+confirms no witness of a correct program. On 1000 of the witnesses (100 per producer), it confirms 587 of the 851
+witnesses of buggy programs, NITWIT 3.x 312; on the witnesses both decide, it takes 20 s of CPU time, 3.x 348 s.
+Details, also on memory: `docs/evaluation.md`.
 
-The test suites (`docs/development.md`, "Tests"), with their last results:
+The test suites (`docs/development.md`, "Tests") with this source:
 
 | Suite | Result |
 |---|---|
 | unit tests | 1,936 tests of the 10 modules, all passing |
-| golden dumps | 22 ASTs; 26 typed ASTs, 4 of them for ILP32 |
+| golden dumps | 48: 22 ASTs; 26 typed ASTs, 4 of them for ILP32; all passing |
 | semantics | 50 programs with the output, outcome and inputs of GCC and Clang, with `-m32` and `-m64`, also with the terms checked: 200 tests, all passing |
-| difftest | per program with `difftest.py run --nitwit`: 0 disagreements with GCC and Clang on 841 Csmith programs; 2,468 of 2,481 corpus runs with random inputs agree (the others use `setjmp` or `fesetround`) |
-| corpus: lexer | all 19,752 corpus and test files, 628 M tokens, 0 errors |
-| corpus: parser | all 19,714 corpus and test files without directives, and the 34 that need `cpp` after `gcc -E`; 4.9 M fuzz runs without findings |
-| corpus: sema | 19,703 of 19,714 programs (the 11 others use `__int128` on i386, which GCC rejects too); 589,000 layout and constant probes against GCC, 0 mismatches except glibc's `max_align_t` with `__float128` on i386 |
-| corpus: witnesses | 58,093 of 58,119 corpus witnesses parse (the 26 others have `line: 0`), and all test witnesses |
-| corpus: validation | `testfiles/`: all 45 format 2.x witnesses; `validation-crafted`: 96 of 100 right, no invalid witness confirmed (3.x: 77 right); the 250-witness sample: 139 of 191 buggy programs confirmed, none wrong (3.x: 65) |
+| validation of all SV-COMP 2026 unreach-call witnesses (format 2.x) | the front end accepts every program; all witnesses but one (`line: 0`) parse; 9,239 of 14,841 witnesses of buggy programs confirmed, none of 12,792 of correct programs |
+| `validation-crafted` | 96 of 100 right, no invalid witness confirmed |
+| `testfiles/` | all 45 format 2.x witnesses right |
 | release | `nitwit.sh` and the smoke test of the archive pass; so does fm-weck's smoke test in fm-tools' CI (Ubuntu 26.04, container mode, the SV-COMP 2027 image) |
 
 ## Documentation
@@ -66,7 +67,8 @@ The test suites (`docs/development.md`, "Tests"), with their last results:
 - [`docs/development.md`](docs/development.md): toolchain, building, tests, contributing
 - [`docs/exit-codes.md`](docs/exit-codes.md): exit codes (compatible with NITWIT 3.x)
 - [`docs/release.md`](docs/release.md): the release archive for BenchExec and fm-tools, and how to release
-- [`docs/evaluation.md`](docs/evaluation.md): NITWIT 4.0 against 3.x on 1000 SV-COMP 2026 witnesses
+- [`docs/evaluation.md`](docs/evaluation.md): NITWIT 4.0 on all SV-COMP 2026 unreach-call witnesses, against 3.x and
+  the other SV-COMP validators
 - [`docs/roadmap.md`](docs/roadmap.md): open work
 - the module READMEs in `src/<module>/README.md`: semantics, rules and known gaps of each module
 - [`tools/difftest/README.md`](tools/difftest/README.md): differential testing against GCC and Clang
