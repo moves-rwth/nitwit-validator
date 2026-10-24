@@ -41,8 +41,8 @@ preprocessed `.i` files expand to:
   (abort), `__builtin_bswap16/32/64`, `__builtin_clz/ctz/popcount/parity/ffs` with their `l`/`ll` forms (undefined
   behaviour for `clz`/`ctz` of 0), `__builtin_add/sub/mul_overflow`, `__builtin_constant_p` (0),
   `__builtin_object_size` (-1 or 0 for a pointer to an object GCC does not know; sema folds known objects).
-- **Unsupported:** threads (`pthread_*`), `setjmp`/`longjmp`, files, `atexit`, signals. These end the run with
-  `Unsupported`.
+- **Unsupported:** threads (`pthread_*`), `setjmp`/`longjmp`, files, `atexit`, signals, rounding modes other than to
+  nearest (`fesetround`). These end the run with `Unsupported`.
 
 Behaviour choices of the library:
 - **Allocation failure** (memory limit, `calloc` size overflow) ends the run with `OutOfMemory` instead of returning

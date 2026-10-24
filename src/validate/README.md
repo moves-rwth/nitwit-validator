@@ -304,7 +304,8 @@ one prediction.
 
 - **Values the search does not find** ("Limits of the search"); on the 250-witness sample, no witness reaches a limit
   of the search (goals, evaluations, restarts, kept atoms), and with all of them raised a hundredfold every witness
-  ends the same way. The waypoints that fail there need:
+  ends the same way; of all SV-COMP 2026 unreach-call witnesses (`docs/evaluation.md`), 11 reach the restart limit,
+  one of them on a buggy program. The waypoints that fail there need:
   - values that depend on inputs only through control flow, or through memory, pointers or library functions that
     terms do not follow: requirements without a term or on the opaque term (the `aws` `byte_buf` programs, the
     `v_FIFO` of btor2c);
@@ -327,7 +328,12 @@ one prediction.
   most 470 MB), and later ones have the opaque term (`TermTable::input`), which the search never changes. The search
   reads the recorded inputs it needs from the oracle (`SearchInputs`) instead of a copy of all of them per search.
   With the term table (at most about 400 MB), such a run stays below 900 MB. The memory model's table of dead heap
-  blocks grows with the live blocks only (`interp/README.md`, "Memory: behaviour to keep").
+  blocks grows with the live blocks only (`interp/README.md`, "Memory: behaviour to keep"). Not bounded this way:
+  - an endless loop that reads inputs and allocates grows the program's heap until NITWIT's own memory runs out,
+    before the interpreter's limit of 4 GiB of live objects (two Goblint `forester-heap` witnesses: exit 251 at
+    4.6 GB under an 8 GB address-space limit);
+  - the memory of the witness grows with its size: test-to-witness's witnesses with 400,001 and 600,001 segments are
+    confirmed at 1.4 and 2.1 GB.
 
 ## Tests
 
