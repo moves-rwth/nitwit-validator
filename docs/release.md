@@ -1,7 +1,7 @@
-# NITWIT 4: release archive
+# NITWIT 4: release
 
 The release archive is what BenchExec and fm-tools (SV-COMP) run: `nitwit-<version>.zip` with the single top-level
-directory `nitwit/`.
+directory `nitwit/`. "Releasing" at the end lists the steps of a release.
 
 ## Building it
 
@@ -19,8 +19,12 @@ tools/package.sh [output-dir]       # from the root of the repository; default o
    prints.
 
 It needs what the other presets need, plus the static C++ runtime (`libstdc++-14-dev`, `libgcc-14-dev`; both come with
-GCC 14 on Ubuntu 24.04) and `objdump`. git is optional: without it, the source revision in `licenses/VERSIONS` is
-`unknown`. `cmake -E tar` writes the zip file and keeps the Unix permissions.
+GCC 14 on Ubuntu 24.04) and `objdump`. `cmake -E tar` writes the zip file and keeps the Unix permissions.
+
+The source revision in `licenses/VERSIONS` is the commit (`git rev-parse --short=12 HEAD`), followed by " with local
+changes" if tracked files differ from it. Where git fails or there is no git checkout, it is `unknown`, with a warning
+if the source is in a git checkout. Build a release from a checkout where git works: git in WSL cannot read a worktree
+that Windows git created, so the revision of an archive built there is `unknown`.
 
 **glibc is linked dynamically,** libstdc++ and libgcc statically. The executable needs only `libc.so.6`, `libm.so.6`
 and the dynamic loader. Built on Ubuntu 24.04 (glibc 2.39), it runs with **glibc 2.38** or later: the newest symbol
@@ -93,9 +97,9 @@ Differences from 3.x's `nitwit.sh`:
   `-32` and with `-64`, with the arguments in the fork's order. It fails unless both runs print `VALIDATED:` and exit
   with 0.
 - Required Ubuntu packages: none for the executables, which need only glibc. Programs with preprocessor directives
-  other than line markers and `#pragma` (38 of the 19,752 corpus and test files) need `cpp`; with `#include` of system
-  headers in both data models, `gcc-multilib`, which brings `cpp`, `libc6-dev`, `libc6-dev-i386` and GCC's own
-  headers.
+  other than line markers, `#line`, `#ident`, `#pragma` and the null directive need `cpp` (few do,
+  `docs/architecture.md`, "Tokens and preprocessing"); with `#include` of system headers in both data models,
+  `gcc-multilib`, which brings `cpp`, `libc6-dev`, `libc6-dev-i386` and GCC's own headers.
 
 `tests/release/check_release.sh` checks `nitwit.sh` (also through a symlink and in a path with a blank), the version it
 prints, the smoke test, and the data model chosen by the executable's name; with `--glibc-only` also the shared
@@ -110,3 +114,16 @@ third-party parts under the HP and SGI STL notices, MIT and BSL-1.0).
 `release/THIRD-PARTY.md` lists them, and `tools/package.sh` copies their notices into `licenses/`. glibc is the
 system's shared library, not part of the archive. Keep `release/THIRD-PARTY.md` in step with
 `cmake/Dependencies.cmake`, and `release/licenses/libstdc++-notices` with the compiler.
+
+## Releasing
+
+1. Set the version in `CMakeLists.txt` (`project(nitwit VERSION ...)`); `nitwit --version` and the name of the
+   archive follow it.
+2. Commit, and tag the commit with the version (`4.0.0`, like the tags of 3.x).
+3. Build the archive with `tools/package.sh` from the tag, in a checkout where git works (see "Building it").
+4. Check that `licenses/VERSIONS` in the archive names the tagged commit, without " with local changes".
+5. Upload exactly this one zip file to Zenodo, as a new version of NITWIT's record.
+6. Add the version to NITWIT's entry in fm-tools, with the DOI of the Zenodo version,
+   `required_ubuntu_packages: gcc-multilib` and the `base_container_images` of the competition.
+7. Check that the BenchExec tool-info module that the competition uses passes `-32` or `-64` from the task's data
+   model (see "BenchExec"); without it, every task runs with ILP32.
