@@ -198,7 +198,9 @@ CPU time (user + system) and memory per run, all 1000 witnesses:
   programs of symbiotic at 2.1 and 3.8 GB, Mopsa's `loop-acceleration/nested_1-2`) and 9 runs that exhaust NITWIT's
   own memory after 23 to 59 s at about 3.9 GB RSS (ldv, systemc, product-lines, combinations). 3.x stops on 14 of them
   within 3.3 s (exit 4): 9 with a PicoC front-end error, 5 at its transition limit (NITWIT 4 sets no step limit,
-  `docs/exit-codes.md`); it confirms the 15th, `systemc/toy1` (lost confirmations above).
+  `docs/exit-codes.md`); it confirms the 15th, `systemc/toy1` (lost confirmations above). The constant 3.9 GB is
+  probably the 8 GB address-space limit: the next doubling of a growing table no longer fits. Under BenchExec, which
+  limits resident memory, these runs would grow further and end out of memory or in a timeout.
 - **3.x's runs over 10 s** are 3 timeouts (Mopsa's 65 MB witnesses, at 1.6 GB, and a Taipan witness) and long runs that
   4.0 finishes faster, e.g. a Goblint witness that 3.x confirms in 42.5 s and 4.0 in 0.14 s.
 
