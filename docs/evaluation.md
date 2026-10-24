@@ -65,7 +65,9 @@ All witnesses:
   others are not run); 14,841 on buggy programs, 12,792 on correct ones, 34 without verdict, and Paulina's 100. Plus
   `validation-crafted` (100) and `testfiles` (45 in format 2.x, 81 in format 1.0).
 - **Runs:** new runs started only while the host had at least 8 GB of free memory. Every unconfirmed witness that
-  must be confirmed ran again with `-v`; the reasons below come from the result lines and these logs.
+  must be confirmed ran again with `-v`; the reasons below come from the result lines and these logs. Results, logs
+  and the classification (`census.tsv`) are in `results/2026-10-24-nitwit-4.0.0-unreach-call-all` in the dataset,
+  the runner and the classification scripts in its `scripts/census/`.
 - **Other validators:** the verdicts of SV-COMP 2026 (tables `validation-of-violation-witnesses-v2`) of CPAchecker,
   MetaVal, Theta, UAutomizer and Witch; Theta gave no verdict on these tasks, and the witnesses of test-to-witness and
   witch were not validated. A validator is *outside the producer's family* unless it is UAutomizer for the Ultimate
