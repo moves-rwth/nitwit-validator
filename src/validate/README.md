@@ -260,13 +260,16 @@ one prediction.
     neighbours − 1 and + 1. A clause that blocks a value adds its constants and their neighbours. The non-negative
     candidates come before the negative ones, each in this order: programs often reject negative inputs. At most 8
     inputs per relation, and 8 constants of the relation and 8 of blocking clauses per input, are tried.
-    - **Special values** of the input's type come after all other candidates, so that they cost evaluations only
-      where the common values do not help: the maximum, the maximum − 1, the minimum and the minimum + 1 of an integer
-      type, NaN, +∞, −∞ and −0.0 of a floating type. They satisfy relations that no other value does: overflow checks
-      like `(x + 10) < x` at the maximum, where `+` wraps around as the run continues after a signed overflow;
-      `x == x` false (`nan_double`) with NaN only; `!(x < x + 1e-6)` (neural-networks) with NaN or +∞;
-      `1.0 / x < -1e300` with −0.0. And they are left where kept clauses exclude the common values: `x >= 0` for the
-      last of the distinct `char` ids of pals gets 127.
+    - **Special values** of the input's type: the maximum, the maximum − 1, the minimum and the minimum + 1 of an
+      integer type, NaN, +∞, −∞ and −0.0 of a floating type. They satisfy relations that no other value does:
+      overflow checks like `(x + 10) < x` at the maximum, where `+` wraps around as the run continues after a signed
+      overflow; `x == x` false (`nan_double`) with NaN only; `!(x < x + 1e-6)` (neural-networks) with NaN or +∞;
+      `1.0 / x < -1e300` with −0.0; and a `char` id of pals that must exceed the others, which kept clauses keep apart,
+      with 127. But the program rarely goes on where the witness does with them: NaN satisfies `!(0 * x + y < 1)`
+      (neural-networks' linear_1), where y = 1 is right, and an id of 127 leaves no greater id for a later comparison.
+      So only a third pass tries them ("Values of earlier runs"), and there after the other values of all inputs of
+      the relation, never in a repair. A clause that blocks one adds its constants as for any other value:
+      `(r - 1) * (r - 1) < a`, blocking r = 2147483647 for `r * r - a > 0` with a = 3, gives r = 2 (fermat2).
   - **A value is taken** only if, evaluated with all values chosen so far, it is a value of the input's type (a
     `_Bool` is 0 or 1), makes the relation hold, makes no kept clause and no earlier clause of the requirement that
     mentions the input false, and makes neither them nor the clause being solved end the run (`NoValue::EndsRun`:
@@ -277,10 +280,10 @@ one prediction.
     kept with y = 10, and then `y == 3` give y := 3 and x := 7. One level only: a repair does not repair in turn.
   - **Values of earlier runs:** the whole requirement is first solved without any value an input was fixed to in an
     earlier run, so that two waypoints do not take turns changing one input; only if that fails are those values
-    allowed, after all others.
+    allowed, after all others; and only if that fails too, a third pass also tries the special values.
   - **Cost:** each value tried is evaluated against the relation and the clauses that mention its input, and a
     repair solves a clause for each value it repairs, so the kept clauses of an input and repairs multiply the work.
-    A search therefore evaluates at most 300,000 terms, both passes and repairs included, well under a second; beyond
+    A search therefore evaluates at most 300,000 terms, all passes and repairs included, well under a second; beyond
     that it ends without values, and the log says that it stopped (`SearchLimits`).
   - If every clause of the requirement then holds or is unknown, and at least one input has a new value, the new
     values become fixed inputs and the run restarts (`fixing input 3 (...) to 5 (inversion)` in the log); otherwise
@@ -324,7 +327,9 @@ one prediction.
   the start and the target. Searching the program's paths for those would cost runs per candidate, which NITWIT does
   not do. An SMT solver could replace the candidates behind the same requirements (`docs/roadmap.md`). An avoid
   assumption evaluated in a hot loop records the strict terms of its constraint at each evaluation and can fill the
-  term table, after which later values get the opaque term.
+  term table, after which later values get the opaque term. A special value can be a size: `int array[n][n]` with
+  n = 32767, the maximum of a `short` (array-patterns), takes 4 GiB, more than NITWIT's memory, so the run ends with
+  exit 251 where the next waypoint would fail (exit 241).
 
 ### Guards
 
@@ -406,10 +411,11 @@ segment:
   `unsigned char` combined with `&`, guards (`assume_abort_if_not` searched for, a follow waypoint into its `abort`,
   `__VERIFIER_assume`) and the retry (searching, its budget); `guard_test.cpp` which `if` statements are guards;
   `search_test.cpp` the search on term tables built by hand, one test per rule (inversion through every invertible
-  operation, candidates and their order, the special values of each format, the negation of a floating comparison,
-  kept clauses and their index, repairs, unknown atoms, `&&`, `||` and `?:`, `&` and `|` of truth values (nested,
-  through conversions, xcsp's clauses, bits left to candidates), shared subterms, switches, avoid waypoints, the order
-  of inputs and values, the two passes, the memo under guards, the budgets of goals and evaluations, the explanation)
+  operation, candidates and their order, the special values of each format and when they are tried, the negation of a
+  floating comparison, kept clauses and their index, repairs, unknown atoms, `&&`, `||` and `?:`, `&` and `|` of truth
+  values (nested, through conversions, xcsp's clauses, bits left to candidates), shared subterms, switches, avoid
+  waypoints, the order of inputs and values, the three passes, the memo under guards, the budgets of goals and
+  evaluations, the explanation)
   and the examples above (the input check of RERS, a loop counter, `if (tmp)`); monitor tests of the search over
   several runs: an input that two waypoints would change back and forth, a run that would repeat an earlier one and one
   that repeats its inputs with a value tried since, case ranges, avoided cases of a switch, a repaired clause, the limit
