@@ -1,7 +1,6 @@
 // malloc and friends (C17 7.22.3). alloca is the evaluator's: its blocks belong to the stack frame.
 
 #include <algorithm>
-#include <cerrno>
 #include <cstddef>
 #include <format>
 #include <optional>
@@ -37,38 +36,19 @@ void freeBlock(const Call& call, Address address) {
     NITWIT_ASSERT(freed.has_value(), "requireHeapBlock admits only blocks that can be freed");
 }
 
-/// Whether no native run can allocate a block of `size` bytes (interp/README.md, "Library"): glibc refuses sizes
-/// above PTRDIFF_MAX, and no block reaches the size of the user address space, 2^47 bytes on x86-64 (all that mmap
-/// gives without an address hint above it) and 4 GiB for an i386 process.
-bool noRunCanAllocate(const Call& call, UInt128 size) {
-    const UInt128 ptrdiffMax = (UInt128{1} << (call.format(call.target().ptrdiffType()).bits - 1)) - 1;
-    const UInt128 addressSpace = UInt128{1} << (call.target().pointerBits() == 64 ? 47 : 32);
-    return size > ptrdiffMax || size >= addressSpace;
-}
-
-/// What glibc returns for a block that no run can allocate: a null pointer, with errno ENOMEM.
-LibraryResult refuseAllocation(const Call& call) {
-    call.setErrno(ENOMEM);
-    return call.returnPointer(0);
-}
-
-/// A new block of `size` bytes for malloc and calloc. A size no run can allocate gives a null pointer, as in a native
-/// run; any other size gets a block, or ends the run beyond the memory limit (Call::allocateHeap).
-LibraryResult allocateBlock(const Call& call, UInt128 size, bool zeroed) {
-    if (noRunCanAllocate(call, size)) {
-        return refuseAllocation(call);
-    }
-    return call.returnPointer(call.allocateHeap(static_cast<std::uint64_t>(size), zeroed));
-}
-
 LibraryResult malloc(const Call& call) {
     // A block of size 0 has a unique address, as glibc's malloc(0) returns a unique pointer (C17 7.22.3p1).
-    return allocateBlock(call, call.sizeArgument(0), false);
+    return call.returnPointer(call.allocateHeap(call.sizeArgument(0), false));
 }
 
 LibraryResult calloc(const Call& call) {
-    // A product that overflows size_t also exceeds PTRDIFF_MAX: glibc returns a null pointer for both.
-    return allocateBlock(call, UInt128{call.sizeArgument(0)} * call.sizeArgument(1), true);
+    const UInt128 size = UInt128{call.sizeArgument(0)} * call.sizeArgument(1);
+    const UInt128 sizeMax = (UInt128{1} << call.format(call.target().sizeType()).bits) - 1;
+    if (size > sizeMax) {
+        // glibc returns a null pointer here; SV-COMP assumes allocation succeeds (see Call::allocateHeap).
+        throw Stop{ending(LibraryResult::Kind::OutOfMemory, "calloc: the size of the block overflows size_t")};
+    }
+    return call.returnPointer(call.allocateHeap(static_cast<std::uint64_t>(size), true));
 }
 
 LibraryResult free(const Call& call) {
@@ -108,15 +88,12 @@ LibraryResult realloc(const Call& call) {
     const Address old = call.pointerArgument(0);
     const std::uint64_t size = call.sizeArgument(1);
     if (old == 0) { // C17 7.22.3.5p3
-        return allocateBlock(call, size, false);
+        return call.returnPointer(call.allocateHeap(size, false));
     }
     requireHeapBlock(call, old);
     if (size == 0) { // glibc frees the block and returns a null pointer
         freeBlock(call, old);
         return call.returnPointer(0);
-    }
-    if (noRunCanAllocate(call, size)) { // the old block stays as it is (C17 7.22.3.5p4)
-        return refuseAllocation(call);
     }
     // The contents up to the smaller size move to a new block, with their initialization state and terms
     // (C17 7.22.3.5p2). A new block also for a smaller size, so that the old one dies and stale pointers are caught.
