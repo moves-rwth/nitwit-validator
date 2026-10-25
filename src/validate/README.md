@@ -13,7 +13,7 @@ with inputs that the search predicts to give a waypoint its outcome. It decides 
 - `oracle.hpp`: the input oracle: fixed inputs, hints, defaults ("Values").
 - `search.hpp`: the search for inputs that give a waypoint the outcome it needs ("Search").
 - `values.hpp`: the conversions and the choice of values that satisfy a relation.
-- `restart.hpp`: the restart loop, with the run as a parameter, so that tests can script runs.
+- `restart.hpp`: the restart loop and its two phases, with the run as a parameter, so that tests can script runs.
 - `verdict.hpp`: the verdict of the final run.
 
 ## Semantics of witness format 2.x
@@ -157,21 +157,28 @@ gets the *default*.
 - **Defaults:** `ValidationOptions::defaultInput`, 0, converted to the requested type; pointers get null. 0 rather
   than 1, which NITWIT 3.x effectively uses: as the only default, 1 confirms one witness more on the 250-witness
   sample, but six fewer on `validation-crafted`.
-- **One more run with defaults of 1** (`ValidationOptions::retryDefaultInput`, which the driver sets): a final run that
+- **The retry with defaults of 1** (`ValidationOptions::retryDefaultInput`, which the driver sets): a final run that
   ends without confirmation and without a waypoint that failed leaves nothing to the search; only the inputs between
   the waypoints decided its path, as in witnesses with the target only. The trigger is that rule, whatever ended the
   run: the monitor followed the witness to the end of the run (`main` returned, `exit`, `abort`, a failed
   `__VERIFIER_assume`, an endless loop without effect, undefined behaviour, an unsupported construct, the interpreter's
   memory or call-depth limit), or the error function was called elsewhere than at the target; and the run gave some
-  arithmetic input the default (else one more run would repeat it). One more run then gives those inputs 1, the fixed
-  inputs keeping their values, and never more than one. It confirms, or the verdict is that of the run before: a
-  waypoint that fails in it ends it without a search, NITWIT running out of its own memory in it does not end the
-  validation, and the diagnostics of constraints first compiled in it are discarded. Its confirmation comes from one
-  complete run like any other. Since 1 keeps loops like `while (__VERIFIER_nondet_int())` going for ever, it may take
-  the events of the run before and `retryExtraEvents` (2^22) more: about 0.3 s, or 2 s in a loop that requests inputs
-  in every round. Events are the statements, conditions, calls and returns that the interpreter reports
-  (`interp/observer.hpp`). On the 1000-witness sample of `docs/evaluation.md`, the ten confirmations of the extra run
-  take under 0.01 s each, and two extra runs reach the budget.
+  arithmetic input the default (else the retry would repeat it).
+  - The retry is a second phase of the validation, and the last: the restart loop of the first phase again, with 1 for
+    the inputs that are neither fixed nor hinted and the fixed inputs keeping their values. A waypoint without its
+    outcome searches and restarts as in the first phase ("Search"), with kept clauses, a restart limit of its own by
+    the same formula, and repeated runs found among its own runs (with another default, the same fixed inputs make
+    another run).
+  - It confirms, or the verdict is that of the final run of the first phase. NITWIT running out of its own memory in
+    it does not end the validation, and the diagnostics of constraints first compiled in it are discarded. Its
+    confirmations come from one complete run like any other.
+  - **Budget:** since 1 keeps loops like `while (__VERIFIER_nondet_int())` going for ever, the runs of the retry
+    together may take the events of all runs of the first phase and `retryExtraEvents` (2^22) more; the run that
+    exceeds it ends the retry. A retry that does not confirm thus at most doubles the work of a validation, plus about
+    0.3 s (2 s in a loop that requests inputs in every round). The constant leaves room for such a loop where the first
+    phase was one short run, as for witnesses with the target only; the events of the first phase scale the budget
+    with the program and the witness, which the runs of the retry follow as those of the first phase did. Events are
+    the statements, conditions, calls and returns that the interpreter reports (`interp/observer.hpp`).
 - **Escapes:** producer escapes like `"\result"` in double quotes are repaired by the witness parser.
 
 ### Search
@@ -275,15 +282,15 @@ one prediction.
   run when the search needs it and the kept clauses allow it.
   - Runs are deterministic, and so is the search, which depends on the run and on the values each input was fixed
     to before. The values fixed before only grow, so the state that can repeat is the fixed inputs together with the
-    number of distinct values fixed before. If the search proposes the fixed inputs of an earlier run and no input
-    was fixed to a new value since that run, the next run and its search would repeat it: the execution is rejected
-    (exit 241), with "the search proposes the inputs of run n again". With a new value fixed since, the same inputs
-    may lead elsewhere: the search after the repeated run knows more values to avoid. The oracle finds such a run by
-    a fingerprint of the fixed values (the sum of their hashes) and the number of distinct values, and compares the
-    values exactly where both agree.
-  - The limit is `min(ValidationOptions::maxRestarts, 16 + 2 · waypoints)` (`restartLimit`). A waypoint can need a
-    restart for each prediction that fails, and a loop counter one per iteration; 16 cover witnesses with few
-    waypoints. The cap of 10,000 bounds long witnesses, whose runs would exceed the time limit before.
+    number of distinct values fixed before. If the search proposes the fixed inputs of an earlier run of the phase
+    ("Defaults") and no input was fixed to a new value since that run, the next run and its search would repeat it:
+    the execution is rejected (exit 241), with "the search proposes the inputs of run n again". With a new value fixed
+    since, the same inputs may lead elsewhere: the search after the repeated run knows more values to avoid. The
+    oracle finds such a run by a fingerprint of the fixed values (the sum of their hashes) and the number of distinct
+    values, and compares the values exactly where both agree.
+  - The limit is `min(ValidationOptions::maxRestarts, 16 + 2 · waypoints)` (`restartLimit`) per phase. A waypoint
+    can need a restart for each prediction that fails, and a loop counter one per iteration; 16 cover witnesses with
+    few waypoints. The cap of 10,000 bounds long witnesses, whose runs would exceed the time limit before.
 - **Examples:**
   - `if (tmp)` after `tmp = __VERIFIER_nondet_int()`, which the witness wants true: `in0 != 0` gives tmp := 1.
   - The input check of RERS programs, `if ((input != 1) && (input != 2) && ...) return -2;`, which the witness wants
@@ -316,9 +323,8 @@ one prediction.
   condition no waypoint covers, the run leaves the witness without a failing waypoint: an `assume_abort_if_not` aborts
   or a null pointer is read (exit 4), or the program ends before the target segment or in it without calling the error
   function (exit 242, 250). Keeping the conditions of all branchings of a run, or a concolic search with an SMT solver
-  (`docs/roadmap.md`), would cover them. The one more run with defaults of 1 ("Defaults") covers a few: on the
-  1000-witness sample of `docs/evaluation.md`, ten more confirmations, mostly witnesses with the target only. A run
-  that does not end, like `systemc/toy1` with inputs 0, gets no such run.
+  (`docs/roadmap.md`), would cover them. The retry with defaults of 1 ("Defaults") covers some. A run that does not
+  end, like `systemc/toy1` with inputs 0, gets no retry.
 - **Unsupported constructs** of the interpreter end a run with exit 4: threads (`pthread_create`), `setjmp`/`longjmp`,
   files, signals, `atexit`, the `scanf` family, inline assembly, arithmetic on complex values and the others listed in
   `interp/README.md` ("Library") and `sema/README.md`.
@@ -341,14 +347,17 @@ one prediction.
   (`validate_test_support.hpp`, whose `FakeExecution` records terms as the interpreter does);
   `end_to_end_test.cpp` with the interpreter and the terms it records (checked, also in constraints:
   `RunOptions::checkTerms`), so with the search: a constraint on a computed value, a loop counter, the input check of
-  RERS, the result of a defined function, avoided switch cases and narrowing conversions; `search_test.cpp` the search
+  RERS, the result of a defined function, avoided switch cases and narrowing conversions, and the retry (searching, its
+  budget); `search_test.cpp` the search
   on term tables built by hand, one test per rule (inversion through every invertible operation, candidates and their
   order, kept clauses and their index, repairs, unknown atoms, `&&`, `||` and `?:`, shared subterms, switches, avoid
   waypoints, the order of inputs and values, the two passes, the memo under guards, the budgets of goals and
   evaluations, the explanation) and the examples above (the input check of RERS, a loop counter, `if (tmp)`); monitor
   tests of the search over several runs: an input that two waypoints would change back and forth, a run that would
   repeat an earlier one and one that repeats its inputs with a value tried since, case ranges, avoided cases of a
-  switch, a repaired clause, the limit of kept clauses.
+  switch, a repaired clause, the limit of kept clauses; restart tests of the retry (its search for follow and avoid
+  waypoints, its own restart limit, its budget over the runs of both phases) and an oracle test of repeated runs with
+  another default.
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness, as a process with a timeout of 30 s, and checks
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`: every witness confirmed, except
     those named `*.invalid`, which must not be;

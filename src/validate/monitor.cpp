@@ -148,12 +148,8 @@ std::optional<std::string> SegmentMonitor::findInconsistency() const {
     return std::nullopt;
 }
 
-void SegmentMonitor::beginRun(std::uint32_t run) {
-    beginRun(run, RunMode{});
-}
-
-void SegmentMonitor::beginRun(std::uint32_t run, RunMode mode) {
-    mode_ = mode;
+void SegmentMonitor::beginRun(std::uint32_t run, std::optional<std::uint64_t> eventBudget) {
+    eventBudget_ = eventBudget;
     events_ = 0;
     run_ = run;
     current_ = 0;
@@ -229,8 +225,8 @@ interp::Directive SegmentMonitor::handle(const Event& event, interp::EvaluationC
         return interp::Directive::Stop;
     }
     ++events_;
-    if (mode_.eventBudget && events_ > *mode_.eventBudget) {
-        return stop(State::Unknown, std::format("the run exceeded its budget of {} events", *mode_.eventBudget));
+    if (eventBudget_ && events_ > *eventBudget_) {
+        return stop(State::Unknown, std::format("the run exceeded its budget of {} events", *eventBudget_));
     }
     while (true) {
         const std::span<const std::uint32_t> here = waypointsAt(current_, event.type, event.location);
@@ -448,9 +444,6 @@ std::vector<Clause> SegmentMonitor::caseRequirement(std::optional<value::TermId>
 interp::Directive SegmentMonitor::searchOrReject(WaypointId id, const std::vector<Clause>& requirement,
                                                  interp::EvaluationContext& context, std::string reason,
                                                  std::string rejection) {
-    if (!mode_.searches) {
-        return stop(State::Rejected, rejection.empty() ? std::move(reason) : std::move(rejection));
-    }
     SearchResult result = search(program_.context, context.terms(), requirement, kept_, OracleInputs(oracle_));
     const bool isRestart = !result.changes.empty();
     stop(isRestart ? State::Restart : State::Rejected,

@@ -48,8 +48,10 @@ public:
 
     /// Forgets the requests and the hint of the previous run; fixed inputs stay. Runs are numbered from 1.
     void beginRun();
-    /// Answers the requests that are neither fixed nor hinted with `defaultValue` from now on.
-    void setDefault(Int128 defaultValue) { defaultValue_ = defaultValue; }
+    /// Answers the requests that are neither fixed nor hinted with `defaultValue` from the next run on; called between
+    /// runs. The runs before are no longer candidates of repeatedRun(): with another default, the same fixed inputs
+    /// make another run.
+    void setDefault(Int128 defaultValue);
     /// Whether the current run answered an arithmetic request with the default, which another default would change.
     [[nodiscard]] bool gaveDefault() const { return gaveDefault_; }
     /// Whether a recorded request of the current run was answered with a fixed value.
@@ -64,9 +66,9 @@ public:
     void fix(InputKey key, value::Value value);
     /// The values the request with this key was fixed to, each once, in the order they were first fixed.
     [[nodiscard]] std::span<const value::Value> fixedValues(InputKey key) const;
-    /// The earlier run whose fixed inputs had the values they have now, with no value fixed since that had not been
-    /// fixed before it. The next run would repeat it, and the search after it, which depends on the run and the values
-    /// fixed before, would propose what it proposed then (validate/README.md, "Search").
+    /// The earlier run with the current default whose fixed inputs had the values they have now, with no value fixed
+    /// since that had not been fixed before it. The next run would repeat it, and the search after it, which depends on
+    /// the run and the values fixed before, would propose what it proposed then (validate/README.md, "Search").
     [[nodiscard]] std::optional<std::uint32_t> repeatedRun() const;
 
     value::Value provide(const interp::InputRequest& request) override;
@@ -109,9 +111,10 @@ private:
     // Iterated only where the order does not matter: it is by address.
     std::map<InputKey, History, KeyLess> fixed_;
     std::uint32_t run_ = 0;
-    RunStart next_;                     // of the run after the current one, as far as values are fixed now
-    std::vector<RunStart> runStarts_;   // by run - 1
-    std::vector<ProvidedInput> inputs_; // the recorded requests of the current run, indexed by InputId
+    std::uint32_t firstRunWithDefault_ = 1; // the first run with the current default
+    RunStart next_;                         // of the run after the current one, as far as values are fixed now
+    std::vector<RunStart> runStarts_;       // by run - 1
+    std::vector<ProvidedInput> inputs_;     // the recorded requests of the current run, indexed by InputId
     std::optional<Hint> hint_;
     bool gaveDefault_ = false;    // in the current run
     bool gaveFixedValue_ = false; // to a recorded request of the current run

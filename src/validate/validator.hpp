@@ -38,18 +38,19 @@ struct ValidationOptions {
     /// An endless loop without effect ends the run as infeasible (validate/README.md, "Verdict"): the program never
     /// leaves it, so the error function is never called after it.
     interp::RunOptions run{.endsEndlessLoops = true};
-    /// The most restarts for any witness; restartLimit() gives fewer to witnesses with few waypoints.
+    /// The most restarts for any witness, in each phase; restartLimit() gives fewer to witnesses with few waypoints.
     std::uint32_t maxRestarts = 10000;
     /// The most atoms of the clauses a run keeps for the search (validate/README.md, "Search"): at most about 80 MB.
     std::size_t maxKeptAtoms = 1'000'000;
     /// The value of inputs that are neither fixed nor hinted, converted to the requested type (pointers get null).
     std::int64_t defaultInput = 0;
-    /// The default of one more run after a final run that ended without confirmation, without a waypoint that failed
-    /// and with an input that had the default (validate/README.md, "Defaults"); none for no such run.
+    /// The default of the retry phase after a final run that ended without confirmation, without a waypoint that
+    /// failed and with an input that had the default (validate/README.md, "Defaults"); none for no retry phase.
     std::optional<std::int64_t> retryDefaultInput;
-    /// The events (the statements, conditions, calls and returns the interpreter reports) that run may take beyond
-    /// those of the run before, since a nondeterministic loop condition that 1 keeps true makes it endless: 2^22,
-    /// about 0.3 s, or 2 s in a loop that requests inputs in every round (2^24 took 7.4 s in stateful_check).
+    /// The events (the statements, conditions, calls and returns the interpreter reports) that the runs of the retry
+    /// phase may take together beyond those of the first phase, since a nondeterministic loop condition that 1 keeps
+    /// true makes a run endless: 2^22, about 0.3 s, or 2 s in a loop that requests inputs in every round (2^24 took
+    /// 7.4 s in stateful_check).
     std::uint64_t retryExtraEvents = std::uint64_t{1} << 22;
     /// Progress of the validation (segments reached, restarts, why a run ended); null for none.
     std::ostream* log = nullptr;

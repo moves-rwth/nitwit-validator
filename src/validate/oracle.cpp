@@ -21,6 +21,11 @@ void WitnessOracle::beginRun() {
     runStarts_.push_back(next_);
 }
 
+void WitnessOracle::setDefault(Int128 defaultValue) {
+    defaultValue_ = defaultValue;
+    firstRunWithDefault_ = run_ + 1;
+}
+
 void WitnessOracle::hint(const ast::CallExpr* call, value::Value value) {
     hint_ = Hint{.call = call, .value = std::move(value)};
 }
@@ -48,7 +53,7 @@ std::span<const value::Value> WitnessOracle::fixedValues(InputKey key) const {
 // The number of distinct values only grows: if it is the same as at an earlier run, the keys were fixed to the same
 // values before both runs.
 std::optional<std::uint32_t> WitnessOracle::repeatedRun() const {
-    for (std::uint32_t run = 1; run <= runStarts_.size(); ++run) {
+    for (std::uint32_t run = firstRunWithDefault_; run <= runStarts_.size(); ++run) {
         const RunStart& start = runStarts_[run - 1];
         if (start.fingerprint != next_.fingerprint || start.distinctValues != next_.distinctValues) {
             continue;

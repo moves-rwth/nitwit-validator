@@ -298,7 +298,7 @@ int main(void) {
     const ValidationResult result = validate(sequence({{target(12, 3)}}));
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
     EXPECT_EQ(result.runs, 2u);
-    EXPECT_TRUE(log().contains("run 1: no waypoint failed; one more run with inputs 1 by default")) << log();
+    EXPECT_TRUE(log().contains("run 1: no waypoint failed; validating again with inputs 1 by default")) << log();
 }
 
 TEST_F(EndToEndTest, ALoopCounterBoundedByAnInput) {
@@ -357,6 +357,49 @@ int main(void) {
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
     EXPECT_EQ(result.runs, 2u);
     EXPECT_TRUE(log().contains("to 3 (inversion)")) << log();
+}
+
+// ---- The retry phase (validate/README.md, "Defaults") ----
+
+TEST_F(EndToEndTest, TheRetrySearchesAndConfirms) {
+    // With a = 0, main returns before the waypoint; with a = 1, the waypoint needs b = 7.
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    if (a == 0) return 0;
+    int b = __VERIFIER_nondet_int();
+    if (b == 7) reach_error();
+    return 0;
+}
+)");
+    options_.retryDefaultInput = 1;
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 7, 5, "true")}, {target(7, 17)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 3u);
+    EXPECT_TRUE(log().contains("run 2: fixing input 1 (the call of __VERIFIER_nondet_int at 6:35, occurrence 0) to 7"))
+        << log();
+}
+
+TEST_F(EndToEndTest, TheRetryEndsAtItsBudget) {
+    // With inputs 1, the loop does not end.
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    if (__VERIFIER_nondet_int()) {
+        while (__VERIFIER_nondet_int()) {}
+        reach_error();
+    }
+    return 0;
+}
+)");
+    options_.retryDefaultInput = 1;
+    options_.retryExtraEvents = 1000;
+    const ValidationResult result = validate(sequence({{target(6, 9)}}));
+    EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 2: the run exceeded its budget of")) << log();
 }
 
 // ---- Invalid witnesses that an earlier version confirmed ----

@@ -344,7 +344,7 @@ TEST_F(RestartTest, NoRestartsAtAll) {
     EXPECT_EQ(result.runs, 1u);
 }
 
-// ---- One more run with other defaults ----
+// ---- The retry phase with other defaults ----
 
 constexpr std::string_view ifInputProgram = R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
@@ -374,43 +374,43 @@ TEST_F(RestartTest, ARunWithoutFailedWaypointIsRetriedWithOtherDefaults) {
     const ValidationResult result = validate(sequence({{target(5, 12)}}), runIfInput);
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
     EXPECT_EQ(result.runs, 2u);
-    EXPECT_TRUE(log().contains("run 1: no waypoint failed; one more run with inputs 1 by default")) << log();
+    EXPECT_TRUE(log().contains("run 1: no waypoint failed; validating again with inputs 1 by default, within 4194310 "
+                               "events"))
+        << log();
 }
 
-constexpr std::string_view abortOnInputProgram = R"(extern int __VERIFIER_nondet_int(void);
-extern void abort(void);
+constexpr std::string_view returnOnInputProgram = R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
 int main(void) {
     int a = __VERIFIER_nondet_int();
-    if (a) abort();
+    if (a) return 1;
     if (a == 5) reach_error();
     return 0;
 }
 )";
 
-interp::RunResult runAbortOnInput(FakeExecution& x) {
+interp::RunResult runReturnOnInput(FakeExecution& x) {
+    x.statement(4, 5);
+    x.assign("a", x.nondet(4, 35));
     x.statement(5, 5);
-    x.assign("a", x.nondet(5, 35));
+    if (x.branch(5, 5)) {
+        x.statement(5, 12);
+        return returned(1);
+    }
     x.statement(6, 5);
     if (x.branch(6, 5)) {
-        x.statement(6, 12);
-        x.call(6, 18);
-        return endedBy(interp::Termination::Abort, "abort");
+        x.statement(6, 17);
+        x.call(6, 29);
     }
     x.statement(7, 5);
-    if (x.branch(7, 5)) {
-        x.statement(7, 17);
-        x.call(7, 29);
-    }
-    x.statement(8, 5);
     return returned(0);
 }
 
-TEST_F(RestartTest, ARetryThatDoesNotConfirmKeepsTheVerdictOfTheRunBefore) {
-    // Run 1 returns in the target segment; the retry aborts.
-    program(std::string(abortOnInputProgram));
+TEST_F(RestartTest, ARetryThatDoesNotConfirmKeepsTheVerdictOfTheFirstPhase) {
+    // Run 1 returns 0 in the target segment, the retry returns 1.
+    program(std::string(returnOnInputProgram));
     options_.retryDefaultInput = 1;
-    const ValidationResult result = validate(sequence({{target(7, 17)}}), runAbortOnInput);
+    const ValidationResult result = validate(sequence({{target(6, 17)}}), runReturnOnInput);
     EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message;
     EXPECT_EQ(result.message, "the target segment was reached, but main returned 0 without calling 'reach_error'");
     EXPECT_EQ(result.runs, 2u);
@@ -420,27 +420,52 @@ TEST_F(RestartTest, ARetryThatDoesNotConfirmKeepsTheVerdictOfTheRunBefore) {
         << log();
 }
 
-TEST_F(RestartTest, AnAvoidWaypointThatPassesInTheRetryKeepsTheVerdictOfTheRunBefore) {
-    // With a = 1 the error is called at the target, but the avoid waypoint passes before.
+TEST_F(RestartTest, TheRetrySearchesForAFollowWaypointThatFails) {
+    // Run 1 does not reach the follow waypoint; in run 2 (a = 1) it fails, and run 3 fixes a to 2.
+    program(std::string(ifInputProgram));
+    options_.retryDefaultInput = 1;
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Assumption, 5, 12, "a == 2")}, {target(5, 12)}}), runIfInput);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
+    EXPECT_EQ(result.runs, 3u);
+    EXPECT_TRUE(log().contains("run 2: fixing input 0 (the call of __VERIFIER_nondet_int at 4:35, occurrence 0) to 2"))
+        << log();
+}
+
+TEST_F(RestartTest, TheRetrySearchesForAnAvoidWaypointThatPasses) {
+    // With a = 1 the avoid waypoint passes; with the a = 0 that the search gives it, run 3 ends as run 1.
     program(std::string(ifInputProgram));
     options_.retryDefaultInput = 1;
     const ValidationResult result =
         validate(sequence({{avoid(WaypointType::Assumption, 5, 12, "a == 1"), target(5, 12)}}), runIfInput);
     EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message;
-    EXPECT_EQ(scriptRuns_, 2);
-    EXPECT_FALSE(log().contains("needs")) << log();
+    EXPECT_EQ(result.runs, 3u);
+    EXPECT_TRUE(log().contains("run 2: the avoid waypoint of segment 1 (assumption at 5:12) needs")) << log();
+    EXPECT_TRUE(log().contains("the verdict is that of run 1")) << log();
 }
 
-TEST_F(RestartTest, AFollowWaypointThatFailsInTheRetryIsNotSearchedFor) {
-    // The search would fix a to 2 and restart; the retry rejects at once instead.
+TEST_F(RestartTest, TheRetryEndsAtItsRestartLimit) {
     program(std::string(ifInputProgram));
     options_.retryDefaultInput = 1;
+    options_.maxRestarts = 0;
     const ValidationResult result =
         validate(sequence({{follow(WaypointType::Assumption, 5, 12, "a == 2")}, {target(5, 12)}}), runIfInput);
     EXPECT_EQ(result.verdict, Verdict::ProgramFinished) << result.message;
     EXPECT_EQ(result.runs, 2u);
-    EXPECT_EQ(scriptRuns_, 2);
-    EXPECT_FALSE(log().contains("needs")) << log();
+    EXPECT_TRUE(log().contains("run 2: the follow waypoint of segment 1 (assumption at 5:12) needs")) << log();
+    EXPECT_TRUE(log().contains("the verdict is that of run 1")) << log();
+}
+
+TEST_F(RestartTest, TheBudgetOfTheRetryCoversAllItsRuns) {
+    // Run 1 takes 6 events, run 2 of the retry 6, and run 3 would take 7 to confirm: 6 remain of 6 + 6.
+    program(std::string(ifInputProgram));
+    options_.retryDefaultInput = 1;
+    options_.retryExtraEvents = 6;
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Assumption, 5, 12, "a == 2")}, {target(5, 12)}}), runIfInput);
+    EXPECT_EQ(result.verdict, Verdict::ProgramFinished) << result.message;
+    EXPECT_EQ(result.runs, 3u);
+    EXPECT_TRUE(log().contains("run 3: the run exceeded its budget of 6 events")) << log();
 }
 
 constexpr std::string_view nestedInputsProgram = R"(extern int __VERIFIER_nondet_int(void);
@@ -478,7 +503,37 @@ TEST_F(RestartTest, TheRetryKeepsTheFixedInputs) {
         validate(sequence({{follow(WaypointType::Branching, 6, 5, "true")}, {target(6, 24)}}), runNestedInputs);
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
     EXPECT_EQ(result.runs, 3u);
-    EXPECT_TRUE(log().contains("run 2: no waypoint failed; one more run with inputs 1 by default")) << log();
+    EXPECT_TRUE(log().contains("run 2: no waypoint failed; validating again with inputs 1 by default")) << log();
+}
+
+/// For nestedInputsProgram: a == 5 by the branching, then the assumption `b == 2` before the error. Run 1 fixes a to
+/// 5, and run 2 ends without reaching the assumption (b = 0); in the retry, run 3 (b = 1) fixes b to 2, and run 4
+/// confirms.
+witness::YamlWitness nestedAssumptionWitness() {
+    return sequence({{follow(WaypointType::Branching, 6, 5, "true")},
+                     {follow(WaypointType::Assumption, 6, 24, "b == 2")},
+                     {target(6, 24)}});
+}
+
+TEST_F(RestartTest, TheRetryHasARestartLimitOfItsOwn) {
+    // The first phase and the retry make one restart each.
+    program(std::string(nestedInputsProgram));
+    options_.retryDefaultInput = 1;
+    options_.maxRestarts = 1;
+    const ValidationResult result = validate(nestedAssumptionWitness(), runNestedInputs);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
+    EXPECT_EQ(result.runs, 4u);
+}
+
+TEST_F(RestartTest, TheBudgetOfTheRetryCountsTheEventsOfAllRunsOfTheFirstPhase) {
+    // Runs 1 and 2 take 8 and 11 events, runs 3 and 4 of the retry 11 and 12: 23, the 19 of the first phase and 4.
+    program(std::string(nestedInputsProgram));
+    options_.retryDefaultInput = 1;
+    options_.retryExtraEvents = 4;
+    const ValidationResult result = validate(nestedAssumptionWitness(), runNestedInputs);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
+    EXPECT_EQ(result.runs, 4u);
+    EXPECT_TRUE(log().contains("validating again with inputs 1 by default, within 23 events")) << log();
 }
 
 constexpr std::string_view twoErrorsProgram = R"(extern int __VERIFIER_nondet_int(void);
