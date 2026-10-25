@@ -3,7 +3,8 @@
 // The monitor of a format 2.x witness (validate/README.md, "Follow, avoid and progress"): it follows the execution
 // through the segments of the violation sequence, evaluates the waypoints of the current segment at their evaluation
 // points, gives the oracle the hints of function_return waypoints, and stops the run once its outcome is decided. A
-// waypoint without the outcome the witness needs asks the search for inputs that give it ("Search").
+// waypoint without the outcome the witness needs asks the search for inputs that give it ("Search"), and so does a
+// guard of the program that would end the run ("Guards").
 
 #include <cstdint>
 #include <optional>
@@ -45,18 +46,12 @@ public:
     /// function than its location.function; a #line directive in a program that went through the preprocessor.
     [[nodiscard]] const std::optional<std::string>& inconsistency() const { return inconsistency_; }
 
-    /// How a run is followed: normally, or as the one more run with other defaults (validate/README.md, "Defaults").
-    struct RunMode {
-        /// The events (the statements, conditions, calls and returns the interpreter reports, interp/observer.hpp)
-        /// after which the run stops as Unknown; none for no limit.
-        std::optional<std::uint64_t> eventBudget;
-        /// Whether a waypoint without the outcome the witness needs asks the search; if not, it rejects at once.
-        bool searches = true;
-    };
-
-    /// Starts following the witness from its first segment; `run` numbers the runs for the log.
-    void beginRun(std::uint32_t run, RunMode mode);
-    void beginRun(std::uint32_t run);
+    /// Starts following the witness from its first segment; `run` numbers the runs for the log. The run stops as
+    /// Unknown after `eventBudget` events (the statements, conditions, calls and returns the interpreter reports,
+    /// interp/observer.hpp); none for no limit.
+    void beginRun(std::uint32_t run, std::optional<std::uint64_t> eventBudget = std::nullopt);
+    /// The number of the current run, as passed to beginRun().
+    [[nodiscard]] std::uint32_t run() const { return run_; }
     /// The events of the current run so far.
     [[nodiscard]] std::uint64_t events() const { return events_; }
 
@@ -78,6 +73,8 @@ public:
     [[nodiscard]] bool isAtTarget() const { return isAtTarget_; }
     /// For State::Restart: the new values of inputs, at most one per input.
     [[nodiscard]] const std::vector<Change>& changes() const { return changes_; }
+    /// For State::Restart: whether a guard of the program asked for it (validate/README.md, "Guards"), not a waypoint.
+    [[nodiscard]] bool isAtGuard() const { return isAtGuard_; }
     [[nodiscard]] const LocationMap& locations() const { return locations_; }
 
 private:
@@ -114,13 +111,19 @@ private:
     [[nodiscard]] static std::vector<Clause>
     caseRequirement(std::optional<value::TermId> term, const ast::CaseStmt* label, Int128 caseValue, bool isTaken);
     /// Stops the run after waypoint `id` did not have the outcome the witness needs (`reason`): Restart with the inputs
-    /// the search finds for `requirement`, else Rejected, with `rejection` as the reason if it is not empty. A run that
-    /// does not search (RunMode::searches) is Rejected at once.
+    /// the search finds for `requirement`, else Rejected, with `rejection` as the reason if it is not empty.
     interp::Directive searchOrReject(WaypointId id, const std::vector<Clause>& requirement,
                                      interp::EvaluationContext& context, std::string reason,
                                      std::string rejection = {});
+    /// At a guard whose requirement is `atom` (validate/README.md, "Guards"): keeps it if the run continues past the
+    /// guard (`continues`), else Restart with the inputs the search finds for it; without any, the run goes on to the
+    /// end the guard gives it. `location` and `function` (the function that ends the run) describe the guard.
+    interp::Directive passGuard(const Atom& atom, bool continues, SourceLocation location, std::string_view function,
+                                interp::EvaluationContext& context);
     /// Keeps the clauses of a requirement that has its outcome, for the searches later in the run.
     void keep(const std::vector<Clause>& requirement, const value::TermTable& terms);
+    /// Keeps one clause of such a requirement.
+    void keep(std::span<const Atom> clause, const value::TermTable& terms);
     /// Hands the oracle the value that the function_return waypoints of the current segment at this call ask for.
     void offerHint(const interp::CallEvent& event, interp::EvaluationContext& context);
 
@@ -149,13 +152,14 @@ private:
     std::optional<std::string> inconsistency_;
 
     std::uint32_t run_ = 0;
-    RunMode mode_;
+    std::optional<std::uint64_t> eventBudget_;
     std::uint64_t events_ = 0;
     std::uint32_t current_ = 0;
     bool isAtTarget_ = false;
     State state_ = State::Following;
     std::string reason_;
     std::vector<Change> changes_;
+    bool isAtGuard_ = false;
     KeptClauses kept_; // of the waypoints that had their outcome in this run
     bool isKeptFull_ = false;
 };

@@ -12,6 +12,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -132,6 +133,9 @@ public:
     value::Value nondet(std::uint32_t line, std::uint32_t column);
     /// A call whose `)` is here, without input: its call and return events (`result` for a non-void function).
     void call(std::uint32_t line, std::uint32_t column, std::optional<value::Value> result = std::nullopt);
+    /// The call of the builtin __VERIFIER_assume whose `)` is here: its call event with the argument, and the return
+    /// event if the argument is not 0. Returns whether it is not; if it is, the interpreter ends the run.
+    bool assume(std::uint32_t line, std::uint32_t column);
 
     /// Assigns a local of the current function or a global.
     void assign(std::string_view name, value::Value value);
@@ -562,6 +566,18 @@ inline void FakeExecution::call(std::uint32_t line, std::uint32_t column, std::o
         observer_.afterReturn({.call = call, .callee = call->directCallee(), .result = result_}, *this);
     result_ = nullptr;
     obey(directive);
+}
+
+inline bool FakeExecution::assume(std::uint32_t line, std::uint32_t column) {
+    const ast::CallExpr* call = fixture_.callAt(line, column);
+    const value::Value argument = programValue(call->arguments().front());
+    obey(observer_.afterArguments({.call = call, .callee = call->directCallee(), .arguments = std::span(&argument, 1)},
+                                  *this));
+    if (value::toBool(argument).bits() == 0) {
+        return false;
+    }
+    obey(observer_.afterReturn({.call = call, .callee = call->directCallee(), .result = nullptr}, *this));
+    return true;
 }
 
 inline void FakeExecution::assign(std::string_view name, value::Value value) {

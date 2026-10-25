@@ -1098,6 +1098,186 @@ TEST_F(MonitorTest, AFollowedDefaultGetsTheSmallestNonNegativeValueOfNoCase) {
     EXPECT_EQ(result.runs, 2u);
 }
 
+// ---- Guards ----
+
+constexpr std::string_view abortGuardProgram = R"(extern int __VERIFIER_nondet_int(void);
+extern void abort(void);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    if (!(a > 0)) abort();
+    if (a != 1) reach_error();
+    return 0;
+}
+)";
+
+interp::RunResult runAbortGuard(FakeExecution& x) {
+    x.statement(5, 5);
+    x.assign("a", x.nondet(5, 35));
+    x.statement(6, 5);
+    if (x.branch(6, 5)) {
+        x.statement(6, 19);
+        x.call(6, 25);
+        return endedBy(interp::Termination::Abort, "abort was called");
+    }
+    x.statement(7, 5);
+    if (x.branch(7, 5)) {
+        x.statement(7, 17);
+        x.call(7, 29);
+    }
+    x.statement(8, 5);
+    return returned(0);
+}
+
+TEST_F(MonitorTest, AGuardThatWouldEndTheRunRestartsWithInputsThatPassIt) {
+    // With a = 0 the run would abort; with a = 1 it returns in the target segment.
+    program(std::string(abortGuardProgram));
+    const ValidationResult result = validate(sequence({{target(7, 17)}}), runAbortGuard);
+    EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: the guard at 6:5 (abort) would end the run")) << log();
+    EXPECT_TRUE(log().contains("run 1: the guard at 6:5 (abort) needs `!(!(in0 > 0))`; input 0 := 1 (inversion)"))
+        << log();
+}
+
+TEST_F(MonitorTest, TheRequirementOfAPassedGuardIsKept) {
+    // Run 2 passes the guard with a = 1, and the branching then needs a != 1: 0 would abort, so a := 2.
+    program(std::string(abortGuardProgram));
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 7, 5, "true")}, {target(7, 17)}}), runAbortGuard);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 3u);
+    EXPECT_TRUE(log().contains("input 0 := 2 (candidate)")) << log();
+}
+
+TEST_F(MonitorTest, AGuardThatTheSearchCannotPassLetsTheRunEnd) {
+    // The assumption keeps a == 0, so no input passes the guard, and the run aborts as without it.
+    program(std::string(abortGuardProgram));
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Assumption, 6, 5, "a == 0")}, {target(7, 17)}}), runAbortGuard);
+    EXPECT_EQ(result.verdict, Verdict::Unknown) << result.message << "\n" << log();
+    EXPECT_EQ(result.message, "the program aborted in segment 2 of 2");
+    EXPECT_EQ(result.runs, 1u);
+    EXPECT_TRUE(log().contains("run 1: the guard at 6:5 (abort) needs `!(!(in0 > 0))`: no input values found; the "
+                               "run goes on"))
+        << log();
+}
+
+TEST_F(MonitorTest, AWitnessWaypointAtAGuardWins) {
+    // As Goblint writes: the follow waypoint takes the branch into abort. Run 2 takes it, and the guard does not search
+    // against the witness.
+    program(std::string(abortGuardProgram));
+    options_.defaultInput = 5;
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 6, 5, "true")}, {target(7, 17)}}), runAbortGuard);
+    EXPECT_EQ(result.verdict, Verdict::Unknown) << result.message << "\n" << log();
+    EXPECT_EQ(result.message, "the program aborted in segment 2 of 2");
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_FALSE(log().contains("guard")) << log();
+}
+
+TEST_F(MonitorTest, AGuardRestartAtTheRestartLimitIsRetried) {
+    // The run stopped at the guard had no failed waypoint.
+    program(std::string(abortGuardProgram));
+    options_.maxRestarts = 0;
+    options_.retryDefaultInput = 1;
+    const ValidationResult result = validate(sequence({{target(7, 17)}}), runAbortGuard);
+    EXPECT_EQ(result.verdict, Verdict::Unknown) << result.message << "\n" << log();
+    EXPECT_EQ(result.message, "the limit of 0 restarts was reached: the guard at 6:5 (abort) would end the run");
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: no waypoint failed; validating again with inputs 1 by default")) << log();
+}
+
+constexpr std::string_view alternatingGuardsProgram = R"(extern int __VERIFIER_nondet_int(void);
+extern void abort(void);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    if (a != 1) if (!(a > 0)) abort();
+    if (!(a < 1)) abort();
+    reach_error();
+    return 0;
+}
+)";
+
+TEST_F(MonitorTest, AGuardThatProposesTheInputsOfAnEarlierRunEndsTheValidation) {
+    // The guards need a > 0 and a < 1 on different paths, so the search alternates between them until it repeats a run.
+    program(std::string(alternatingGuardsProgram));
+    const ValidationResult result = validate(sequence({{target(8, 5)}}), [](FakeExecution& x) {
+        x.statement(5, 5);
+        x.assign("a", x.nondet(5, 35));
+        x.statement(6, 5);
+        if (x.branch(6, 5)) {
+            x.statement(6, 17);
+            if (x.branch(6, 17)) {
+                x.statement(6, 31);
+                x.call(6, 37);
+                return endedBy(interp::Termination::Abort, "abort was called");
+            }
+        }
+        x.statement(7, 5);
+        if (x.branch(7, 5)) {
+            x.statement(7, 19);
+            x.call(7, 25);
+            return endedBy(interp::Termination::Abort, "abort was called");
+        }
+        x.statement(8, 5);
+        x.call(8, 17);
+        return returned(0);
+    });
+    EXPECT_EQ(result.verdict, Verdict::Unknown) << result.message << "\n" << log();
+    EXPECT_TRUE(result.message.contains("(abort) would end the run; the search proposes the inputs of run"))
+        << result.message;
+}
+
+constexpr std::string_view assumeProgram = R"(extern int __VERIFIER_nondet_int(void);
+extern void __VERIFIER_assume(int);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    __VERIFIER_assume(a != 7);
+    if (a > 6) reach_error();
+    return 0;
+}
+)";
+
+interp::RunResult runAssume(FakeExecution& x) {
+    x.statement(5, 5);
+    x.assign("a", x.nondet(5, 35));
+    x.statement(6, 5);
+    if (!x.assume(6, 29)) {
+        return endedBy(interp::Termination::AssumeFailed, "__VERIFIER_assume with a false condition");
+    }
+    x.statement(7, 5);
+    if (x.branch(7, 5)) {
+        x.statement(7, 16);
+        x.call(7, 28);
+    }
+    x.statement(8, 5);
+    return returned(0);
+}
+
+TEST_F(MonitorTest, AFailedAssumeAsksTheSearch) {
+    program(std::string(assumeProgram));
+    options_.defaultInput = 7;
+    const ValidationResult result = validate(sequence({{target(7, 16)}}), runAssume);
+    EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(
+        log().contains("run 1: the guard at 6:5 (__VERIFIER_assume) needs `in0 != 7`; input 0 := 0 (inversion)"))
+        << log();
+}
+
+TEST_F(MonitorTest, TheRequirementOfAPassedAssumeIsKept) {
+    // The branching needs a > 6, which gives 7 but for the kept a != 7.
+    program(std::string(assumeProgram));
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 7, 5, "true")}, {target(7, 16)}}), runAssume);
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("input 0 := 8 (candidate)")) << log();
+}
+
 // ---- Constraints ----
 
 TEST_F(MonitorTest, ConstraintsThatDoNotCompileAreUnsupported) {

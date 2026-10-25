@@ -126,6 +126,19 @@ TEST_F(OracleTest, ARunIsRepeatedWithTheSameFixedValuesAndNoNewOnes) {
     EXPECT_EQ(oracle.fixedValues(first).size(), 2u); // each value once
 }
 
+TEST_F(OracleTest, OnlyRunsWithTheCurrentDefaultAreRepeated) {
+    WitnessOracle oracle(context());
+    const InputKey first{.site = callAt(6, 35), .occurrence = 0};
+    oracle.beginRun(); // run 1: nothing fixed
+    oracle.fix(first, valueOf(context(), 1, context().builtin(ast::BuiltinKind::Int)));
+    oracle.beginRun(); // run 2: first = 1
+    EXPECT_EQ(oracle.repeatedRun(), 2u);
+    oracle.setDefault(1);
+    EXPECT_EQ(oracle.repeatedRun(), std::nullopt); // run 2 had the default 0
+    oracle.beginRun();                             // run 3: first = 1, the default 1
+    EXPECT_EQ(oracle.repeatedRun(), 3u);
+}
+
 TEST_F(OracleTest, RunsWhoseFingerprintsAgreeAreComparedExactly) {
     // The fingerprint sums the hashes of the values: swapping the values of two requests keeps it.
     WitnessOracle oracle(context());

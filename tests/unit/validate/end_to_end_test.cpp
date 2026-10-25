@@ -298,7 +298,7 @@ int main(void) {
     const ValidationResult result = validate(sequence({{target(12, 3)}}));
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
     EXPECT_EQ(result.runs, 2u);
-    EXPECT_TRUE(log().contains("run 1: no waypoint failed; one more run with inputs 1 by default")) << log();
+    EXPECT_TRUE(log().contains("run 1: no waypoint failed; validating again with inputs 1 by default")) << log();
 }
 
 TEST_F(EndToEndTest, ALoopCounterBoundedByAnInput) {
@@ -357,6 +357,99 @@ int main(void) {
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
     EXPECT_EQ(result.runs, 2u);
     EXPECT_TRUE(log().contains("to 3 (inversion)")) << log();
+}
+
+// ---- Guards (validate/README.md, "Guards") ----
+
+constexpr std::string_view assumeAbortProgram = R"(extern int __VERIFIER_nondet_int(void);
+extern void abort(void);
+void reach_error(void);
+void assume_abort_if_not(int cond) { if (!cond) { abort(); } }
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    assume_abort_if_not(x > 10);
+    if (x < 20) reach_error();
+    return 0;
+}
+)";
+
+TEST_F(EndToEndTest, AGuardThatAbortsWithTheDefaultPassesWithASearchedValue) {
+    build(std::string(assumeAbortProgram));
+    const ValidationResult result = validate(sequence({{target(8, 17)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: the guard at 4:38 (abort) would end the run")) << log();
+}
+
+TEST_F(EndToEndTest, AWitnessWaypointIntoTheAbortOfAGuardKeepsItsVerdict) {
+    // Goblint's witnesses: the follow waypoint takes the branch into abort(), after which the error is never called.
+    build(std::string(assumeAbortProgram));
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 4, 38, "true")}, {target(8, 17)}}));
+    EXPECT_EQ(result.verdict, Verdict::Unknown) << result.message << "\n" << log();
+    EXPECT_EQ(result.message, "the program aborted at test.c:4:51 in segment 2 of 2");
+    EXPECT_EQ(result.runs, 1u);
+    EXPECT_FALSE(log().contains("guard")) << log();
+}
+
+TEST_F(EndToEndTest, AFailedVerifierAssumeIsSearchedFor) {
+    build(R"(extern int __VERIFIER_nondet_int(void);
+extern void __VERIFIER_assume(int);
+void reach_error(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    __VERIFIER_assume(x > 10 && x < 20);
+    if (x != 15) reach_error();
+    return 0;
+}
+)");
+    const ValidationResult result = validate(sequence({{target(7, 18)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: the guard at 6:5 (__VERIFIER_assume) would end the run")) << log();
+}
+
+// ---- The retry phase (validate/README.md, "Defaults") ----
+
+TEST_F(EndToEndTest, TheRetrySearchesAndConfirms) {
+    // With a = 0, main returns before the waypoint; with a = 1, the waypoint needs b = 7.
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    if (a == 0) return 0;
+    int b = __VERIFIER_nondet_int();
+    if (b == 7) reach_error();
+    return 0;
+}
+)");
+    options_.retryDefaultInput = 1;
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 7, 5, "true")}, {target(7, 17)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 3u);
+    EXPECT_TRUE(log().contains("run 2: fixing input 1 (the call of __VERIFIER_nondet_int at 6:35, occurrence 0) to 7"))
+        << log();
+}
+
+TEST_F(EndToEndTest, TheRetryEndsAtItsBudget) {
+    // With inputs 1, the loop does not end.
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    if (__VERIFIER_nondet_int()) {
+        while (__VERIFIER_nondet_int()) {}
+        reach_error();
+    }
+    return 0;
+}
+)");
+    options_.retryDefaultInput = 1;
+    options_.retryExtraEvents = 1000;
+    const ValidationResult result = validate(sequence({{target(6, 9)}}));
+    EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 2: the run exceeded its budget of")) << log();
 }
 
 // ---- Invalid witnesses that an earlier version confirmed ----

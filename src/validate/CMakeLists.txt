@@ -1,6 +1,7 @@
 nitwit_add_module(validate
     SOURCES
         constraints.cpp
+        guard.cpp
         location.cpp
         monitor.cpp
         oracle.cpp
