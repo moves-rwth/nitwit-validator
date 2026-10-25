@@ -20,7 +20,7 @@ bound.
 | Rank | Remedy | Gain | Effort |
 |---|---|---|---|
 | 1 | Search after the retry with inputs 1 (implemented after 4.0.0) | up to 78 | small |
-| 2 | Aborts and exits in `assume` wrappers as failed requirements, searched and kept | up to 85 | small–medium |
+| 2 | Aborts and exits in `assume` wrappers as failed requirements, searched and kept (implemented after 4.0.0) | up to 85 | small–medium |
 | 3 | `setjmp`/`longjmp` in the interpreter | 66 of 91 | medium |
 | 4 | NaN, ±infinity and extreme values as candidates | 12–30 | small |
 | 5 | `&` and `\|` of truth values decomposed in the search | up to 44 | small–medium |
@@ -35,7 +35,8 @@ bound.
    in it ends it without a search. The retry now searches (`src/validate/README.md`, "Defaults"); its gain is not
    measured yet.
 2. A program that aborts or exits in `assume_abort_if_not`, `assume` or `assume_exit_if_not` ends the run (exit 4 or
-   242) instead of telling the search which condition the inputs must meet.
+   242) instead of telling the search which condition the inputs must meet. Such guards are now searched for and kept
+   (`src/validate/README.md`, "Guards"); their gain is not measured yet.
 3. `_setjmp` ends 91 runs as unsupported; validators outside the producer's family confirm 66 of the 70 of them with
    SV-COMP results.
 4. Floating-point relations and overflow checks such as `(x + 10) < x` need values the candidates do not contain.

@@ -359,6 +359,56 @@ int main(void) {
     EXPECT_TRUE(log().contains("to 3 (inversion)")) << log();
 }
 
+// ---- Guards (validate/README.md, "Guards") ----
+
+constexpr std::string_view assumeAbortProgram = R"(extern int __VERIFIER_nondet_int(void);
+extern void abort(void);
+void reach_error(void);
+void assume_abort_if_not(int cond) { if (!cond) { abort(); } }
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    assume_abort_if_not(x > 10);
+    if (x < 20) reach_error();
+    return 0;
+}
+)";
+
+TEST_F(EndToEndTest, AGuardThatAbortsWithTheDefaultPassesWithASearchedValue) {
+    build(std::string(assumeAbortProgram));
+    const ValidationResult result = validate(sequence({{target(8, 17)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: the guard at 4:38 (abort) would end the run")) << log();
+}
+
+TEST_F(EndToEndTest, AWitnessWaypointIntoTheAbortOfAGuardKeepsItsVerdict) {
+    // Goblint's witnesses: the follow waypoint takes the branch into abort(), after which the error is never called.
+    build(std::string(assumeAbortProgram));
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 4, 38, "true")}, {target(8, 17)}}));
+    EXPECT_EQ(result.verdict, Verdict::Unknown) << result.message << "\n" << log();
+    EXPECT_EQ(result.message, "the program aborted at test.c:4:51 in segment 2 of 2");
+    EXPECT_EQ(result.runs, 1u);
+    EXPECT_FALSE(log().contains("guard")) << log();
+}
+
+TEST_F(EndToEndTest, AFailedVerifierAssumeIsSearchedFor) {
+    build(R"(extern int __VERIFIER_nondet_int(void);
+extern void __VERIFIER_assume(int);
+void reach_error(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    __VERIFIER_assume(x > 10 && x < 20);
+    if (x != 15) reach_error();
+    return 0;
+}
+)");
+    const ValidationResult result = validate(sequence({{target(7, 18)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: the guard at 6:5 (__VERIFIER_assume) would end the run")) << log();
+}
+
 // ---- The retry phase (validate/README.md, "Defaults") ----
 
 TEST_F(EndToEndTest, TheRetrySearchesAndConfirms) {

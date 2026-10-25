@@ -2,12 +2,15 @@
 
 #include <algorithm>
 #include <format>
+#include <optional>
 #include <print>
+#include <string_view>
 #include <utility>
 
 #include "ast/casting.hpp"
 #include "ast/stmt.hpp"
 #include "support/assert.hpp"
+#include "validate/guard.hpp"
 #include "validate/values.hpp"
 
 namespace nitwit::validate {
@@ -50,6 +53,11 @@ public:
 private:
     const WitnessOracle& oracle_;
 };
+
+/// Whether the search may change a value with this term: it has one, and it is not the opaque term.
+bool isSteerable(std::optional<value::TermId> term, const value::TermTable& terms) {
+    return term && !terms.isOpaque(*term);
+}
 
 std::string_view nameOf(interp::ConditionEvent::Construct construct) {
     switch (construct) {
@@ -157,6 +165,7 @@ void SegmentMonitor::beginRun(std::uint32_t run, std::optional<std::uint64_t> ev
     state_ = State::Following;
     reason_.clear();
     changes_.clear();
+    isAtGuard_ = false;
     kept_.clear();
     isKeptFull_ = false;
 }
@@ -170,11 +179,33 @@ interp::Directive SegmentMonitor::beforeStatement(const interp::StatementEvent& 
                   context);
 }
 
+// validate/README.md, "Guards": an `if` of which one branch only calls a function that ends the program. Witness
+// waypoints win: a waypoint of the current segment at the branching decides it, and the requirement it has is kept.
 interp::Directive SegmentMonitor::afterCondition(const interp::ConditionEvent& event,
                                                  interp::EvaluationContext& context) {
-    return handle(
-        {.type = witness::WaypointType::Branching, .location = event.location, .condition = &event, .call = nullptr},
-        context);
+    const bool mayBeGuard = event.construct == interp::ConditionEvent::Construct::If
+                            && isSteerable(event.term, context.terms())
+                            && waypointsAt(current_, witness::WaypointType::Branching, event.location).empty();
+    if (handle({.type = witness::WaypointType::Branching,
+                .location = event.location,
+                .condition = &event,
+                .call = nullptr},
+               context)
+        == interp::Directive::Stop) {
+        return interp::Directive::Stop;
+    }
+    if (!mayBeGuard) {
+        return interp::Directive::Continue;
+    }
+    const std::optional<IfGuard> guard = guardOf(*ast::cast<ast::IfStmt>(event.stmt), errorFunction_);
+    if (!guard) {
+        return interp::Directive::Continue;
+    }
+    const Atom atom{.term = event.term,
+                    .op = guard->continuingOutcome ? value::Comparison::NotEqual : value::Comparison::Equal,
+                    .constant = 0};
+    return passGuard(atom, event.outcome == guard->continuingOutcome, event.location, guard->ending->name().text(),
+                     context);
 }
 
 interp::Directive SegmentMonitor::afterArguments(const interp::CallEvent& event, interp::EvaluationContext& context) {
@@ -197,7 +228,17 @@ interp::Directive SegmentMonitor::afterArguments(const interp::CallEvent& event,
                                                     isElsewhere ? ", not at the target" : ""));
     }
     offerHint(event, context);
-    return state_ == State::Following ? interp::Directive::Continue : interp::Directive::Stop;
+    if (state_ != State::Following) {
+        return interp::Directive::Stop;
+    }
+    // validate/README.md, "Guards": __VERIFIER_assume ends the run where its argument is 0.
+    if (event.arguments.empty() || !isSteerable(event.arguments.front().term(), context.terms())
+        || !isBuiltinAssume(event.callee)) {
+        return interp::Directive::Continue;
+    }
+    const value::Value& argument = event.arguments.front();
+    return passGuard({.term = argument.term(), .op = value::Comparison::NotEqual, .constant = 0}, isTrue(argument),
+                     event.call->location(), event.callee->name().text(), context);
 }
 
 interp::Directive SegmentMonitor::afterReturn(const interp::ReturnEvent& event, interp::EvaluationContext& context) {
@@ -455,14 +496,44 @@ interp::Directive SegmentMonitor::searchOrReject(WaypointId id, const std::vecto
     return interp::Directive::Stop;
 }
 
+// validate/README.md, "Guards": a guard that the run passes keeps its requirement like a waypoint that has its outcome;
+// one that would end the run asks the search like a follow waypoint that fails, but without values the run goes on.
+interp::Directive SegmentMonitor::passGuard(const Atom& atom, bool continues, SourceLocation location,
+                                            std::string_view function, interp::EvaluationContext& context) {
+    if (continues) {
+        keep(std::span(&atom, 1), context.terms());
+        return interp::Directive::Continue;
+    }
+    const std::string guard = std::format("the guard at {} ({})", locations_.describe(location), function);
+    const Clause clause{atom};
+    SearchResult result =
+        search(program_.context, context.terms(), std::span(&clause, 1), kept_, OracleInputs(oracle_));
+    if (result.changes.empty()) {
+        if (log_ != nullptr) {
+            std::println(*log_, "run {}: {} {}; the run goes on", run_, guard, result.explanation);
+        }
+        return interp::Directive::Continue;
+    }
+    stop(State::Restart, guard + " would end the run");
+    if (log_ != nullptr) {
+        std::println(*log_, "run {}: {} {}", run_, guard, result.explanation);
+    }
+    changes_ = std::move(result.changes);
+    isAtGuard_ = true;
+    return interp::Directive::Stop;
+}
+
 void SegmentMonitor::keep(const std::vector<Clause>& requirement, const value::TermTable& terms) {
     for (const Clause& clause : requirement) {
-        if (kept_.keep(terms, clause) == KeptClauses::Outcome::Full && !isKeptFull_) {
-            isKeptFull_ = true;
-            if (log_ != nullptr) {
-                std::println(*log_, "run {}: the kept clauses reach the limit of their atoms; no more in this run",
-                             run_);
-            }
+        keep(clause, terms);
+    }
+}
+
+void SegmentMonitor::keep(std::span<const Atom> clause, const value::TermTable& terms) {
+    if (kept_.keep(terms, clause) == KeptClauses::Outcome::Full && !isKeptFull_) {
+        isKeptFull_ = true;
+        if (log_ != nullptr) {
+            std::println(*log_, "run {}: the kept clauses reach the limit of their atoms; no more in this run", run_);
         }
     }
 }

@@ -1,9 +1,9 @@
 #pragma once
 
 // The restart loop of a validation (architecture.md, "Restarts"): runs the program with the monitor and the oracle,
-// fixes the inputs the search found for a waypoint without its outcome, and runs again until a run decides the
-// verdict; where no waypoint failed, once more with other defaults (validate/README.md, "Defaults"). The run itself is
-// a parameter, so that tests can script it.
+// fixes the inputs the search found for a waypoint without its outcome (or a guard that would end the run), and runs
+// again until a run decides the verdict; where no waypoint failed, once more with other defaults (validate/README.md,
+// "Defaults"). The run itself is a parameter, so that tests can script it.
 
 #include <cstddef>
 #include <cstdint>

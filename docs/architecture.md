@@ -153,12 +153,13 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
   depends on an input through its term. The validator then solves for an input value that gives the waypoint its
   outcome without breaking the waypoints the run already passed, fixes it, and restarts the run from the beginning
   (`src/validate/README.md`, "Search"). Likewise, an avoid waypoint that passes makes the validator change an input so
-  that it does not. The search never runs the program to try a value: each restart comes from one prediction. Runs
-  are deterministic, so every confirmation comes from one concrete execution, in which every waypoint was evaluated
-  on that run's values. A run with the inputs of an earlier run, and no value tried since, is not made: it and the
-  search after it would repeat that run. The number of restarts grows with the number of waypoints, up to a fixed
-  bound. Where the final run ended without a failed waypoint, the validation is repeated once with other defaults
-  ("Defaults").
+  that it does not, and a guard of the program that would end the run (`if (!c) abort();`, `__VERIFIER_assume(c)`)
+  one so that the run goes on ("Guards"). The search never runs the program to try a value: each restart comes from
+  one prediction. Runs are deterministic, so every confirmation comes from one concrete execution, in which every
+  waypoint was evaluated on that run's values. A run with the inputs of an earlier run, and no value tried since, is
+  not made: it and the search after it would repeat that run. The number of restarts grows with the number of
+  waypoints, up to a fixed bound. Where the final run ended without a failed waypoint, the validation is repeated
+  once with other defaults ("Defaults").
 - **The verdict** is computed from:
   - whether the error function was called;
   - the monitor's state: target reached, waiting, or rejected;

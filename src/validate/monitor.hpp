@@ -3,7 +3,8 @@
 // The monitor of a format 2.x witness (validate/README.md, "Follow, avoid and progress"): it follows the execution
 // through the segments of the violation sequence, evaluates the waypoints of the current segment at their evaluation
 // points, gives the oracle the hints of function_return waypoints, and stops the run once its outcome is decided. A
-// waypoint without the outcome the witness needs asks the search for inputs that give it ("Search").
+// waypoint without the outcome the witness needs asks the search for inputs that give it ("Search"), and so does a
+// guard of the program that would end the run ("Guards").
 
 #include <cstdint>
 #include <optional>
@@ -72,6 +73,8 @@ public:
     [[nodiscard]] bool isAtTarget() const { return isAtTarget_; }
     /// For State::Restart: the new values of inputs, at most one per input.
     [[nodiscard]] const std::vector<Change>& changes() const { return changes_; }
+    /// For State::Restart: whether a guard of the program asked for it (validate/README.md, "Guards"), not a waypoint.
+    [[nodiscard]] bool isAtGuard() const { return isAtGuard_; }
     [[nodiscard]] const LocationMap& locations() const { return locations_; }
 
 private:
@@ -112,8 +115,15 @@ private:
     interp::Directive searchOrReject(WaypointId id, const std::vector<Clause>& requirement,
                                      interp::EvaluationContext& context, std::string reason,
                                      std::string rejection = {});
+    /// At a guard whose requirement is `atom` (validate/README.md, "Guards"): keeps it if the run continues past the
+    /// guard (`continues`), else Restart with the inputs the search finds for it; without any, the run goes on to the
+    /// end the guard gives it. `location` and `function` (the function that ends the run) describe the guard.
+    interp::Directive passGuard(const Atom& atom, bool continues, SourceLocation location, std::string_view function,
+                                interp::EvaluationContext& context);
     /// Keeps the clauses of a requirement that has its outcome, for the searches later in the run.
     void keep(const std::vector<Clause>& requirement, const value::TermTable& terms);
+    /// Keeps one clause of such a requirement.
+    void keep(std::span<const Atom> clause, const value::TermTable& terms);
     /// Hands the oracle the value that the function_return waypoints of the current segment at this call ask for.
     void offerHint(const interp::CallEvent& event, interp::EvaluationContext& context);
 
@@ -149,6 +159,7 @@ private:
     State state_ = State::Following;
     std::string reason_;
     std::vector<Change> changes_;
+    bool isAtGuard_ = false;
     KeptClauses kept_; // of the waypoints that had their outcome in this run
     bool isKeptFull_ = false;
 };

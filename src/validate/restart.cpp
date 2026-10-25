@@ -57,6 +57,22 @@ struct PhaseEnd {
     std::uint64_t events = 0; // of all its runs
 };
 
+/// The verdict when the search after the current run proposes the inputs of run `earlier` again.
+ValidationResult repeatedRunVerdict(const SegmentMonitor& monitor, std::uint32_t earlier) {
+    if (monitor.isAtGuard()) {
+        // The run would end at the guard, as the program does there.
+        return {.verdict = Verdict::Unknown,
+                .message = std::format("{}; the search proposes the inputs of run {} again", monitor.reason(), earlier),
+                .runs = 0,
+                .segmentsReached = monitor.segmentsPassed()};
+    }
+    return {.verdict = Verdict::LeftWitness,
+            .message = std::format("the execution left the witness: {}; the search proposes the inputs of run {} again",
+                                   monitor.reason(), earlier),
+            .runs = 0,
+            .segmentsReached = monitor.segmentsPassed()};
+}
+
 /// Runs the program from run `firstRun` on, restarting with the inputs the search finds, until a run ends without
 /// asking for a restart, the phase has made Runs::maxRestarts restarts, or the search proposes the inputs of an
 /// earlier run with the same default (validate/README.md, "Search"). All runs of the phase together may take
@@ -96,25 +112,21 @@ PhaseEnd runPhase(const Runs& runs, std::uint32_t firstRun, std::optional<std::u
         }
         // Runs are deterministic: one with the inputs of an earlier run would end as it did.
         if (const std::optional<std::uint32_t> earlier = runs.oracle.repeatedRun()) {
-            return ended({.verdict = Verdict::LeftWitness,
-                          .message = std::format("the execution left the witness: {}; the search proposes the inputs "
-                                                 "of run {} again",
-                                                 monitor.reason(), *earlier),
-                          .runs = 0,
-                          .segmentsReached = monitor.segmentsPassed()});
+            return ended(repeatedRunVerdict(monitor, *earlier));
         }
     }
 }
 
 /// Whether the retry phase may confirm what `verdict`, the verdict of the first phase, does not (validate/README.md,
-/// "Defaults"): its final run ended by itself or at the error function elsewhere, with every waypoint it evaluated
-/// passing, so the search had nothing to solve, and only the inputs between the waypoints decided its path; and some of
-/// those had the default.
+/// "Defaults"): its final run ended by itself, at the error function elsewhere, or at a guard whose restart the limit
+/// or a repeated run prevented, with every waypoint it evaluated passing, so the search had nothing to solve, and only
+/// the inputs between the waypoints decided its path; and some of those had the default.
 bool isRetried(const ValidationResult& verdict, const SegmentMonitor& monitor, const WitnessOracle& oracle,
                const ValidationOptions& options) {
     const bool endedWithoutFailedWaypoint =
         monitor.state() == SegmentMonitor::State::Following
-        || (monitor.state() == SegmentMonitor::State::ErrorCalled && !monitor.isAtTarget());
+        || (monitor.state() == SegmentMonitor::State::ErrorCalled && !monitor.isAtTarget())
+        || (monitor.state() == SegmentMonitor::State::Restart && monitor.isAtGuard());
     return verdict.verdict != Verdict::Confirmed && options.retryDefaultInput
            && *options.retryDefaultInput != options.defaultInput && oracle.gaveDefault() && endedWithoutFailedWaypoint;
 }
