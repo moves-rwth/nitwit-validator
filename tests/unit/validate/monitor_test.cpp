@@ -1193,15 +1193,17 @@ extern void abort(void);
 void reach_error(void);
 int main(void) {
     int a = __VERIFIER_nondet_int();
-    if (a != 1) if (!(a > 0)) abort();
-    if (!(a < 1)) abort();
+    if (a == 0) if (a != 1) abort();
+    if (a != 0) abort();
     reach_error();
     return 0;
 }
 )";
 
 TEST_F(MonitorTest, AGuardThatProposesTheInputsOfAnEarlierRunEndsTheValidation) {
-    // The guards need a > 0 and a < 1 on different paths, so the search alternates between them until it repeats a run.
+    // The guards need a == 1 and a == 0, each on the path where the other one is not evaluated: the outer if is neither
+    // a guard nor a waypoint, so the search does not know that the first guard needs a == 0 too. Each requirement has
+    // one value, so once both were tried, run 4 (a = 1) proposes a = 0, the inputs of run 3, again.
     program(std::string(alternatingGuardsProgram));
     const ValidationResult result = validate(sequence({{target(8, 5)}}), [](FakeExecution& x) {
         x.statement(5, 5);
@@ -1210,15 +1212,15 @@ TEST_F(MonitorTest, AGuardThatProposesTheInputsOfAnEarlierRunEndsTheValidation) 
         if (x.branch(6, 5)) {
             x.statement(6, 17);
             if (x.branch(6, 17)) {
-                x.statement(6, 31);
-                x.call(6, 37);
+                x.statement(6, 29);
+                x.call(6, 35);
                 return endedBy(interp::Termination::Abort, "abort was called");
             }
         }
         x.statement(7, 5);
         if (x.branch(7, 5)) {
-            x.statement(7, 19);
-            x.call(7, 25);
+            x.statement(7, 17);
+            x.call(7, 23);
             return endedBy(interp::Termination::Abort, "abort was called");
         }
         x.statement(8, 5);
@@ -1226,8 +1228,10 @@ TEST_F(MonitorTest, AGuardThatProposesTheInputsOfAnEarlierRunEndsTheValidation) 
         return returned(0);
     });
     EXPECT_EQ(result.verdict, Verdict::Unknown) << result.message << "\n" << log();
-    EXPECT_TRUE(result.message.contains("(abort) would end the run; the search proposes the inputs of run"))
-        << result.message;
+    EXPECT_EQ(result.message,
+              "the guard at 7:5 (abort) would end the run; the search proposes the inputs of run 3 again")
+        << log();
+    EXPECT_EQ(result.runs, 4u);
 }
 
 constexpr std::string_view assumeProgram = R"(extern int __VERIFIER_nondet_int(void);
