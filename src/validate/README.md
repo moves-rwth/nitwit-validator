@@ -335,9 +335,11 @@ segment:
 
 - **What a guard is,** decided from the AST:
   - an `if` of which one branch consists only of a call of `abort`, `exit`, `_Exit` or `__assert_fail`, inside blocks
-    of one statement or after labels, and the other branch (or the fall-through) does not; never a call of the error
-    function. Its requirement is `t == 0` for the condition's term `t` if the `then` branch ends the run, `t != 0` if
-    the `else` branch does (glibc's `assert`: `if (e) ; else __assert_fail(...);`);
+    of one statement or after labels, and the other branch, if there is one, does not. A function of that name that
+    the program defines does not count, since the interpreter calls the definition, which may return or call the
+    error function (`void abort(void) { reach_error(); }`); neither does the error function. Its requirement is
+    `t == 0` for the condition's term `t` if the `then` branch ends the run, `t != 0` if the `else` branch does
+    (glibc's `assert`: `if (e) ; else __assert_fail(...);`);
   - a call of the builtin `__VERIFIER_assume` (not a definition of the program, which may contain a guard itself):
     `t != 0` for the argument's term `t`.
 
@@ -403,8 +405,9 @@ segment:
   `end_to_end_test.cpp` with the interpreter and the terms it records (checked, also in constraints:
   `RunOptions::checkTerms`), so with the search: a constraint on a computed value, a loop counter, the input check of
   RERS, the result of a defined function, avoided switch cases and narrowing conversions, a NaN input, truth values in
-  `unsigned char` combined with `&`, guards (`assume_abort_if_not` searched for, a follow waypoint into its `abort`,
-  `__VERIFIER_assume`) and the retry (searching, its budget); `guard_test.cpp` which `if` statements are guards;
+  `unsigned char` combined with `&`, guards (`assume_abort_if_not` searched for, a follow and an avoid waypoint at
+  its `if`, `__VERIFIER_assume`, `exit` and `_Exit`, the program's own `abort`) and the retry (searching, its
+  budget); `guard_test.cpp` which `if` statements are guards;
   `search_test.cpp` the search on term tables built by hand, one test per rule (inversion through every invertible
   operation, candidates and their order, the special values of each format, the negation of a floating comparison,
   kept clauses and their index, repairs, unknown atoms, `&&`, `||` and `?:`, `&` and `|` of truth values (nested,

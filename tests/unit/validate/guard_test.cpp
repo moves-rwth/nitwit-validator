@@ -40,7 +40,7 @@ protected:
 
     /// The guard that the if in `line` is, with `errorFunction` as the error function.
     std::optional<IfGuard> guardIn(std::uint32_t line, std::string_view errorFunction = "reach_error") const {
-        return guardOf(*ast::cast<ast::IfStmt>(statementAt(line, 5)), errorFunction);
+        return GuardFinder(unit(), errorFunction).guardOf(*ast::cast<ast::IfStmt>(statementAt(line, 5)));
     }
 
     /// The function that ends the run at the guard in `line`; empty if it is no guard.
@@ -93,6 +93,23 @@ TEST_F(GuardTest, OtherFunctionsMakeNoGuard) {
 
 TEST_F(GuardTest, TheErrorFunctionMakesNoGuard) {
     EXPECT_FALSE(guardIn(9, "abort").has_value());
+}
+
+TEST_F(GuardTest, AFunctionThatTheProgramDefinesMakesNoGuard) {
+    // The interpreter calls the definitions, which return or call the error function; abort is defined after its use.
+    program(R"(void reach_error(void);
+void exit(int status) { reach_error(); }
+void abort(void);
+int main(void) {
+    int a = 0;
+    if (a) abort();
+    if (a) exit(1);
+    return 0;
+}
+void abort(void) {}
+)");
+    EXPECT_FALSE(guardIn(6).has_value());
+    EXPECT_FALSE(guardIn(7).has_value());
 }
 
 /// The function `name` as the program declares or defines it last.

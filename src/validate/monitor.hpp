@@ -16,6 +16,7 @@
 
 #include "interp/observer.hpp"
 #include "validate/constraints.hpp"
+#include "validate/guard.hpp"
 #include "validate/location.hpp"
 #include "validate/oracle.hpp"
 #include "validate/search.hpp"
@@ -144,6 +145,7 @@ private:
     WitnessOracle& oracle_;
     std::ostream* log_;
     LocationMap locations_;
+    GuardFinder guards_;
     // Per segment: the indices of its waypoints by event type and offset, so that an event costs one lookup also for
     // witnesses with many waypoints. Target waypoints are not evaluated by events and have their own place.
     std::vector<std::unordered_map<std::uint64_t, std::vector<std::uint32_t>>> waypointIndex_;

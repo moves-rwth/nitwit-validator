@@ -409,6 +409,67 @@ int main(void) {
     EXPECT_TRUE(log().contains("run 1: the guard at 6:5 (__VERIFIER_assume) would end the run")) << log();
 }
 
+constexpr std::string_view exitGuardsProgram = R"(extern int __VERIFIER_nondet_int(void);
+extern void exit(int);
+extern void _Exit(int);
+void reach_error(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    if (x < 3) exit(0);
+    if (x > 5) { _Exit(1); }
+    reach_error();
+    return 0;
+}
+)";
+
+TEST_F(EndToEndTest, AnExitGuardIsSearchedFor) {
+    build(std::string(exitGuardsProgram));
+    const ValidationResult result = validate(sequence({{target(9, 5)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: the guard at 7:5 (exit) would end the run")) << log();
+}
+
+TEST_F(EndToEndTest, AnUnderscoreExitGuardKeepsTheGuardPassedBefore) {
+    // With x = 10, the first guard passes and keeps x >= 3; the second needs x <= 5, which gives 5.
+    build(std::string(exitGuardsProgram));
+    options_.defaultInput = 10;
+    const ValidationResult result = validate(sequence({{target(9, 5)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: the guard at 8:5 (_Exit) would end the run")) << log();
+}
+
+TEST_F(EndToEndTest, AnAvoidWaypointAtAGuardWins) {
+    // The avoid waypoint at the guard's branching passes with x = 0, and the search makes it fail; the guard itself
+    // does not search.
+    build(std::string(assumeAbortProgram));
+    const ValidationResult result = validate(
+        sequence({{avoid(WaypointType::Branching, 4, 38, "true"), follow(WaypointType::Branching, 8, 5, "true")},
+                  {target(8, 17)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: the avoid waypoint of segment 1 (branching at 4:38) passed at 4:38")) << log();
+    EXPECT_FALSE(log().contains("guard")) << log();
+}
+
+TEST_F(EndToEndTest, AFunctionOfTheProgramNamedAbortIsNoGuard) {
+    // The interpreter calls the program's abort, which calls the error function: no search keeps the run from it.
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+void abort(void) { reach_error(); }
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    if (x == 0) abort();
+    return 0;
+}
+)");
+    const ValidationResult result = validate(sequence({{target(3, 20)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 1u);
+    EXPECT_FALSE(log().contains("guard")) << log();
+}
+
 // ---- The retry phase (validate/README.md, "Defaults") ----
 
 TEST_F(EndToEndTest, TheRetrySearchesAndConfirms) {

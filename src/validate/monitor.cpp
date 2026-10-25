@@ -99,7 +99,7 @@ SegmentMonitor::SegmentMonitor(const witness::ViolationSequence& witness, const 
                                std::ostream* log, std::size_t keptAtoms)
     : segments_(witness.segments), program_(program), errorFunction_(errorFunction), constraints_(constraints),
       oracle_(oracle), log_(log), locations_(program.sources, program.file, program.originalFile, program.unit),
-      kept_(keptAtoms) {
+      guards_(program.unit, errorFunction), kept_(keptAtoms) {
     NITWIT_ASSERT(!segments_.empty(), "a violation sequence without segments");
     for (const witness::Segment& segment : segments_) {
         std::unordered_map<std::uint64_t, std::vector<std::uint32_t>>& index = waypointIndex_.emplace_back();
@@ -197,7 +197,7 @@ interp::Directive SegmentMonitor::afterCondition(const interp::ConditionEvent& e
     if (!mayBeGuard) {
         return interp::Directive::Continue;
     }
-    const std::optional<IfGuard> guard = guardOf(*ast::cast<ast::IfStmt>(event.stmt), errorFunction_);
+    const std::optional<IfGuard> guard = guards_.guardOf(*ast::cast<ast::IfStmt>(event.stmt));
     if (!guard) {
         return interp::Directive::Continue;
     }
