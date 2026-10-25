@@ -86,8 +86,9 @@ public:
     /// Undefined behaviour if the two ranges overlap, for the functions whose parameters are `restrict`
     /// (C17 7.24.1p2 and the description of each function).
     void requireDisjoint(Address first, std::uint64_t firstSize, Address second, std::uint64_t secondSize) const;
-    /// A new heap block; ends the run with OutOfMemory if the context refuses it. SV-COMP assumes that allocation
-    /// never fails, so returning a null pointer instead would explore executions the verifiers do not consider.
+    /// A new heap block; ends the run with OutOfMemory if the context refuses it. A native run may get the block, so
+    /// returning a null pointer instead could take a path that no native run takes (malloc returns one only for sizes
+    /// that no run can allocate, library_heap.cpp).
     [[nodiscard]] Address allocateHeap(std::uint64_t size, bool zeroed) const;
     /// A new heap block, or nothing if the context refuses it.
     [[nodiscard]] std::optional<Address> tryAllocateHeap(std::uint64_t size, bool zeroed) const;

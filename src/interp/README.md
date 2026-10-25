@@ -45,10 +45,22 @@ preprocessed `.i` files expand to:
   nearest (`fesetround`). These end the run with `Unsupported`.
 
 Behaviour choices of the library:
-- **Allocation failure** (memory limit, `calloc` size overflow) ends the run with `OutOfMemory` instead of returning
-  NULL, as SV-COMP assumes that allocation succeeds. `realloc` that cannot hold the old and the new block at once moves
-  the contents through host memory and frees the old block first; the moved bytes are opaque then if they depend on
-  inputs (see "Terms").
+- **Allocation failure:**
+  - `malloc`, `calloc` and `realloc` return NULL and set `errno` to `ENOMEM`, as glibc does, for a size that no native
+    run can allocate: more than `PTRDIFF_MAX`, which glibc refuses (`checked_request2size`), and with 64-bit pointers
+    2^47 bytes or more, the user address space of x86-64 (with 5-level paging, all that `mmap` gives without an address
+    hint above it). `calloc`'s size is the exact product, so an overflow of `size_t` is such a size too; `realloc`
+    keeps the old block (C17 7.22.3.5p4). The aws harnesses of sv-benchmarks allocate up to 2^55 bytes this way.
+  - Any other size beyond the memory limit ends the run with `OutOfMemory`: a native run may get the block, so NULL
+    could lead where no native run goes. Measured with glibc 2.39 (`gcc-14 -m32`/`-m64`): i386 allocates
+    `PTRDIFF_MAX` bytes; on x86-64, the kernel's heuristic overcommit refuses more than RAM and swap, but with
+    `vm.overcommit_memory=1` a block may take the largest hole of the address space, 93 TiB for a PIE program and
+    127 TiB without PIE. Sizes between that hole and 2^47 fail natively too; where the hole ends depends on the
+    program's layout and on ASLR, so they end the run as well.
+  - Not modelled: i386's `realloc` of a block that glibc did not `mmap` refuses also `PTRDIFF_MAX - 2` to
+    `PTRDIFF_MAX` (`_int_malloc` checks the padded size again); the interpreter's 32-bit heap is smaller anyway.
+  - `realloc` that cannot hold the old and the new block at once moves the contents through host memory and frees the
+    old block first; the moved bytes are opaque then if they depend on inputs (see "Terms").
 - **Uninitialized bytes** are read as stored by library functions (zero); they do not ask the oracle.
 - **Known library functions are never inputs:** every library function in sema's builtin table is implemented or ends
   the run as `Unsupported` (the `scanf` family, files, `qsort`, the `_chk` functions of `_FORTIFY_SOURCE`, ...).

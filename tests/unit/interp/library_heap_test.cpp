@@ -1,6 +1,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <string_view>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -13,10 +15,32 @@ namespace {
 using value::TermId;
 
 constexpr value::IntegerFormat s32{.bits = 32, .isSigned = true};
+constexpr Int128 enomem = 12; // ENOMEM of Linux
 
 class HeapTest : public LibraryTest {
 protected:
     Address malloc(std::uint64_t bytes) { return callPointer("malloc", {size(static_cast<Int128>(bytes))}); }
+
+    /// The largest size that malloc does not refuse (interp/README.md, "Library"): PTRDIFF_MAX with 32-bit pointers,
+    /// which glibc 2.39 allocates natively (gcc-14 -m32), and 2^47 - 1 with 64-bit ones.
+    [[nodiscard]] Int128 largestSize() const { return lp64() ? (Int128{1} << 47) - 1 : (Int128{1} << 31) - 1; }
+    [[nodiscard]] Int128 sizeMax() const { return lp64() ? (Int128{1} << 64) - 1 : (Int128{1} << 32) - 1; }
+
+    /// Whether the call returns a null pointer and sets errno to ENOMEM, as glibc does for a block no run can
+    /// allocate. errno is cleared first.
+    ::testing::AssertionResult refuses(std::string_view name, const std::vector<TypedValue>& arguments) {
+        writeInteger(context.objectAddress("errno"), 0, ScalarType::Int);
+        const LibraryResult result = call(name, arguments);
+        if (result.kind != LibraryResult::Kind::Return) {
+            return ::testing::AssertionFailure() << name << " did not return: " << result.message;
+        }
+        if (result.value.bits() != 0 || errnoValue() != enomem) {
+            return ::testing::AssertionFailure()
+                   << name << " returned " << static_cast<std::uint64_t>(result.value.bits()) << " with errno "
+                   << static_cast<int>(errnoValue());
+        }
+        return ::testing::AssertionSuccess();
+    }
 };
 
 INSTANTIATE_TEST_SUITE_P(DataModels, HeapTest, testing::Values(DataModel::ILP32, DataModel::LP64), modelName);
@@ -47,9 +71,52 @@ TEST_P(HeapTest, CallocReturnsZeroedMemory) {
     EXPECT_EQ(readBytes(block, 15), std::vector<std::byte>(15));
 }
 
-TEST_P(HeapTest, CallocWhoseSizeOverflowsIsOutOfMemory) {
-    const Int128 half = lp64() ? Int128{1} << 32 : Int128{1} << 16;
-    EXPECT_TRUE(endedWith(call("calloc", {size(half), size(half)}), LibraryResult::Kind::OutOfMemory, "overflows"));
+TEST_P(HeapTest, MallocOfASizeNoRunCanAllocateReturnsNullWithEnomem) {
+    EXPECT_TRUE(refuses("malloc", {size(largestSize() + 1)}));
+    EXPECT_TRUE(refuses("malloc", {size(sizeMax() / 2 + 1)})); // PTRDIFF_MAX + 1
+    EXPECT_TRUE(refuses("malloc", {size(sizeMax())}));
+    if (lp64()) {
+        EXPECT_TRUE(refuses("malloc", {size((Int128{1} << 55) - 2)})); // what witnesses of aws harnesses give
+        EXPECT_TRUE(refuses("malloc", {size(sizeMax() / 2)}));         // PTRDIFF_MAX
+    }
+    EXPECT_TRUE(refuses("__builtin_malloc", {size(sizeMax())}));
+}
+
+TEST_P(HeapTest, MallocBelowThoseSizesEndsTheRunAtTheMemoryLimit) {
+    // Below the sizes that no run can allocate, the interpreter's limit ends the run: a native run might get the block.
+    writeInteger(context.objectAddress("errno"), 0, ScalarType::Int);
+    EXPECT_TRUE(endedWith(call("malloc", {size(largestSize())}), LibraryResult::Kind::OutOfMemory, "cannot allocate"));
+    EXPECT_EQ(errnoValue(), 0);
+}
+
+TEST_P(HeapTest, CallocOfAProductNoRunCanAllocateReturnsNullWithEnomem) {
+    EXPECT_TRUE(refuses("calloc", {size((largestSize() + 1) / 2), size(2)}));
+    EXPECT_TRUE(refuses("calloc", {size(1), size(largestSize() + 1)}));
+    const Int128 root = lp64() ? Int128{1} << 32 : Int128{1} << 16; // root * root overflows size_t
+    EXPECT_TRUE(refuses("calloc", {size(root), size(root)}));
+    EXPECT_TRUE(refuses("calloc", {size(sizeMax()), size(sizeMax())}));
+    EXPECT_TRUE(endedWith(call("calloc", {size(largestSize() / 2), size(2)}), LibraryResult::Kind::OutOfMemory));
+    EXPECT_TRUE(endedWith(call("calloc", {size(largestSize()), size(1)}), LibraryResult::Kind::OutOfMemory));
+}
+
+TEST_P(HeapTest, ReallocToASizeNoRunCanAllocateReturnsNullAndKeepsTheBlock) {
+    const Address block = malloc(8);
+    writeInteger(block, 0x11223344, ScalarType::Int);
+    EXPECT_TRUE(refuses("realloc", {pointer(block), size(largestSize() + 1)}));
+    EXPECT_TRUE(refuses("realloc", {pointer(block), size(sizeMax())}));
+    const std::optional<AllocationInfo> info = memory().find(block);
+    ASSERT_TRUE(info.has_value());
+    EXPECT_TRUE(info->isAlive);
+    EXPECT_EQ(info->size, 8u);
+    EXPECT_EQ(readInteger(block, ScalarType::Int), 0x11223344);
+    EXPECT_FALSE(memory().isInitialized(block + 4, 1));
+    EXPECT_TRUE(refuses("realloc", {pointer(0), size(largestSize() + 1)}));
+    EXPECT_TRUE(endedWith(call("realloc", {pointer(block), size(largestSize())}), LibraryResult::Kind::OutOfMemory));
+}
+
+TEST_P(HeapTest, ReallocChecksThePointerBeforeTheSize) {
+    const Address block = malloc(5);
+    EXPECT_TRUE(isUndefined(call("realloc", {pointer(block + 2), size(sizeMax())}), "not to its start"));
 }
 
 TEST_P(HeapTest, AllocationBeyondTheLimitIsOutOfMemory) {

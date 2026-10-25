@@ -370,6 +370,29 @@ int main(void) { for (;;) malloc(1000); })",
     EXPECT_EQ(result.termination, Termination::OutOfMemory);
 }
 
+TEST_F(TerminationTest, AllocationsThatNoRunCanSatisfyReturnNullAndTheRunGoesOn) {
+    // The aws harnesses of sv-benchmarks malloc up to 2^55 bytes and check the result for null; glibc refuses more
+    // than PTRDIFF_MAX, and on x86-64 2^47 bytes or more (interp/README.md, "Library").
+    const std::string program = R"(int printf(const char *, ...);
+typedef __typeof__(sizeof 0) size_t;
+void *malloc(size_t);
+void *calloc(size_t, size_t);
+void *realloc(void *, size_t);
+int *__errno_location(void);
+int main(void) {
+    size_t huge = sizeof(size_t) == 8 ? ((size_t)1 << 27) << 28 : (size_t)-1 / 2 + 1;
+    char *small = malloc(4);
+    small[0] = 'x';
+    int a = malloc(huge) == 0;
+    int b = calloc(huge / 2, 2) == 0;
+    int c = realloc(small, huge) == 0;
+    printf("%d %d %d %d %c\n", a, b, c, *__errno_location(), small[0]);
+    return 0;
+})";
+    EXPECT_EQ(outputOf(program, DataModel::ILP32), "1 1 1 12 x\n");
+    EXPECT_EQ(outputOf(program, DataModel::LP64), "1 1 1 12 x\n");
+}
+
 TEST_F(TerminationTest, TheMemoryLimitCountsLocals) {
     const RunResult result = run(R"(int main(void) { char big[200000]; big[0] = 1; return big[0]; })", DataModel::LP64,
                                  {.maxSteps = 0, .maxCallDepth = 100, .memoryLimit = 100000});
