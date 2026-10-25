@@ -118,17 +118,19 @@ PhaseEnd runPhase(const Runs& runs, std::uint32_t firstRun, std::optional<std::u
 }
 
 /// Whether the retry phase may confirm what `verdict`, the verdict of the first phase, does not (validate/README.md,
-/// "Defaults"): its final run ended by itself, at the error function elsewhere, or at a guard whose restart the limit
-/// or a repeated run prevented, with every waypoint it evaluated passing, so the search had nothing to solve, and only
-/// the inputs between the waypoints decided its path; and some of those had the default.
+/// "Defaults"): its final run left the search nothing it could solve, and only the inputs between the waypoints decided
+/// its path; and some of those had the default. The run ended by itself, at the error function elsewhere, or at a
+/// guard whose restart the limit or a repeated run prevented, with every waypoint it evaluated passing; or at a
+/// waypoint whose requirement has no term the search can change.
 bool isRetried(const ValidationResult& verdict, const SegmentMonitor& monitor, const WitnessOracle& oracle,
                const ValidationOptions& options) {
-    const bool endedWithoutFailedWaypoint =
+    const bool leftNothingToSearch =
         monitor.state() == SegmentMonitor::State::Following
         || (monitor.state() == SegmentMonitor::State::ErrorCalled && !monitor.isAtTarget())
-        || (monitor.state() == SegmentMonitor::State::Restart && monitor.isAtGuard());
+        || (monitor.state() == SegmentMonitor::State::Restart && monitor.isAtGuard())
+        || (monitor.state() == SegmentMonitor::State::Rejected && monitor.isBeyondSearch());
     return verdict.verdict != Verdict::Confirmed && options.retryDefaultInput
-           && *options.retryDefaultInput != options.defaultInput && oracle.gaveDefault() && endedWithoutFailedWaypoint;
+           && *options.retryDefaultInput != options.defaultInput && oracle.gaveDefault() && leftNothingToSearch;
 }
 
 /// The retry phase after the first phase ended in `first`, and never more: a validation like the first phase with
@@ -143,9 +145,10 @@ ValidationResult retryWithOtherDefaults(const Runs& runs, PhaseEnd first, Diagno
                                      ? first.events + options.retryExtraEvents
                                      : std::numeric_limits<std::uint64_t>::max();
     if (options.log != nullptr) {
-        std::println(*options.log,
-                     "run {}: no waypoint failed; validating again with inputs {} by default, within {} events",
-                     lastRun, defaultInput, budget);
+        std::println(
+            *options.log,
+            "run {}: nothing for the search to solve; validating again with inputs {} by default, within {} events",
+            lastRun, defaultInput, budget);
     }
     const std::size_t diagnosticsBefore = diagnostics.diagnostics().size();
     runs.oracle.setDefault(defaultInput);

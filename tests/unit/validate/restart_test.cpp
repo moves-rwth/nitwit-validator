@@ -374,8 +374,9 @@ TEST_F(RestartTest, ARunWithoutFailedWaypointIsRetriedWithOtherDefaults) {
     const ValidationResult result = validate(sequence({{target(5, 12)}}), runIfInput);
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
     EXPECT_EQ(result.runs, 2u);
-    EXPECT_TRUE(log().contains("run 1: no waypoint failed; validating again with inputs 1 by default, within 4194310 "
-                               "events"))
+    EXPECT_TRUE(log().contains(
+        "run 1: nothing for the search to solve; validating again with inputs 1 by default, within 4194310 "
+        "events"))
         << log();
 }
 
@@ -503,7 +504,8 @@ TEST_F(RestartTest, TheRetryKeepsTheFixedInputs) {
         validate(sequence({{follow(WaypointType::Branching, 6, 5, "true")}, {target(6, 24)}}), runNestedInputs);
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message;
     EXPECT_EQ(result.runs, 3u);
-    EXPECT_TRUE(log().contains("run 2: no waypoint failed; validating again with inputs 1 by default")) << log();
+    EXPECT_TRUE(log().contains("run 2: nothing for the search to solve; validating again with inputs 1 by default"))
+        << log();
 }
 
 /// For nestedInputsProgram: a == 5 by the branching, then the assumption `b == 2` before the error. Run 1 fixes a to
@@ -664,14 +666,53 @@ TEST_F(RestartTest, TheRetryStopsAtItsBudget) {
     EXPECT_TRUE(log().contains("run 2: the run exceeded its budget of 108 events")) << log();
 }
 
-TEST_F(RestartTest, NoRetryAfterAWaypointFailed) {
+TEST_F(RestartTest, NoRetryAfterAWaypointThatTheSearchCouldNotSatisfy) {
     program(std::string(ifInputProgram));
     options_.retryDefaultInput = 1;
-    // The follow waypoint fails with a = 0, and the search cannot change the constant.
+    // The follow waypoint needs a == 0 and a == 1 at once: the search tries its terms and finds no value.
     const ValidationResult result =
-        validate(sequence({{follow(WaypointType::Assumption, 5, 5, "0")}, {target(5, 12)}}), runIfInput);
+        validate(sequence({{follow(WaypointType::Assumption, 5, 5, "a == 0 && a == 1")}, {target(5, 12)}}), runIfInput);
     EXPECT_EQ(result.verdict, Verdict::LeftWitness) << result.message;
     EXPECT_EQ(scriptRuns_, 1);
+}
+
+constexpr std::string_view controlFlowProgram = R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    int b = 0;
+    if (a) b = 1;
+    if (b) reach_error();
+    return 0;
+}
+)";
+
+TEST_F(RestartTest, ARunRejectedAtAWaypointWithoutATermIsRetried) {
+    // b depends on a only through control flow, so the branching on b has no term, and the search can do nothing for
+    // it; with a = 1, the retry passes it.
+    program(std::string(controlFlowProgram));
+    options_.retryDefaultInput = 1;
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 7, 5, "true")}, {target(7, 12)}}), [](FakeExecution& x) {
+            x.statement(4, 5);
+            x.assign("a", x.nondet(4, 35));
+            x.execute(5, 5);
+            x.statement(6, 5);
+            if (x.branch(6, 5)) {
+                x.execute(6, 12);
+            }
+            x.statement(7, 5);
+            if (x.branch(7, 5)) {
+                x.statement(7, 12);
+                x.call(7, 24);
+            }
+            x.statement(8, 5);
+            return returned(0);
+        });
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("run 1: nothing for the search to solve; validating again with inputs 1 by default"))
+        << log();
 }
 
 TEST_F(RestartTest, NoRetryWithoutOtherDefaults) {

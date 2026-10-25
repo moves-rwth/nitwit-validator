@@ -44,8 +44,10 @@ struct ValidationOptions {
     std::size_t maxKeptAtoms = 1'000'000;
     /// The value of inputs that are neither fixed nor hinted, converted to the requested type (pointers get null).
     std::int64_t defaultInput = 0;
-    /// The default of the retry phase after a final run that ended without confirmation, without a waypoint that
-    /// failed and with an input that had the default (validate/README.md, "Defaults"); none for no retry phase.
+    /// The default of the retry phase (validate/README.md, "Defaults"); none for no retry phase. It follows a first
+    /// phase without confirmation whose final run gave an input the default and left the search nothing it could
+    /// solve: no waypoint failed (it ended by itself, at the error function elsewhere, or at a guard whose restart the
+    /// restart limit or a repeated run prevented), or the waypoint that rejected has no term the search can change.
     std::optional<std::int64_t> retryDefaultInput;
     /// The events (the statements, conditions, calls and returns the interpreter reports) that the runs of the retry
     /// phase may take together beyond those of the first phase, since a nondeterministic loop condition that 1 keeps

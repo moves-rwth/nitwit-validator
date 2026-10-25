@@ -76,6 +76,9 @@ public:
     [[nodiscard]] const std::vector<Change>& changes() const { return changes_; }
     /// For State::Restart: whether a guard of the program asked for it (validate/README.md, "Guards"), not a waypoint.
     [[nodiscard]] bool isAtGuard() const { return isAtGuard_; }
+    /// For State::Rejected: whether no atom of the requirement of the waypoint that rejected has a term the search can
+    /// change (none, or the opaque term), so that the search could do nothing for it.
+    [[nodiscard]] bool isBeyondSearch() const { return isBeyondSearch_; }
     [[nodiscard]] const LocationMap& locations() const { return locations_; }
 
 private:
@@ -162,6 +165,7 @@ private:
     std::string reason_;
     std::vector<Change> changes_;
     bool isAtGuard_ = false;
+    bool isBeyondSearch_ = false;
     KeptClauses kept_; // of the waypoints that had their outcome in this run
     bool isKeptFull_ = false;
 };

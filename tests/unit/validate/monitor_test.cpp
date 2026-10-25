@@ -1185,7 +1185,8 @@ TEST_F(MonitorTest, AGuardRestartAtTheRestartLimitIsRetried) {
     EXPECT_EQ(result.verdict, Verdict::Unknown) << result.message << "\n" << log();
     EXPECT_EQ(result.message, "the limit of 0 restarts was reached: the guard at 6:5 (abort) would end the run");
     EXPECT_EQ(result.runs, 2u);
-    EXPECT_TRUE(log().contains("run 1: no waypoint failed; validating again with inputs 1 by default")) << log();
+    EXPECT_TRUE(log().contains("run 1: nothing for the search to solve; validating again with inputs 1 by default"))
+        << log();
 }
 
 constexpr std::string_view alternatingGuardsProgram = R"(extern int __VERIFIER_nondet_int(void);

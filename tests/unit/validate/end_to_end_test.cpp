@@ -298,7 +298,8 @@ int main(void) {
     const ValidationResult result = validate(sequence({{target(12, 3)}}));
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
     EXPECT_EQ(result.runs, 2u);
-    EXPECT_TRUE(log().contains("run 1: no waypoint failed; validating again with inputs 1 by default")) << log();
+    EXPECT_TRUE(log().contains("run 1: nothing for the search to solve; validating again with inputs 1 by default"))
+        << log();
 }
 
 TEST_F(EndToEndTest, ALoopCounterBoundedByAnInput) {
@@ -511,6 +512,26 @@ int main(void) {
     EXPECT_EQ(result.verdict, Verdict::TargetWithoutError) << result.message << "\n" << log();
     EXPECT_EQ(result.runs, 2u);
     EXPECT_TRUE(log().contains("run 2: the run exceeded its budget of")) << log();
+}
+
+TEST_F(EndToEndTest, ARunRejectedAtAWaypointOnTheOpaqueTermIsRetried) {
+    // abs is a library function, whose result has the opaque term: the search can do nothing for the branching, and
+    // the retry passes it with a = 1.
+    build(R"(extern int __VERIFIER_nondet_int(void);
+extern int abs(int);
+void reach_error(void);
+int main(void) {
+    int a = __VERIFIER_nondet_int();
+    if (abs(a) == 1) reach_error();
+    return 0;
+}
+)");
+    options_.retryDefaultInput = 1;
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 6, 5, "true")}, {target(6, 22)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("needs `<opaque> != 0`")) << log();
 }
 
 TEST_F(EndToEndTest, AComparisonOfAnInputWithItselfFailsWithNan) {

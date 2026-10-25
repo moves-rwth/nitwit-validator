@@ -159,21 +159,26 @@ gets the *default*.
   than 1, which NITWIT 3.x effectively uses: as the only default, 1 confirms one witness more on the 250-witness
   sample, but six fewer on `validation-crafted`.
 - **The retry with defaults of 1** (`ValidationOptions::retryDefaultInput`, which the driver sets): a final run that
-  ends without confirmation and without a waypoint that failed leaves nothing to the search; only the inputs between
-  the waypoints decided its path, as in witnesses with the target only. The trigger is that rule, whatever ended the
-  run: the monitor followed the witness to the end of the run (`main` returned, `exit`, `abort`, a failed
-  `__VERIFIER_assume`, an endless loop without effect, undefined behaviour, an unsupported construct, the interpreter's
-  memory or call-depth limit), the error function was called elsewhere than at the target, or a guard asked for a
-  restart that the restart limit or a repeated run prevented ("Guards"); and the run gave some arithmetic input the
-  default (else the retry would repeat it).
+  ends without confirmation and leaves the search nothing it can solve was decided by the inputs between the
+  waypoints, as in witnesses with the target only. The trigger is that rule, whatever ended the run, and the run gave
+  some arithmetic input the default (else the retry would repeat it):
+  - no waypoint failed: the monitor followed the witness to the end of the run (`main` returned, `exit`, `abort`, a
+    failed `__VERIFIER_assume`, an endless loop without effect, undefined behaviour, an unsupported construct, the
+    interpreter's memory or call-depth limit), the error function was called elsewhere than at the target, or a guard
+    asked for a restart that the restart limit or a repeated run prevented ("Guards");
+  - or a waypoint rejected the execution whose requirement has no term the search can change (no term, or only the
+    opaque term), such as a branching on a value that depends on inputs only through control flow or through a
+    library function. A waypoint whose terms the search tried in vain, or that reached the restart limit or a repeated
+    run, gives no retry.
   - The retry is a second phase of the validation, and the last: the restart loop of the first phase again, with 1 for
     the inputs that are neither fixed nor hinted and the fixed inputs keeping their values. A waypoint without its
     outcome, or a guard that would end the run, searches and restarts as in the first phase ("Search"), with kept
     clauses, a restart limit of its own by the same formula, and repeated runs found among its own runs (with another
     default, the same fixed inputs make another run).
-  - It confirms, or the verdict is that of the final run of the first phase. NITWIT running out of its own memory in
-    it does not end the validation, and the diagnostics of constraints first compiled in it are discarded. Its
-    confirmations come from one complete run like any other.
+  - It confirms, or the verdict is that of the first phase: of its final run, or the verdict of the restart limit or
+    the repeated run of a guard that ended it. NITWIT running out of its own memory in the retry does not end the
+    validation, and the diagnostics of constraints first compiled in it are discarded. Its confirmations come from one
+    complete run like any other.
   - **Budget:** since 1 keeps loops like `while (__VERIFIER_nondet_int())` going for ever, the runs of the retry
     together may take the events of all runs of the first phase and `retryExtraEvents` (2^22) more; the run that
     exceeds it ends the retry. A retry that does not confirm thus at most doubles the work of a validation, plus about
@@ -406,8 +411,8 @@ segment:
   `RunOptions::checkTerms`), so with the search: a constraint on a computed value, a loop counter, the input check of
   RERS, the result of a defined function, avoided switch cases and narrowing conversions, a NaN input, truth values in
   `unsigned char` combined with `&`, guards (`assume_abort_if_not` searched for, a follow and an avoid waypoint at
-  its `if`, `__VERIFIER_assume`, `exit` and `_Exit`, the program's own `abort`) and the retry (searching, its
-  budget); `guard_test.cpp` which `if` statements are guards;
+  its `if`, `__VERIFIER_assume`, `exit` and `_Exit`, the program's own `abort`) and the retry (searching, its budget,
+  after a waypoint on the opaque term); `guard_test.cpp` which `if` statements are guards;
   `search_test.cpp` the search on term tables built by hand, one test per rule (inversion through every invertible
   operation, candidates and their order, the special values of each format, the negation of a floating comparison,
   kept clauses and their index, repairs, unknown atoms, `&&`, `||` and `?:`, `&` and `|` of truth values (nested,
@@ -418,8 +423,8 @@ segment:
   that repeats its inputs with a value tried since, case ranges, avoided cases of a switch, a repaired clause, the limit
   of kept clauses; monitor tests of guards (searched for, kept, not passable, a witness waypoint at one, at the restart
   limit, repeating a run, `__VERIFIER_assume`); restart tests of the retry (its search for follow and avoid waypoints,
-  its own restart limit, its budget over the runs of both phases) and an oracle test of repeated runs with another
-  default.
+  its own restart limit, its budget over the runs of both phases, its trigger after a waypoint without term but not
+  after one the search tried) and an oracle test of repeated runs with another default.
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness, as a process with a timeout of 30 s, and checks
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`: every witness confirmed, except
     those named `*.invalid`, which must not be;

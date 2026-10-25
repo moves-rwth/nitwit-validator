@@ -166,6 +166,7 @@ void SegmentMonitor::beginRun(std::uint32_t run, std::optional<std::uint64_t> ev
     reason_.clear();
     changes_.clear();
     isAtGuard_ = false;
+    isBeyondSearch_ = false;
     kept_.clear();
     isKeptFull_ = false;
 }
@@ -493,6 +494,12 @@ interp::Directive SegmentMonitor::searchOrReject(WaypointId id, const std::vecto
         std::println(*log_, "run {}: {} {}", run_, describe(id), result.explanation);
     }
     changes_ = std::move(result.changes);
+    const auto isSteerableAtom = [&](const Atom& atom) {
+        return isSteerable(atom.term, context.terms());
+    };
+    isBeyondSearch_ = !isRestart && std::ranges::none_of(requirement, [&](const Clause& clause) {
+        return std::ranges::any_of(clause, isSteerableAtom);
+    });
     return interp::Directive::Stop;
 }
 
