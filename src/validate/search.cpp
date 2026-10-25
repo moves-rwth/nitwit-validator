@@ -163,8 +163,8 @@ struct Choice {
 /// special values; values the input was fixed to in earlier runs come last, or not at all.
 class Choices {
 public:
-    Choices(ast::AstContext& context, const SearchInput& input, bool allowsHistory)
-        : context_(context), input_(input), allowsHistory_(allowsHistory) {}
+    Choices(ast::AstContext& context, SearchInput input, bool allowsHistory)
+        : context_(context), input_(std::move(input)), allowsHistory_(allowsHistory) {}
 
     void add(Value value, Change::Method method) {
         const Queue queue = method == Change::Method::Inversion ? Queue::Inverted
@@ -213,7 +213,7 @@ private:
     }
 
     ast::AstContext& context_;
-    const SearchInput& input_;
+    SearchInput input_;
     bool allowsHistory_;
     std::array<std::vector<Choice>, 5> queues_; // by Queue
     std::array<std::size_t, 5> next_{};
@@ -254,6 +254,15 @@ private:
         Unknown, // holds as far as the run evaluated the operands
         Fails,
     };
+
+    /// What a pass may choose besides inverted values and the other candidates.
+    struct Pass {
+        bool allowsHistory = false;  // values inputs were fixed to in earlier runs
+        bool allowsSpecials = false; // the special values of the inputs' types (addSpecials)
+    };
+    static constexpr std::array<Pass, 3> passes{{{.allowsHistory = false, .allowsSpecials = false},
+                                                 {.allowsHistory = true, .allowsSpecials = false},
+                                                 {.allowsHistory = true, .allowsSpecials = true}}};
 
     /// The values chosen so far, to restore after an alternative failed.
     struct Snapshot {
@@ -299,6 +308,10 @@ private:
     /// Adds the constants of `clause`, at most `budget` of them.
     void addConstantsOf(Choices& choices, const SearchInput& input, std::span<const Atom> clause,
                         std::size_t& budget) const;
+    /// Tries the values of `choices` for `input` in their order until one is taken (tryValue); a value that a clause
+    /// blocks adds the clause's constants, `blockerConstants` at most, which counts down.
+    bool tryChoices(InputId input, const SearchInput& info, Choices& choices, const Relation& relation,
+                    std::size_t& blockerConstants);
     /// Takes `choice` for `input` if it gives the relation and keeps the guards and the kept clauses. Otherwise
     /// `blocker` is the clause the value makes false, if there is one.
     bool tryValue(InputId input, const Choice& choice, const Relation& relation, Clause& blocker);
@@ -356,7 +369,8 @@ private:
     const KeptClauses& kept_;
     const SearchInputs& inputs_;
     SearchLimits limits_;
-    bool allowsHistory_ = false; // whether values inputs were fixed to in earlier runs may be chosen
+    bool allowsHistory_ = false;  // in this pass (Pass)
+    bool allowsSpecials_ = false; // in this pass (Pass), except in a repair
     value::Substitution chosen_;
     std::vector<std::pair<InputId, Change::Method>> methods_; // how each input in chosen_ got its value
     std::vector<Guard> guards_;
@@ -370,8 +384,9 @@ private:
     mutable std::size_t evaluations_ = 0;                  // of terms in this search, counted by evaluate()
 };
 
-// Two passes: the first never chooses a value an input was fixed to in an earlier run, so that two waypoints do not
-// take turns changing one input; the second allows them.
+// Three passes, each only if the ones before found no values: the first never chooses a value an input was fixed to in
+// an earlier run, so that two waypoints do not take turns changing one input; the second allows them; the third also
+// tries the special values, which satisfy relations that no other value does, but rarely lead where the witness goes.
 SearchResult Solver::solve(std::span<const Clause> requirement) {
     std::string needs;
     for (const Clause& clause : requirement) {
@@ -386,11 +401,12 @@ SearchResult Solver::solve(std::span<const Clause> requirement) {
                 .explanation = "needs another path, which the terms do not describe: no input values found"};
     }
     const bool hasHistory = inputs_.hasHistory();
-    for (const bool allowsHistory : {false, true}) {
-        if (allowsHistory && !hasHistory) {
-            break;
+    for (const Pass& pass : passes) {
+        if (pass.allowsHistory && !pass.allowsSpecials && !hasHistory) {
+            continue; // the same as the first pass
         }
-        allowsHistory_ = allowsHistory;
+        allowsHistory_ = pass.allowsHistory;
+        allowsSpecials_ = pass.allowsSpecials;
         chosen_ = {};
         methods_.clear();
         guards_.clear();
@@ -691,8 +707,10 @@ Solver::Outcome Solver::solveConditional(const Term& conditional, SolveSelected 
 // ---- Relations ----
 
 // Each input of the relation in the order of preference gets the inverted value, if the relation can be inverted for
-// it, and then candidates. A candidate that a clause blocks adds that clause's constants as candidates. The first
-// value that gives the relation and keeps the guards and kept clauses is taken.
+// it, and then candidates. A candidate that a clause blocks adds that clause's constants as candidates. Where the pass
+// allows them, and not in a repair, the special values of each input follow, after the other values of all inputs:
+// `!(0 * x + y < 1)` holds for x = NaN as for y = 1, but the program rarely goes on where the witness does with NaN.
+// The first value that gives the relation and keeps the guards and kept clauses is taken.
 bool Solver::solveRelation(const Relation& relation) {
     const std::vector<InputId> lhsInputs = terms_.inputs(relation.lhs);
     const std::vector<InputId> rhsInputs = relation.rhs ? terms_.inputs(*relation.rhs) : std::vector<InputId>{};
@@ -704,9 +722,14 @@ bool Solver::solveRelation(const Relation& relation) {
     }
     // The negated operator gives values that satisfy the negation.
     const Comparison op = relation.isNegated ? negated(relation.op) : relation.op;
-    for (const InputId input : order) {
+    // By the index in `order`: the values of each input, and how many constants of blocking clauses it may still add.
+    std::vector<Choices> choices;
+    choices.reserve(order.size());
+    std::vector<std::size_t> blockerConstants(order.size(), maxConstants);
+    for (std::size_t i = 0; i < order.size(); ++i) {
+        const InputId input = order[i];
         const SearchInput info = inputs_.at(input);
-        Choices choices(context_, info, allowsHistory_);
+        Choices& mine = choices.emplace_back(context_, info, allowsHistory_);
         // Inversion needs the input on one side only; the other side is the bound.
         const bool isLeft = std::ranges::binary_search(lhsInputs, input);
         if (isLeft != std::ranges::binary_search(rhsInputs, input)) {
@@ -717,20 +740,39 @@ bool Solver::solveRelation(const Relation& relation) {
             if (bound) {
                 if (std::optional<Value> inverted =
                         invert(side, isLeft ? op : mirrored(op), *bound, relation.format, input)) {
-                    choices.add(std::move(*inverted), Change::Method::Inversion);
+                    mine.add(std::move(*inverted), Change::Method::Inversion);
                 }
             }
         }
-        addCandidates(choices, info, relation);
-        std::size_t blockerConstants = maxConstants;
-        Clause blocker;
-        while (const std::optional<Choice> choice = choices.next()) {
-            blocker.clear();
-            if (tryValue(input, *choice, relation, blocker)) {
-                return true;
-            }
-            addConstantsOf(choices, info, blocker, blockerConstants);
+        addCandidates(mine, info, relation);
+        if (tryChoices(input, info, mine, relation, blockerConstants[i])) {
+            return true;
         }
+    }
+    if (!allowsSpecials_ || pinned_) {
+        return false;
+    }
+    // The values tried above are not tried again. A clause that blocks a special value adds its constants as for any
+    // other value: (r - 1) * (r - 1) < a, blocking the maximum of r, gives r = 2 (nla-digbench's fermat2).
+    for (std::size_t i = 0; i < order.size(); ++i) {
+        const SearchInput info = inputs_.at(order[i]);
+        addSpecials(choices[i], info);
+        if (tryChoices(order[i], info, choices[i], relation, blockerConstants[i])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Solver::tryChoices(InputId input, const SearchInput& info, Choices& choices, const Relation& relation,
+                        std::size_t& blockerConstants) {
+    Clause blocker;
+    while (const std::optional<Choice> choice = choices.next()) {
+        blocker.clear();
+        if (tryValue(input, *choice, relation, blocker)) {
+            return true;
+        }
+        addConstantsOf(choices, info, blocker, blockerConstants);
     }
     return false;
 }
@@ -1005,11 +1047,10 @@ void Solver::addCandidates(Choices& choices, const SearchInput& input, const Rel
             }
         }
     }
-    addSpecials(choices, input);
 }
 
 // They satisfy relations that hold for no other value, such as `x != x` (NaN), `x + 1 > x` false (the maximum, where +
-// wraps around) or `x < x + 1e-6` false (an infinity); they come after the other candidates, where those do not help.
+// wraps around) or `x < x + 1e-6` false (an infinity).
 void Solver::addSpecials(Choices& choices, const SearchInput& input) const {
     if (sema::isInteger(context_, input.type)) {
         // The non-negative ones first, as for the other candidates.

@@ -527,11 +527,64 @@ TEST_F(SearchTest, SpecialValuesComeAfterTheOtherCandidates) {
     EXPECT_EQ(changes({squareIsOne}, {{atom(x, Comparison::NotEqual, 1)}}), "0 := -1 (candidate)");
     EXPECT_EQ(changes({squareIsOne}, {{atom(x, Comparison::NotEqual, 1)}, {atom(x, Comparison::NotEqual, -1)}}),
               "0 := 2147483647 (candidate)");
-    // Values of earlier runs come after them: (y + 10) < y with y fixed to the maximum before.
+    // A special value that is a value of an earlier run comes after the other special values: (y + 10) < y with y
+    // fixed to the maximum before.
     const Value y = input(1, 0, InputSource::Fixed);
     fixedBefore(1, {2147483647});
     EXPECT_EQ(changes({{holds(compare(Comparison::Less, arithmetic(IntegerOperator::Add, y, constant(10)), y))}}),
               "1 := 2147483646 (candidate)");
+}
+
+TEST_F(SearchTest, ValuesOfEarlierRunsComeBeforeSpecialValues) {
+    // x * x == 1 with x = 0, fixed to 1 before, and -1 excluded: 1 again (the second pass), not the maximum of int (the
+    // third), as in pals, where the maximum of a char id leaves no greater id for a later comparison.
+    const Value x = input(0, 0, InputSource::Fixed);
+    fixedBefore(0, {1});
+    EXPECT_EQ(changes({{atom(arithmetic(IntegerOperator::Mul, x, x), Comparison::Equal, 1)}},
+                      {{atom(x, Comparison::NotEqual, -1)}}),
+              "0 := 1 (candidate)");
+}
+
+TEST_F(SearchTest, AClauseThatBlocksASpecialValueGivesCandidates) {
+    // r * r - a > 0 in long long with a hinted a = 3, r = 0 and the kept (r - 1) * (r - 1) < a, as in nla-digbench's
+    // fermat2: no candidate of r gives the relation, the maximum of int does, the kept clause blocks it, and its
+    // constant 1 + 1 gives both.
+    constexpr value::IntegerFormat s64{.bits = 64, .isSigned = true};
+    const Value a = input(0, 3, InputSource::Hinted);
+    const Value r = input(1, 0);
+    const auto wide = [&](const Value& value) {
+        return converted(value, BuiltinKind::Int, BuiltinKind::LongLong);
+    };
+    const auto square = [&](const Value& value) {
+        return arithmetic(IntegerOperator::Mul, value, value, s64);
+    };
+    const Value difference = arithmetic(IntegerOperator::Sub, square(wide(r)), wide(a), s64);
+    const Value below = arithmetic(IntegerOperator::Sub, wide(r), constant(1, BuiltinKind::LongLong), s64);
+    const Clause kept{holds(compare(Comparison::Less, square(below), wide(a), s64))};
+    EXPECT_EQ(
+        changes({{holds(compare(Comparison::Greater, difference, constant(0, BuiltinKind::LongLong), s64))}}, {kept}),
+        "1 := 2 (candidate)");
+}
+
+TEST_F(SearchTest, SpecialValuesComeAfterTheOtherValuesOfAllInputs) {
+    // !(0 * d + x < 1), as in neural-networks' linear_1: NaN for d, the later input, which is tried first, satisfies
+    // it, but x = 1 comes first.
+    const Value x = input(0, 0, InputSource::Default, BuiltinKind::Double);
+    const Value d = input(1, 0, InputSource::Default, BuiltinKind::Double);
+    const Value sum = floating(FloatOperator::Add, floating(FloatOperator::Mul, Value::ofDouble(0.0), d), x);
+    EXPECT_EQ(changes({{fails(compare(Comparison::Less, sum, Value::ofDouble(1.0), value::FloatFormat::Double))}}),
+              "0 := 1 (inversion)");
+}
+
+TEST_F(SearchTest, ARepairTakesNoSpecialValues) {
+    // !(0 * d + (double)y < 1) is kept with y = 5; y == 0 breaks it, and only NaN or an infinity for d would repair it.
+    const Value d = input(0, 0, InputSource::Default, BuiltinKind::Double);
+    const Value y = input(1, 5);
+    const Value sum = floating(FloatOperator::Add, floating(FloatOperator::Mul, Value::ofDouble(0.0), d),
+                               converted(y, BuiltinKind::Int, BuiltinKind::Double));
+    const std::vector<Clause> kept{
+        {fails(compare(Comparison::Less, sum, Value::ofDouble(1.0), value::FloatFormat::Double))}};
+    EXPECT_EQ(changes({{atom(y, Comparison::Equal, 0)}}, kept), "none");
 }
 
 // ---- Kept clauses ----
