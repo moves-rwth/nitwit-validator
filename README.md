@@ -48,11 +48,12 @@ confirms no witness of a correct program. On 1000 of the witnesses (100 per prod
 witnesses of buggy programs, NITWIT 3.x 312; on the witnesses both decide, it takes 20 s of CPU time, 3.x 348 s.
 Details, also on memory: `docs/evaluation.md`.
 
-The test suites (`docs/development.md`, "Tests") with this source:
+The test suites (`docs/development.md`, "Tests"): unit tests, golden dumps and semantics with this source, the
+validation of witnesses with NITWIT 4.0.0 as above:
 
 | Suite | Result |
 |---|---|
-| unit tests | 1,936 tests of the 10 modules, all passing |
+| unit tests | 1,984 tests of the 10 modules, all passing |
 | golden dumps | 48: 22 ASTs; 26 typed ASTs, 4 of them for ILP32; all passing |
 | semantics | 50 programs with the output, outcome and inputs of GCC and Clang, with `-m32` and `-m64`, also with the terms checked: 200 tests, all passing |
 | validation of all SV-COMP 2026 unreach-call witnesses (format 2.x) | the front end accepts every program; all witnesses but one (`line: 0`) parse; 9,239 of 14,841 witnesses of buggy programs confirmed, none of 12,792 of correct programs |

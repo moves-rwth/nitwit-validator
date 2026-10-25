@@ -45,10 +45,12 @@ preprocessed `.i` files expand to:
   nearest (`fesetround`). These end the run with `Unsupported`.
 
 Behaviour choices of the library:
-- **Allocation failure** (memory limit, `calloc` size overflow) ends the run with `OutOfMemory` instead of returning
-  NULL, as SV-COMP assumes that allocation succeeds. `realloc` that cannot hold the old and the new block at once moves
-  the contents through host memory and frees the old block first; the moved bytes are opaque then if they depend on
-  inputs (see "Terms").
+- **Allocation never returns NULL:** SV-COMP assumes that allocation succeeds, and programs that need failing
+  allocations model them: the aws harnesses separate `bounded_malloc`, which must succeed, from `can_fail_malloc`,
+  which returns NULL by a nondeterministic choice of the program. An allocation the interpreter cannot make (beyond
+  the memory limit, a `calloc` whose size overflows) therefore ends the run with `OutOfMemory` (exit 251).
+  `realloc` that cannot hold the old and the new block at once moves the contents through host memory and frees the
+  old block first; the moved bytes are opaque then if they depend on inputs (see "Terms").
 - **Uninitialized bytes** are read as stored by library functions (zero); they do not ask the oracle.
 - **Known library functions are never inputs:** every library function in sema's builtin table is implemented or ends
   the run as `Unsupported` (the `scanf` family, files, `qsort`, the `_chk` functions of `_FORTIFY_SOURCE`, ...).
