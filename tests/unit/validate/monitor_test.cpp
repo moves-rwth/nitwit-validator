@@ -855,8 +855,8 @@ int main(void) {
 
 TEST_F(MonitorTest, ARunWithTheInputsOfAnEarlierRunIsNotMade) {
     // y is hinted 0; x == 1 || y == 1 needs x == 1, which x != 1 excludes. x becomes 1 between other values the search
-    // tries for x != 1: 0, 2, -1, then 0 again, which is no new value. The run with x = 1 after it would be run 8
-    // again, and so would the search after it.
+    // tries for x != 1: 0, 2, -1, the extremes of int and their neighbours, then 0 again, which is no new value. The
+    // run with x = 1 after it would be run 16 again, and so would the search after it.
     program(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);
 int main(void) {
@@ -890,9 +890,9 @@ int main(void) {
                                                        {target(7, 21)}}),
                                              script);
     EXPECT_EQ(result.verdict, Verdict::LeftWitness) << result.message << "\n" << log();
-    EXPECT_EQ(result.runs, 9u) << log();
+    EXPECT_EQ(result.runs, 17u) << log();
     EXPECT_EQ(result.message, "the execution left the witness: the follow waypoint of segment 2 (branching at 6:5) "
-                              "failed at 6:5; the search proposes the inputs of run 8 again");
+                              "failed at 6:5; the search proposes the inputs of run 16 again");
 }
 
 TEST_F(MonitorTest, ARunWithTheInputsOfAnEarlierRunIsMadeIfValuesWereTriedSince) {

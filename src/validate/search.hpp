@@ -101,7 +101,7 @@ struct SearchResult {
 
 /// The work one search may do; beyond it, the search ends without values.
 struct SearchLimits {
-    std::size_t goals = 20'000;        // decompositions of `!`, `&&`, `||`, `?:` and comparisons, per pass
+    std::size_t goals = 20'000;        // decompositions of `!`, `&&`, `||`, `&`, `|`, `?:` and comparisons, per pass
     std::size_t evaluations = 300'000; // of terms, by both passes and repairs: well under a second
 };
 

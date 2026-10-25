@@ -74,6 +74,12 @@ protected:
         return result;
     }
 
+    Value floating(FloatOperator op, const Value& lhs, const Value& rhs) {
+        Value result = value::floatBinary(op, lhs, rhs, value::FloatFormat::Double);
+        result.setTerm(terms_.floatBinary(op, lhs, rhs, value::FloatFormat::Double));
+        return result;
+    }
+
     Value compare(Comparison op, const Value& lhs, const Value& rhs, value::ScalarFormat format = s32) {
         const auto* integer = std::get_if<value::IntegerFormat>(&format);
         const bool holds = integer != nullptr ? value::integerCompare(op, lhs, rhs, *integer)
@@ -228,18 +234,14 @@ TEST_F(SearchTest, InvertsDivisionByAFactor) {
 
 TEST_F(SearchTest, InvertsFloatingAdditionWhereRoundingAllowsIt) {
     const Value d = input(0, 0, InputSource::Default, BuiltinKind::Double);
-    const auto plus = [&](FloatOperator op, const Value& lhs, const Value& rhs) {
-        Value result = value::floatBinary(op, lhs, rhs, value::FloatFormat::Double);
-        result.setTerm(terms_.floatBinary(op, lhs, rhs, value::FloatFormat::Double));
-        return result;
-    };
     const auto isEqual = [&](const Value& lhs, double rhs) {
         return holds(compare(Comparison::Equal, lhs, Value::ofDouble(rhs), value::FloatFormat::Double));
     };
-    EXPECT_EQ(changes({{isEqual(plus(FloatOperator::Add, d, Value::ofDouble(0.5)), 2.0)}}), "0 := 1.5 (inversion)");
-    EXPECT_EQ(changes({{isEqual(plus(FloatOperator::Sub, Value::ofDouble(1.0), d), 0.25)}}), "0 := 0.75 (inversion)");
-    // 0.2 + 0.1 - 0.1 is not 0.2 in double.
-    EXPECT_EQ(changes({{isEqual(plus(FloatOperator::Sub, d, Value::ofDouble(0.1)), 0.2)}}), "none");
+    EXPECT_EQ(changes({{isEqual(floating(FloatOperator::Add, d, Value::ofDouble(0.5)), 2.0)}}), "0 := 1.5 (inversion)");
+    EXPECT_EQ(changes({{isEqual(floating(FloatOperator::Sub, Value::ofDouble(1.0), d), 0.25)}}),
+              "0 := 0.75 (inversion)");
+    // 0.2 + 0.1 - 0.1 is not 0.2 in double, and no special value gives 0.2 either.
+    EXPECT_EQ(changes({{isEqual(floating(FloatOperator::Sub, d, Value::ofDouble(0.1)), 0.2)}}), "none");
 }
 
 TEST_F(SearchTest, InvertsConversionsThatTruncate) {
@@ -341,6 +343,100 @@ TEST_F(SearchTest, AnOperandTheRunDidNotEvaluateIsUnknown) {
     EXPECT_EQ(changes({{holds(both)}}), "0 := 1 (inversion)");
 }
 
+TEST_F(SearchTest, BitwiseAndOfTruthValuesIsSolvedLikeAnd) {
+    // (x == 1) & (y == 2) with x = y = 0: unlike &&, the run evaluated both operands, so both get their values.
+    const Value x = input(0, 0);
+    const Value y = input(1, 0);
+    const Value both = arithmetic(IntegerOperator::And, compare(Comparison::Equal, x, constant(1)),
+                                  compare(Comparison::Equal, y, constant(2)));
+    EXPECT_EQ(changes({{holds(both)}}), "0 := 1 (inversion), 1 := 2 (inversion)");
+    // x != 0 & x != 1 with x = 1: the operand that holds keeps holding while the other one is solved.
+    const Value z = input(2, 1);
+    const Value neither = arithmetic(IntegerOperator::And, compare(Comparison::NotEqual, z, constant(0)),
+                                     compare(Comparison::NotEqual, z, constant(1)));
+    EXPECT_EQ(changes({{holds(neither)}}), "2 := 2 (candidate)");
+}
+
+TEST_F(SearchTest, BitwiseOrOfTruthValuesIsSolvedLikeOr) {
+    const Value x = input(0, 0);
+    const Value y = input(1, 0);
+    const Value either = arithmetic(IntegerOperator::Or, compare(Comparison::Equal, x, constant(1)),
+                                    compare(Comparison::Equal, y, constant(2)));
+    EXPECT_EQ(changes({{holds(either)}}), "0 := 1 (inversion)");
+    // Both operands must fail: x == 0 | y == 0 with x = 0, y = 0.
+    const Value zero = arithmetic(IntegerOperator::Or, compare(Comparison::Equal, x, constant(0)),
+                                  compare(Comparison::Equal, y, constant(0)));
+    EXPECT_EQ(changes({{fails(zero)}}), "0 := 1 (inversion), 1 := 1 (inversion)");
+}
+
+TEST_F(SearchTest, TheClausesOfXcspAreSolvedThroughBitwiseAndAndOr) {
+    // assume(!((x == 0 & y == 0 & z == 1) | 0)), as xcsp programs encode a SAT clause, with x = y = 0 and z = 1.
+    const auto clause = [&](const Value& a, const Value& b, const Value& c) {
+        const Value first = arithmetic(IntegerOperator::And, compare(Comparison::Equal, a, constant(0)),
+                                       compare(Comparison::Equal, b, constant(0)));
+        const Value all = arithmetic(IntegerOperator::And, first, compare(Comparison::Equal, c, constant(1)));
+        return arithmetic(IntegerOperator::Or, all, constant(0));
+    };
+    const Value x = input(0, 0, InputSource::Hinted);
+    const Value y = input(1, 0);
+    const Value z = input(2, 1);
+    EXPECT_EQ(changes({{fails(clause(x, y, z))}}), "1 := 1 (inversion)");
+    // The program's assumptions 0 <= y <= 1 and a kept clause that excludes y = 1 leave z.
+    const Value w = input(3, 0, InputSource::Hinted);
+    const std::vector<Clause> kept{{fails(clause(w, w, y))},
+                                   {holds(compare(Comparison::GreaterEqual, y, constant(0)))},
+                                   {holds(compare(Comparison::LessEqual, y, constant(1)))}};
+    EXPECT_EQ(changes({{fails(clause(x, y, z))}}, kept), "2 := 0 (inversion)");
+}
+
+TEST_F(SearchTest, NestedBitwiseOperationsOfTruthValuesAreDecomposed) {
+    // ((x == 1) & (y == 2)) | (z == 3) with a hinted z: the first operand, with both of its operands.
+    const Value x = input(0, 0);
+    const Value y = input(1, 0);
+    const Value z = input(2, 0, InputSource::Hinted);
+    const Value both = arithmetic(IntegerOperator::And, compare(Comparison::Equal, x, constant(1)),
+                                  compare(Comparison::Equal, y, constant(2)));
+    const Value nested = arithmetic(IntegerOperator::Or, both, compare(Comparison::Equal, z, constant(3)));
+    EXPECT_EQ(changes({{holds(nested)}}), "0 := 1 (inversion), 1 := 2 (inversion)");
+    // The truth values of `^`, of integer conversions and of _Bool inputs: (b ^ 1) & (unsigned char)(x == 2), with
+    // b = 0.
+    const Value b = input(3, 0, InputSource::Default, BuiltinKind::Bool);
+    const Value flipped =
+        arithmetic(IntegerOperator::Xor, converted(b, BuiltinKind::Bool, BuiltinKind::Int), constant(1));
+    const Value narrowed =
+        converted(converted(compare(Comparison::Equal, x, constant(2)), BuiltinKind::Int, BuiltinKind::UnsignedChar),
+                  BuiltinKind::UnsignedChar, BuiltinKind::Int);
+    EXPECT_EQ(changes({{holds(arithmetic(IntegerOperator::And, flipped, narrowed))}}), "0 := 2 (inversion)");
+}
+
+TEST_F(SearchTest, AnIntegerConversionOfATruthValuePassesTheGoalOn) {
+    // (unsigned char)(x < 5) with x = 9, as btor2c stores truth values: the comparison is inverted.
+    const Value x = input(0, 9);
+    const Value narrowed =
+        converted(compare(Comparison::Less, x, constant(5)), BuiltinKind::Int, BuiltinKind::UnsignedChar);
+    EXPECT_EQ(changes({{holds(narrowed)}}), "0 := 4 (inversion)");
+    // _Bool inputs are truth values: (int)b & (int)c.
+    const Value b = input(1, 0, InputSource::Default, BuiltinKind::Bool);
+    const Value c = input(2, 0, InputSource::Default, BuiltinKind::Bool);
+    const Value both = arithmetic(IntegerOperator::And, converted(b, BuiltinKind::Bool, BuiltinKind::Int),
+                                  converted(c, BuiltinKind::Bool, BuiltinKind::Int));
+    EXPECT_EQ(changes({{holds(both)}}), "1 := 1 (inversion), 2 := 1 (inversion)");
+}
+
+TEST_F(SearchTest, BitwiseOperationsOfOtherValuesAreLeftToCandidates) {
+    // x & 1 extracts a bit: x is no truth value, so the relation is not decomposed into x != 0 and 1 != 0.
+    const Value x = input(0, 0);
+    EXPECT_EQ(changes({{holds(arithmetic(IntegerOperator::And, x, constant(1)))}}), "0 := 1 (candidate)");
+    const Value y = input(1, 1);
+    EXPECT_EQ(changes({{fails(arithmetic(IntegerOperator::And, y, constant(1)))}}), "1 := 2 (candidate)");
+    // x & 6, decomposed, would give 1, and 1 & 6 is 0.
+    EXPECT_EQ(changes({{holds(arithmetic(IntegerOperator::And, x, constant(6)))}}), "0 := 6 (candidate)");
+    // A constant other than 0 and 1 is no truth value: (x == 1) & 2 is 0 for every x, not x == 1 && 2 != 0.
+    EXPECT_EQ(
+        changes({{holds(arithmetic(IntegerOperator::And, compare(Comparison::Equal, x, constant(1)), constant(2)))}}),
+        "none");
+}
+
 // ---- Candidates ----
 
 TEST_F(SearchTest, CandidatesWhereNoOperationCanBeInverted) {
@@ -363,6 +459,79 @@ TEST_F(SearchTest, DivisionByZeroRejectsACandidate) {
     const Value x = input(0, 5);
     EXPECT_EQ(changes({{atom(arithmetic(IntegerOperator::Div, constant(10), x), Comparison::Equal, 10)}}),
               "0 := 1 (candidate)");
+}
+
+TEST_F(SearchTest, NanMakesAComparisonOfAnInputWithItselfFail) {
+    // x == x false, as CPAchecker's nan_double needs it, in every floating format.
+    const Value d = input(0, 0, InputSource::Default, BuiltinKind::Double);
+    EXPECT_EQ(changes({{fails(compare(Comparison::Equal, d, d, value::FloatFormat::Double))}}), "0 := nan (candidate)");
+    EXPECT_EQ(changes({{holds(compare(Comparison::NotEqual, d, d, value::FloatFormat::Double))}}),
+              "0 := nan (candidate)");
+    const Value f = input(1, 0, InputSource::Default, BuiltinKind::Float);
+    EXPECT_EQ(changes({{fails(compare(Comparison::Equal, f, f, value::FloatFormat::Float))}}), "1 := nan (candidate)");
+    const Value l = input(2, 0, InputSource::Default, BuiltinKind::LongDouble);
+    EXPECT_EQ(changes({{fails(compare(Comparison::Equal, l, l, value::FloatFormat::LongDouble))}}),
+              "2 := nan (candidate)");
+}
+
+TEST_F(SearchTest, NanSatisfiesTheNegationOfAnOrderedComparison) {
+    // !(x < x + 1e-6), from neural-networks: NaN satisfies it, although not x >= x + 1e-6.
+    const Value d = input(0, 0, InputSource::Default, BuiltinKind::Double);
+    const Value larger = floating(FloatOperator::Add, d, Value::ofDouble(1e-6));
+    const Clause notLess{fails(compare(Comparison::Less, d, larger, value::FloatFormat::Double))};
+    EXPECT_EQ(changes({notLess}), "0 := nan (candidate)");
+    // With NaN excluded, as by the program's own check x != x, an infinity.
+    EXPECT_EQ(changes({notLess}, {{fails(compare(Comparison::NotEqual, d, d, value::FloatFormat::Double))}}),
+              "0 := inf (candidate)");
+    // Inversion takes the negated operator: !(x < 2.5) gives 2.5.
+    EXPECT_EQ(changes({{fails(compare(Comparison::Less, d, Value::ofDouble(2.5), value::FloatFormat::Double))}}),
+              "0 := 2.5 (inversion)");
+}
+
+TEST_F(SearchTest, NegativeZeroIsACandidate) {
+    // 1.0 / x < -1e300 holds for -0.0 only, where the quotient is -inf.
+    const Value d = input(0, 0, InputSource::Default, BuiltinKind::Double);
+    const Value quotient = floating(FloatOperator::Div, Value::ofDouble(1.0), d);
+    EXPECT_EQ(
+        changes({{holds(compare(Comparison::Less, quotient, Value::ofDouble(-1e300), value::FloatFormat::Double))}}),
+        "0 := -0 (candidate)");
+}
+
+TEST_F(SearchTest, IntegerExtremesSolveOverflowChecks) {
+    // (x + 10) < x, from ldv-regression's test24-2, holds where + wraps around: at the maximum.
+    const Value x = input(0, 0);
+    EXPECT_EQ(changes({{holds(compare(Comparison::Less, arithmetic(IntegerOperator::Add, x, constant(10)), x))}}),
+              "0 := 2147483647 (candidate)");
+    // !((x - 1) < x) at the minimum.
+    EXPECT_EQ(changes({{fails(compare(Comparison::Less, arithmetic(IntegerOperator::Sub, x, constant(1)), x))}}),
+              "0 := -2147483648 (candidate)");
+    // Their neighbours, where a kept clause excludes the extreme.
+    EXPECT_EQ(changes({{holds(compare(Comparison::Less, arithmetic(IntegerOperator::Add, x, constant(2)), x))}},
+                      {{atom(x, Comparison::NotEqual, 2147483647)}}),
+              "0 := 2147483646 (candidate)");
+    EXPECT_EQ(changes({{fails(compare(Comparison::Less, arithmetic(IntegerOperator::Sub, x, constant(2)), x))}},
+                      {{atom(x, Comparison::NotEqual, -2147483648LL)}}),
+              "0 := -2147483647 (candidate)");
+    // The extremes of the input's format.
+    constexpr value::IntegerFormat s64{.bits = 64, .isSigned = true};
+    const Value y = input(1, 0, InputSource::Default, BuiltinKind::LongLong);
+    const Value sum = arithmetic(IntegerOperator::Add, y, constant(10, BuiltinKind::LongLong), s64);
+    EXPECT_EQ(changes({{holds(compare(Comparison::Less, sum, y, s64))}}), "1 := 9223372036854775807 (candidate)");
+}
+
+TEST_F(SearchTest, SpecialValuesComeAfterTheOtherCandidates) {
+    // x * x == 1 holds for 1, -1 and the extremes of int (the square of 2^31 - 1 wraps around to 1).
+    const Value x = input(0, 0);
+    const Clause squareIsOne{atom(arithmetic(IntegerOperator::Mul, x, x), Comparison::Equal, 1)};
+    EXPECT_EQ(changes({squareIsOne}), "0 := 1 (candidate)");
+    EXPECT_EQ(changes({squareIsOne}, {{atom(x, Comparison::NotEqual, 1)}}), "0 := -1 (candidate)");
+    EXPECT_EQ(changes({squareIsOne}, {{atom(x, Comparison::NotEqual, 1)}, {atom(x, Comparison::NotEqual, -1)}}),
+              "0 := 2147483647 (candidate)");
+    // Values of earlier runs come after them: (y + 10) < y with y fixed to the maximum before.
+    const Value y = input(1, 0, InputSource::Fixed);
+    fixedBefore(1, {2147483647});
+    EXPECT_EQ(changes({{holds(compare(Comparison::Less, arithmetic(IntegerOperator::Add, y, constant(10)), y))}}),
+              "1 := 2147483646 (candidate)");
 }
 
 // ---- Kept clauses ----
@@ -610,6 +779,17 @@ TEST_F(SearchTest, SharedSubtermsAreDecomposedOnce) {
         c = next;
     }
     EXPECT_EQ(terms_.term(*c.term()).kind, TermKind::LogicalOr);
+    EXPECT_EQ(changes({{holds(c)}}), "none");
+}
+
+TEST_F(SearchTest, TheTruthValuesOfSharedSubtermsAreDeterminedOnce) {
+    // c = c & c, 63 times, on x == 1 with a hinted x: whether c is a truth value asks for 2^63 paths.
+    const Value x = input(0, 0, InputSource::Hinted);
+    Value c = compare(Comparison::Equal, x, constant(1));
+    for (int i = 0; i < 63; ++i) {
+        c = arithmetic(IntegerOperator::And, c, c);
+    }
+    EXPECT_EQ(terms_.term(*c.term()).kind, TermKind::IntegerBinary);
     EXPECT_EQ(changes({{holds(c)}}), "none");
 }
 

@@ -228,13 +228,21 @@ one prediction.
   ones only as far as the earlier clauses keep holding.
   - **Decomposition:** `t != 0` of `a && b` needs both (solving `b` keeps `a`), of `a || b` one of them, tried
     in order; `t == 0` the negations; `!a` and a conversion to `_Bool` pass the atom on to `a`. A comparison
-    `a op' b` that must hold (or fail: `a op'' b` with the negated operator) is a relation of its two sides. An operand
-    the run did not evaluate (`a && b` where `a` was false) is unknown: making `a` hold is all the search can do there.
-    `c ? x : y` is solved through the operand the run evaluated, with `c` keeping its value, else by changing `c`: the
-    other operand is unknown then, like a missing operand of `&&`. A goal that failed is not decomposed again for the
-    same atom while the same guards hold (one that failed under a conjunct solved before may hold without it); this
-    only saves cost on shared subterms (`c = c || c` in a loop), and a pass decomposes at most 20,000 goals
-    (`SearchLimits`).
+    `a op' b` that must hold is a relation of its two sides; one that must fail is the relation `!(a op' b)`, which
+    inversion solves with the negated operator, but which NaN satisfies where that operator does not (`!(x < 1.0)`).
+    An operand the run did not evaluate (`a && b` where `a` was false) is unknown: making `a` hold is all the search
+    can do there. `c ? x : y` is solved through the operand the run evaluated, with `c` keeping its value, else by
+    changing `c`: the other operand is unknown then, like a missing operand of `&&`. A goal that failed is not
+    decomposed again for the same atom while the same guards hold (one that failed under a conjunct solved before may
+    hold without it); this only saves cost on shared subterms (`c = c || c` in a loop), and a pass decomposes at most
+    20,000 goals (`SearchLimits`).
+    - **Truth values** are 0 or 1 whatever the inputs: comparisons, `!`, `&&`, `||`, conversions to `_Bool`, `_Bool`
+      inputs (the search keeps them 0 or 1), the constants 0 and 1, and integer conversions and `&`, `|` and `^` of
+      truth values. btor2c and xcsp combine conditions with `&` and `|`, like
+      `assume(!((x == 0 & y == 0 & z == 1) | 0))`, and btor2c stores them in `unsigned char`: `a & b` and `a | b` of
+      truth values are decomposed like `a && b` and `a || b`, the run having evaluated both operands, and an integer
+      conversion of a truth value passes the atom on. Other operands, like the bit `(int)x & 1`, are left to inversion
+      and candidates. Whether a term is a truth value is determined once per term and search.
   - **Inversion:** if a changeable input occurs once in one side of the relation, the value for the side is chosen as
     for hints (`values.hpp`, `choose`: `x < c` gives `c - 1`, `x != c` gives 0, or 1 if `c` is 0) with the other side's
     value as the constant, and inverted down the path to the input, the other operand of each operation keeping its
@@ -252,6 +260,13 @@ one prediction.
     neighbours − 1 and + 1. A clause that blocks a value adds its constants and their neighbours. The non-negative
     candidates come before the negative ones, each in this order: programs often reject negative inputs. At most 8
     inputs per relation, and 8 constants of the relation and 8 of blocking clauses per input, are tried.
+    - **Special values** of the input's type come after all other candidates, so that they cost evaluations only
+      where the common values do not help: the maximum, the maximum − 1, the minimum and the minimum + 1 of an integer
+      type, NaN, +∞, −∞ and −0.0 of a floating type. They satisfy relations that no other value does: overflow checks
+      like `(x + 10) < x` at the maximum, where `+` wraps around as the run continues after a signed overflow;
+      `x == x` false (`nan_double`) with NaN only; `!(x < x + 1e-6)` (neural-networks) with NaN or +∞;
+      `1.0 / x < -1e300` with −0.0. And they are left where kept clauses exclude the common values: `x >= 0` for the
+      last of the distinct `char` ids of pals gets 127.
   - **A value is taken** only if, evaluated with all values chosen so far, it is a value of the input's type (a
     `_Bool` is 0 or 1), makes the relation hold, makes no kept clause and no earlier clause of the requirement that
     mentions the input false, and makes neither them nor the clause being solved end the run (`NoValue::EndsRun`:
@@ -350,9 +365,9 @@ segment:
   - values that depend on inputs only through control flow, or through memory, pointers or library functions that
     terms do not follow: requirements without a term or on the opaque term (the `aws` `byte_buf` programs, the
     `v_FIFO` of btor2c);
-  - a relation that no inversion and no candidate satisfies: overflow checks with an input on both sides
-    (`(x + 10) < x` needs a value near the maximum of the type), constraints over `&` and `|` of truth values (the
-    xcsp programs encode SAT problems), polynomials (`bresenham`), `?:` over `signed char` (pals).
+  - a relation that no inversion and no candidate satisfies, or none together with the kept clauses: bits combined
+    with `&` and `|` (btor2c's `(int)x & 1`), SAT problems over truth values (xcsp), which the greedy search does not
+    backtrack in, polynomials (`bresenham`), `?:` over `signed char` (pals).
 - **Paths between waypoints:** the search knows the requirements of waypoints and guards only. Where values change the
   path at another condition no waypoint covers, the run leaves the witness without a failing waypoint: a null pointer
   is read (exit 4), or the program ends before the target segment or in it without calling the error function (exit
@@ -387,19 +402,21 @@ segment:
   (`validate_test_support.hpp`, whose `FakeExecution` records terms as the interpreter does);
   `end_to_end_test.cpp` with the interpreter and the terms it records (checked, also in constraints:
   `RunOptions::checkTerms`), so with the search: a constraint on a computed value, a loop counter, the input check of
-  RERS, the result of a defined function, avoided switch cases and narrowing conversions, guards (`assume_abort_if_not`
-  searched for, a follow waypoint into its `abort`, `__VERIFIER_assume`) and the retry (searching, its budget);
-  `guard_test.cpp` which `if` statements are guards; `search_test.cpp` the search
-  on term tables built by hand, one test per rule (inversion through every invertible operation, candidates and their
-  order, kept clauses and their index, repairs, unknown atoms, `&&`, `||` and `?:`, shared subterms, switches, avoid
-  waypoints, the order of inputs and values, the two passes, the memo under guards, the budgets of goals and
-  evaluations, the explanation) and the examples above (the input check of RERS, a loop counter, `if (tmp)`); monitor
-  tests of the search over several runs: an input that two waypoints would change back and forth, a run that would
-  repeat an earlier one and one that repeats its inputs with a value tried since, case ranges, avoided cases of a
-  switch, a repaired clause, the limit of kept clauses; monitor tests of guards (searched for, kept, not passable,
-  a witness waypoint at one, at the restart limit, repeating a run, `__VERIFIER_assume`); restart tests of the retry
-  (its search for follow and avoid waypoints, its own restart limit, its budget over the runs of both phases) and an
-  oracle test of repeated runs with another default.
+  RERS, the result of a defined function, avoided switch cases and narrowing conversions, a NaN input, truth values in
+  `unsigned char` combined with `&`, guards (`assume_abort_if_not` searched for, a follow waypoint into its `abort`,
+  `__VERIFIER_assume`) and the retry (searching, its budget); `guard_test.cpp` which `if` statements are guards;
+  `search_test.cpp` the search on term tables built by hand, one test per rule (inversion through every invertible
+  operation, candidates and their order, the special values of each format, the negation of a floating comparison,
+  kept clauses and their index, repairs, unknown atoms, `&&`, `||` and `?:`, `&` and `|` of truth values (nested,
+  through conversions, xcsp's clauses, bits left to candidates), shared subterms, switches, avoid waypoints, the order
+  of inputs and values, the two passes, the memo under guards, the budgets of goals and evaluations, the explanation)
+  and the examples above (the input check of RERS, a loop counter, `if (tmp)`); monitor tests of the search over
+  several runs: an input that two waypoints would change back and forth, a run that would repeat an earlier one and one
+  that repeats its inputs with a value tried since, case ranges, avoided cases of a switch, a repaired clause, the limit
+  of kept clauses; monitor tests of guards (searched for, kept, not passable, a witness waypoint at one, at the restart
+  limit, repeating a run, `__VERIFIER_assume`); restart tests of the retry (its search for follow and avoid waypoints,
+  its own restart limit, its budget over the runs of both phases) and an oracle test of repeated runs with another
+  default.
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness, as a process with a timeout of 30 s, and checks
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`: every witness confirmed, except
     those named `*.invalid`, which must not be;

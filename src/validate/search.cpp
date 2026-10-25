@@ -7,15 +7,18 @@
 #include <expected>
 #include <format>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "ast/casting.hpp"
 #include "ast/dump.hpp"
 #include "sema/types.hpp"
 #include "support/assert.hpp"
@@ -87,6 +90,11 @@ bool isTrue(const Value& value) {
     return value::toBool(value).bits() != 0;
 }
 
+bool isBool(ast::AstContext& context, ast::QualType type) {
+    const auto* builtin = ast::dyn_cast<ast::BuiltinType>(context.canonical(type).type());
+    return builtin != nullptr && builtin->builtinKind() == ast::BuiltinKind::Bool;
+}
+
 /// The inverse of an odd number modulo 2^128, by Newton's iteration: each step doubles the number of correct low bits,
 /// starting with 3 (a * a == 1 modulo 8 for odd a).
 UInt128 inverseOfOdd(UInt128 a) {
@@ -151,28 +159,22 @@ struct Choice {
 };
 
 /// The values to try for one input, each once: the inverted value first, then the candidates, the non-negative ones
-/// before the negative ones (programs often reject negative inputs), each group in the order the values came; values
-/// the input was fixed to in earlier runs come last, or not at all.
+/// before the negative ones (programs often reject negative inputs), each group in the order the values came, then the
+/// special values; values the input was fixed to in earlier runs come last, or not at all.
 class Choices {
 public:
     Choices(ast::AstContext& context, const SearchInput& input, bool allowsHistory)
         : context_(context), input_(input), allowsHistory_(allowsHistory) {}
 
     void add(Value value, Change::Method method) {
-        if (std::ranges::any_of(seen_, [&](const Value& other) { return isSame(other, value); })) {
-            return;
-        }
-        seen_.push_back(value);
-        const bool isOld = std::ranges::any_of(input_.history, [&](const Value& old) { return isSame(old, value); });
-        if (isOld && !allowsHistory_) {
-            return;
-        }
-        const Queue queue = isOld                                 ? Queue::EarlierRuns
-                            : method == Change::Method::Inversion ? Queue::Inverted
-                            : isNegative(value)                   ? Queue::Negative
-                                                                  : Queue::NonNegative;
-        queues_[std::to_underlying(queue)].push_back({.value = std::move(value), .method = method});
+        const Queue queue = method == Change::Method::Inversion ? Queue::Inverted
+                            : isNegative(value)                 ? Queue::Negative
+                                                                : Queue::NonNegative;
+        enqueue(std::move(value), method, queue);
     }
+
+    /// Adds a candidate that comes after all other candidates: NaN, an infinity or an extreme of the input's type.
+    void addSpecial(Value value) { enqueue(std::move(value), Change::Method::Candidate, Queue::Special); }
 
     std::optional<Choice> next() {
         for (std::size_t i = 0; i < queues_.size(); ++i) {
@@ -185,7 +187,21 @@ public:
 
 private:
     /// The queues of values, in the order they are tried.
-    enum class Queue : std::uint8_t { Inverted, NonNegative, Negative, EarlierRuns };
+    enum class Queue : std::uint8_t { Inverted, NonNegative, Negative, Special, EarlierRuns };
+
+    void enqueue(Value value, Change::Method method, Queue queue) {
+        if (std::ranges::any_of(seen_, [&](const Value& other) { return isSame(other, value); })) {
+            return;
+        }
+        seen_.push_back(value);
+        if (std::ranges::any_of(input_.history, [&](const Value& old) { return isSame(old, value); })) {
+            if (!allowsHistory_) {
+                return;
+            }
+            queue = Queue::EarlierRuns;
+        }
+        queues_[std::to_underlying(queue)].push_back({.value = std::move(value), .method = method});
+    }
 
     [[nodiscard]] bool isNegative(const Value& value) const {
         if (sema::isSignedInteger(context_, input_.type)) {
@@ -199,8 +215,8 @@ private:
     ast::AstContext& context_;
     const SearchInput& input_;
     bool allowsHistory_;
-    std::array<std::vector<Choice>, 4> queues_; // by Queue
-    std::array<std::size_t, 4> next_{};
+    std::array<std::vector<Choice>, 5> queues_; // by Queue
+    std::array<std::size_t, 5> next_{};
     std::vector<Value> seen_;
 };
 
@@ -222,14 +238,15 @@ private:
         bool mayBeFalse = false;
     };
 
-    /// `lhs op rhs` in `format`; the right side is a term or, without one, `constant`.
+    /// `lhs op rhs` in `format`, or its negation; the right side is a term or, without one, `constant`.
     struct Relation {
         TermId lhs{};
         Comparison op = Comparison::Equal;
         std::optional<TermId> rhs;
         Value constant;
         ScalarFormat format;
-        Atom atom; // holds when the relation does: its guard while a kept clause is repaired
+        Atom atom;              // holds when the relation does: its guard while a kept clause is repaired
+        bool isNegated = false; // `!(a < b)`, which NaN satisfies, unlike `a >= b`
     };
 
     enum class Outcome : std::uint8_t {
@@ -252,10 +269,16 @@ private:
     [[nodiscard]] Truth truthOf(const Relation& relation, const value::Substitution& substitution) const;
 
     Outcome solveAtom(const Atom& atom);
-    /// Makes `term` non-zero (`wantTrue`) or zero, decomposing `!`, conversions to _Bool, `&&`, `||`, `?:` and
-    /// comparisons. A goal that failed is not decomposed again within one atom.
+    /// Makes `term` non-zero (`wantTrue`) or zero, decomposing `!`, conversions to _Bool, `&&`, `||`, `?:`,
+    /// comparisons, and `&`, `|` and integer conversions of truth values. A goal that failed is not decomposed again
+    /// within one atom.
     Outcome solveGoal(TermId term, bool wantTrue);
     Outcome decompose(TermId term, bool wantTrue);
+    /// Solves `a && b` (`isAnd`) or `a || b`, or `a & b` or `a | b` of truth values, whose operands are both evaluated.
+    Outcome solveJunction(const Term& junction, bool isAnd, bool wantTrue);
+    /// Whether a term is 0 or 1 whatever the inputs: comparisons, `!`, `&&`, `||`, conversions to _Bool, _Bool inputs,
+    /// the constants 0 and 1, and integer conversions and `&`, `|`, `^` of truth values.
+    [[nodiscard]] bool isTruthValue(TermId id) const;
     /// Solves `c ? x : y` through the operand the run evaluated (`solveSelected`), with the condition keeping its
     /// choice; else makes the condition select the other operand, whose value the next run evaluates (Unknown).
     template <typename SolveSelected>
@@ -268,6 +291,8 @@ private:
     [[nodiscard]] std::optional<Value> preimage(TermId term, std::size_t operand, const Value& wanted) const;
     /// Adds the candidates of `input` for `relation` to `choices`.
     void addCandidates(Choices& choices, const SearchInput& input, const Relation& relation) const;
+    /// Adds the special values of the input's type: NaN, the infinities and -0.0, or the extremes and their neighbours.
+    void addSpecials(Choices& choices, const SearchInput& input) const;
     /// Adds a constant of `format` and its neighbours, as values of the input's type.
     void addConstant(Choices& choices, const SearchInput& input, const Value& constant,
                      const ScalarFormat& format) const;
@@ -340,8 +365,9 @@ private:
     // failed, so that those that failed under a guard are forgotten with it.
     std::unordered_set<std::uint64_t> failed_;
     std::vector<std::uint64_t> failedOrder_;
-    std::size_t goals_ = 0;               // the goals decomposed in this pass
-    mutable std::size_t evaluations_ = 0; // of terms in this search, counted by evaluate()
+    mutable std::unordered_map<TermId, bool> truthValues_; // isTruthValue, for the terms asked so far
+    std::size_t goals_ = 0;                                // the goals decomposed in this pass
+    mutable std::size_t evaluations_ = 0;                  // of terms in this search, counted by evaluate()
 };
 
 // Two passes: the first never chooses a value an input was fixed to in an earlier run, so that two waypoints do not
@@ -474,7 +500,7 @@ Truth Solver::truthOf(const Relation& relation, const value::Substitution& subst
         const bool endsRun = (!lhs && lhs.error() == NoValue::EndsRun) || (!rhs && rhs.error() == NoValue::EndsRun);
         return endsRun ? Truth::EndsRun : Truth::Unknown;
     }
-    return compare(relation.op, *lhs, *rhs, relation.format) ? Truth::True : Truth::False;
+    return compare(relation.op, *lhs, *rhs, relation.format) != relation.isNegated ? Truth::True : Truth::False;
 }
 
 // ---- Decomposition ----
@@ -529,63 +555,120 @@ Solver::Outcome Solver::decompose(TermId term, bool wantTrue) {
         return solveGoal(current.operands[0], !wantTrue);
     case TermKind::ToBool:
         return solveGoal(current.operands[0], wantTrue);
+    case TermKind::ConvertInteger:
+        // Every integer format has 0 and 1, so the conversion of a truth value has its truth.
+        if (isTruthValue(current.operands[0])) {
+            return solveGoal(current.operands[0], wantTrue);
+        }
+        break;
     case TermKind::Conditional:
         return solveConditional(current, [&](TermId selected) { return solveGoal(selected, wantTrue); });
     case TermKind::IntegerCompare:
     case TermKind::FloatCompare: {
-        // The negation of a floating comparison holds without NaN only; the relation is checked as such, which
-        // implies the negation.
-        const auto op = static_cast<Comparison>(current.op);
+        // A comparison that must fail is solved for its negation, not for the negated operator, which NaN does not
+        // satisfy where the negation holds: `!(a < b)` holds with a NaN operand, `a >= b` does not.
         const Relation relation{
             .lhs = current.operands[0],
-            .op = wantTrue ? op : negated(op),
+            .op = static_cast<Comparison>(current.op),
             .rhs = current.operands[1],
             .constant = {},
             .format = current.format,
-            .atom = {.term = term, .op = wantTrue ? Comparison::NotEqual : Comparison::Equal, .constant = 0}};
+            .atom = {.term = term, .op = wantTrue ? Comparison::NotEqual : Comparison::Equal, .constant = 0},
+            .isNegated = !wantTrue};
         return solveRelation(relation) ? Outcome::Holds : Outcome::Fails;
     }
     case TermKind::LogicalAnd:
-    case TermKind::LogicalOr: {
-        const TermId first = current.operands[0];
-        if ((current.kind == TermKind::LogicalAnd) != wantTrue) {
-            // `a || b` true, `a && b` false: one operand decides, tried in order.
-            Snapshot before = snapshot();
-            if (const Outcome outcome = solveGoal(first, wantTrue); outcome != Outcome::Fails) {
-                return outcome;
-            }
-            restore(std::move(before));
-            return current.operandCount == 2 ? solveGoal(current.operands[1], wantTrue) : Outcome::Fails;
+    case TermKind::LogicalOr:
+        return solveJunction(current, current.kind == TermKind::LogicalAnd, wantTrue);
+    case TermKind::IntegerBinary: {
+        const auto op = static_cast<value::IntegerOperator>(current.op);
+        if ((op == value::IntegerOperator::And || op == value::IntegerOperator::Or) && isTruthValue(current.operands[0])
+            && isTruthValue(current.operands[1])) {
+            return solveJunction(current, op == value::IntegerOperator::And, wantTrue);
         }
-        // `a && b` true, `a || b` false: both operands; the run did not evaluate a missing second one.
-        const Outcome outcome = solveGoal(first, wantTrue);
-        if (outcome == Outcome::Fails) {
+        break;
+    }
+    default:
+        break;
+    }
+    const ScalarFormat format = terms_.resultFormat(term);
+    const Comparison op = wantTrue ? Comparison::NotEqual : Comparison::Equal;
+    const Relation relation{.lhs = term,
+                            .op = op,
+                            .rhs = std::nullopt,
+                            .constant = constantIn(0, format),
+                            .format = format,
+                            .atom = {.term = term, .op = op, .constant = 0}};
+    return solveRelation(relation) ? Outcome::Holds : Outcome::Fails;
+}
+
+Solver::Outcome Solver::solveJunction(const Term& junction, bool isAnd, bool wantTrue) {
+    const TermId first = junction.operands[0];
+    if (isAnd != wantTrue) {
+        // `a || b` true, `a && b` false: one operand decides, tried in order.
+        Snapshot before = snapshot();
+        if (const Outcome outcome = solveGoal(first, wantTrue); outcome != Outcome::Fails) {
             return outcome;
         }
-        if (current.operandCount < 2) {
-            return Outcome::Unknown;
-        }
-        const Atom firstHolds{.term = first, .op = wantTrue ? Comparison::NotEqual : Comparison::Equal, .constant = 0};
-        const std::size_t failedBefore = pushGuard(guardOf(std::span(&firstHolds, 1), false));
-        const Outcome second = solveGoal(current.operands[1], wantTrue);
-        popGuard(failedBefore);
-        if (second == Outcome::Fails) {
-            return second;
-        }
-        return outcome == Outcome::Holds && second == Outcome::Holds ? Outcome::Holds : Outcome::Unknown;
+        restore(std::move(before));
+        return junction.operandCount == 2 ? solveGoal(junction.operands[1], wantTrue) : Outcome::Fails;
     }
-    default: {
-        const ScalarFormat format = terms_.resultFormat(term);
-        const Comparison op = wantTrue ? Comparison::NotEqual : Comparison::Equal;
-        const Relation relation{.lhs = term,
-                                .op = op,
-                                .rhs = std::nullopt,
-                                .constant = constantIn(0, format),
-                                .format = format,
-                                .atom = {.term = term, .op = op, .constant = 0}};
-        return solveRelation(relation) ? Outcome::Holds : Outcome::Fails;
+    // `a && b` true, `a || b` false: both operands; the run did not evaluate a missing second one.
+    const Outcome outcome = solveGoal(first, wantTrue);
+    if (outcome == Outcome::Fails) {
+        return outcome;
     }
+    if (junction.operandCount < 2) {
+        return Outcome::Unknown;
     }
+    const Atom firstHolds{.term = first, .op = wantTrue ? Comparison::NotEqual : Comparison::Equal, .constant = 0};
+    const std::size_t failedBefore = pushGuard(guardOf(std::span(&firstHolds, 1), false));
+    const Outcome second = solveGoal(junction.operands[1], wantTrue);
+    popGuard(failedBefore);
+    if (second == Outcome::Fails) {
+        return second;
+    }
+    return outcome == Outcome::Holds && second == Outcome::Holds ? Outcome::Holds : Outcome::Unknown;
+}
+
+// Recursive over the operands, as deep as the term (TermLimits::maxDepth), and remembered: shared subterms would make
+// it exponential.
+bool Solver::isTruthValue(TermId id) const {
+    if (const auto found = truthValues_.find(id); found != truthValues_.end()) {
+        return found->second;
+    }
+    const Term& term = terms_.term(id);
+    bool result = false;
+    switch (term.kind) {
+    case TermKind::IntegerCompare:
+    case TermKind::FloatCompare:
+    case TermKind::LogicalNot:
+    case TermKind::LogicalAnd:
+    case TermKind::LogicalOr:
+    case TermKind::ToBool:
+        result = true;
+        break;
+    case TermKind::Constant:
+        result = std::holds_alternative<value::IntegerFormat>(term.format) && terms_.constantOf(term).bits() <= 1;
+        break;
+    case TermKind::Input:
+        result = isBool(context_, inputs_.at(terms_.inputOf(term)).type); // the search keeps them 0 or 1
+        break;
+    case TermKind::ConvertInteger:
+        result = isTruthValue(term.operands[0]);
+        break;
+    case TermKind::IntegerBinary: {
+        const auto op = static_cast<value::IntegerOperator>(term.op);
+        result =
+            (op == value::IntegerOperator::And || op == value::IntegerOperator::Or || op == value::IntegerOperator::Xor)
+            && isTruthValue(term.operands[0]) && isTruthValue(term.operands[1]);
+        break;
+    }
+    default:
+        break;
+    }
+    truthValues_.emplace(id, result);
+    return result;
 }
 
 template <typename SolveSelected>
@@ -619,6 +702,8 @@ bool Solver::solveRelation(const Relation& relation) {
     if (order.size() > maxInputsPerRelation) {
         order.resize(maxInputsPerRelation);
     }
+    // The negated operator gives values that satisfy the negation.
+    const Comparison op = relation.isNegated ? negated(relation.op) : relation.op;
     for (const InputId input : order) {
         const SearchInput info = inputs_.at(input);
         Choices choices(context_, info, allowsHistory_);
@@ -631,7 +716,7 @@ bool Solver::solveRelation(const Relation& relation) {
                                                                        : relation.constant;
             if (bound) {
                 if (std::optional<Value> inverted =
-                        invert(side, isLeft ? relation.op : mirrored(relation.op), *bound, relation.format, input)) {
+                        invert(side, isLeft ? op : mirrored(op), *bound, relation.format, input)) {
                     choices.add(std::move(*inverted), Change::Method::Inversion);
                 }
             }
@@ -919,6 +1004,28 @@ void Solver::addCandidates(Choices& choices, const SearchInput& input, const Rel
                 --budget;
             }
         }
+    }
+    addSpecials(choices, input);
+}
+
+// They satisfy relations that hold for no other value, such as `x != x` (NaN), `x + 1 > x` false (the maximum, where +
+// wraps around) or `x < x + 1e-6` false (an infinity); they come after the other candidates, where those do not help.
+void Solver::addSpecials(Choices& choices, const SearchInput& input) const {
+    if (sema::isInteger(context_, input.type)) {
+        // The non-negative ones first, as for the other candidates.
+        const value::IntegerFormat format = sema::integerFormat(context_, input.type);
+        const Value minimum = Value::integer(format.isSigned ? UInt128{1} << (format.bits - 1) : 0, format);
+        const Value maximum = Value::integer(minimum.bits() - 1, format); // modulo 2^bits
+        choices.addSpecial(maximum);
+        choices.addSpecial(*offset(maximum, -1, input.type));
+        choices.addSpecial(minimum);
+        choices.addSpecial(*offset(minimum, 1, input.type));
+        return;
+    }
+    const value::FloatFormat format = sema::floatFormat(context_, input.type);
+    constexpr double infinity = std::numeric_limits<double>::infinity();
+    for (const double special : {std::numeric_limits<double>::quiet_NaN(), infinity, -infinity, -0.0}) {
+        choices.addSpecial(value::convertFloat(Value::ofDouble(special), value::FloatFormat::Double, format));
     }
 }
 
