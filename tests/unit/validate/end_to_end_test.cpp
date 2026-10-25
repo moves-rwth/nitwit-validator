@@ -377,6 +377,29 @@ int main(void) {
     EXPECT_TRUE(log().contains("to nan (candidate)")) << log();
 }
 
+TEST_F(EndToEndTest, TruthValuesCombinedWithBitwiseAndAreSolvedForEachOperand) {
+    // As btor2c writes a property: 1-bit values in unsigned char, combined with &.
+    build(R"(extern unsigned char __VERIFIER_nondet_uchar(void);
+void reach_error(void);
+void abort(void);
+void __VERIFIER_assert(int cond) { if (!(cond)) { ERROR: {reach_error();abort();} } }
+int main(void) {
+    unsigned char a = __VERIFIER_nondet_uchar();
+    unsigned char b = __VERIFIER_nondet_uchar();
+    unsigned char c = a == 3;
+    unsigned char d = b == 5;
+    unsigned char bad = c & d;
+    __VERIFIER_assert(!(bad));
+    return 0;
+}
+)");
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 4, 36, "true")}, {target(4, 59)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("input 0 := 3 (inversion), input 1 := 5 (inversion)")) << log();
+}
+
 // ---- Invalid witnesses that an earlier version confirmed ----
 
 constexpr std::string_view avoidProgram = R"(extern int __VERIFIER_nondet_int(void);

@@ -12,11 +12,13 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
 
+#include "ast/casting.hpp"
 #include "ast/dump.hpp"
 #include "sema/types.hpp"
 #include "support/assert.hpp"
@@ -86,6 +88,11 @@ bool compare(Comparison op, const Value& lhs, const Value& rhs, const ScalarForm
 
 bool isTrue(const Value& value) {
     return value::toBool(value).bits() != 0;
+}
+
+bool isBool(ast::AstContext& context, ast::QualType type) {
+    const auto* builtin = ast::dyn_cast<ast::BuiltinType>(context.canonical(type).type());
+    return builtin != nullptr && builtin->builtinKind() == ast::BuiltinKind::Bool;
 }
 
 /// The inverse of an odd number modulo 2^128, by Newton's iteration: each step doubles the number of correct low bits,
@@ -262,10 +269,16 @@ private:
     [[nodiscard]] Truth truthOf(const Relation& relation, const value::Substitution& substitution) const;
 
     Outcome solveAtom(const Atom& atom);
-    /// Makes `term` non-zero (`wantTrue`) or zero, decomposing `!`, conversions to _Bool, `&&`, `||`, `?:` and
-    /// comparisons. A goal that failed is not decomposed again within one atom.
+    /// Makes `term` non-zero (`wantTrue`) or zero, decomposing `!`, conversions to _Bool, `&&`, `||`, `?:`,
+    /// comparisons, and `&`, `|` and integer conversions of truth values. A goal that failed is not decomposed again
+    /// within one atom.
     Outcome solveGoal(TermId term, bool wantTrue);
     Outcome decompose(TermId term, bool wantTrue);
+    /// Solves `a && b` (`isAnd`) or `a || b`, or `a & b` or `a | b` of truth values, whose operands are both evaluated.
+    Outcome solveJunction(const Term& junction, bool isAnd, bool wantTrue);
+    /// Whether a term is 0 or 1 whatever the inputs: comparisons, `!`, `&&`, `||`, conversions to _Bool, _Bool inputs,
+    /// the constants 0 and 1, and integer conversions and `&`, `|`, `^` of truth values.
+    [[nodiscard]] bool isTruthValue(TermId id) const;
     /// Solves `c ? x : y` through the operand the run evaluated (`solveSelected`), with the condition keeping its
     /// choice; else makes the condition select the other operand, whose value the next run evaluates (Unknown).
     template <typename SolveSelected>
@@ -352,8 +365,9 @@ private:
     // failed, so that those that failed under a guard are forgotten with it.
     std::unordered_set<std::uint64_t> failed_;
     std::vector<std::uint64_t> failedOrder_;
-    std::size_t goals_ = 0;               // the goals decomposed in this pass
-    mutable std::size_t evaluations_ = 0; // of terms in this search, counted by evaluate()
+    mutable std::unordered_map<TermId, bool> truthValues_; // isTruthValue, for the terms asked so far
+    std::size_t goals_ = 0;                                // the goals decomposed in this pass
+    mutable std::size_t evaluations_ = 0;                  // of terms in this search, counted by evaluate()
 };
 
 // Two passes: the first never chooses a value an input was fixed to in an earlier run, so that two waypoints do not
@@ -541,6 +555,12 @@ Solver::Outcome Solver::decompose(TermId term, bool wantTrue) {
         return solveGoal(current.operands[0], !wantTrue);
     case TermKind::ToBool:
         return solveGoal(current.operands[0], wantTrue);
+    case TermKind::ConvertInteger:
+        // Every integer format has 0 and 1, so the conversion of a truth value has its truth.
+        if (isTruthValue(current.operands[0])) {
+            return solveGoal(current.operands[0], wantTrue);
+        }
+        break;
     case TermKind::Conditional:
         return solveConditional(current, [&](TermId selected) { return solveGoal(selected, wantTrue); });
     case TermKind::IntegerCompare:
@@ -558,46 +578,97 @@ Solver::Outcome Solver::decompose(TermId term, bool wantTrue) {
         return solveRelation(relation) ? Outcome::Holds : Outcome::Fails;
     }
     case TermKind::LogicalAnd:
-    case TermKind::LogicalOr: {
-        const TermId first = current.operands[0];
-        if ((current.kind == TermKind::LogicalAnd) != wantTrue) {
-            // `a || b` true, `a && b` false: one operand decides, tried in order.
-            Snapshot before = snapshot();
-            if (const Outcome outcome = solveGoal(first, wantTrue); outcome != Outcome::Fails) {
-                return outcome;
-            }
-            restore(std::move(before));
-            return current.operandCount == 2 ? solveGoal(current.operands[1], wantTrue) : Outcome::Fails;
+    case TermKind::LogicalOr:
+        return solveJunction(current, current.kind == TermKind::LogicalAnd, wantTrue);
+    case TermKind::IntegerBinary: {
+        const auto op = static_cast<value::IntegerOperator>(current.op);
+        if ((op == value::IntegerOperator::And || op == value::IntegerOperator::Or) && isTruthValue(current.operands[0])
+            && isTruthValue(current.operands[1])) {
+            return solveJunction(current, op == value::IntegerOperator::And, wantTrue);
         }
-        // `a && b` true, `a || b` false: both operands; the run did not evaluate a missing second one.
-        const Outcome outcome = solveGoal(first, wantTrue);
-        if (outcome == Outcome::Fails) {
+        break;
+    }
+    default:
+        break;
+    }
+    const ScalarFormat format = terms_.resultFormat(term);
+    const Comparison op = wantTrue ? Comparison::NotEqual : Comparison::Equal;
+    const Relation relation{.lhs = term,
+                            .op = op,
+                            .rhs = std::nullopt,
+                            .constant = constantIn(0, format),
+                            .format = format,
+                            .atom = {.term = term, .op = op, .constant = 0}};
+    return solveRelation(relation) ? Outcome::Holds : Outcome::Fails;
+}
+
+Solver::Outcome Solver::solveJunction(const Term& junction, bool isAnd, bool wantTrue) {
+    const TermId first = junction.operands[0];
+    if (isAnd != wantTrue) {
+        // `a || b` true, `a && b` false: one operand decides, tried in order.
+        Snapshot before = snapshot();
+        if (const Outcome outcome = solveGoal(first, wantTrue); outcome != Outcome::Fails) {
             return outcome;
         }
-        if (current.operandCount < 2) {
-            return Outcome::Unknown;
-        }
-        const Atom firstHolds{.term = first, .op = wantTrue ? Comparison::NotEqual : Comparison::Equal, .constant = 0};
-        const std::size_t failedBefore = pushGuard(guardOf(std::span(&firstHolds, 1), false));
-        const Outcome second = solveGoal(current.operands[1], wantTrue);
-        popGuard(failedBefore);
-        if (second == Outcome::Fails) {
-            return second;
-        }
-        return outcome == Outcome::Holds && second == Outcome::Holds ? Outcome::Holds : Outcome::Unknown;
+        restore(std::move(before));
+        return junction.operandCount == 2 ? solveGoal(junction.operands[1], wantTrue) : Outcome::Fails;
     }
-    default: {
-        const ScalarFormat format = terms_.resultFormat(term);
-        const Comparison op = wantTrue ? Comparison::NotEqual : Comparison::Equal;
-        const Relation relation{.lhs = term,
-                                .op = op,
-                                .rhs = std::nullopt,
-                                .constant = constantIn(0, format),
-                                .format = format,
-                                .atom = {.term = term, .op = op, .constant = 0}};
-        return solveRelation(relation) ? Outcome::Holds : Outcome::Fails;
+    // `a && b` true, `a || b` false: both operands; the run did not evaluate a missing second one.
+    const Outcome outcome = solveGoal(first, wantTrue);
+    if (outcome == Outcome::Fails) {
+        return outcome;
     }
+    if (junction.operandCount < 2) {
+        return Outcome::Unknown;
     }
+    const Atom firstHolds{.term = first, .op = wantTrue ? Comparison::NotEqual : Comparison::Equal, .constant = 0};
+    const std::size_t failedBefore = pushGuard(guardOf(std::span(&firstHolds, 1), false));
+    const Outcome second = solveGoal(junction.operands[1], wantTrue);
+    popGuard(failedBefore);
+    if (second == Outcome::Fails) {
+        return second;
+    }
+    return outcome == Outcome::Holds && second == Outcome::Holds ? Outcome::Holds : Outcome::Unknown;
+}
+
+// Recursive over the operands, as deep as the term (TermLimits::maxDepth), and remembered: shared subterms would make
+// it exponential.
+bool Solver::isTruthValue(TermId id) const {
+    if (const auto found = truthValues_.find(id); found != truthValues_.end()) {
+        return found->second;
+    }
+    const Term& term = terms_.term(id);
+    bool result = false;
+    switch (term.kind) {
+    case TermKind::IntegerCompare:
+    case TermKind::FloatCompare:
+    case TermKind::LogicalNot:
+    case TermKind::LogicalAnd:
+    case TermKind::LogicalOr:
+    case TermKind::ToBool:
+        result = true;
+        break;
+    case TermKind::Constant:
+        result = std::holds_alternative<value::IntegerFormat>(term.format) && terms_.constantOf(term).bits() <= 1;
+        break;
+    case TermKind::Input:
+        result = isBool(context_, inputs_.at(terms_.inputOf(term)).type); // the search keeps them 0 or 1
+        break;
+    case TermKind::ConvertInteger:
+        result = isTruthValue(term.operands[0]);
+        break;
+    case TermKind::IntegerBinary: {
+        const auto op = static_cast<value::IntegerOperator>(term.op);
+        result =
+            (op == value::IntegerOperator::And || op == value::IntegerOperator::Or || op == value::IntegerOperator::Xor)
+            && isTruthValue(term.operands[0]) && isTruthValue(term.operands[1]);
+        break;
+    }
+    default:
+        break;
+    }
+    truthValues_.emplace(id, result);
+    return result;
 }
 
 template <typename SolveSelected>

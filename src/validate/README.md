@@ -227,6 +227,13 @@ one prediction.
     decomposed again for the same atom while the same guards hold (one that failed under a conjunct solved before may
     hold without it); this only saves cost on shared subterms (`c = c || c` in a loop), and a pass decomposes at most
     20,000 goals (`SearchLimits`).
+    - **Truth values** are 0 or 1 whatever the inputs: comparisons, `!`, `&&`, `||`, conversions to `_Bool`, `_Bool`
+      inputs (the search keeps them 0 or 1), the constants 0 and 1, and integer conversions and `&`, `|` and `^` of
+      truth values. btor2c and xcsp combine conditions with `&` and `|`, like
+      `assume(!((x == 0 & y == 0 & z == 1) | 0))`, and btor2c stores them in `unsigned char`: `a & b` and `a | b` of
+      truth values are decomposed like `a && b` and `a || b`, the run having evaluated both operands, and an integer
+      conversion of a truth value passes the atom on. Other operands, like the bit `(int)x & 1`, are left to inversion
+      and candidates. Whether a term is a truth value is determined once per term and search.
   - **Inversion:** if a changeable input occurs once in one side of the relation, the value for the side is chosen as
     for hints (`values.hpp`, `choose`: `x < c` gives `c - 1`, `x != c` gives 0, or 1 if `c` is 0) with the other side's
     value as the constant, and inverted down the path to the input, the other operand of each operation keeping its
@@ -317,8 +324,9 @@ one prediction.
   - values that depend on inputs only through control flow, or through memory, pointers or library functions that
     terms do not follow: requirements without a term or on the opaque term (the `aws` `byte_buf` programs, the
     `v_FIFO` of btor2c);
-  - a relation that no inversion and no candidate satisfies: constraints over `&` and `|` of truth values (the xcsp
-    programs encode SAT problems), polynomials (`bresenham`), `?:` over `signed char` (pals).
+  - a relation that no inversion and no candidate satisfies, or none together with the kept clauses: bits combined
+    with `&` and `|` (btor2c's `(int)x & 1`), SAT problems over truth values (xcsp), which the greedy search does not
+    backtrack in, polynomials (`bresenham`), `?:` over `signed char` (pals).
 - **Paths between waypoints:** the search knows the requirements of waypoints only. Where values change the path at a
   condition no waypoint covers, the run leaves the witness without a failing waypoint: an `assume_abort_if_not` aborts
   or a null pointer is read (exit 4), or the program ends before the target segment or in it without calling the error
@@ -348,14 +356,15 @@ one prediction.
   (`validate_test_support.hpp`, whose `FakeExecution` records terms as the interpreter does);
   `end_to_end_test.cpp` with the interpreter and the terms it records (checked, also in constraints:
   `RunOptions::checkTerms`), so with the search: a constraint on a computed value, a loop counter, the input check of
-  RERS, the result of a defined function, avoided switch cases and narrowing conversions, a NaN input;
-  `search_test.cpp` the search on term tables built by hand, one test per rule (inversion through every invertible
-  operation, candidates and their order, the special values of each format, the negation of a floating comparison,
-  kept clauses and their index, repairs, unknown atoms, `&&`, `||` and `?:`, shared subterms, switches, avoid
-  waypoints, the order of inputs and values, the two passes, the memo under guards, the budgets of goals and
-  evaluations, the explanation) and the examples above (the input check of RERS, a loop counter, `if (tmp)`); monitor
-  tests of the search over several runs: an input that two waypoints would change back and forth, a run that would
-  repeat an earlier one and one that repeats its inputs with a value tried since, case ranges, avoided cases of a
+  RERS, the result of a defined function, avoided switch cases and narrowing conversions, a NaN input, truth values in
+  `unsigned char` combined with `&`; `search_test.cpp` the search on term tables built by hand, one test per rule
+  (inversion through every invertible operation, candidates and their order, the special values of each format, the
+  negation of a floating comparison, kept clauses and their index, repairs, unknown atoms, `&&`, `||` and `?:`, `&` and
+  `|` of truth values (nested, through conversions, xcsp's clauses, bits left to candidates), shared subterms,
+  switches, avoid waypoints, the order of inputs and values, the two passes, the memo under guards, the budgets of
+  goals and evaluations, the explanation) and the examples above (the input check of RERS, a loop counter, `if (tmp)`);
+  monitor tests of the search over several runs: an input that two waypoints would change back and forth, a run that
+  would repeat an earlier one and one that repeats its inputs with a value tried since, case ranges, avoided cases of a
   switch, a repaired clause, the limit of kept clauses.
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness, as a process with a timeout of 30 s, and checks
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`: every witness confirmed, except

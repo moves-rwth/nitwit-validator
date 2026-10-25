@@ -343,6 +343,100 @@ TEST_F(SearchTest, AnOperandTheRunDidNotEvaluateIsUnknown) {
     EXPECT_EQ(changes({{holds(both)}}), "0 := 1 (inversion)");
 }
 
+TEST_F(SearchTest, BitwiseAndOfTruthValuesIsSolvedLikeAnd) {
+    // (x == 1) & (y == 2) with x = y = 0: unlike &&, the run evaluated both operands, so both get their values.
+    const Value x = input(0, 0);
+    const Value y = input(1, 0);
+    const Value both = arithmetic(IntegerOperator::And, compare(Comparison::Equal, x, constant(1)),
+                                  compare(Comparison::Equal, y, constant(2)));
+    EXPECT_EQ(changes({{holds(both)}}), "0 := 1 (inversion), 1 := 2 (inversion)");
+    // x != 0 & x != 1 with x = 1: the operand that holds keeps holding while the other one is solved.
+    const Value z = input(2, 1);
+    const Value neither = arithmetic(IntegerOperator::And, compare(Comparison::NotEqual, z, constant(0)),
+                                     compare(Comparison::NotEqual, z, constant(1)));
+    EXPECT_EQ(changes({{holds(neither)}}), "2 := 2 (candidate)");
+}
+
+TEST_F(SearchTest, BitwiseOrOfTruthValuesIsSolvedLikeOr) {
+    const Value x = input(0, 0);
+    const Value y = input(1, 0);
+    const Value either = arithmetic(IntegerOperator::Or, compare(Comparison::Equal, x, constant(1)),
+                                    compare(Comparison::Equal, y, constant(2)));
+    EXPECT_EQ(changes({{holds(either)}}), "0 := 1 (inversion)");
+    // Both operands must fail: x == 0 | y == 0 with x = 0, y = 0.
+    const Value zero = arithmetic(IntegerOperator::Or, compare(Comparison::Equal, x, constant(0)),
+                                  compare(Comparison::Equal, y, constant(0)));
+    EXPECT_EQ(changes({{fails(zero)}}), "0 := 1 (inversion), 1 := 1 (inversion)");
+}
+
+TEST_F(SearchTest, TheClausesOfXcspAreSolvedThroughBitwiseAndAndOr) {
+    // assume(!((x == 0 & y == 0 & z == 1) | 0)), as xcsp programs encode a SAT clause, with x = y = 0 and z = 1.
+    const auto clause = [&](const Value& a, const Value& b, const Value& c) {
+        const Value first = arithmetic(IntegerOperator::And, compare(Comparison::Equal, a, constant(0)),
+                                       compare(Comparison::Equal, b, constant(0)));
+        const Value all = arithmetic(IntegerOperator::And, first, compare(Comparison::Equal, c, constant(1)));
+        return arithmetic(IntegerOperator::Or, all, constant(0));
+    };
+    const Value x = input(0, 0, InputSource::Hinted);
+    const Value y = input(1, 0);
+    const Value z = input(2, 1);
+    EXPECT_EQ(changes({{fails(clause(x, y, z))}}), "1 := 1 (inversion)");
+    // The program's assumptions 0 <= y <= 1 and a kept clause that excludes y = 1 leave z.
+    const Value w = input(3, 0, InputSource::Hinted);
+    const std::vector<Clause> kept{{fails(clause(w, w, y))},
+                                   {holds(compare(Comparison::GreaterEqual, y, constant(0)))},
+                                   {holds(compare(Comparison::LessEqual, y, constant(1)))}};
+    EXPECT_EQ(changes({{fails(clause(x, y, z))}}, kept), "2 := 0 (inversion)");
+}
+
+TEST_F(SearchTest, NestedBitwiseOperationsOfTruthValuesAreDecomposed) {
+    // ((x == 1) & (y == 2)) | (z == 3) with a hinted z: the first operand, with both of its operands.
+    const Value x = input(0, 0);
+    const Value y = input(1, 0);
+    const Value z = input(2, 0, InputSource::Hinted);
+    const Value both = arithmetic(IntegerOperator::And, compare(Comparison::Equal, x, constant(1)),
+                                  compare(Comparison::Equal, y, constant(2)));
+    const Value nested = arithmetic(IntegerOperator::Or, both, compare(Comparison::Equal, z, constant(3)));
+    EXPECT_EQ(changes({{holds(nested)}}), "0 := 1 (inversion), 1 := 2 (inversion)");
+    // The truth values of `^`, of integer conversions and of _Bool inputs: (b ^ 1) & (unsigned char)(x == 2), with
+    // b = 0.
+    const Value b = input(3, 0, InputSource::Default, BuiltinKind::Bool);
+    const Value flipped =
+        arithmetic(IntegerOperator::Xor, converted(b, BuiltinKind::Bool, BuiltinKind::Int), constant(1));
+    const Value narrowed =
+        converted(converted(compare(Comparison::Equal, x, constant(2)), BuiltinKind::Int, BuiltinKind::UnsignedChar),
+                  BuiltinKind::UnsignedChar, BuiltinKind::Int);
+    EXPECT_EQ(changes({{holds(arithmetic(IntegerOperator::And, flipped, narrowed))}}), "0 := 2 (inversion)");
+}
+
+TEST_F(SearchTest, AnIntegerConversionOfATruthValuePassesTheGoalOn) {
+    // (unsigned char)(x < 5) with x = 9, as btor2c stores truth values: the comparison is inverted.
+    const Value x = input(0, 9);
+    const Value narrowed =
+        converted(compare(Comparison::Less, x, constant(5)), BuiltinKind::Int, BuiltinKind::UnsignedChar);
+    EXPECT_EQ(changes({{holds(narrowed)}}), "0 := 4 (inversion)");
+    // _Bool inputs are truth values: (int)b & (int)c.
+    const Value b = input(1, 0, InputSource::Default, BuiltinKind::Bool);
+    const Value c = input(2, 0, InputSource::Default, BuiltinKind::Bool);
+    const Value both = arithmetic(IntegerOperator::And, converted(b, BuiltinKind::Bool, BuiltinKind::Int),
+                                  converted(c, BuiltinKind::Bool, BuiltinKind::Int));
+    EXPECT_EQ(changes({{holds(both)}}), "1 := 1 (inversion), 2 := 1 (inversion)");
+}
+
+TEST_F(SearchTest, BitwiseOperationsOfOtherValuesAreLeftToCandidates) {
+    // x & 1 extracts a bit: x is no truth value, so the relation is not decomposed into x != 0 and 1 != 0.
+    const Value x = input(0, 0);
+    EXPECT_EQ(changes({{holds(arithmetic(IntegerOperator::And, x, constant(1)))}}), "0 := 1 (candidate)");
+    const Value y = input(1, 1);
+    EXPECT_EQ(changes({{fails(arithmetic(IntegerOperator::And, y, constant(1)))}}), "1 := 2 (candidate)");
+    // x & 6, decomposed, would give 1, and 1 & 6 is 0.
+    EXPECT_EQ(changes({{holds(arithmetic(IntegerOperator::And, x, constant(6)))}}), "0 := 6 (candidate)");
+    // A constant other than 0 and 1 is no truth value: (x == 1) & 2 is 0 for every x, not x == 1 && 2 != 0.
+    EXPECT_EQ(
+        changes({{holds(arithmetic(IntegerOperator::And, compare(Comparison::Equal, x, constant(1)), constant(2)))}}),
+        "none");
+}
+
 // ---- Candidates ----
 
 TEST_F(SearchTest, CandidatesWhereNoOperationCanBeInverted) {
@@ -685,6 +779,17 @@ TEST_F(SearchTest, SharedSubtermsAreDecomposedOnce) {
         c = next;
     }
     EXPECT_EQ(terms_.term(*c.term()).kind, TermKind::LogicalOr);
+    EXPECT_EQ(changes({{holds(c)}}), "none");
+}
+
+TEST_F(SearchTest, TheTruthValuesOfSharedSubtermsAreDeterminedOnce) {
+    // c = c & c, 63 times, on x == 1 with a hinted x: whether c is a truth value asks for 2^63 paths.
+    const Value x = input(0, 0, InputSource::Hinted);
+    Value c = compare(Comparison::Equal, x, constant(1));
+    for (int i = 0; i < 63; ++i) {
+        c = arithmetic(IntegerOperator::And, c, c);
+    }
+    EXPECT_EQ(terms_.term(*c.term()).kind, TermKind::IntegerBinary);
     EXPECT_EQ(changes({{holds(c)}}), "none");
 }
 
