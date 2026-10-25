@@ -74,6 +74,12 @@ protected:
         return result;
     }
 
+    Value floating(FloatOperator op, const Value& lhs, const Value& rhs) {
+        Value result = value::floatBinary(op, lhs, rhs, value::FloatFormat::Double);
+        result.setTerm(terms_.floatBinary(op, lhs, rhs, value::FloatFormat::Double));
+        return result;
+    }
+
     Value compare(Comparison op, const Value& lhs, const Value& rhs, value::ScalarFormat format = s32) {
         const auto* integer = std::get_if<value::IntegerFormat>(&format);
         const bool holds = integer != nullptr ? value::integerCompare(op, lhs, rhs, *integer)
@@ -228,18 +234,14 @@ TEST_F(SearchTest, InvertsDivisionByAFactor) {
 
 TEST_F(SearchTest, InvertsFloatingAdditionWhereRoundingAllowsIt) {
     const Value d = input(0, 0, InputSource::Default, BuiltinKind::Double);
-    const auto plus = [&](FloatOperator op, const Value& lhs, const Value& rhs) {
-        Value result = value::floatBinary(op, lhs, rhs, value::FloatFormat::Double);
-        result.setTerm(terms_.floatBinary(op, lhs, rhs, value::FloatFormat::Double));
-        return result;
-    };
     const auto isEqual = [&](const Value& lhs, double rhs) {
         return holds(compare(Comparison::Equal, lhs, Value::ofDouble(rhs), value::FloatFormat::Double));
     };
-    EXPECT_EQ(changes({{isEqual(plus(FloatOperator::Add, d, Value::ofDouble(0.5)), 2.0)}}), "0 := 1.5 (inversion)");
-    EXPECT_EQ(changes({{isEqual(plus(FloatOperator::Sub, Value::ofDouble(1.0), d), 0.25)}}), "0 := 0.75 (inversion)");
-    // 0.2 + 0.1 - 0.1 is not 0.2 in double.
-    EXPECT_EQ(changes({{isEqual(plus(FloatOperator::Sub, d, Value::ofDouble(0.1)), 0.2)}}), "none");
+    EXPECT_EQ(changes({{isEqual(floating(FloatOperator::Add, d, Value::ofDouble(0.5)), 2.0)}}), "0 := 1.5 (inversion)");
+    EXPECT_EQ(changes({{isEqual(floating(FloatOperator::Sub, Value::ofDouble(1.0), d), 0.25)}}),
+              "0 := 0.75 (inversion)");
+    // 0.2 + 0.1 - 0.1 is not 0.2 in double, and no special value gives 0.2 either.
+    EXPECT_EQ(changes({{isEqual(floating(FloatOperator::Sub, d, Value::ofDouble(0.1)), 0.2)}}), "none");
 }
 
 TEST_F(SearchTest, InvertsConversionsThatTruncate) {
@@ -363,6 +365,79 @@ TEST_F(SearchTest, DivisionByZeroRejectsACandidate) {
     const Value x = input(0, 5);
     EXPECT_EQ(changes({{atom(arithmetic(IntegerOperator::Div, constant(10), x), Comparison::Equal, 10)}}),
               "0 := 1 (candidate)");
+}
+
+TEST_F(SearchTest, NanMakesAComparisonOfAnInputWithItselfFail) {
+    // x == x false, as CPAchecker's nan_double needs it, in every floating format.
+    const Value d = input(0, 0, InputSource::Default, BuiltinKind::Double);
+    EXPECT_EQ(changes({{fails(compare(Comparison::Equal, d, d, value::FloatFormat::Double))}}), "0 := nan (candidate)");
+    EXPECT_EQ(changes({{holds(compare(Comparison::NotEqual, d, d, value::FloatFormat::Double))}}),
+              "0 := nan (candidate)");
+    const Value f = input(1, 0, InputSource::Default, BuiltinKind::Float);
+    EXPECT_EQ(changes({{fails(compare(Comparison::Equal, f, f, value::FloatFormat::Float))}}), "1 := nan (candidate)");
+    const Value l = input(2, 0, InputSource::Default, BuiltinKind::LongDouble);
+    EXPECT_EQ(changes({{fails(compare(Comparison::Equal, l, l, value::FloatFormat::LongDouble))}}),
+              "2 := nan (candidate)");
+}
+
+TEST_F(SearchTest, NanSatisfiesTheNegationOfAnOrderedComparison) {
+    // !(x < x + 1e-6), from neural-networks: NaN satisfies it, although not x >= x + 1e-6.
+    const Value d = input(0, 0, InputSource::Default, BuiltinKind::Double);
+    const Value larger = floating(FloatOperator::Add, d, Value::ofDouble(1e-6));
+    const Clause notLess{fails(compare(Comparison::Less, d, larger, value::FloatFormat::Double))};
+    EXPECT_EQ(changes({notLess}), "0 := nan (candidate)");
+    // With NaN excluded, as by the program's own check x != x, an infinity.
+    EXPECT_EQ(changes({notLess}, {{fails(compare(Comparison::NotEqual, d, d, value::FloatFormat::Double))}}),
+              "0 := inf (candidate)");
+    // Inversion takes the negated operator: !(x < 2.5) gives 2.5.
+    EXPECT_EQ(changes({{fails(compare(Comparison::Less, d, Value::ofDouble(2.5), value::FloatFormat::Double))}}),
+              "0 := 2.5 (inversion)");
+}
+
+TEST_F(SearchTest, NegativeZeroIsACandidate) {
+    // 1.0 / x < -1e300 holds for -0.0 only, where the quotient is -inf.
+    const Value d = input(0, 0, InputSource::Default, BuiltinKind::Double);
+    const Value quotient = floating(FloatOperator::Div, Value::ofDouble(1.0), d);
+    EXPECT_EQ(
+        changes({{holds(compare(Comparison::Less, quotient, Value::ofDouble(-1e300), value::FloatFormat::Double))}}),
+        "0 := -0 (candidate)");
+}
+
+TEST_F(SearchTest, IntegerExtremesSolveOverflowChecks) {
+    // (x + 10) < x, from ldv-regression's test24-2, holds where + wraps around: at the maximum.
+    const Value x = input(0, 0);
+    EXPECT_EQ(changes({{holds(compare(Comparison::Less, arithmetic(IntegerOperator::Add, x, constant(10)), x))}}),
+              "0 := 2147483647 (candidate)");
+    // !((x - 1) < x) at the minimum.
+    EXPECT_EQ(changes({{fails(compare(Comparison::Less, arithmetic(IntegerOperator::Sub, x, constant(1)), x))}}),
+              "0 := -2147483648 (candidate)");
+    // Their neighbours, where a kept clause excludes the extreme.
+    EXPECT_EQ(changes({{holds(compare(Comparison::Less, arithmetic(IntegerOperator::Add, x, constant(2)), x))}},
+                      {{atom(x, Comparison::NotEqual, 2147483647)}}),
+              "0 := 2147483646 (candidate)");
+    EXPECT_EQ(changes({{fails(compare(Comparison::Less, arithmetic(IntegerOperator::Sub, x, constant(2)), x))}},
+                      {{atom(x, Comparison::NotEqual, -2147483648LL)}}),
+              "0 := -2147483647 (candidate)");
+    // The extremes of the input's format.
+    constexpr value::IntegerFormat s64{.bits = 64, .isSigned = true};
+    const Value y = input(1, 0, InputSource::Default, BuiltinKind::LongLong);
+    const Value sum = arithmetic(IntegerOperator::Add, y, constant(10, BuiltinKind::LongLong), s64);
+    EXPECT_EQ(changes({{holds(compare(Comparison::Less, sum, y, s64))}}), "1 := 9223372036854775807 (candidate)");
+}
+
+TEST_F(SearchTest, SpecialValuesComeAfterTheOtherCandidates) {
+    // x * x == 1 holds for 1, -1 and the extremes of int (the square of 2^31 - 1 wraps around to 1).
+    const Value x = input(0, 0);
+    const Clause squareIsOne{atom(arithmetic(IntegerOperator::Mul, x, x), Comparison::Equal, 1)};
+    EXPECT_EQ(changes({squareIsOne}), "0 := 1 (candidate)");
+    EXPECT_EQ(changes({squareIsOne}, {{atom(x, Comparison::NotEqual, 1)}}), "0 := -1 (candidate)");
+    EXPECT_EQ(changes({squareIsOne}, {{atom(x, Comparison::NotEqual, 1)}, {atom(x, Comparison::NotEqual, -1)}}),
+              "0 := 2147483647 (candidate)");
+    // Values of earlier runs come after them: (y + 10) < y with y fixed to the maximum before.
+    const Value y = input(1, 0, InputSource::Fixed);
+    fixedBefore(1, {2147483647});
+    EXPECT_EQ(changes({{holds(compare(Comparison::Less, arithmetic(IntegerOperator::Add, y, constant(10)), y))}}),
+              "1 := 2147483646 (candidate)");
 }
 
 // ---- Kept clauses ----

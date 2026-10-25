@@ -359,6 +359,24 @@ int main(void) {
     EXPECT_TRUE(log().contains("to 3 (inversion)")) << log();
 }
 
+TEST_F(EndToEndTest, AComparisonOfAnInputWithItselfFailsWithNan) {
+    // As sv-benchmarks' nan_double: only NaN compares unequal to itself.
+    build(R"(extern double __VERIFIER_nondet_double(void);
+void reach_error(void);
+int main(void) {
+    double x = __VERIFIER_nondet_double();
+    if (x == x) return 0;
+    reach_error();
+    return 0;
+}
+)");
+    const ValidationResult result =
+        validate(sequence({{follow(WaypointType::Branching, 5, 5, "false")}, {target(6, 5)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u);
+    EXPECT_TRUE(log().contains("to nan (candidate)")) << log();
+}
+
 // ---- Invalid witnesses that an earlier version confirmed ----
 
 constexpr std::string_view avoidProgram = R"(extern int __VERIFIER_nondet_int(void);
