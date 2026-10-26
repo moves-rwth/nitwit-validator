@@ -251,7 +251,7 @@ In WSL, with the repository at `<checkout>` and an sv-benchmarks checkout at `<s
 
 ```bash
 D=/mnt/e/workspace/playground/svcomp-2026-witnesses; M=~/mirror; R=~/results
-<checkout>/tools/package.sh ~/nitwit-4.0 && unzip -q -d ~/nitwit-4.0 ~/nitwit-4.0/nitwit-4.0.0.zip
+<checkout>/tools/package.sh ~/nitwit-4.0 && unzip -q -d ~/nitwit-4.0 ~/nitwit-4.0/nitwit-*.zip
 git -C <checkout> archive --prefix=nitwit-3.x/ 8e093bf | tar -x -C ~ && (cd ~/nitwit-3.x && ./build.sh)
 N3=~/nitwit-3.x/nitwit.sh; N4=~/nitwit-4.0/nitwit/nitwit.sh
 python3 -I $D/scripts/sample.py $D unreach-call-100-per-producer 100

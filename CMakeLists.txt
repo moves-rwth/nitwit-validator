@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(nitwit VERSION 4.0.0 LANGUAGES C CXX)
+project(nitwit VERSION 4.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
