@@ -40,23 +40,23 @@ the same to BenchExec (`docs/exit-codes.md`).
 ## Results
 
 <!-- The headline numbers of docs/evaluation.md; update both together. -->
-NITWIT 4.0.0 (the release archive, `main` at ad6f5b502146) on the 27,767 unreach-call witnesses of SV-COMP 2026 in
-format 2.x, at SV-COMP's 90 s: it confirms 9,239 of the 14,841 witnesses of buggy programs (62 %) and none of the
-12,792 witnesses of correct programs. On the 11,738 witnesses of buggy programs that the SV-COMP 2026 validators ran
-on, it confirms 6,820, more than any of them alone (the best, Witch, 5,392), and unlike CPAchecker and MetaVal it
-confirms no witness of a correct program. On 1000 of the witnesses (100 per producer), it confirms 587 of the 851
-witnesses of buggy programs, NITWIT 3.x 312; on the witnesses both decide, it takes 20 s of CPU time, 3.x 348 s.
+NITWIT 4 (the release archive built from 0914f93) on the 27,767 unreach-call witnesses of SV-COMP 2026 in format 2.x,
+at SV-COMP's 90 s: it confirms 9,439 of the 14,841 witnesses of buggy programs (64 %) and none of the 12,792 witnesses
+of correct programs. On the 11,738 witnesses of buggy programs that the SV-COMP 2026 validators ran on, it confirms
+6,988, more than any of them alone (the best, Witch, 5,392), and unlike CPAchecker and MetaVal it confirms no witness
+of a correct program. On 1000 of the witnesses (100 per producer), it confirms 597 of the 851 witnesses of buggy
+programs, NITWIT 3.x 312; on the witnesses both decide, it takes 15 s of CPU time, 3.x 348 s.
 Details, also on memory: `docs/evaluation.md`.
 
 The test suites (`docs/development.md`, "Tests"): unit tests, golden dumps and semantics with this source, the
-validation of witnesses with NITWIT 4.0.0 as above:
+validation of witnesses with the build above:
 
 | Suite | Result |
 |---|---|
-| unit tests | 1,984 tests of the 10 modules, all passing |
+| unit tests | 1,988 tests of the 10 modules, all passing |
 | golden dumps | 48: 22 ASTs; 26 typed ASTs, 4 of them for ILP32; all passing |
 | semantics | 50 programs with the output, outcome and inputs of GCC and Clang, with `-m32` and `-m64`, also with the terms checked: 200 tests, all passing |
-| validation of all SV-COMP 2026 unreach-call witnesses (format 2.x) | the front end accepts every program; all witnesses but one (`line: 0`) parse; 9,239 of 14,841 witnesses of buggy programs confirmed, none of 12,792 of correct programs |
+| validation of all SV-COMP 2026 unreach-call witnesses (format 2.x) | the front end accepts every program; all witnesses but one (`line: 0`) parse; 9,439 of 14,841 witnesses of buggy programs confirmed, none of 12,792 of correct programs |
 | `validation-crafted` | 96 of 100 right, no invalid witness confirmed |
 | `testfiles/` | all 45 format 2.x witnesses right |
 | release | `nitwit.sh` and the smoke test of the archive pass; so does fm-weck's smoke test in fm-tools' CI (Ubuntu 26.04, container mode, the SV-COMP 2027 image) |

@@ -370,10 +370,9 @@ segment:
 
 ## Known gaps
 
-- **Values the search does not find** ("Limits of the search"); on the 250-witness sample, no witness reaches a limit
-  of the search (goals, evaluations, restarts, kept atoms), and with all of them raised a hundredfold every witness
-  ends the same way; of all SV-COMP 2026 unreach-call witnesses (`docs/evaluation.md`), 11 reach the restart limit,
-  one of them on a buggy program. The waypoints that fail there need:
+- **Values the search does not find** ("Limits of the search"). Of all SV-COMP 2026 unreach-call witnesses
+  (`docs/evaluation.md`), 47 of buggy programs and 1,094 of correct ones reach the restart limit, mostly through guards
+  that a loop evaluates once per input ("Guards"). The waypoints that fail need:
   - values that depend on inputs only through control flow, or through memory, pointers or library functions that
     terms do not follow: requirements without a term or on the opaque term (the `aws` `byte_buf` programs, the
     `v_FIFO` of btor2c);
@@ -403,10 +402,10 @@ segment:
   With the term table (at most about 400 MB), such a run stays below 900 MB. The memory model's table of dead heap
   blocks grows with the live blocks only (`interp/README.md`, "Memory: behaviour to keep"). Not bounded this way:
   - an endless loop that reads inputs and allocates grows the program's heap until NITWIT's own memory runs out,
-    before the interpreter's limit of 4 GiB of live objects (two Goblint `forester-heap` witnesses: exit 251 at
-    4.6 GB under an 8 GB address-space limit);
+    before the interpreter's limit of 4 GiB of live objects (three Goblint `forester-heap` witnesses: exit 251 at
+    4.5 GB under an 8 GB address-space limit);
   - the memory of the witness grows with its size: test-to-witness's witnesses with 400,001 and 600,001 segments are
-    confirmed at 1.4 and 2.1 GB.
+    confirmed at 1.4 and 2.0 GB.
 
 ## Tests
 

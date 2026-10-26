@@ -1,29 +1,29 @@
 # NITWIT 4: evaluation
 
-NITWIT 4.0.0, the release archive built from `main` at ad6f5b502146, as an SV-COMP violation-witness validator on the
-unreach-call witnesses of SV-COMP 2026, at SV-COMP's 90 s (2026-10-24).
+NITWIT 4 at 0914f93, the release archive built by `tools/package.sh`, as an SV-COMP violation-witness validator on
+the unreach-call witnesses of SV-COMP 2026, at SV-COMP's 90 s (2026-10-25).
 
 - **All witnesses:** of the 27,767 unreach-call witnesses in format 2.x whose program is in the dataset, NITWIT confirms
-  9,239 of the 14,841 witnesses of buggy programs (62 %; 78 % without Goblint's) and none of the 12,792 witnesses of
+  9,439 of the 14,841 witnesses of buggy programs (64 %; 80 % without Goblint's) and none of the 12,792 witnesses of
   correct programs. `validation-crafted`: 96 of 100 right, no invalid witness confirmed. `testfiles`: all 45
   format 2.x witnesses right.
-- **Against NITWIT 3.x,** on 1000 of these witnesses (100 per producer): 4.0 confirms 587 of the 851 witnesses of
-  buggy programs, 3.x 312; neither confirms a wrong one. On the 903 witnesses both decide, 4.0 takes 20 s of CPU time,
-  3.x 348 s.
+- **Against NITWIT 3.x,** on 1000 of these witnesses (100 per producer): NITWIT 4 confirms 597 of the 851 witnesses of
+  buggy programs, 3.x 312; neither confirms a wrong one. On the 903 witnesses both decide, NITWIT 4 takes 15 s of CPU
+  time, 3.x 348 s.
 - **Against the other SV-COMP 2026 validators,** on the 11,738 witnesses of buggy programs they validated: NITWIT
-  confirms 6,820, more than any of them alone (Witch 5,392), the five together 7,934. Validators outside the
-  producer's family confirm 1,088 that NITWIT does not; NITWIT confirms 486 that no other validator does. NITWIT
+  confirms 6,988, more than any of them alone (Witch 5,392), the five together 7,934. Validators outside the
+  producer's family confirm 970 that NITWIT does not; NITWIT confirms 514 that no other validator does. NITWIT
   confirms no witness of a correct program, CPAchecker 4 and MetaVal 3.
 - **Memory:** no run on the 1000 witnesses takes more than 1 GB (at most 842 MB). Of all witnesses, 5 runs do, up to
-  4.6 GB ("Runtime" of "All witnesses").
+  4.5 GB ("Runtime" of "All witnesses").
 
 ## Method
 
 Common to both runs:
 
 - **Binaries:**
-  - NITWIT 4.0.0: `nitwit-4.0.0.zip` built by `tools/package.sh` from `main` at ad6f5b502146 (GCC 14, preset
-    `release`, libstdc++ and libgcc static), unpacked; `nitwit/nitwit.sh`.
+  - NITWIT 4: the archive built by `tools/package.sh` from 0914f93 (GCC 14, preset `release`, libstdc++ and libgcc
+    static), unpacked; `nitwit/nitwit.sh`.
   - NITWIT 3.x: the last commit of the branch `old`, 8e093bf, exported with `git archive`, built with its `build.sh`
     (Release, GCC 13.3; `make -j4` instead of `-j8`; its last step, the submission archive, fails for lack of
     `dos2unix` after `bin/` is complete); its `nitwit.sh`, `bin/nitwit32` (32-bit) and `bin/nitwit64`.
@@ -50,7 +50,7 @@ The comparison with 3.x:
   `scripts/sample.py <dataset> unreach-call-100-per-producer 100`: 100 unreach-call violation witnesses in format 2.x
   per producer (seed 2027), 1000 in all, on 789 distinct programs; 738 run with `-32`, 262 with `-64`; format 2.0: 710,
   2.1: 290 (symbiotic 90, test-to-witness and witch all). Expected verdicts: 851 `false`, 147 `true`, 2 none.
-- **Runs:** 4.0's rows are those of the run over all witnesses. 3.x's results are those of 2026-10-22
+- **Runs:** NITWIT 4's rows are those of the run over all witnesses. 3.x's results are those of 2026-10-22
   (`results/2026-10-22-nitwit-3.x-unreach-call-100-per-producer` in the dataset). 3.x's `nitwit.sh` does not `exec`
   its executable: on a timeout it dies before reaping `bin/nitwit32`, whose CPU time and memory are then missing; its
   3 timeouts were measured again with `bin/nitwit32` called directly, same limits (`remeasured.tsv`: 95.2 to 95.3 s
@@ -66,8 +66,8 @@ All witnesses:
   `validation-crafted` (100) and `testfiles` (45 in format 2.x, 81 in format 1.0).
 - **Runs:** new runs started only while the host had at least 8 GB of free memory. Every unconfirmed witness that
   must be confirmed ran again with `-v`; the reasons below come from the result lines and these logs. Results, logs
-  and the classification (`census.tsv`) are in `results/2026-10-24-nitwit-4.0.0-unreach-call-all` in the dataset,
-  the runner and the classification scripts in its `scripts/census/`.
+  and the classification (`census.tsv`) are in `results/2026-10-25-nitwit-4-0914f93-unreach-call-all` in the
+  dataset, the runner and the classification scripts in its `scripts/census/`.
 - **Other validators:** the verdicts of SV-COMP 2026 (tables `validation-of-violation-witnesses-v2`) of CPAchecker,
   MetaVal, Theta, UAutomizer and Witch; Theta gave no verdict on these tasks, and the witnesses of test-to-witness and
   witch were not validated. A validator is *outside the producer's family* unless it is UAutomizer for the Ultimate
@@ -77,30 +77,30 @@ All witnesses:
 
 Witnesses of buggy programs confirmed (exit 0), and the changes per witness:
 
-| Producer | buggy | 3.x | 4.0 | lost | gained |
+| Producer | buggy | 3.x | NITWIT 4 | lost | gained |
 |---|---|---|---|---|---|
-| Automizer | 99 | 9 | 71 | 0 | 62 |
+| Automizer | 99 | 9 | 73 | 0 | 64 |
 | CPAchecker | 100 | 45 | 76 | 1 | 32 |
 | Goblint | 27 | 2 | 3 | 0 | 1 |
-| Kojak | 99 | 19 | 60 | 0 | 41 |
+| Kojak | 99 | 19 | 64 | 0 | 45 |
 | Mopsa | 100 | 50 | 76 | 1 | 27 |
 | Paulina (41 valid, 59 invalid) | 100 | 18 | 37 | 2 | 21 |
-| Taipan | 99 | 14 | 62 | 0 | 48 |
+| Taipan | 99 | 14 | 66 | 0 | 52 |
 | symbiotic | 100 | 75 | 88 | 0 | 13 |
 | test-to-witness | 27 | 20 | 27 | 0 | 7 |
 | witch | 100 | 60 | 87 | 0 | 27 |
-| **total** | 851 | **312** | **587** | 4 | 279 |
-| **without Paulina** | 751 | **294** | **550** | 2 | 258 |
+| **total** | 851 | **312** | **597** | 4 | 289 |
+| **without Paulina** | 751 | **294** | **560** | 2 | 268 |
 
 - **Correct programs** (Goblint 72, test-to-witness 73, Kojak 1, Taipan 1): 0 confirmed by either tool. 3.x crashes
-  on 5 runs (heap corruption, segmentation fault; BenchExec: ERROR), 4.0 on none.
-- **Paulina:** 3.x confirms 18 of the 41 valid crafted witnesses, 4.0 37; neither confirms an invalid one. The 4 valid
-  ones 4.0 misses: `while.3A1`, `while.3B1` (lost, below), `switch.4A1`, `switch.4B1` (exit 250; 3.x: 242).
+  on 5 runs (heap corruption, segmentation fault; BenchExec: ERROR), NITWIT 4 on none.
+- **Paulina:** 3.x confirms 18 of the 41 valid crafted witnesses, NITWIT 4 37; neither confirms an invalid one. The 4
+  valid ones NITWIT 4 misses: `while.3A1`, `while.3B1` (lost, below), `switch.4A1`, `switch.4B1` (exit 250; 3.x: 242).
 - **Unknown expected verdict** (2): neither tool confirms.
 
 ### Lost confirmations
 
-The 4 witnesses that 3.x confirms and 4.0 does not are on buggy programs, and the two crafted ones are valid
+The 4 witnesses that 3.x confirms and NITWIT 4 does not are on buggy programs, and the two crafted ones are valid
 witnesses, so each is a confirmation lost, not a soundness problem.
 
 - **Paulina `while.3A1`, `while.3B1` (`796583053ff3`, `eba394825e26`).** The assumption `a == 10` at `count++;`
@@ -121,22 +121,23 @@ The runtime is compared on the witnesses both tools decide: the runs that end wi
 tool. A timeout gives no answer either way, and NITWIT ends a run early only where the witness can no longer be
 followed (`docs/exit-codes.md`).
 
-| | witnesses | 3.x | 4.0 |
+| | witnesses | 3.x | NITWIT 4 |
 |---|---|---|---|
-| both decide (no timeout, no limit, 3.x not at its transition limit) | 903 | 348 s | 20 s |
-| - of them both at most 0.05 s (front end and start-up dominate) | 820 | 3.9 s | 1.9 s |
-| 3.x stops at its limit of 5 M transitions, 4.0 ends (4.0 confirms 56) | 70 | 192 s | 116 s |
-| all 1000 (timeouts: 3.x 3 with 286 s, 4.0 12 with 1,113 s) | 1000 | 832 s | 1,264 s |
+| both decide (no timeout, no limit, 3.x not at its transition limit) | 903 | 348 s | 15 s |
+| - of them both at most 0.05 s (front end and start-up dominate) | 804 | 4.0 s | 1.6 s |
+| 3.x stops at its limit of 5 M transitions, NITWIT 4 ends (NITWIT 4 confirms 56) | 70 | 192 s | 111 s |
+| all 1000 (timeouts: 3.x 3 with 286 s, NITWIT 4 12 with 1,122 s) | 1000 | 832 s | 1,262 s |
 
-- **Per witness:** of the 973 witnesses both runs finish, 4.0 is faster on 187, equally fast on 750 (most runs take
-  less than the 10 ms resolution of the CPU time) and slower on 36. It is slower by more than 1 s on 2, both
-  confirmations where 3.x stops at its transition limit after 0.6 to 0.7 s (exit 4): Mopsa's
-  `loop-acceleration/simple_2-2` (60 s) and `loops-crafted-1/nested3-2` (54 s).
-- **Timeouts and out of memory:** 4.0's 12 timeouts are ldv, systemc, product-lines, combinations and btor2c programs
-  and Mopsa's `loop-acceleration/nested_1-2`; on 11 of them 3.x stops within 3.3 s (exit 4), and it confirms
-  `systemc/toy1`. 4.0's 12 runs out of memory are aws harnesses that allocate more than the interpreter's limit.
+- **Per witness:** of the 973 witnesses both runs finish, NITWIT 4 is faster on 200, equally fast on 727 (most runs
+  take less than the 10 ms resolution of the CPU time) and slower on 46. It is slower by more than 1 s on 3: the two
+  confirmations where 3.x stops at its transition limit after 0.6 to 0.7 s (exit 4), Mopsa's
+  `loop-acceleration/simple_2-2` (61 s) and `loops-crafted-1/nested3-2` (48 s), and a `hardness` program of
+  test-to-witness (1.0 s), whose guards restart the run once per input of a loop.
+- **Timeouts and out of memory:** NITWIT 4's 12 timeouts are ldv, systemc, product-lines, combinations and btor2c
+  programs and Mopsa's `loop-acceleration/nested_1-2`; on 11 of them 3.x stops within 3.3 s (exit 4), and it confirms
+  `systemc/toy1`. Its 12 runs out of memory are aws harnesses that allocate more than the interpreter's limit.
 - **Memory:** max RSS median 5.8 MB (3.x 5.2 MB), 90th percentile 12 MB (8 MB), maximum 842 MB (1.6 GB); no run of
-  4.0 over 1 GB (3.x: 2).
+  NITWIT 4 over 1 GB (3.x: 2).
 
 ## All witnesses
 
@@ -148,23 +149,24 @@ only": confirmed by such a validator and not by NITWIT.
 
 | Producer | buggy | confirmed | SV-COMP results | others | others only |
 |---|---|---|---|---|---|
-| Automizer | 2,665 | 1,943 (73 %) | 1,442 | 647 | 139 |
-| CPAchecker | 3,619 | 2,706 (75 %) | 3,353 | 2,934 | 272 |
-| Goblint | 3,342 | 269 (8 %) | 3,342 | 637 | 381 |
-| Kojak | 665 | 435 (65 %) | 665 | 368 | 67 |
+| Automizer | 2,665 | 2,000 (75 %) | 1,442 | 647 | 119 |
+| CPAchecker | 3,619 | 2,756 (76 %) | 3,353 | 2,934 | 223 |
+| Goblint | 3,342 | 297 (9 %) | 3,342 | 637 | 361 |
+| Kojak | 665 | 463 (70 %) | 665 | 368 | 61 |
 | Mopsa | 208 | 147 (71 %) | 192 | 167 | 33 |
-| Taipan | 885 | 553 (62 %) | 885 | 475 | 110 |
-| symbiotic | 1,859 | 1,741 (94 %) | 1,859 | 1,555 | 86 |
-| test-to-witness | 1,228 | 1,112 (91 %) | – | – | – |
+| Taipan | 885 | 583 (66 %) | 885 | 475 | 88 |
+| symbiotic | 1,859 | 1,742 (94 %) | 1,859 | 1,555 | 85 |
+| test-to-witness | 1,228 | 1,118 (91 %) | – | – | – |
 | witch | 370 | 333 (90 %) | – | – | – |
-| **total** | **14,841** | **9,239 (62 %)** | 11,738 | 6,783 | 1,088 |
+| **total** | **14,841** | **9,439 (64 %)** | 11,738 | 6,783 | 970 |
 
 ### Soundness
 
 No wrong confirmation: 0 of the 12,792 witnesses of correct programs, 0 of the 118 invalid crafted witnesses
 (`validation-crafted` and Paulina's copies), 0 of the 15 invalid test witnesses (8 in format 2.x; the 7 in format 1.0
-give exit 4), and none of the 34 witnesses without verdict. On correct programs, most runs end because the program
-aborts (7,104), a follow branching fails (1,918) or the witness does not fit the program (1,871).
+give exit 4), and none of the 34 witnesses without verdict. On correct programs, most runs end because a follow
+branching fails (5,873), the program aborts (1,964), the witness does not fit the program (1,871) or the search reaches
+its restart limit (1,094).
 
 ### Against the other validators
 
@@ -173,7 +175,7 @@ run: 11,738 on buggy programs, 9,909 on correct ones.
 
 | Validator | buggy confirmed | % | wrong (correct program confirmed) |
 |---|---|---|---|
-| NITWIT 4.0 | 6,820 | 58.1 % | 0 |
+| NITWIT 4 | 6,988 | 59.5 % | 0 |
 | Witch | 5,392 | 45.9 % | 0 |
 | CPAchecker | 4,906 | 41.8 % | 4 |
 | UAutomizer | 4,452 | 37.9 % | 0 |
@@ -181,51 +183,52 @@ run: 11,738 on buggy programs, 9,909 on correct ones.
 | Theta | 0 | 0 % | 0 |
 | any of the five | 7,934 | 67.6 % | 5 |
 
-NITWIT confirms more than any single validator, the five together confirm 1,114 more, and NITWIT makes no wrong
+NITWIT confirms more than any single validator, the five together confirm 946 more, and NITWIT makes no wrong
 confirmation where CPAchecker and MetaVal make 4 and 3. Counting only validators outside the producer's family, the
-five confirm 6,783. 1,600 witnesses are confirmed by another validator and not by NITWIT, 1,088 of them outside the
-producer's family; 486 are confirmed by NITWIT only.
+five confirm 6,783. 1,460 witnesses are confirmed by another validator and not by NITWIT, 970 of them outside the
+producer's family; 514 are confirmed by NITWIT only.
 
-### Why NITWIT does not confirm the other 5,602
+### Why NITWIT does not confirm the other 5,402
 
 "Others": confirmed by a validator outside the producer's family.
 
 | Reason | Exit | Witnesses | Producers | Others |
 |---|---|---|---|---|
-| a follow branching did not pass, the search found no values | 241 | 2,570 | Goblint 1,123, Automizer 546, CPAchecker 517, Taipan 227, Kojak 157 | 622 |
-| - no term: the value depends on inputs through branches between waypoints | | 730 | Goblint 552 | 126 |
-| - opaque term: nondet memory (intel-tdx 268), aws pointers 120, math functions 79 | | 536 | CPAchecker 327 | 76 |
-| - nonlinear: `*`, `/`, `%`, shifts, an input twice | | 410 | Automizer 199 | 159 |
-| - `&` and `\|` of truth values (btor2c, xcsp) | | 283 | Automizer 113, Goblint 85 | 44 |
-| - one input, simple relation, contradicted by kept clauses (Goblint skips loop iterations; CPAchecker assumes `x == 0`, then `if (x)` true) | | 261 | Goblint 214 | 93 |
-| - several inputs, `?:`, deep terms, floating point | | 350 | Goblint 144 | 124 |
-| the program ended before the target segment, no waypoint failed | 242 | 663 | Goblint 491 | 88 |
-| - the retry with inputs 1 passed more segments, but does not search | | 464 | Goblint 389 | 52 |
-| the program aborted | 4 | 479 | Goblint 409 | 87 |
-| - Goblint requires the branch into `abort()` | | 304 | | 1 |
-| - in an `assume` wrapper (`assume_abort_if_not`, `assume`; xcsp constraints) | | 174 | | 85 |
-| timeout: the run loops without reaching the next waypoint | 124 | 416 | Goblint 311, symbiotic 42 | 100 |
+| a follow branching did not pass, the search found no values | 241 | 2,413 | Goblint 1,119, Automizer 492, CPAchecker 471, Taipan 199, Kojak 132 | 529 |
+| - no term: the value depends on inputs through branches between waypoints | | 742 | Goblint 564 | 123 |
+| - opaque term: nondet memory (intel-tdx), aws pointers, math functions | | 493 | CPAchecker 308 | 53 |
+| - nonlinear: `*`, `/`, `%`, shifts, an input twice | | 374 | Automizer 177 | 153 |
+| - `&` and `\|` of bits, which are not truth values (btor2c, xcsp) | | 285 | Automizer 113, Goblint 85 | 45 |
+| - one input, simple relation, contradicted by kept clauses (Goblint skips loop iterations; CPAchecker assumes `x == 0`, then `if (x)` true) | | 234 | Goblint 200 | 80 |
+| - several inputs, `?:`, deep terms, floating point | | 285 | Goblint 145 | 75 |
+| the program ended before the target segment, no waypoint failed | 242 | 651 | Goblint 490 | 82 |
+| - the retry with inputs 1 passed more segments, but did not confirm | | 461 | Goblint 396 | 48 |
+| timeout: the run loops without reaching the next waypoint | 124 | 416 | Goblint 310, symbiotic 42 | 101 |
+| the program aborted | 4 | 389 | Goblint 349 | 32 |
+| - Goblint requires the branch into `abort()` | | 310 | | 1 |
+| - in a guard the search does not steer (`&`, `\|`, several inputs, an input twice) | | 79 | | 31 |
 | unsupported: threads 275 (CPAchecker 266), `_setjmp` 91 | 4 | 366 | CPAchecker 284 | 66 |
 | the witness does not fit: Goblint's locations (column inside a statement 330, `case` labels 22) | 4 | 352 | Goblint 352 | 6 |
-| `exit` in `assume_exit_if_not`: Goblint repeats assumptions around calls (CIL splits `return f(x);`) | 242 | 325 | Goblint 323 | 0 |
-| undefined behaviour: null pointer 107 (LDV), out of bounds 28 (verifythis writes `x[n]`), invalid address 5 | 4 | 140 | CPAchecker 50, Automizer 45 | 38 |
-| the target segment was reached, the program ended without the error | 250 | 86 | Goblint 37, symbiotic 29 | 46 |
-| the error function was called before the target (Ultimate's two branchings per evaluation of `while (counter++ < N)`) | 241 | 65 | Mopsa 22, Ultimate 42 | 7 |
-| other: out of memory 50 (the interpreter's limit 49), `function_return` with rounded floats 42, endless loop without effect 27, assumption 12, rest 9 | | 140 | | 28 |
+| `exit` in `assume_exit_if_not`: Goblint repeats assumptions around calls (CIL splits `return f(x);`) | 242 | 321 | Goblint 321 | 0 |
+| undefined behaviour: null pointer 107 (LDV), out of bounds 29 (verifythis writes `x[n]`), invalid address 5 | 4 | 141 | CPAchecker 50, Automizer 45 | 38 |
+| the target segment was reached, the program ended without the error | 250 | 103 | Goblint 37, symbiotic 29, Mopsa 28 | 60 |
+| the error function was called before the target (Ultimate's two branchings per evaluation of `while (counter++ < N)`) | 241 | 69 | Mopsa 22, Ultimate 42 | 7 |
+| the restart limit: guards that a loop evaluates once per input, assumptions that the defaults break one by one | 4 | 47 | Goblint 38, symbiotic 8 | 26 |
+| other: out of memory 50 (the interpreter's limit 49), `function_return` with rounded floats 42, endless loop without effect 27, assumption 7, rest 8 | | 134 | | 23 |
 
 `docs/roadmap.md` ("Where NITWIT does not confirm") ranks the remedies.
 
 ### Runtime
 
-- **CPU time:** 18.4 h in all, 97 % of it in the 695 timeouts (2.5 % of the runs; Goblint 573). The 27,235 runs that
-  end without a timeout or running out of memory take 2,045 s (median 0.00 s, 90th percentile 0.07 s); the 9,350
-  confirmations 1,255 s. Wall time 4.03 h at 5 in parallel.
-- **Out of memory:** 63 runs; 61 exceed the interpreter's limits (4 GiB of live objects, or the 32-bit address
-  space), 2 NITWIT's own memory.
-- **Memory:** max RSS median 5.8 MB, 90th percentile 21 MB, 99th percentile 842 MB. 5 runs exceed 1 GB, up to 4.6 GB:
-  - three Goblint `forester-heap` witnesses: two whose endless input loop allocates until NITWIT's own memory runs out
-    (4.6 GB), and one that times out at 2.4 GB;
-  - two test-to-witness witnesses with 400,001 and 600,001 segments, confirmed at 1.4 and 2.1 GB.
+- **CPU time:** 18.6 h in all, 97 % of it in the 694 timeouts (2.5 % of the runs; Goblint 571). The 27,235 runs that
+  end without a timeout or running out of memory take 1,846 s (median 0.00 s, 90th percentile 0.09 s); the 9,550
+  confirmations 1,068 s. Wall time 3.8 h at 5 in parallel.
+- **Out of memory:** 64 runs; 61 exceed the interpreter's limits (4 GiB of live objects, or the 32-bit address
+  space), 3 NITWIT's own memory (the `forester-heap` witnesses below).
+- **Memory:** max RSS median 6.0 MB, 90th percentile 21 MB, 99th percentile 842 MB. 5 runs exceed 1 GB, up to 4.5 GB:
+  - three Goblint `forester-heap` witnesses whose endless input loop allocates until NITWIT's own memory runs out
+    (4.5 GB);
+  - two test-to-witness witnesses with 400,001 and 600,001 segments, confirmed at 1.4 and 2.0 GB.
 - **No crashes.**
 
 ## What limits the comparison
@@ -234,7 +237,7 @@ producer's family; 486 are confirmed by NITWIT only.
   CPU time, about the same for a single-threaded tool), and the memory limit is address space (`ulimit -v`), not
   resident memory. A 32-bit 3.x run has at most 4 GB of address space anyway.
 - **The other validators** ran in SV-COMP 2026, under its BenchExec setup, not on this machine.
-- **Load:** 3.x and 4.0 ran at different times on the same machine with 5 parallel runs each; other jobs shared the
+- **Load:** 3.x and NITWIT 4 ran at different times on the same machine with 5 parallel runs each; other jobs shared the
   machine at times. Most runs are below the 10 ms resolution of the CPU time.
 - **Ground truth:** a confirmation counts as right when the task is buggy, as in SV-COMP. Whether a witness is valid
   is known only for the crafted witnesses.
