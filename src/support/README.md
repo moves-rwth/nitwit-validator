@@ -13,6 +13,7 @@ What every other module needs, without knowledge of C or of witnesses.
 - `target.hpp`: `TargetInfo`, the data models ILP32 (i386) and LP64 (x86-64) with the sizes and alignments of the
   scalar types under the System V ABI.
 - `interner.hpp`: interned strings for identifiers (`Symbol`): equal texts of one interner are equal symbols.
+- `sha256.hpp`: SHA-256 (FIPS 180-4), for the program hashes of the witnesses NITWIT writes.
 - `int128.hpp`: 128-bit integers, for C's `__int128` and intermediate results; the only place that names the
   compiler's `__int128`.
 - `large_stack.hpp`: `runWithLargeStack`, which runs work on a thread with a large stack, since the parser, sema and
@@ -21,4 +22,5 @@ What every other module needs, without knowledge of C or of witnesses.
 ## Tests
 
 `tests/unit/support/`: the line and column mapping, line markers and presumed locations (`source_manager_test.cpp`);
-the format of diagnostics; interning; the scalar types of both data models; a deep recursion on the large stack.
+the format of diagnostics; interning; the scalar types of both data models; a deep recursion on the large stack;
+SHA-256 against the examples of NIST.
