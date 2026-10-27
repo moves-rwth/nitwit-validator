@@ -11,7 +11,8 @@
 namespace nitwit::validate {
 
 /// Looks for a run that calls the error function. Verdict::Confirmed if one does (the program is refuted, the message
-/// names the call), else the verdict of the final run, as validate() decides it. `options.confirmingRun`, if set,
+/// names the call), Verdict::Unknown if it does so only after undefined behaviour, else the verdict of the final run,
+/// as validate() decides it. `options.confirmingRun`, if set,
 /// keeps the run that called the error function, which can be written as a concrete violation witness.
 [[nodiscard]] ValidationResult refute(const ProgramInput& program, const ValidationOptions& options,
                                       DiagnosticEngine& diagnostics);

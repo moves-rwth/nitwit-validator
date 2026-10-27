@@ -89,30 +89,33 @@ ValidationResult verdictOf(const interp::RunResult& run, const SegmentMonitor& m
     }
 
     const std::string end = describeEnd(run, program);
+    // A refutation follows no witness (refute.hpp), so its one segment, which only the validator made, is not named.
+    const bool namesSegments = !options.anyErrorCallIsTarget;
     const std::string segment =
-        std::format("in segment {} of {}", monitor.segmentsPassed() + 1, monitor.segmentCount());
+        namesSegments ? std::format(" in segment {} of {}", monitor.segmentsPassed() + 1, monitor.segmentCount()) : "";
     switch (run.termination) {
     case interp::Termination::Returned:
     case interp::Termination::Exit:
         if (monitor.isTargetSegmentCurrent()) {
-            return decided(
-                Verdict::TargetWithoutError,
-                std::format("the target segment was reached, but {} without calling '{}'", end, options.errorFunction));
+            return decided(Verdict::TargetWithoutError,
+                           std::format("{}{} without calling '{}'",
+                                       namesSegments ? "the target segment was reached, but " : "", end,
+                                       options.errorFunction));
         }
         return decided(Verdict::ProgramFinished,
-                       std::format("{} {} without calling '{}'", end, segment, options.errorFunction));
+                       std::format("{}{} without calling '{}'", end, segment, options.errorFunction));
     case interp::Termination::Stopped:
         NITWIT_UNREACHABLE("only the monitor stops runs, and it says why");
     case interp::Termination::Unsupported:
-        return decided(Verdict::Unsupported, std::format("{} {}", end, segment));
+        return decided(Verdict::Unsupported, end + segment);
     case interp::Termination::OutOfMemory:
-        return decided(Verdict::OutOfMemory, std::format("{} {}", end, segment));
+        return decided(Verdict::OutOfMemory, end + segment);
     case interp::Termination::Abort:
     case interp::Termination::AssumeFailed:
     case interp::Termination::EndlessLoop:
     case interp::Termination::UndefinedBehavior:
     case interp::Termination::LimitReached:
-        return decided(Verdict::Unknown, std::format("{} {}", end, segment));
+        return decided(Verdict::Unknown, end + segment);
     }
     std::unreachable();
 }

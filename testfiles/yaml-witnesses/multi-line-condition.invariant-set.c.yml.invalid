@@ -1,4 +1,4 @@
-# A correctness witness, which NITWIT has to reject as it only validates violation witnesses.
+# A correctness witness, which NITWIT never confirms (src/validate/README.md, "Correctness witnesses").
 - entry_type: invariant_set
   metadata:
     format_version: "2.1"
