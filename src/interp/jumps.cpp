@@ -134,7 +134,11 @@ const ast::Expr* rootOf(const Instruction& instruction) {
 // as in a loop, saves the same environment again, under the same id, so that the environments do not grow with the
 // iterations.
 value::Value Execution::setJump(const ast::CallExpr* call, const Arguments& arguments) {
-    NITWIT_ASSERT(frame_ != nullptr, "setjmp outside a function");
+    if (frame_ == nullptr) {
+        // The initializer of a static object, which C17 6.7.9p4 requires to be constant, but sema accepts calls there.
+        stop(Termination::Unsupported, "setjmp in the initializer of a static object, outside any function",
+             call->location());
+    }
     if (arguments.values.empty() || types_.describe(arguments.types[0]).representation != Representation::Pointer) {
         stop(Termination::Unsupported, "setjmp without a pointer to a jmp_buf", call->location());
     }
