@@ -56,7 +56,7 @@ from 1. A column 0 or beyond the end of the line (one past its text still counts
 | `branching` | after the controlling expression | keyword (`if`, `while`, `for`, `switch`; for a do loop `do` or its `while`), or the `?` | the outcome is the constraint (`true`/`false`); for `switch`, the value is the case value (in a GNU range `case lo ... hi:`, any value of the range), or `default`: no case label matches |
 | `function_enter` | after the arguments | the `)` of the call | always |
 | `function_return` | after the call returned | the `)` of the call | the constraint (with `\result`) holds, or there is none |
-| `target` | when the error function is called | the start of the call (the function's name); without a column the first statement or full expression in the line | the target segment is current |
+| `target` | when the error function is called | the first character of the innermost statement or full expression that contains the call, as the format says, or the start of the call (the function's name), where producers put it; without a column the first statement or full expression in the line | the target segment is current |
 
 - **Every waypoint but the target must be at an evaluation point of its type**, or the witness does not fit the
   program: the verdict is UNKNOWN (exit 4, Unsupported) before any run, naming the waypoint. A witness with
@@ -67,9 +67,11 @@ from 1. A column 0 or beyond the end of the line (one past its text still counts
 - **Without a column**, a waypoint is evaluated at the first evaluation point of its type in the line, by column.
   `validation-crafted` requires this: in `ternary.1B0`, two branching waypoints of line 15 without column both mean
   the first `?:` of the line, so the witness must be rejected. A target without a column is, as the format says, the
-  first statement or full expression in the line, which the call of the error function must start: in
-  `ERROR: reach_error();` that is the labeled statement, not the call. Only Paulina's crafted witnesses omit the
-  target's column in SV-COMP 2026 (86 of 200), always at a line `reach_error();`.
+  first statement or full expression in the line, which the call of the error function must start or be innermost in:
+  in `ERROR: reach_error();` that is the labeled statement, which contains the innermost statement `reach_error();`
+  and is therefore not the target, and in `int a = c ? (reach_error(), 0) : 1;` it is the declaration, which contains
+  the innermost full expression, the initializer. Only Paulina's crafted witnesses omit the target's column in SV-COMP
+  2026 (86 of 200), always at a line `reach_error();`.
 - **Blocks** have no evaluation point of their own (the interpreter reports no event for them). An assumption at a `{`,
   where CPAchecker puts some, is evaluated before the first statement in the block, which runs in the same state. An
   empty block has no evaluation point, and neither has a block whose first statement has a label (`L:`, `case`,
@@ -417,7 +419,8 @@ strict inputs follows it in one run without choosing a value, and so does NITWIT
   | NaN | `\result != \result`, which only NaN satisfies; the hint gives the quiet NaN |
 
 - **Locations:** line, column and function of the call's `)`, which must identify that evaluation point and no
-  other (checked through the location map), and for the target the start of the call. The program's path as NITWIT
+  other (checked through the location map), and for the target the first character of the innermost statement or
+  full expression that contains the call of the error function, as the format requires. The program's path as NITWIT
   got it is the file name of every waypoint and the input file of the metadata, with its SHA-256.
 - **Metadata:** producer NITWIT with its version, the property `CHECK( init(main()), LTL(G ! call(f())) )` of the
   error function, the data model. The uuid (RFC 9562, version 8) is taken from a SHA-256 of the witness without
@@ -430,7 +433,8 @@ strict inputs follows it in one run without choosing a value, and so does NITWIT
   - an input that is not the result of a call: a read of uninitialized memory, the bytes of
     `__VERIFIER_nondet_memory`;
   - a value that no constant gives: an integer beyond 64 bits, a non-null pointer (NITWIT never chooses one);
-  - a call whose `)` is in text that the preprocessor changed, or whose location matches more than one call;
+  - a call whose `)` is in a header or in text that the preprocessor changed, or whose location matches more than one
+    call (two physical lines of the preprocessor's output that are one line of the program);
   - more inputs than `ConcreteTask::maxInputs` (1,000,000, which covers the longest witnesses of the SV-COMP 2026
     corpus; a waypoint takes about 200 bytes plus the program's path), or than the oracle records
     (`TermLimits::maxInputs`).
@@ -509,10 +513,13 @@ strict inputs follows it in one run without choosing a value, and so does NITWIT
   its own restart limit, its budget over the runs of both phases, its trigger after a waypoint without term but not
   after one the search tried) and an oracle test of repeated runs with another default. `concrete_test.cpp`: concrete
   witnesses with the interpreter (every input at its call in request order, the metadata and the program's hash, the
-  same witness for the same validation, special floating values, the cases without witness, undefined behaviour, the
-  constraint of every kind of value), strict inputs (an input without waypoint, no search, avoid waypoints, a read just
-  before the end), NaN given and hinted, the check left out, and the record of the confirming run; oracle tests of
-  required hints, value tests of null pointers and NaN, location tests of the positions a witness gives.
+  same witness for the same validation, special floating values, the target at the innermost full expression of the
+  error call, the cases without witness including a location of two calls, undefined behaviour, the constraint of every
+  kind of value), strict inputs (an input without waypoint, no search, avoid waypoints, a guard that ends the run, no
+  retry, a read just before the end), NaN given and hinted, the check left out, and the record of the confirming run;
+  oracle tests of required hints and of taking the inputs, value tests of null pointers and NaN, location tests of the
+  positions a witness gives and of the statement or full expression around a call; an end-to-end test of the
+  locations a target may have.
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness, as a process with a timeout of 30 s, and checks
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`: every witness confirmed, except
     those named `*.invalid`, which must not be;

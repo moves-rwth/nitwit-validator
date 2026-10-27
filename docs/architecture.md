@@ -168,8 +168,9 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
   - why the run ended: error function, end of program, `exit`, `abort`, a limit, or unsupported input.
   The verdict maps to the exit codes of 3.x (see `docs/exit-codes.md`).
 - **Concrete witnesses:** the confirming run, which the oracle recorded, can be written as a witness in format 2.2
-  that gives every input by a `function_return` waypoint; it is written only if a validation of it that accepts no
-  other inputs (strict inputs) confirms it (`src/validate/README.md`, "Concrete witnesses").
+  that gives every input by a `function_return` waypoint; unless `--no-witness-check` leaves the check out, it is
+  written only if a validation of it that accepts no other inputs (strict inputs) confirms it
+  (`src/validate/README.md`, "Concrete witnesses").
 
 ### Errors
 

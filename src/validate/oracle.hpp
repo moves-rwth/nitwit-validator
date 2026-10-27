@@ -87,6 +87,8 @@ public:
     [[nodiscard]] const ProvidedInput& input(value::InputId id) const;
     /// The number of recorded requests of the current run: all of them, up to `recordedInputs`.
     [[nodiscard]] std::size_t inputCount() const { return inputs_.size(); }
+    /// The recorded requests of the current run, moved out without a copy: afterwards the run has none recorded.
+    [[nodiscard]] std::vector<ProvidedInput> takeInputs() { return std::exchange(inputs_, {}); }
 
 private:
     struct KeyLess {

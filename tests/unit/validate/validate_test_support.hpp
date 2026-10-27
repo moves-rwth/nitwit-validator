@@ -462,6 +462,15 @@ private:
             return walkExpression(ast::cast<ast::CastExpr>(expr)->operand(), visit);
         case ast::ExprKind::ImplicitCast:
             return walkExpression(ast::cast<ast::ImplicitCastExpr>(expr)->operand(), visit);
+        case ast::ExprKind::StatementExpr: {
+            const auto visitStatement = [&](const ast::Stmt* stmt) {
+                const auto visitChild = [&](const ast::Expr* child) {
+                    walkExpression(child, visit);
+                };
+                childExpressions(stmt, visitChild);
+            };
+            return walkStatement(ast::cast<ast::StatementExpr>(expr)->body(), visitStatement);
+        }
         default:
             return;
         }

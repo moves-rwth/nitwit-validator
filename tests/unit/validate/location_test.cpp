@@ -215,6 +215,27 @@ TEST_F(ProgramLocationTest, AWitnessPositionIsTheLineAndColumnOfTheFile) {
     EXPECT_EQ(map.witnessPosition({other, position(5, 17).offset}), std::nullopt);
 }
 
+TEST_F(LocationTest, ACallIsInTheInnermostStatementOrFullExpressionThatContainsIt) {
+    program("void f(int);\n"
+            "int g(void);\n"
+            "int main(void) {\n"
+            "    int x = 1 > 0 ? (g(), 0) : 1;\n"
+            "    for (x = 0; x < 1; f(g())) x++;\n"
+            "    f(({ g(); }));\n"
+            "    return g() + 1;\n"
+            "}\n");
+    const LocationMap map(sources_, file_, FileId::None, unit());
+    const auto enclosing = [&](std::uint32_t line, std::uint32_t parenthesis) {
+        return map.describe(map.enclosingStart(callAt(line, parenthesis)));
+    };
+    EXPECT_EQ(enclosing(4, 24), "4:13"); // the initializer
+    EXPECT_EQ(enclosing(5, 29), "5:24"); // the increment of the loop, for both calls
+    EXPECT_EQ(enclosing(5, 28), "5:24");
+    EXPECT_EQ(enclosing(6, 17), "6:5");  // the expression statement
+    EXPECT_EQ(enclosing(6, 12), "6:10"); // the statement in the statement expression
+    EXPECT_EQ(enclosing(7, 14), "7:12"); // the value of the return
+}
+
 // prog.c and the output of cpp for it, with an included header. The second if in line 6 stands for a macro expansion,
 // which makes the line longer than the original.
 class PreprocessedLocationTest : public LocationTest {

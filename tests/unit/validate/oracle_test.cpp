@@ -190,6 +190,18 @@ TEST_F(OracleTest, RequestsBeyondTheRecordedOnesAreAnsweredButNotKept) {
     EXPECT_EQ(oracle.requestCount(), 1u);
 }
 
+TEST_F(OracleTest, TheRecordedRequestsAreTakenWithoutACopy) {
+    WitnessOracle oracle(context(), 3);
+    EXPECT_EQ(provided(oracle, requestAt(6, 35, 0)), "3");
+    EXPECT_EQ(provided(oracle, requestAt(9, 38, 1)), "1");
+    const std::vector<ProvidedInput> taken = oracle.takeInputs();
+    ASSERT_EQ(taken.size(), 2u);
+    EXPECT_EQ(taken[0].key.site, callAt(6, 35));
+    EXPECT_EQ(taken[1].key.site, callAt(9, 38));
+    EXPECT_EQ(oracle.inputCount(), 0u);
+    EXPECT_EQ(oracle.requestCount(), 2u);
+}
+
 TEST_F(OracleTest, WithRequiredHintsTheFirstRequestThatNoHintAnswersIsUngiven) {
     WitnessOracle oracle(context(), 3);
     oracle.requireHints();

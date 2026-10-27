@@ -54,7 +54,9 @@ std::expected<witness::Location, std::string> waypointLocation(const LocationMap
                                                                const std::string& fileName) {
     const std::optional<LineColumn> position = locations.witnessPosition(at);
     if (!position) {
-        return std::unexpected(std::format("{} is in text that the preprocessor changed", locations.describe(at)));
+        return std::unexpected(std::format("{} is in a header or in text that the preprocessor changed, which a "
+                                           "witness cannot point to",
+                                           locations.describe(at)));
     }
     witness::Location location{
         .fileName = fileName, .line = position->line, .column = position->column, .function = ""};
@@ -116,9 +118,10 @@ std::expected<std::vector<witness::Segment>, std::string> segmentsOf(const Confi
                                                                              .format = std::string(resultFormat)},
                                            .threadId = std::nullopt}}});
     }
-    // The target is the start of the call; its function is that of the call's `)`, where function_enter is evaluated.
-    std::expected<witness::Location, std::string> target =
-        waypointLocation(locations, run.errorCall->location(), witness::WaypointType::Target, task.programPath);
+    // The target is the start of the innermost statement or full expression that contains the call (Witness-Format.md,
+    // "Target"); its function is that of the call's `)`, where function_enter is evaluated.
+    std::expected<witness::Location, std::string> target = waypointLocation(
+        locations, locations.enclosingStart(run.errorCall), witness::WaypointType::Target, task.programPath);
     if (!target) {
         return std::unexpected(std::format("the call of the error function at {}", target.error()));
     }

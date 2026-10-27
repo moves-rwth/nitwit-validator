@@ -233,12 +233,14 @@ interp::Directive SegmentMonitor::afterArguments(const interp::CallEvent& event,
     if (handle(call, context) == interp::Directive::Stop) {
         return interp::Directive::Stop;
     }
-    // The target waypoint passes when the error function is called at its location (the start of the call, where
-    // producers put it) while the target segment is current.
+    // The target waypoint passes when the error function is called at its location while the target segment is
+    // current: the start of the innermost statement or full expression that contains the call, as the format says
+    // (Witness-Format.md, "Target"), or the start of the call, where producers put it.
     if (event.callee != nullptr && event.callee->name().text() == errorFunction_) {
         const SourceLocation start = event.call->location();
         errorCall_ = event.call;
-        isAtTarget_ = isTargetSegmentCurrent() && target_.contains(start);
+        isAtTarget_ = isTargetSegmentCurrent()
+                      && (target_.contains(start) || target_.contains(locations_.enclosingStart(event.call)));
         const bool isElsewhere = isTargetSegmentCurrent() && !isAtTarget_;
         return stop(State::ErrorCalled, std::format("'{}' was called at {} in segment {} of {}{}", errorFunction_,
                                                     locations_.describe(start), current_ + 1, segmentCount(),

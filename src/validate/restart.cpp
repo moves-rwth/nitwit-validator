@@ -133,17 +133,13 @@ ValidationResult withGivenInputs(ValidationResult verdict, const WitnessOracle& 
     return verdict;
 }
 
-/// The inputs and the error call of the final run, which confirmed.
-ConfirmingRun confirmingRunOf(const WitnessOracle& oracle, const SegmentMonitor& monitor) {
-    ConfirmingRun run{.inputs = {},
-                      .requests = oracle.requestCount(),
-                      .errorCall = monitor.errorCall(),
-                      .firstUndefined = monitor.firstUndefined()};
-    run.inputs.reserve(oracle.inputCount());
-    for (std::size_t i = 0; i < oracle.inputCount(); ++i) {
-        run.inputs.push_back(oracle.input(static_cast<value::InputId>(i)));
-    }
-    return run;
+/// The inputs and the error call of the final run, which confirmed. The inputs are moved out of the oracle, since a
+/// copy of millions of them could run out of memory after the verdict.
+ConfirmingRun confirmingRunOf(WitnessOracle& oracle, const SegmentMonitor& monitor) {
+    return {.inputs = oracle.takeInputs(),
+            .requests = oracle.requestCount(),
+            .errorCall = monitor.errorCall(),
+            .firstUndefined = monitor.firstUndefined()};
 }
 
 /// The retry phase after the first phase ended in `first`, and never more: a validation like the first phase with
