@@ -62,7 +62,7 @@ enum class Termination : std::uint8_t {
     AssumeFailed,      // __VERIFIER_assume with a false argument: the execution is infeasible
     Stopped,           // the observer returned Directive::Stop
     UndefinedBehavior, // an operation without a defined result (memory error, division by zero, ...)
-    Unsupported,       // a construct the interpreter does not support (inline assembly, setjmp, threads, ...)
+    Unsupported,       // a construct the interpreter does not support (inline assembly, threads, ...)
     OutOfMemory,       // memoryLimit exceeded
     LimitReached,      // maxSteps or maxCallDepth exceeded
     EndlessLoop,       // RunOptions::endsEndlessLoops: the run entered a loop that never leaves and changes nothing

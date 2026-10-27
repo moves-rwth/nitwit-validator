@@ -354,6 +354,26 @@ int main(void) {
                 ElementsAre("(x0 ? x1 : _)", "(x0 ? 7 : _)", "(!x0 ? _ : 7)", "x1", "(x0 ? x0 : _)"));
 }
 
+TEST_F(TermsTest, TheValueOfLongjmpIsRecorded) {
+    // C11 7.13.2.1p4: setjmp returns `val == 0 ? 1 : val`.
+    oracle_.answers = {7, 0};
+    EXPECT_THAT(termsAt(R"(typedef long jmp_buf[25]; int _setjmp(long *); void longjmp(long *, int);
+int __VERIFIER_nondet_int(void);
+jmp_buf env;
+int main(void) {
+    volatile int round = 0;
+    int x = __VERIFIER_nondet_int();
+    int y = __VERIFIER_nondet_int();
+    int value = _setjmp(env);
+    round = round + 1;
+    if (round == 1) longjmp(env, x);
+    if (round == 2) longjmp(env, y);
+    return 0;
+})",
+                        9, {variable("value")}),
+                ElementsAre("-", "((x0 == 0) ? _ : x0)", "((x1 == 0) ? 1 : _)"));
+}
+
 // ---- Opaque values ----
 
 TEST_F(TermsTest, PartialOverwritesMakeTheRestOpaque) {

@@ -726,5 +726,105 @@ TEST_F(EndToEndTest, AHugeColumnDoesNotWrapAroundToAnEarlierLine) {
     EXPECT_EQ(result.runs, 0u);
 }
 
+// ---- setjmp and longjmp (interp/README.md, "Non-local jumps") ----
+
+constexpr std::string_view jumpDeclarations =
+    "typedef long jmp_buf[25]; int _setjmp(long *); void longjmp(long *, int);\nvoid reach_error(void);\n";
+
+TEST_F(EndToEndTest, AWitnessIsFollowedAcrossALongjmp) {
+    // sv-benchmarks' longjmp/68-longjmp_12-counting-global_unknown_1_pos: the check fails in the second round.
+    build(std::string(jumpDeclarations) + R"(void check(int cond) { if (!cond) reach_error(); }
+jmp_buf env;
+int count = 0;
+void next(void) { count++; longjmp(env, 1); }
+int main(void) {
+    _setjmp(env);
+    check(count == 0);
+    if (count < 5) next();
+    return 0;
+}
+)");
+    EXPECT_EQ(validate(sequence({{target(3, 35)}})).verdict, Verdict::Confirmed) << log();
+    // The setjmp call returns again, with the value of longjmp, and the check's branching is evaluated again.
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Branching, 3, 24, "false")},
+                                                       {follow(WaypointType::FunctionReturn, 8, 16, "\\result == 1")},
+                                                       {follow(WaypointType::Branching, 3, 24, "true")},
+                                                       {target(3, 35)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    // The first return of setjmp is 0.
+    EXPECT_EQ(
+        validate(sequence({{follow(WaypointType::FunctionReturn, 8, 16, "\\result == 1")}, {target(3, 35)}})).verdict,
+        Verdict::LeftWitness);
+}
+
+TEST_F(EndToEndTest, TheSearchChoosesTheValueOfALongjmp) {
+    build(std::string(jumpDeclarations) + R"(extern int __VERIFIER_nondet_int(void);
+jmp_buf env;
+int main(void) {
+    volatile int round = 0;
+    int x = __VERIFIER_nondet_int();
+    if (_setjmp(env) == 7) reach_error();
+    if (round++ == 0) longjmp(env, x + 1);
+    return 0;
+}
+)");
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Branching, 8, 5, "false")},
+                                                       {follow(WaypointType::Branching, 8, 5, "true")},
+                                                       {target(8, 28)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+    EXPECT_EQ(result.runs, 2u); // x := 6, through `val == 0 ? 1 : val` with val = x + 1
+}
+
+TEST_F(EndToEndTest, AFunctionLeftByLongjmpDoesNotReturn) {
+    build(std::string(jumpDeclarations) + R"(jmp_buf env;
+int leave(void) { longjmp(env, 1); return 0; }
+int main(void) {
+    if (_setjmp(env)) reach_error();
+    leave();
+    return 0;
+}
+)");
+    EXPECT_EQ(
+        validate(sequence({{follow(WaypointType::FunctionReturn, 7, 11, "\\result == 0")}, {target(6, 23)}})).verdict,
+        Verdict::ErrorBeforeTarget)
+        << log();
+    const ValidationResult result = validate(sequence({{follow(WaypointType::Branching, 6, 5, "false")},
+                                                       {follow(WaypointType::Branching, 6, 5, "true")},
+                                                       {target(6, 23)}}));
+    EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+}
+
+TEST_F(EndToEndTest, ALocalChangedBeforeALongjmpKeepsItsValue) {
+    // sv-benchmarks' longjmp/68-longjmp_42-poison-reduced_true: x is indeterminate after the longjmp (C11
+    // 7.13.2.1p3); the interpreter keeps the value 2, which the program's expected verdict assumes.
+    build(std::string(jumpDeclarations) + R"(void check(int cond) { if (!cond) reach_error(); }
+jmp_buf env;
+int main(void) {
+    int x;
+    if (_setjmp(env)) {
+        check(x == 2);
+        return 0;
+    }
+    x = 1;
+    x = 2;
+    longjmp(env, 1);
+}
+)");
+    EXPECT_EQ(validate(sequence({{target(3, 35)}})).verdict, Verdict::TargetWithoutError) << log();
+    EXPECT_EQ(validate(sequence({{follow(WaypointType::Branching, 7, 5, "false")},
+                                 {follow(WaypointType::Branching, 7, 5, "true")},
+                                 {follow(WaypointType::Branching, 3, 24, "true")},
+                                 {target(3, 35)}}))
+                  .verdict,
+              Verdict::LeftWitness)
+        << log();
+    EXPECT_EQ(validate(sequence({{follow(WaypointType::Branching, 7, 5, "false")},
+                                 {follow(WaypointType::Assumption, 8, 9, "x == 1")},
+                                 {target(3, 35)}}))
+                  .verdict,
+              Verdict::LeftWitness)
+        << log();
+}
+
 } // namespace
 } // namespace nitwit::validate::test

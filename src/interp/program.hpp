@@ -144,6 +144,8 @@ enum class Builtin : std::uint8_t {
     SyncLockRelease,              // __sync_lock_release(p): a zero of the object's type
     AtomicNoOp,                   // fences, __sync_synchronize
     AtomicLockFree,               // __atomic_always_lock_free, __atomic_is_lock_free
+    SetJump,                      // setjmp, _setjmp, __sigsetjmp, sigsetjmp (jumps.cpp)
+    LongJump,                     // longjmp, _longjmp, siglongjmp, __longjmp_chk
 };
 
 /// The arithmetic of the overflow and atomic builtins.

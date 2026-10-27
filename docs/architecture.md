@@ -173,5 +173,6 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
   `DiagnosticEngine`.
 - **Bugs in NITWIT:** a violated invariant. It triggers `NITWIT_ASSERT`, which is active in all build types. For a
   validator, aborting is better than a wrong verdict.
-- **Exceptions:** allowed only inside a module, to unwind deep recursion (for example the parser giving up, or the
-  interpreter stopping a run). They are caught at the module's API boundary.
+- **Exceptions:** allowed only inside a module, to unwind deep recursion (for example the parser giving up, the
+  interpreter stopping a run, or a `longjmp` returning to the frame of its `setjmp`). They are caught at the module's
+  API boundary, or before it.

@@ -4,7 +4,8 @@
 // area: execution.cpp (start-up, ending, limits), statements.cpp (the instruction loop), calls.cpp (frames, calls,
 // arguments, library and oracle), expressions.cpp (operators), lvalues.cpp (objects, loads and stores),
 // conversions.cpp (casts), initialization.cpp (initializers, string literals), builtins.cpp (builtins the evaluator
-// implements), events.cpp (observer events and the evaluation context) and terms.cpp (terms of values).
+// implements), jumps.cpp (setjmp and longjmp), events.cpp (observer events and the evaluation context) and terms.cpp
+// (terms of values).
 
 #include <cstdint>
 #include <expected>
@@ -102,6 +103,7 @@ struct ArraySize {
 struct Frame {
     const FunctionEntity* function = nullptr;
     const FunctionCode* body = nullptr;
+    std::uint32_t pc = 0;               // the instruction being executed, which setjmp saves
     std::vector<Address> locals;        // by VarDecl::localIndex; 0 for variable length arrays before their declaration
     std::vector<Address> literals;      // compound literals, by FunctionCode::compoundLiteralIds
     std::vector<DynamicObject> dynamic; // in allocation order, so they end in LIFO order
@@ -124,6 +126,27 @@ struct VaCursor {
     std::uint64_t frameSerial = 0;
     std::size_t depth = 0; // the frame's index in the call stack
     std::size_t next = 0;
+};
+
+/// An environment that setjmp saved (C11 7.13.1.1): a longjmp to it resumes at the setjmp call, in the instruction
+/// `pc` of the frame. The environments of a frame end with it, so that those of the live frames are ordered by depth.
+struct JumpEnvironment {
+    std::uint64_t id = 0; // the handle in the jmp_buf (jumps.cpp)
+    std::uint64_t frameSerial = 0;
+    std::size_t depth = 0; // the frame's index in the call stack
+    std::uint32_t pc = 0;
+    const ast::CallExpr* call = nullptr;
+    std::size_t dynamicCount = 0; // the frame's dynamic objects at the call; those allocated later end with a longjmp
+    /// Whether the frame had evaluated a variably modified type before the call (C11 7.13.2.1p2).
+    bool isInVariablyModifiedScope = false;
+    SourceLocation location; // of the statement being executed, for messages
+};
+
+/// A longjmp: unwinds the host stack to the instruction loop of the environment's frame, which resumes at its setjmp
+/// call. Thrown by Execution::longJump, caught in Execution::execute; the frames it passes end (Execution::invoke).
+struct LongJump {
+    JumpEnvironment environment;
+    value::Value value; // what the setjmp call returns
 };
 
 class Execution final : public EvaluationContext, public LibraryContext {
@@ -179,6 +202,10 @@ private:
     /// Calls a function. For a struct or union result, `object` (if not null) receives the temporary object that holds
     /// it, or 0 if there is none (library functions).
     value::Value call(const ast::CallExpr* call, bool isValueUsed, Address* object = nullptr);
+    /// The end of a call: its result in the call's type, the ReturnEvent, and the check that a missing value is not
+    /// used.
+    value::Value finishCall(const ast::CallExpr* call, const FunctionEntity& callee, std::optional<value::Value> result,
+                            bool isValueUsed);
     /// The called function; null for a pointer to no function.
     const FunctionEntity* resolveCallee(const ast::CallExpr* call);
     /// The result of a call in the representation of the call's type, with the term of the conversion; empty for
@@ -356,6 +383,19 @@ private:
     void nondetMemory(const FunctionEntity& function, const ast::CallExpr* call, const Arguments& arguments);
     value::Value allocateOnStack(const ast::CallExpr* call, const Arguments& arguments);
 
+    // ---- jumps.cpp: setjmp and longjmp (C11 7.13) ----
+    /// setjmp: saves the environment of the call and writes its handle into the jmp_buf; returns 0.
+    value::Value setJump(const ast::CallExpr* call, const Arguments& arguments);
+    /// longjmp: throws a LongJump to the environment whose handle the jmp_buf holds.
+    [[noreturn]] void longJump(const ast::CallExpr* call, const Arguments& arguments);
+    /// Why a longjmp cannot resume at the setjmp call of `environment`, for the message; nullopt if it can.
+    std::optional<std::string> whyNotResumable(const JumpEnvironment& environment);
+    /// After a longjmp to `frame`, the frame above it having ended: ends the frame's stack objects allocated since the
+    /// setjmp call and returns the instruction to evaluate again, in which the call returns `jump.value`.
+    std::uint32_t resume(Frame& frame, LongJump& jump);
+    /// Drops the environments that `frame`, which ends, saved.
+    void forgetEnvironments(const Frame& frame);
+
     // ---- events.cpp ----
     void obey(Directive directive, SourceLocation location) const;
     void beforeStatement(const ast::Stmt* stmt);
@@ -406,6 +446,15 @@ private:
     Frame* frame_ = nullptr;     // null while static storage is initialized
     std::uint64_t nextFrameSerial_ = 1;
     std::vector<VaCursor> vaCursors_;
+    std::vector<JumpEnvironment> jumpEnvironments_; // of the live frames
+    std::uint64_t nextJumpId_ = 1;
+    /// After a longjmp, until the instruction evaluated again reaches it: the setjmp call that returns again, and the
+    /// value it returns.
+    struct Resumption {
+        const ast::CallExpr* call = nullptr;
+        value::Value value;
+    };
+    std::optional<Resumption> resumption_;
 
     std::uint64_t steps_ = 0;
     std::uint32_t inputs_ = 0;

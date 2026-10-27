@@ -32,20 +32,23 @@ the same to BenchExec (`docs/exit-codes.md`).
   K&R definitions, implicit declarations), and the C library functions of sv-benchmarks with glibc's behaviour
   (`src/interp/README.md`). Files with preprocessor directives other than line markers, `#line`, `#ident`, `#pragma`
   and the null directive go through the system `cpp`.
-- **Not supported** (UNKNOWN), the main items: threads, `setjmp`/`longjmp`, inline assembly other than an empty
-  template, files, signals, `atexit`, the `scanf` family, computed `goto`, nested functions, arithmetic on `_Complex`
-  values. `__float128` is computed as `long double`. The module READMEs list the rest (`src/lex/README.md`,
-  `src/parse/README.md`, `src/sema/README.md`, `src/interp/README.md`, `src/validate/README.md`).
+- **Not supported** (UNKNOWN), the main items: threads, inline assembly other than an empty template, files,
+  signals, `atexit`, the `scanf` family, computed `goto`, nested functions, arithmetic on `_Complex` values, and a
+  `longjmp` to a `setjmp` that is not one of the uses C11 allows or the value assigned to a variable
+  (`src/interp/README.md`, "Non-local jumps"). `__float128` is computed as `long double`. The module READMEs list the
+  rest (`src/lex/README.md`, `src/parse/README.md`, `src/sema/README.md`, `src/interp/README.md`,
+  `src/validate/README.md`).
 
 ## Results
 
 <!-- The headline numbers of docs/evaluation.md; update both together. -->
-NITWIT 4 (the release archive built from 0914f93) on the 27,767 unreach-call witnesses of SV-COMP 2026 in format 2.x,
-at SV-COMP's 90 s: it confirms 9,439 of the 14,841 witnesses of buggy programs (64 %) and none of the 12,792 witnesses
-of correct programs. On the 11,738 witnesses of buggy programs that the SV-COMP 2026 validators ran on, it confirms
-6,988, more than any of them alone (the best, Witch, 5,392), and unlike CPAchecker and MetaVal it confirms no witness
-of a correct program. On 1000 of the witnesses (100 per producer), it confirms 597 of the 851 witnesses of buggy
-programs, NITWIT 3.x 312; on the witnesses both decide, it takes 15 s of CPU time, 3.x 348 s.
+NITWIT 4 (the release archive built from 0914f93, and from b146595, which supports `setjmp` and `longjmp`, for the 373
+witnesses whose programs name them) on the 27,767 unreach-call witnesses of SV-COMP 2026 in format 2.x, at SV-COMP's
+90 s: it confirms 9,526 of the 14,841 witnesses of buggy programs (64 %) and none of the 12,792 witnesses of correct
+programs. On the 11,738 witnesses of buggy programs that the SV-COMP 2026 validators ran on, it confirms 7,054, more
+than any of them alone (the best, Witch, 5,392), and unlike CPAchecker and MetaVal it confirms no witness of a correct
+program. On 1000 of the witnesses (100 per producer), it confirms 601 of the 851 witnesses of buggy programs, NITWIT
+3.x 312; on the witnesses both decide, it takes 15 s of CPU time, 3.x 348 s.
 Details, also on memory: `docs/evaluation.md`.
 
 The test suites (`docs/development.md`, "Tests"): unit tests, golden dumps and semantics with this source, the
@@ -53,10 +56,10 @@ validation of witnesses with the build above:
 
 | Suite | Result |
 |---|---|
-| unit tests | 1,988 tests of the 10 modules, all passing |
+| unit tests | 2,031 tests of the 10 modules, all passing |
 | golden dumps | 48: 22 ASTs; 26 typed ASTs, 4 of them for ILP32; all passing |
-| semantics | 50 programs with the output, outcome and inputs of GCC and Clang, with `-m32` and `-m64`, also with the terms checked: 200 tests, all passing |
-| validation of all SV-COMP 2026 unreach-call witnesses (format 2.x) | the front end accepts every program; all witnesses but one (`line: 0`) parse; 9,439 of 14,841 witnesses of buggy programs confirmed, none of 12,792 of correct programs |
+| semantics | 51 programs with the output, outcome and inputs of GCC and Clang, with `-m32` and `-m64`, also with the terms checked: 204 tests, all passing |
+| validation of all SV-COMP 2026 unreach-call witnesses (format 2.x) | the front end accepts every program; all witnesses but one (`line: 0`) parse; 9,526 of 14,841 witnesses of buggy programs confirmed, none of 12,792 of correct programs |
 | `validation-crafted` | 96 of 100 right, no invalid witness confirmed |
 | `testfiles/` | all 45 format 2.x witnesses right |
 | release | `nitwit.sh` and the smoke test of the archive pass; so does fm-weck's smoke test in fm-tools' CI (Ubuntu 26.04, container mode, the SV-COMP 2027 image) |

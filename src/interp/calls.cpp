@@ -76,6 +76,15 @@ value::Value Execution::call(const ast::CallExpr* expr, bool isValueUsed, Addres
     if (isEvaluatingConstraint_) {
         stop(Termination::Unsupported, "a constraint must not call a function", expr->location());
     }
+    if (resumption_) {
+        // C11 7.13.2.1p4: after a longjmp, the setjmp call returns again; it is not called again. Nothing before it in
+        // the instruction has an effect (jumps.cpp, whyNotResumable), so it is the first call evaluated.
+        NITWIT_ASSERT(resumption_->call == expr,
+                      "the first call after a longjmp is the setjmp call that returns again");
+        value::Value value = std::move(resumption_->value);
+        resumption_.reset();
+        return finishCall(expr, *resolveCallee(expr), std::move(value), isValueUsed);
+    }
     const FunctionEntity* callee = resolveCallee(expr);
     Arguments arguments;
     if (callee == nullptr || !hasSpecialArguments(*callee)) {
@@ -120,15 +129,19 @@ value::Value Execution::call(const ast::CallExpr* expr, bool isValueUsed, Addres
     case FunctionKind::Alias:
         NITWIT_UNREACHABLE("aliases are resolved before the call");
     }
+    return finishCall(expr, *callee, std::move(result), isValueUsed);
+}
 
+value::Value Execution::finishCall(const ast::CallExpr* expr, const FunctionEntity& callee,
+                                   std::optional<value::Value> result, bool isValueUsed) {
     const TypeInfo type = types_.describe(expr->type());
     if (result.has_value()) {
-        result = inCallType(std::move(*result), callee->name.text(), type, expr);
+        result = inCallType(std::move(*result), callee.name.text(), type, expr);
     }
     if (isReporting_) {
         returnValue_ = result.has_value() ? &*result : nullptr;
         const Directive directive =
-            observer_.afterReturn({.call = expr, .callee = calleeDecl, .result = returnValue_}, *this);
+            observer_.afterReturn({.call = expr, .callee = callee.decl, .result = returnValue_}, *this);
         returnValue_ = nullptr;
         obey(directive, expr->rightParenLocation());
     }
@@ -136,7 +149,7 @@ value::Value Execution::call(const ast::CallExpr* expr, bool isValueUsed, Addres
         // C17 6.9.1p12: using the value of a function that reached its closing brace is undefined.
         if (isValueUsed && type.representation != Representation::Void) {
             undefined(
-                std::format("the value of '{}' is used, but it ended without returning a value", callee->name.text()),
+                std::format("the value of '{}' is used, but it ended without returning a value", callee.name.text()),
                 expr);
         }
         return {};
@@ -245,7 +258,12 @@ Returned Execution::invoke(const FunctionEntity& function, Arguments& arguments,
     checkHostStack(site);
     Frame frame;
     enterFrame(frame, function, arguments, site);
-    execute(frame, 0, nullptr);
+    try {
+        execute(frame, 0, nullptr);
+    } catch (const LongJump&) {
+        leaveFrame(frame); // a longjmp to an outer frame ends this one; the function does not return
+        throw;
+    }
     Returned result = std::move(frame.result);
     leaveFrame(frame);
     return result;
@@ -336,6 +354,7 @@ void Execution::checkCallWithoutPrototype(const ast::FunctionType& definition, c
 
 void Execution::leaveFrame(Frame& frame) {
     releaseTemporaries(frame);
+    forgetEnvironments(frame);
     // Cursors made in this frame (or in returned callees) walk arguments that end now; their numbers are reused.
     vaCursors_.resize(std::min(vaCursors_.size(), frame.vaCursorBase));
     for (; !frame.dynamic.empty(); frame.dynamic.pop_back()) {

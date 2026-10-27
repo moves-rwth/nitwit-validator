@@ -1,0 +1,27 @@
+setjmp returned 0 after round 0
+setjmp returned 10 after round 1
+setjmp returned 1 after round 2
+setjmp returned 30 after round 3
+!setjmp
+setjmp == 0 is false
+3 != _setjmp
+switch case 4
+while
+do while, step 1
+(void)_setjmp, step 3
+initializer 8
+assignment 9
+buffers 0
+buffers 11
+buffers 12
+heap
+names 0
+names 21
+names 22
+names 23
+arrays 0
+arrays 31
+input 0
+input 5
+input 1
+done

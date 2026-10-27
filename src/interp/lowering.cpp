@@ -117,6 +117,15 @@ constexpr BuiltinName builtinNames[] = {
     {"__atomic_signal_fence", Builtin::AtomicNoOp},
     {"__atomic_always_lock_free", Builtin::AtomicLockFree},
     {"__atomic_is_lock_free", Builtin::AtomicLockFree},
+    // C11 7.13 and glibc's names; there are no signals, so the signal mask does not matter.
+    {"setjmp", Builtin::SetJump},
+    {"_setjmp", Builtin::SetJump},
+    {"__sigsetjmp", Builtin::SetJump},
+    {"sigsetjmp", Builtin::SetJump},
+    {"longjmp", Builtin::LongJump},
+    {"_longjmp", Builtin::LongJump},
+    {"siglongjmp", Builtin::LongJump},
+    {"__longjmp_chk", Builtin::LongJump},
 };
 
 /// The name a GNU `alias("target")` attribute names, from the code units of its string literal; empty if there is no
