@@ -95,6 +95,37 @@ int main(void) {
     EXPECT_EQ(observer_.only("call down").size(), 5u);
 }
 
+TEST_P(JumpsTest, ALongjmpResumesAFrameBetweenMainAndItself) {
+    observer_.recordStatements = false;
+    EXPECT_EQ(statusOf(R"(jmp_buf env;
+int down(int n) {
+    if (n == 3) {
+        if (_setjmp(env)) return 100 + n;
+    }
+    if (n == 6) longjmp(env, 1);
+    return down(n + 1);
+}
+int main(void) { return down(0); })"),
+              103);
+    // down(4) to down(6) end without returning; down(0) to down(3) return.
+    EXPECT_EQ(observer_.only("return down").size(), 4u);
+    EXPECT_EQ(observer_.only("call down").size(), 7u);
+}
+
+TEST_P(JumpsTest, ALongjmpLeavesAStatementExpression) {
+    EXPECT_EQ(statusOf(R"(jmp_buf env;
+int main(void) {
+    volatile int round = 0;
+    int value = _setjmp(env);
+    if (round++ == 0) {
+        int x = ({ longjmp(env, 4); 0; });
+        return x;
+    }
+    return value;
+})"),
+              4);
+}
+
 TEST_P(JumpsTest, TheJumpReportsTheReturnOfSetjmpAndTheConditionAgain) {
     runJumps(R"(jmp_buf env;
 void f(void) { longjmp(env, 2); }
