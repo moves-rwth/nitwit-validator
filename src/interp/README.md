@@ -41,8 +41,9 @@ preprocessed `.i` files expand to:
   (abort), `__builtin_bswap16/32/64`, `__builtin_clz/ctz/popcount/parity/ffs` with their `l`/`ll` forms (undefined
   behaviour for `clz`/`ctz` of 0), `__builtin_add/sub/mul_overflow`, `__builtin_constant_p` (0),
   `__builtin_object_size` (-1 or 0 for a pointer to an object GCC does not know; sema folds known objects).
-- **Unsupported:** threads (`pthread_*`), `setjmp`/`longjmp`, files, `atexit`, signals, rounding modes other than to
-  nearest (`fesetround`). These end the run with `Unsupported`.
+- **Unsupported:** threads (`pthread_*`), GCC's `__builtin_setjmp`/`__builtin_longjmp`, files, `atexit`, signals,
+  rounding modes other than to nearest (`fesetround`). These end the run with `Unsupported`. `setjmp` and `longjmp`
+  are the evaluator's ("Non-local jumps").
 
 Behaviour choices of the library:
 - **Allocation never returns NULL:** SV-COMP assumes that allocation succeeds, and programs that need failing
@@ -77,7 +78,8 @@ Behaviour choices of the library:
     `_p` forms, `__atomic_*`;
   - the `va_list` of `vprintf` and friends: the evaluator passes the arguments the list refers to;
   - `alloca` and `__builtin_alloca`, whose blocks belong to the stack frame (so `free` of such a block is a free of a
-    non-heap pointer, as in glibc).
+    non-heap pointer, as in glibc);
+  - `setjmp` and `longjmp` with glibc's other names, which save and restore the frames ("Non-local jumps").
 
 The library is tested without the evaluator: tests create a `Memory` and a small test context, call the functions,
 and compare with values that a natively compiled program prints (glibc on the same machine).
@@ -132,7 +134,9 @@ after that, the access reaches the new object, as in a native run.
   events of `observer.hpp`. In particular:
   - a `ConditionEvent` for every evaluation of a controlling expression, including `for` loops without a condition
     (outcome true);
-  - one `CallEvent` and one `ReturnEvent` per call, including library functions and nondet functions.
+  - one `CallEvent` and one `ReturnEvent` per call, including library functions and nondet functions; but a function
+    that a longjmp leaves does not return, and a setjmp call returns once more after each longjmp to it ("Non-local
+    jumps").
 - **Objects:**
   - Globals and string literals are allocated and initialized before `main`, in declaration order. Global
     initializers are evaluated by the evaluator itself; C guarantees that they are constant.
@@ -160,9 +164,9 @@ after that, the access reaches the new object, as in a native run.
 
 The implementation is split by area: `lowering.cpp` (`buildProgram`, `program.hpp`), `execution.cpp` (start-up,
 ending, limits), `statements.cpp` (the instruction loop), `calls.cpp`, `expressions.cpp`, `lvalues.cpp`,
-`conversions.cpp`, `initialization.cpp`, `builtins.cpp` and `events.cpp`; `execution.hpp` declares the class
-`Execution` they share, `type_info.hpp` the representation of types (computed without canonicalizing, because the
-evaluator asks for it at every operation), and `host_stack.hpp` the check of the host stack.
+`conversions.cpp`, `initialization.cpp`, `builtins.cpp`, `jumps.cpp` and `events.cpp`; `execution.hpp` declares the
+class `Execution` they share, `type_info.hpp` the representation of types (computed without canonicalizing, because
+the evaluator asks for it at every operation), and `host_stack.hpp` the check of the host stack.
 
 - **Entities:** functions and objects with linkage are identified by name, so all their declarations (also in blocks)
   share one entity; block-scope statics are entities of their own. The last declaration gives the type. GNU
@@ -243,6 +247,49 @@ evaluator asks for it at every operation), and `host_stack.hpp` the check of the
   (assignments, increments, calls, statement expressions, compound literals, temporaries, `va_arg`), and so is any
   undefined behaviour; uninitialized reads ask the oracle. The evaluation reports no events.
 - **`sizeof`** of an expression of variable length array type evaluates the expression (C17 6.5.3.4p2).
+
+## Non-local jumps
+
+`setjmp`, `_setjmp`, `__sigsetjmp` and `sigsetjmp` save an environment, `longjmp`, `_longjmp`, `siglongjmp` and
+`__longjmp_chk` jump to it (C11 7.13; there are no signals, so the signal mask does not matter). They are builtins of
+the evaluator (`jumps.cpp`); a program's own definition of one of the names wins, as for other builtins.
+
+- **Environments:** setjmp saves its frame, the instruction it is evaluated in, the call, and the number of the frame's
+  dynamic objects (variable length arrays and alloca blocks), writes the environment's id into the first 8 bytes of
+  the jmp_buf (glibc's has 156 or 200 bytes) and returns 0. So a jmp_buf works wherever it lives (static, automatic,
+  heap memory) and in copies (assignment, `memcpy`). A second call at the same site in the same frame, as in a loop,
+  saves under the same id, so that the environments do not grow with the iterations. They end with their frame.
+- **longjmp** reads the id. If the bytes hold no live environment, the behaviour is undefined (C11 7.13.2.1p2) and the
+  run ends with `UndefinedBehavior`: setjmp did not save it (zeros, other bytes, or uninitialized bytes, which are no
+  input), or the function that called setjmp has returned (also a wrapper around setjmp, as busybox's `_setjmp`).
+  Otherwise an exception unwinds the host stack to the instruction loop of the environment's frame. The frames between
+  end as at a return (their locals, variable length arrays, alloca blocks, temporaries, va_list cursors and
+  environments), but without a `ReturnEvent`: their functions do not return. In the frame itself, the dynamic objects
+  allocated after the setjmp call end, since longjmp restores the stack pointer.
+- **Resuming:** the frame evaluates the instruction of the setjmp call again, and the call returns longjmp's value, or 1
+  for 0 (C11 7.13.2.1p4), without being called again: no `CallEvent` and no statement event, but a `ReturnEvent` with
+  the new value, then the events of the rest of the instruction (the condition of `if (setjmp(env))` again). This is
+  the native behaviour only if nothing that the instruction evaluates before the call has an effect, or a value that
+  may have changed. So a longjmp resumes only where everything on the way from the instruction's expression to the call
+  is a parenthesis, a cast, `!`, a comparison with an integer constant expression, or an assignment to a variable (a
+  member of one, an element of an array variable with a constant index), and the instruction is an expression
+  statement, a controlling expression or an initializer. These are the uses of C11 7.13.1.1p4, and `x = setjmp(env);`
+  and `int x = setjmp(env);`, which GCC and Clang support too and sv-benchmarks uses. A longjmp to a setjmp in any
+  other expression ends the run as `Unsupported`, and so does one to a setjmp called through a function pointer, in a
+  statement expression, or in a function that evaluated a variably modified type before the call: a jump back into the
+  scope of a variable length array is undefined once the scope was left in the interim (C11 7.13.2.1p2), which the
+  interpreter does not track.
+- **Automatic objects changed between setjmp and longjmp:** C11 7.13.2.1p3 makes those of the frame of setjmp that are
+  not volatile indeterminate. The interpreter keeps the values they had at the longjmp, as GCC and Clang do at -O0,
+  where every object lives in memory. The kept value is one of the values that an indeterminate object may have (C11
+  3.19.2), so a run with it is an execution of the program. sv-benchmarks expects the same:
+  `longjmp/68-longjmp_42-poison-reduced_true` asserts `x == 2` after the jump for an `x` set to 1 and 2 before it, as
+  the Goblint test does that it comes from. Treating such objects as inputs instead would let a witness choose a value
+  that the expected verdict excludes, and confirm a violation of that correct program.
+- **Terms:** the value that setjmp returns after a longjmp has the term of `val == 0 ? 1 : val`, with the operand the
+  run selected (`TermKind::Conditional`), so that the search can choose the inputs that `val` derives from. Whether a
+  longjmp happens, and to which environment, depends on inputs only through control flow, which terms do not record
+  ("Terms", "Known imprecisions").
 
 ## Terms
 
@@ -364,13 +411,18 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   (statements, conditions, jumps and calls as events), `evaluator_test.cpp` (operators, conversions, objects and
   calls in both data models, outputs confirmed with GCC), `termination_test.cpp` (how runs end, undefined behaviour,
   limits, endless loops without effect and loops that only look like them), `inputs_test.cpp` (oracle requests,
-  uninitialized reads) and `evaluation_context_test.cpp`.
+  uninitialized reads), `jumps_test.cpp` (setjmp and longjmp in both data models: the values setjmp returns, every
+  name, the frames a longjmp ends and its events, kept values of changed locals, copied and heap jmp_bufs, setjmp in a
+  loop, each use that resumes, the dynamic objects that end, and the jumps that end the run: to a function that
+  returned, without setjmp, from other expressions, through a pointer, in a statement expression, after a variably
+  modified type, GCC's builtins) and `evaluation_context_test.cpp`.
 - `tests/unit/interp/terms_test.cpp`, every run with the consistency check: input terms; copies (assignment,
   arguments, results, pointers, records, `?:` of records, `va_arg`); conversions (also pointers sign-extended to wider
   integers and back, results of calls through a pointer of another type); `_Bool` values (inputs, bytes of another
   type, arguments and results, a chain of 40 calls, conversions through a narrowing); integer and floating
   arithmetic, shifts, `++`, `--`, compound assignments (also with signed overflow) and atomic read-modify-writes;
-  comparisons, `!`, `&&`, `||` (with the operand the run did not evaluate) and `?:` (also GNU `?:`); opaque values
+  comparisons, `!`, `&&`, `||` (with the operand the run did not evaluate) and `?:` (also GNU `?:`); the value of a
+  longjmp; opaque values
   from partial overwrites, partly initialized reads, type punning, library functions (and that copying functions keep
   terms, and those that write pointer values do not), pointer arithmetic, bit-fields, variable length array sizes,
   the overflow builtins, `alloca` and `__VERIFIER_nondet_memory`; table lookups without term; the terms of condition

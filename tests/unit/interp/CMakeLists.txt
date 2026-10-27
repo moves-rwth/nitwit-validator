@@ -3,6 +3,7 @@ nitwit_add_unit_test(interp
         evaluation_context_test.cpp
         evaluator_test.cpp
         inputs_test.cpp
+        jumps_test.cpp
         library_builtins_test.cpp
         library_ctype_test.cpp
         library_dispatch_test.cpp

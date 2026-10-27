@@ -1,6 +1,6 @@
 // The builtins the evaluator implements itself, because they depend on the types of their arguments, on lvalues or on
 // the frame: variadic arguments, __VERIFIER_assume and __VERIFIER_nondet_memory, alloca, __builtin_constant_p, the
-// type-generic overflow builtins and the atomic builtins.
+// type-generic overflow builtins and the atomic builtins. setjmp and longjmp are in jumps.cpp.
 
 #include <algorithm>
 #include <array>
@@ -175,6 +175,10 @@ std::optional<value::Value> Execution::builtinOnValues(const FunctionEntity& fun
         }
         NITWIT_ASSERT(function.library != nullptr, "the library has no __builtin_object_size");
         return callLibrary(function, arguments, call);
+    case Builtin::SetJump:
+        return setJump(call, arguments);
+    case Builtin::LongJump:
+        longJump(call, arguments);
     case Builtin::None:
     case Builtin::VaStart:
     case Builtin::VaEnd:

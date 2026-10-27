@@ -68,7 +68,8 @@ struct CallEvent {
     std::span<const value::Value> arguments;
 };
 
-/// After a call returned, before its value is used.
+/// After a call returned, before its value is used. A function that a longjmp leaves does not return; a setjmp call
+/// returns again after each longjmp to it (interp/README.md, "Non-local jumps").
 struct ReturnEvent {
     const ast::CallExpr* call = nullptr;
     const ast::FunctionDecl* callee = nullptr;

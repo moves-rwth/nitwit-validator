@@ -48,6 +48,7 @@ void Execution::execute(Frame& frame, std::uint32_t begin, const InstructionRang
         try {
             while (true) {
                 const Instruction& instruction = code[pc];
+                frame.pc = pc;
                 if (range == nullptr && !frame.temporaries.empty()) {
                     releaseTemporaries(frame); // the full expression of the previous instruction has ended
                 }
@@ -142,6 +143,13 @@ void Execution::execute(Frame& frame, std::uint32_t begin, const InstructionRang
             }
             frame.result = std::move(returned.result);
             return;
+        } catch (LongJump& thrown) {
+            // A longjmp to a setjmp call of this function, also from a statement expression in it (jumps.cpp).
+            if (range != nullptr || thrown.environment.frameSerial != frame.serial) {
+                throw;
+            }
+            pc = resume(frame, thrown);
+            isInEndlessLoop = false;
         }
     }
 }

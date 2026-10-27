@@ -24,15 +24,10 @@ LibraryResult unsupported(const Call& call) {
 }
 
 constexpr std::array unsupportedNames = {
-    // Non-local jumps, exit handlers, signals, processes.
-    "setjmp",
-    "_setjmp",
-    "__sigsetjmp",
-    "sigsetjmp",
-    "longjmp",
-    "_longjmp",
-    "siglongjmp",
-    "__longjmp_chk",
+    // GCC's non-local jumps, which use another buffer than setjmp and longjmp (the evaluator's, jumps.cpp); exit
+    // handlers, signals, processes.
+    "__builtin_setjmp",
+    "__builtin_longjmp",
     "atexit",
     "at_quick_exit",
     "on_exit",

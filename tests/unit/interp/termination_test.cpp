@@ -217,9 +217,11 @@ int f(int x) { return x; })");
 }
 
 TEST_F(TerminationTest, UnsupportedLibraryFunctionsEndTheRun) {
-    const RunResult result = run(R"(int setjmp(void *);
-int main(void) { char buffer[256]; return setjmp(buffer); })");
+    const RunResult result = run(R"(int atexit(void (*)(void));
+void bye(void) {}
+int main(void) { return atexit(bye); })");
     EXPECT_EQ(result.termination, Termination::Unsupported);
+    EXPECT_THAT(result.message, HasSubstr("atexit is not supported"));
 }
 
 TEST_F(TerminationTest, TheObserverMayStopTheRun) {

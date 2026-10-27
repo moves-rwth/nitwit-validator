@@ -23,9 +23,11 @@ TEST(LibraryDispatchTest, FindsFunctionsByName) {
 }
 
 TEST(LibraryDispatchTest, KnowsNoOtherFunctions) {
-    // The oracle answers calls of unknown functions; nondeterministic inputs and assume are the evaluator's.
+    // The oracle answers calls of unknown functions; nondeterministic inputs, assume, setjmp and longjmp are the
+    // evaluator's.
     for (const std::string_view name : {"", "main", "reach_error", "__VERIFIER_nondet_int", "__VERIFIER_assume",
-                                        "__builtin_", "__builtin_no_such_function", "getchar"}) {
+                                        "__builtin_", "__builtin_no_such_function", "getchar", "setjmp", "_setjmp",
+                                        "__sigsetjmp", "longjmp", "siglongjmp", "__longjmp_chk"}) {
         EXPECT_EQ(findLibraryFunction(name), nullptr) << name;
     }
 }
@@ -69,9 +71,9 @@ TEST(LibraryDispatchTest, EveryFunctionSemaKnowsIsImplementedOrUnsupported) {
 
 TEST_P(DispatchTest, UnsupportedFunctionsEndTheRun) {
     for (const std::string_view name :
-         {"setjmp", "_setjmp", "longjmp", "atexit", "signal", "fopen", "qsort", "scanf", "sscanf", "__isoc99_sscanf",
-          "__builtin___memcpy_chk", "__builtin_return_address", "pthread_create", "pthread_mutex_lock",
-          "thrd_create"}) {
+         {"__builtin_setjmp", "__builtin_longjmp", "atexit", "signal", "fopen", "qsort", "scanf", "sscanf",
+          "__isoc99_sscanf", "__builtin___memcpy_chk", "__builtin_return_address", "pthread_create",
+          "pthread_mutex_lock", "thrd_create"}) {
         EXPECT_TRUE(endedWith(call(name, {}), LibraryResult::Kind::Unsupported, name)) << name;
     }
 }

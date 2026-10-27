@@ -137,7 +137,8 @@ is only caught where another build reports it.
 - variadic functions;
 - string and memory functions;
 - `malloc`/`free`;
-- floating point.
+- floating point;
+- `setjmp` and `longjmp`.
 
 The `contract_*` programs test the input contract above: errors, assumptions, `abort`, exit statuses, and the less
 common nondet functions.

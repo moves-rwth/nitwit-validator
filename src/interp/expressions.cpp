@@ -720,7 +720,9 @@ value::Value Execution::statementExpression(const ast::StatementExpr* expr) {
     Frame& frame = *frame_;
     const InstructionRange& range = frame.body->statementExpressions.at(expr);
     frame.statementValue = value::Value();
+    const std::uint32_t pc = frame.pc;
     execute(frame, range.begin, &range);
+    frame.pc = pc; // the instruction of the enclosing expression, for a setjmp call after the statement expression
     return std::exchange(frame.statementValue, value::Value());
 }
 

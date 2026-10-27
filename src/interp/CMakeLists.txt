@@ -9,6 +9,7 @@ nitwit_add_module(interp
         host_stack.cpp
         initialization.cpp
         interpreter.cpp
+        jumps.cpp
         library.cpp
         library_builtins.cpp
         library_call.cpp
