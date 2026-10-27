@@ -103,6 +103,9 @@ Conjunct conjunctOf(const ast::Expr* expr) {
     const bool isLhsConstant = isConstant(binary->lhs());
     const bool isRhsConstant = isConstant(binary->rhs());
     if (isRhsConstant == isLhsConstant) {
+        conjunct.isResultNan = *op == value::Comparison::NotEqual
+                               && ast::isa<ast::ResultExpr>(withoutArithmeticConversions(binary->lhs()))
+                               && ast::isa<ast::ResultExpr>(withoutArithmeticConversions(binary->rhs()));
         return conjunct;
     }
     const ast::Expr* subject = isRhsConstant ? binary->lhs() : binary->rhs();

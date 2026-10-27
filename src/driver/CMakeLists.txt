@@ -6,6 +6,8 @@ nitwit_add_module(driver
         replay.cpp
         validation.cpp
     DEPENDS nitwit_parse nitwit_sema nitwit_interp nitwit_validate nitwit_witness)
+# The producer version of concrete witnesses (validation.cpp).
+target_compile_definitions(nitwit_driver PRIVATE NITWIT_VERSION="${PROJECT_VERSION}")
 
 add_executable(nitwit main.cpp)
 target_link_libraries(nitwit PRIVATE nitwit_driver)

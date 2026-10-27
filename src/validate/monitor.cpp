@@ -94,11 +94,24 @@ std::string_view nameOf(witness::WaypointType type) {
     std::unreachable();
 }
 
+std::string describeInput(value::InputId id, const ProvidedInput& input, const ProgramInput& program,
+                          const LocationMap& locations) {
+    const std::string site = input.function != nullptr ? std::format("the call of {}", input.function->name().text())
+                                                       : std::string("the read");
+    const auto* call = ast::dyn_cast<ast::CallExpr>(input.key.site);
+    const SourceLocation location = call != nullptr ? call->rightParenLocation() : input.key.site->location();
+    const std::string where =
+        location.file == program.file ? locations.describe(location) : program.sources.describe(location);
+    return std::format("input {} ({} at {}, occurrence {})", static_cast<std::uint32_t>(id), site, where,
+                       input.key.occurrence);
+}
+
 SegmentMonitor::SegmentMonitor(const witness::ViolationSequence& witness, const ProgramInput& program,
                                const std::string& errorFunction, ConstraintCompiler& constraints, WitnessOracle& oracle,
-                               std::ostream* log, std::size_t keptAtoms)
+                               std::ostream* log, std::size_t keptAtoms, bool strictInputs)
     : segments_(witness.segments), program_(program), errorFunction_(errorFunction), constraints_(constraints),
-      oracle_(oracle), log_(log), locations_(program.sources, program.file, program.originalFile, program.unit),
+      oracle_(oracle), log_(log), isStrict_(strictInputs),
+      locations_(program.sources, program.file, program.originalFile, program.unit),
       guards_(program.unit, errorFunction), kept_(keptAtoms) {
     NITWIT_ASSERT(!segments_.empty(), "a violation sequence without segments");
     for (const witness::Segment& segment : segments_) {
@@ -167,6 +180,8 @@ void SegmentMonitor::beginRun(std::uint32_t run, std::optional<std::uint64_t> ev
     changes_.clear();
     isAtGuard_ = false;
     isBeyondSearch_ = false;
+    errorCall_ = nullptr;
+    firstUndefined_.reset();
     kept_.clear();
     isKeptFull_ = false;
 }
@@ -222,6 +237,7 @@ interp::Directive SegmentMonitor::afterArguments(const interp::CallEvent& event,
     // producers put it) while the target segment is current.
     if (event.callee != nullptr && event.callee->name().text() == errorFunction_) {
         const SourceLocation start = event.call->location();
+        errorCall_ = event.call;
         isAtTarget_ = isTargetSegmentCurrent() && target_.contains(start);
         const bool isElsewhere = isTargetSegmentCurrent() && !isAtTarget_;
         return stop(State::ErrorCalled, std::format("'{}' was called at {} in segment {} of {}{}", errorFunction_,
@@ -251,9 +267,14 @@ interp::Directive SegmentMonitor::afterReturn(const interp::ReturnEvent& event, 
                   context);
 }
 
-interp::Directive SegmentMonitor::onUndefinedBehavior(value::UndefinedBehavior, const ast::Expr*,
+// The interpreter continues like a native run; the witness is not concerned, but a concrete witness of the run reports
+// it (validate/README.md, "Concrete witnesses"). Undefined behaviour in a constraint is not the program's.
+interp::Directive SegmentMonitor::onUndefinedBehavior(value::UndefinedBehavior kind, const ast::Expr* expr,
                                                       interp::EvaluationContext&) {
-    return interp::Directive::Continue; // the interpreter continues like a native run; the witness is not concerned
+    if (!firstUndefined_ && expr != nullptr && expr->location().file == program_.file) {
+        firstUndefined_ = UndefinedOperation{.kind = kind, .expr = expr};
+    }
+    return interp::Directive::Continue;
 }
 
 // validate/README.md, "Follow, avoid and progress": only the waypoints of the current segment are evaluated, the
@@ -269,6 +290,12 @@ interp::Directive SegmentMonitor::handle(const Event& event, interp::EvaluationC
     ++events_;
     if (eventBudget_ && events_ > *eventBudget_) {
         return stop(State::Unknown, std::format("the run exceeded its budget of {} events", *eventBudget_));
+    }
+    // validate/README.md, "Strict inputs": the run took a value that the witness did not give.
+    if (const auto& ungiven = oracle_.firstUngiven()) {
+        return stop(State::Unsupported,
+                    std::format("the witness does not give the value of {}",
+                                describeInput(ungiven->first, ungiven->second, program_, locations_)));
     }
     while (true) {
         const std::span<const std::uint32_t> here = waypointsAt(current_, event.type, event.location);
@@ -486,6 +513,10 @@ std::vector<Clause> SegmentMonitor::caseRequirement(std::optional<value::TermId>
 interp::Directive SegmentMonitor::searchOrReject(WaypointId id, const std::vector<Clause>& requirement,
                                                  interp::EvaluationContext& context, std::string reason,
                                                  std::string rejection) {
+    if (isStrict_) {
+        // validate/README.md, "Strict inputs": the witness gave every input, so no other input can be searched for.
+        return stop(State::Rejected, rejection.empty() ? std::move(reason) : std::move(rejection));
+    }
     SearchResult result = search(program_.context, context.terms(), requirement, kept_, OracleInputs(oracle_));
     const bool isRestart = !result.changes.empty();
     stop(isRestart ? State::Restart : State::Rejected,
@@ -510,6 +541,9 @@ interp::Directive SegmentMonitor::passGuard(const Atom& atom, bool continues, So
     if (continues) {
         keep(std::span(&atom, 1), context.terms());
         return interp::Directive::Continue;
+    }
+    if (isStrict_) {
+        return interp::Directive::Continue; // the run goes on to the end the guard gives it
     }
     const std::string guard = std::format("the guard at {} ({})", locations_.describe(location), function);
     const Clause clause{atom};
@@ -545,9 +579,10 @@ void SegmentMonitor::keep(std::span<const Atom> clause, const value::TermTable& 
     }
 }
 
-// validate/README.md, "Values": `\result op constant` of a function_return waypoint at this call. A follow waypoint
-// asks for a value that satisfies all its relations on `\result`, an avoid waypoint for one that violates one of them.
-// The follow waypoint's hint wins.
+// validate/README.md, "Values": `\result op constant` of a function_return waypoint at this call, or `\result !=
+// \result`. A follow waypoint asks for a value that satisfies all its relations on `\result` (NaN for the latter), an
+// avoid waypoint for one that violates one of them. The follow waypoint's hint wins. With strict inputs, only follow
+// waypoints give hints ("Strict inputs").
 void SegmentMonitor::offerHint(const interp::CallEvent& event, interp::EvaluationContext& context) {
     const SourceLocation location = event.call->rightParenLocation();
     std::optional<value::Value> followHint;
@@ -565,7 +600,9 @@ void SegmentMonitor::offerHint(const interp::CallEvent& event, interp::Evaluatio
             return;
         }
         std::vector<Bound> bounds;
+        bool isNan = false;
         for (const Conjunct& conjunct : (*compiled)->conjuncts) {
+            isNan = isNan || conjunct.isResultNan;
             if (conjunct.subject == nullptr || !ast::isa<ast::ResultExpr>(conjunct.subject)) {
                 continue;
             }
@@ -574,9 +611,14 @@ void SegmentMonitor::offerHint(const interp::CallEvent& event, interp::Evaluatio
             }
         }
         if (point.action == witness::WaypointAction::Follow) {
-            if (!bounds.empty()) {
+            if (isNan) {
+                followHint = nanOf(program_.context, event.call->type());
+            } else if (!bounds.empty()) {
                 followHint = choose(program_.context, bounds, event.call->type());
             }
+            continue;
+        }
+        if (isStrict_) {
             continue;
         }
         for (const Bound& bound : bounds) {

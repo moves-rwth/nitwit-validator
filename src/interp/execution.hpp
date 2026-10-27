@@ -425,9 +425,6 @@ private:
     std::optional<RunEnd> termMismatch_;
 };
 
-/// What the undefined behaviour is, for messages (events.cpp).
-[[nodiscard]] std::string_view describe(value::UndefinedBehavior kind);
-
 /// Whether a scalar compares unequal to 0, which is what conditions and the operands of `!`, `&&` and `||` test
 /// (C17 6.8.4.1p2, 6.5.3.3p5, 6.5.13p3, ...).
 [[nodiscard]] inline bool isNonZero(const value::Value& scalar) {

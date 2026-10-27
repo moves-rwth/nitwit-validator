@@ -41,6 +41,9 @@ struct Conjunct {
     const ast::Expr* constant = nullptr;
     value::Comparison op = value::Comparison::Equal;
     ast::QualType type; // of the comparison
+    /// Whether the conjunct is `\result != \result`, which only NaN satisfies (IEC 60559: NaN compares unequal to every
+    /// value, itself included). Concrete witnesses give NaN so (validate/README.md, "Values").
+    bool isResultNan = false;
 };
 
 struct CompiledConstraint {

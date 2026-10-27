@@ -56,9 +56,13 @@ struct Bound {
 /// A value of the arithmetic type `type` that, converted to each bound's type, satisfies all bounds; nullopt if none
 /// of the candidates does. The candidates are, for each bound in turn, the value closest to its constant that
 /// satisfies it: the constant itself for ==, <= and >=, its neighbour for < and >, and 0 (or 1 if the constant is 0)
-/// for !=.
+/// for !=. For a pointer type, only the null pointer, which `== 0` asks for: inputs of pointer types are null unless a
+/// witness gives one, and no constant names another address.
 [[nodiscard]] std::optional<value::Value> choose(ast::AstContext& context, std::span<const Bound> bounds,
                                                  ast::QualType type);
+
+/// A quiet NaN of the real floating type `type`, the one the search tries; nullopt for other types.
+[[nodiscard]] std::optional<value::Value> nanOf(ast::AstContext& context, ast::QualType type);
 
 /// The value of an input of type `inputType` that makes a subject of type `subjectType` satisfy all bounds, when the
 /// program converts the input to the subject's type: choose() for the subject, if that value comes back from the

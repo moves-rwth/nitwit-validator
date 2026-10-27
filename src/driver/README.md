@@ -5,7 +5,8 @@ The `nitwit` executable: command line, reading files, running the steps below, p
 ## Command line
 
 ```
-nitwit [-32|-64] -w|--witness <witness> [-p|--property <property-file> | -e|--error-function <name>] [-v] <program>
+nitwit [-32|-64] -w|--witness <witness> [-p|--property <property-file> | -e|--error-function <name>] [-v]
+       [--strict-inputs] [--write-witness <file> [--no-witness-check]] <program>
 nitwit --replay <inputs-file> [--input-log <log-file>] [-32|-64] <program>
 nitwit --version
 ```
@@ -20,12 +21,24 @@ nitwit --version
   stderr).
 - **Wrong command lines** give exit code 3 and print the usage on stderr: unknown options; an option without its
   value or with an empty value; an option with a value given twice; `-32` or `-64` twice, or both; `--terms` and
-  `--check-terms` together or twice; a second program, no program; `--replay` with validation options; `--input-log`,
-  `--terms` or `--check-terms` without `--replay`. `-v` and `--version` may be repeated. With `--version`, nitwit
+  `--check-terms` together or twice; `--strict-inputs` or `--no-witness-check` twice; a second program, no program;
+  `--replay` with validation options (`-w`, `-p`, `-e`, `-v`, `--strict-inputs`, `--write-witness`,
+  `--no-witness-check`); `--input-log`, `--terms` or `--check-terms` without `--replay`; `--no-witness-check` without
+  `--write-witness`. `-v` and `--version` may be repeated. With `--version`, nitwit
   prints the version and exits with 0 if every argument is well-formed by itself. `command_line.hpp` parses the
   command line.
 - **`-v`:** prints the validation log (segments reached, restarts, why each run ended) to stderr. (NITWIT 3.x's
   `nitwit.sh -v` printed the version, which is `--version` here.)
+- **`--strict-inputs`:** accepts only the inputs that follow `function_return` waypoints give, without defaults,
+  search or restarts (`src/validate/README.md`, "Strict inputs"). It checks that a witness is concrete.
+- **`--write-witness <file>`:** when the witness is confirmed, writes the confirming run as a concrete witness in
+  format 2.2 to the file, after a validation of it with strict inputs confirmed it (`src/validate/README.md`,
+  "Concrete witnesses"). One line on stderr says what happened: `nitwit: wrote a concrete witness with 3 inputs to
+  'w.yml'`, or `nitwit: no witness written:` and the reason. It comes after the result line, and neither the verdict
+  nor the exit code depends on it. Writing repeats the confirming run once, within the time limit of the
+  validation; the fm-tools entry does not pass the option.
+- **`--no-witness-check`:** with `--write-witness`, writes the concrete witness without that check, and the line says
+  `wrote an unchecked concrete witness`.
 - **`--replay`:** the differential-testing mode (`tools/difftest/README.md`): runs `main` with the inputs file, without
   a witness. The program's output goes to stdout, and the exit status is the program's (or the harness codes).
   - Calls of `__assert_fail`, `__VERIFIER_error` and `reach_error` without a definition end the run with the harness's

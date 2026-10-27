@@ -77,6 +77,10 @@ public:
     /// preprocessing)", one in another file (a header) "file:line:column".
     [[nodiscard]] std::string describe(SourceLocation location) const;
 
+    /// The line and column a witness gives for a location in the program file, for writing witnesses; nullopt for one
+    /// that a witness cannot give: after a change by the preprocessor, or in another file (a header).
+    [[nodiscard]] std::optional<LineColumn> witnessPosition(SourceLocation location) const;
+
 private:
     struct Point {
         std::uint32_t offset = 0;    // where the construct begins

@@ -19,7 +19,9 @@ tools/package.sh                      # the release archive for BenchExec and fm
 ```
 
 The last line of the output is the result (`VALIDATED:`, `FAILED:`, `UNKNOWN:` or `ERROR:`), and the exit code says
-the same to BenchExec (`docs/exit-codes.md`).
+the same to BenchExec (`docs/exit-codes.md`). With `--write-witness concrete.yml`, a confirmed witness is also written
+as a concrete witness that gives every input of the confirming run, and `--strict-inputs` validates a witness only on
+the inputs it gives (`src/validate/README.md`, "Concrete witnesses" and "Strict inputs").
 
 ## What NITWIT supports
 

@@ -1,5 +1,6 @@
 nitwit_add_module(validate
     SOURCES
+        concrete.cpp
         constraints.cpp
         guard.cpp
         location.cpp

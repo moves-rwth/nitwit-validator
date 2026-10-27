@@ -16,6 +16,7 @@ run. It decides the verdict and the exit code (`docs/exit-codes.md`).
 - `values.hpp`: the conversions and the choice of values that satisfy a relation.
 - `restart.hpp`: the restart loop and its two phases, with the run as a parameter, so that tests can script runs.
 - `verdict.hpp`: the verdict of the final run.
+- `concrete.hpp`: the confirming run written as a concrete witness ("Concrete witnesses").
 
 ## Semantics of witness format 2.x
 
@@ -151,6 +152,9 @@ gets the *default*.
     wins over an avoid hint at the same call.
   - The value is chosen in the type of the comparison and must survive the conversion to the call's type and back
     (`\result >= 255U` for an `unsigned char` gives 255; `== 300` for a `char` gives no hint).
+  - A call of a pointer type gets a hint only from `\result == 0`, the null pointer, which is also the default: no
+    constant names another address. A follow waypoint with `\result != \result`, which only NaN satisfies, gives NaN,
+    the quiet NaN the search tries. Concrete witnesses give these values so ("Concrete witnesses").
   - Hints are computed at the call event, where constants are evaluated in the current frame.
 - **Every confirmation comes from one complete run** in which all follow waypoints passed and no avoid waypoint passed,
   on the inputs of that run. The search only chooses the inputs of the next run, so a prediction that does not hold
@@ -368,6 +372,73 @@ segment:
   against it, which the kept requirement of the waypoint would defeat anyway.
 - In the retry ("Defaults"), guards work as in the first phase.
 
+### Strict inputs
+
+`ValidationOptions::strictInputs` (the driver's `--strict-inputs`) accepts only the inputs the witness gives, as a
+validator would that stops at every value it would otherwise have to choose. It checks that a witness is concrete,
+like the ones NITWIT writes ("Concrete witnesses").
+
+- **Given inputs:** an input is given when a follow `function_return` waypoint of the current segment hints its value
+  at its call ("Values"). Avoid waypoints give none, nor do defaults, the search and fixed values: there are no
+  restarts and no retry. A relation like `\result > 5` gives a value (6) as a hint does, so a witness need not pin
+  every value to be followed, but each input must have a follow waypoint.
+- **An input the witness does not give** gets the default, so that the run reaches the next event, and there the
+  monitor stops the run: the verdict is Unsupported (exit 4), "the witness does not give the value of input 1 (the call
+  of __VERIFIER_nondet_int at 5:35, occurrence 0)". A read of uninitialized memory is such an input, since no waypoint
+  can give it; so is one in a constraint. A run that ends before another event (an uninitialized read in `return x;`
+  of `main`) gets the same verdict.
+- **No search:** a follow waypoint that fails, or an avoid waypoint that passes, rejects the execution (exit 241) in
+  the first run; a guard that would end the run ends it.
+
+## Concrete witnesses
+
+With `--write-witness <file>`, the driver writes the run that confirmed a witness as a witness of its own, in format
+2.2: one segment per input of the run, in request order, each a follow `function_return` waypoint at the `)` of the
+call that requested it with a constraint that gives exactly the run's value, then the target at the call of the error
+function (`concrete.hpp`). Symbiotic writes its witnesses this way. Since every input is given, a validation with
+strict inputs follows it in one run without choosing a value, and so does NITWIT without them.
+
+- **Constraints:** in format 2.2, a `function_return` constraint has the format `ext_c_expression`: a C expression
+  that may use `\result`, free of side effects and of undefined behaviour (sv-witnesses, `Witness-Format.md`,
+  "Expression Evaluation"). 2.0 allowed only `\result op constant` in `acsl_expression`, which cannot give NaN. The
+  written constraints:
+
+  | Value | Constraint |
+  |---|---|
+  | integer, signed | `\result == -5`; the minimum of 64 bits as `\result == -9223372036854775807 - 1` |
+  | integer, unsigned (also `_Bool`) | `\result == 4294967295U` |
+  | null pointer | `\result == 0` |
+  | finite floating value | `\result == 0x1.99999ap-4f`: a hexadecimal constant with the type's suffix (`f`, none, `L`), exact also for subnormal values; −0.0 is `-0x0p+0`, which +0.0 also satisfies, but the hint gives −0.0 |
+  | +∞, −∞ | `\result > 0x1.fffffffffffffp+1023`, `\result < -0x1.fffffffffffffp+1023`: beyond the largest finite value of the type |
+  | NaN | `\result != \result`, which only NaN satisfies; the hint gives the quiet NaN |
+
+- **Locations:** line, column and function of the call's `)`, which must identify that evaluation point and no
+  other (checked through the location map), and for the target the start of the call. The program's path as NITWIT
+  got it is the file name of every waypoint and the input file of the metadata, with its SHA-256.
+- **Metadata:** producer NITWIT with its version, the property `CHECK( init(main()), LTL(G ! call(f())) )` of the
+  error function, the data model. The uuid (RFC 9562, version 8) is taken from a SHA-256 of the witness without
+  uuid and creation time, so that a validation writes the same witness every time, except for the creation time.
+- **The check:** the written text is read back with the witness parser and validated with the same options and strict
+  inputs. Only a witness that this validation confirms is written; otherwise the reason is reported and nothing is
+  written. The check repeats the confirming run once; `ConcreteTask::check` (the driver's `--no-witness-check`)
+  leaves it out.
+- **No witness** is written where a witness cannot give the run:
+  - an input that is not the result of a call: a read of uninitialized memory, the bytes of
+    `__VERIFIER_nondet_memory`;
+  - a value that no constant gives: an integer beyond 64 bits, a non-null pointer (NITWIT never chooses one);
+  - a call whose `)` is in text that the preprocessor changed, or whose location matches more than one call;
+  - more inputs than `ConcreteTask::maxInputs` (1,000,000, which covers the longest witnesses of the SV-COMP 2026
+    corpus; a waypoint takes about 200 bytes plus the program's path), or than the oracle records
+    (`TermLimits::maxInputs`).
+- **Undefined behaviour:** where the run continued after signed overflow or another undefined behaviour without an
+  end (`interp/README.md`), the witness follows what GCC-compiled code does on x86, which the C standard leaves open.
+  The driver reports the first such operation.
+- **What a concrete witness proves:** that NITWIT's interpreter reaches the error function with these inputs. It is
+  as right as NITWIT's semantics of C and of the library: a strict validation by NITWIT itself is no independent
+  check. Other validators may read it differently where C leaves the order of evaluation open: two inputs in one
+  full expression (`f(__VERIFIER_nondet_int(), __VERIFIER_nondet_int())`) appear in NITWIT's order, and a validator
+  that evaluates them in another order meets the waypoints in another order.
+
 ## Known gaps
 
 - **Values the search does not find** ("Limits of the search"). Of all SV-COMP 2026 unreach-call witnesses
@@ -429,7 +500,12 @@ segment:
   of kept clauses; monitor tests of guards (searched for, kept, not passable, a witness waypoint at one, at the restart
   limit, repeating a run, `__VERIFIER_assume`); restart tests of the retry (its search for follow and avoid waypoints,
   its own restart limit, its budget over the runs of both phases, its trigger after a waypoint without term but not
-  after one the search tried) and an oracle test of repeated runs with another default.
+  after one the search tried) and an oracle test of repeated runs with another default. `concrete_test.cpp`: concrete
+  witnesses with the interpreter (every input at its call in request order, the metadata and the program's hash, the
+  same witness for the same validation, special floating values, the cases without witness, undefined behaviour, the
+  constraint of every kind of value), strict inputs (an input without waypoint, no search, avoid waypoints, a read just
+  before the end), NaN given and hinted, the check left out, and the record of the confirming run; oracle tests of
+  required hints, value tests of null pointers and NaN, location tests of the positions a witness gives.
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness, as a process with a timeout of 30 s, and checks
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`: every witness confirmed, except
     those named `*.invalid`, which must not be;

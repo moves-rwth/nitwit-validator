@@ -1,5 +1,6 @@
 #include "validate/values.hpp"
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
@@ -240,6 +241,13 @@ std::uint64_t hashOf(const value::Value& value) {
 }
 
 std::optional<value::Value> choose(ast::AstContext& context, std::span<const Bound> bounds, ast::QualType type) {
+    if (sema::isPointer(context, type)) {
+        const bool asksForNull = std::ranges::any_of(bounds, [&](const Bound& bound) {
+            return bound.op == value::Comparison::Equal && sema::isPointer(context, bound.type)
+                   && bound.constant.kind() == value::Value::Kind::Integer && bound.constant.bits() == 0;
+        });
+        return asksForNull ? std::optional(value::Value::integer(0, sema::integerFormat(context, type))) : std::nullopt;
+    }
     if (!isArithmetic(context, type)) {
         return std::nullopt;
     }
@@ -267,6 +275,14 @@ std::optional<value::Value> choose(ast::AstContext& context, std::span<const Bou
         }
     }
     return std::nullopt;
+}
+
+std::optional<value::Value> nanOf(ast::AstContext& context, ast::QualType type) {
+    if (!sema::isFloating(context, type)) {
+        return std::nullopt;
+    }
+    return convert(context, value::Value::ofDouble(std::numeric_limits<double>::quiet_NaN()),
+                   context.builtin(ast::BuiltinKind::Double), type);
 }
 
 std::optional<value::Value> chooseInput(ast::AstContext& context, std::span<const Bound> bounds,

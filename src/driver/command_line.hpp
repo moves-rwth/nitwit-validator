@@ -19,7 +19,7 @@ inline constexpr int exitNoWitness = 240;
 
 inline constexpr std::string_view usage =
     "usage: nitwit [-32|-64] -w|--witness <witness> [-p|--property <property-file> | -e|--error-function <name>] [-v] "
-    "<program>\n"
+    "[--strict-inputs] [--write-witness <file> [--no-witness-check]] <program>\n"
     "       nitwit --replay <inputs-file> [--input-log <log-file>] [-32|-64] <program>\n"
     "       nitwit --version";
 
@@ -35,7 +35,7 @@ struct CommandLine {
 
 /// The arguments after the program name, or the exit code for a wrong command line: 240 for a program without witness
 /// (and without --replay), 3 otherwise. Options given twice are wrong, except -v and --version, as are -32 and -64
-/// together and empty option values. `defaultModel` applies without -32 and -64.
+/// together, empty option values, and validation options with --replay. `defaultModel` applies without -32 and -64.
 [[nodiscard]] std::expected<CommandLine, int> parseCommandLine(std::span<const std::string_view> arguments,
                                                                DataModel defaultModel);
 

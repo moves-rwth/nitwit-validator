@@ -37,10 +37,12 @@ public:
     };
 
     /// `witness` must have passed unsupportedFeature(). The monitor keeps references to all arguments. A run keeps
-    /// clauses with at most `keptAtoms` atoms for the search.
+    /// clauses with at most `keptAtoms` atoms for the search. With `strictInputs` (validate/README.md, "Strict
+    /// inputs"), the oracle must require hints: only follow waypoints give hints, nothing is searched for, and the run
+    /// stops at the first event after an input that no hint gave.
     SegmentMonitor(const witness::ViolationSequence& witness, const ProgramInput& program,
                    const std::string& errorFunction, ConstraintCompiler& constraints, WitnessOracle& oracle,
-                   std::ostream* log, std::size_t keptAtoms);
+                   std::ostream* log, std::size_t keptAtoms, bool strictInputs = false);
 
     /// Why the witness cannot be followed in this program, found when the monitor was built (validate/README.md,
     /// "Evaluation points"): a waypoint other than the target without evaluation point of its type, or in another
@@ -79,6 +81,10 @@ public:
     /// For State::Rejected: whether no atom of the requirement of the waypoint that rejected has a term the search can
     /// change (none, or the opaque term), so that the search could do nothing for it.
     [[nodiscard]] bool isBeyondSearch() const { return isBeyondSearch_; }
+    /// For State::ErrorCalled: the call of the error function.
+    [[nodiscard]] const ast::CallExpr* errorCall() const { return errorCall_; }
+    /// The first undefined behaviour in the program that the run continued after (signed overflow), if any.
+    [[nodiscard]] const std::optional<UndefinedOperation>& firstUndefined() const { return firstUndefined_; }
     [[nodiscard]] const LocationMap& locations() const { return locations_; }
 
 private:
@@ -147,6 +153,7 @@ private:
     ConstraintCompiler& constraints_;
     WitnessOracle& oracle_;
     std::ostream* log_;
+    bool isStrict_;
     LocationMap locations_;
     GuardFinder guards_;
     // Per segment: the indices of its waypoints by event type and offset, so that an event costs one lookup also for
@@ -166,11 +173,18 @@ private:
     std::vector<Change> changes_;
     bool isAtGuard_ = false;
     bool isBeyondSearch_ = false;
+    const ast::CallExpr* errorCall_ = nullptr;
+    std::optional<UndefinedOperation> firstUndefined_;
     KeptClauses kept_; // of the waypoints that had their outcome in this run
     bool isKeptFull_ = false;
 };
 
 /// The name of a waypoint type as the witness format spells it.
 [[nodiscard]] std::string_view nameOf(witness::WaypointType type);
+
+/// "input 3 (the call of __VERIFIER_nondet_int at 7:35, occurrence 0)", for messages. A call is located at its `)`,
+/// as in witnesses; reads in constraints are located in the constraint's text.
+[[nodiscard]] std::string describeInput(value::InputId id, const ProvidedInput& input, const ProgramInput& program,
+                                        const LocationMap& locations);
 
 } // namespace nitwit::validate
