@@ -67,12 +67,15 @@ The tool-info module `benchexec/tools/nitwit.py`:
 
 - requires `bin/nitwit32` and `bin/nitwit64` next to `nitwit.sh`;
 - takes the version from `nitwit.sh --version`, which prints only the version, e.g. `4.1.0`;
-- runs `nitwit.sh <options> -p <property> -w <witness> <program>`; the maintainer's fork adds `-32` or `-64` from the
-  task's data model before `-w`. `nitwit.sh` passes all arguments unchanged to `bin/nitwit32`, which reads `-32` and
-  `-64` itself, from any working directory. `bin/nitwit64` is only there for `REQUIRED_PATHS` and direct calls;
-- maps the exit codes of `docs/exit-codes.md`, which are those of 3.x: 0 and 245 are FALSE, 251 OUT OF MEMORY, 4, 5,
-  241, 242, 243 and 250 UNKNOWN, all others ERROR. 252 is UNKNOWN in the fork, but ERROR in BenchExec 3.35, so NITWIT
-  4 does not use it (`docs/exit-codes.md`).
+- runs `nitwit.sh <options> -p <property> -32 -w <witness> <program>`, with `-64` instead of `-32` for LP64 tasks.
+  `nitwit.sh` passes all arguments unchanged to `bin/nitwit32`, which reads `-32` and `-64` itself, from any working
+  directory. `bin/nitwit64` is only there for `REQUIRED_PATHS` and direct calls;
+- maps the exit codes of `docs/exit-codes.md`, which are those of 3.x and 253: 0, 245 and 253 are FALSE, 251 OUT OF
+  MEMORY, 4, 5, 241, 242, 243, 250 and 252 UNKNOWN, all others ERROR.
+
+That is the module of BenchExec's main branch: it passes the data model since pull request 1339 (2026-10-20) and maps
+252 and 253 since pull request 1356 (2026-10-27). BenchExec 3.35, the newest release, has neither: every task runs
+with ILP32, and 252 and 253 are ERROR. NITWIT 4 does not use 252 (`docs/exit-codes.md`).
 
 Differences from 3.x's `nitwit.sh`:
 
@@ -83,7 +86,7 @@ Differences from 3.x's `nitwit.sh`:
 | program or witness file missing | 255 (ERROR) | 3 (ERROR) |
 | no `-w` | 255 (ERROR) | 240 (ERROR) |
 | `-32`/`-64` twice, or both | the last one counts | wrong command line: 3 (ERROR) |
-| the error function is called, but the witness was not followed to its target (format 2.x) | 252 (UNKNOWN in the fork, ERROR in BenchExec 3.35) | 241 (UNKNOWN), with its own result line |
+| the error function is called, but the witness was not followed to its target (format 2.x) | 252 (UNKNOWN in BenchExec's main branch, ERROR in 3.35) | 241 (UNKNOWN), with its own result line |
 | missing executable | 255 (ERROR) | 255 (ERROR) |
 | `-h`, `--help` | usage, 0 | unknown option: usage, 3 |
 | working directory | must be the archive's directory | any |
@@ -94,7 +97,7 @@ Differences from 3.x's `nitwit.sh`:
   x86-64 Linux with glibc ≥ 2.38). fm-weck's smoke test passes in fm-tools' CI job (`ubuntu:26.04`), in fm-weck's
   container mode and in the competition image `competition-scripts/user:2027`.
 - fm-weck's smoke test is `smoketest.sh`. It calls `nitwit.sh --version`, then validates `smoketest/smoketest.yml` with
-  `-32` and with `-64`, with the arguments in the fork's order. It fails unless both runs print `VALIDATED:` and exit
+  `-32` and with `-64`, with the arguments in the order of the tool-info module. It fails unless both runs print `VALIDATED:` and exit
   with 0.
 - Required Ubuntu packages: none for the executables, which need only glibc. Programs with preprocessor directives
   other than line markers, `#line`, `#ident`, `#pragma` and the null directive need `cpp` (few do,
@@ -125,5 +128,6 @@ system's shared library, not part of the archive. Keep `release/THIRD-PARTY.md` 
 5. Upload exactly this one zip file to Zenodo, as a new version of NITWIT's record.
 6. Add the version to NITWIT's entry in fm-tools, with the DOI of the Zenodo version,
    `required_ubuntu_packages: gcc-multilib` and the `base_container_images` of the competition.
-7. Check that the BenchExec tool-info module that the competition uses passes `-32` or `-64` from the task's data
-   model (see "BenchExec"); without it, every task runs with ILP32.
+7. Check that the BenchExec that the competition uses (the submodule `benchexec` of SV-COMP's bench-defs) has the
+   tool-info module of BenchExec's main branch (see "BenchExec"): without it, every task runs with ILP32, and a
+   refuted correctness witness is ERROR.

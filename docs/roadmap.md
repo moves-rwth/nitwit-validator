@@ -59,9 +59,10 @@ confirm up to 100 more witnesses, but `validation-crafted` requires the first ev
 ## Exit codes 252 and 253
 
 NITWIT reports the error function called before the target as 241, because BenchExec 3.35 maps 252 to ERROR
-(`docs/exit-codes.md`). The change of BenchExec's `nitwit.py` that maps 252 to UNKNOWN and 253, a refuted correctness
-witness, to FALSE waits for its pull request. Once a BenchExec release has it, NITWIT exits with 252, as 3.x does;
-until then, 253 is ERROR, and a refutation scores nothing.
+(`docs/exit-codes.md`). BenchExec's main branch maps 252 to UNKNOWN and 253, a refuted correctness witness, to FALSE
+since pull request 1356 (2026-10-27); once a BenchExec release has it, NITWIT exits with 252, as 3.x does. SV-COMP runs
+the BenchExec that its bench-defs pin as a submodule; where that commit is older, 253 is ERROR, and a refutation
+scores nothing.
 
 ## Invariants of correctness witnesses
 
