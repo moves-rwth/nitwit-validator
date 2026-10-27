@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "ast/decl.hpp"
+#include "ast/expr.hpp"
 #include "support/source_manager.hpp"
 #include "witness/model.hpp"
 
@@ -57,7 +58,8 @@ private:
 /// function_return). A column must be one of them; a column inside a construct matches nothing.
 /// - A waypoint without a column is evaluated at the first evaluation point of its type in the line, as the crafted
 ///   witnesses of sv-benchmarks (`c/validation-crafted`) expect. A target without a column is the first statement or
-///   full expression in the line, which the call of the error function must start.
+///   full expression in the line, which the call of the error function must start or be innermost in
+///   (enclosingStart()).
 /// - A block has no evaluation point of its own: an assumption at a `{` is evaluated before the first statement in
 ///   the block, which runs in the same state. An empty block, and one whose first statement has a label (a jump can
 ///   enter there without passing the `{`), have none.
@@ -80,6 +82,11 @@ public:
     /// The line and column a witness gives for a location in the program file, for writing witnesses; nullopt for one
     /// that a witness cannot give: after a change by the preprocessor, or in another file (a header).
     [[nodiscard]] std::optional<LineColumn> witnessPosition(SourceLocation location) const;
+
+    /// The start of the innermost statement or full expression (C17 6.8p4) that contains the call, where the format
+    /// puts the target of a violation in the call (sv-witnesses, Witness-Format.md, "Target"); the call's own start for
+    /// a call outside the program's functions (in a constraint).
+    [[nodiscard]] SourceLocation enclosingStart(const ast::CallExpr* call) const;
 
 private:
     struct Point {
@@ -109,6 +116,8 @@ private:
     std::vector<Point> calls_;
     // The offsets where statements and full expressions begin, sorted: for targets without a column.
     std::vector<std::uint32_t> starts_;
+    // Per call of the program, where its innermost statement or full expression begins: for targets.
+    std::unordered_map<const ast::CallExpr*, SourceLocation> enclosingStarts_;
 };
 
 } // namespace nitwit::validate

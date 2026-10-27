@@ -68,7 +68,8 @@ sema and the interpreter all recurse on it.
 | 4. Detect the witness format; parse a witness in format 2.x | a witness in format 1.0 (GraphML, not supported) | 4 |
 | | the witness cannot be parsed | 2 |
 | 5. Validate the witness (`src/validate/README.md`) | | the verdict's code |
-| NITWIT itself runs out of memory (`std::bad_alloc`) | | 251 |
+| 6. With `--write-witness`, after the result line: write the concrete witness (`src/validate/README.md`, "Concrete witnesses") | no witness: the reason on stderr, also when NITWIT runs out of memory | the verdict's code |
+| NITWIT itself runs out of memory (`std::bad_alloc`) in steps 1 to 5 | | 251 |
 
 ## Output
 

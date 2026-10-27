@@ -28,8 +28,8 @@ using testing::HasSubstr;
 class ConcreteTest : public ValidateTest {
 protected:
     /// Analyzes and lowers the program; fails the test if that fails.
-    void build(std::string text, DataModel model = DataModel::ILP32) {
-        program(std::move(text), model);
+    void build(std::string text, DataModel model = DataModel::ILP32, std::string name = "test.c") {
+        program(std::move(text), model, std::move(name));
         auto built = interp::buildProgram(unit(), context());
         ASSERT_TRUE(built.has_value()) << built.error().message;
         input_->program = *built;
@@ -49,6 +49,9 @@ protected:
         ConfirmingRun run;
         const ValidationResult result = validate(witness, &run);
         EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
+        if (result.verdict != Verdict::Confirmed) {
+            return std::unexpected("not confirmed: " + result.message); // the writer needs a confirming run
+        }
         const ConcreteTask task{.programPath = "dir/test.c",
                                 .specification = "CHECK( init(main()), LTL(G ! call(reach_error())) )",
                                 .producerVersion = "4.2.0",
@@ -182,6 +185,47 @@ int main(void) {
     EXPECT_THAT(waypoints[2], testing::StartsWith("function_return 7:51 \\result < -0x"));
     EXPECT_EQ(waypoints[3], "function_return 7:90 \\result == -0x0p+0");
     EXPECT_EQ(waypoints[4], "function_return 8:39 \\result == 0x1.99999ap-4f");
+}
+
+TEST_F(ConcreteTest, TheTargetIsTheInnermostFullExpressionOfTheErrorCall) {
+    build(R"(void reach_error(void);
+int main(void) {
+    int a = 1 > 0 ? (reach_error(), 0) : 1;
+    return a;
+}
+)");
+    const auto written = concrete(sequence({{target(3, 22)}}));
+    ASSERT_TRUE(written.has_value()) << written.error();
+    EXPECT_THAT(waypointsOf(written->text), ElementsAre("target 3:13")); // the initializer
+}
+
+TEST_F(ConcreteTest, ACallWhoseLocationAlsoMatchesAnotherCallGivesNoWitness) {
+    // The output of cpp in which two physical lines are line 4 of prog.c, as a macro expansion can make them: a
+    // waypoint at line 4 would match both calls.
+    const FileId original = sources_.addFile("prog.c", "extern int __VERIFIER_nondet_int(void);\n"
+                                                       "void reach_error(void);\n"
+                                                       "int main(void) { int a;\n"
+                                                       "    a = __VERIFIER_nondet_int();\n"
+                                                       "    reach_error();\n"
+                                                       "    return a;\n"
+                                                       "}\n");
+    build("# 1 \"prog.c\"\n"
+          "extern int __VERIFIER_nondet_int(void);\n"
+          "void reach_error(void);\n"
+          "int main(void) { int a;\n"
+          "    a = __VERIFIER_nondet_int();\n"
+          "# 4 \"prog.c\"\n"
+          "    a = __VERIFIER_nondet_int();\n"
+          "    reach_error();\n"
+          "    return a;\n"
+          "}\n",
+          DataModel::ILP32, "prog.c");
+    input_->originalFile = original;
+    witness::Waypoint error = target(5, 5);
+    error.location.fileName = "prog.c";
+    const auto written = concrete(sequence({{error}}));
+    ASSERT_FALSE(written.has_value());
+    EXPECT_THAT(written.error(), HasSubstr("4:31 does not identify one function_return point"));
 }
 
 TEST_F(ConcreteTest, AReadOfUninitializedMemoryGivesNoWitness) {
@@ -321,6 +365,48 @@ int main(void) {
     const ValidationResult result =
         validate(sequence({{avoid(WaypointType::FunctionReturn, 4, 35, "\\result == 0"), target(5, 5)}}));
     EXPECT_EQ(result.verdict, Verdict::Unsupported) << result.message;
+}
+
+TEST_F(ConcreteTest, WithStrictInputsAGuardThatWouldEndTheRunEndsItWithoutASearch) {
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void abort(void);
+void reach_error(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    if (x < 1) abort();
+    reach_error();
+    return 0;
+}
+)");
+    const witness::YamlWitness witness =
+        sequence({{follow(WaypointType::FunctionReturn, 5, 35, "\\result == 0")}, {target(7, 5)}});
+    options_.strictInputs = true;
+    const ValidationResult strict = validate(witness);
+    EXPECT_EQ(strict.verdict, Verdict::Unknown) << strict.message;
+    EXPECT_EQ(strict.runs, 1u);
+    EXPECT_FALSE(log().contains("the guard at")) << log();
+    // Without strict inputs, the guard asks the search, which cannot change the hinted input.
+    options_.strictInputs = false;
+    EXPECT_EQ(validate(witness).verdict, Verdict::Unknown);
+    EXPECT_TRUE(log().contains("the guard at 6:5 (abort)")) << log();
+}
+
+TEST_F(ConcreteTest, WithStrictInputsThereIsNoRetry) {
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    if (__VERIFIER_nondet_int()) reach_error();
+    return 0;
+}
+)");
+    options_.retryDefaultInput = 1;
+    const ValidationResult retried = validate(sequence({{target(4, 34)}}));
+    EXPECT_EQ(retried.verdict, Verdict::Confirmed) << retried.message;
+    EXPECT_EQ(retried.runs, 2u);
+    options_.strictInputs = true;
+    const ValidationResult strict = validate(sequence({{target(4, 34)}}));
+    EXPECT_EQ(strict.verdict, Verdict::Unsupported) << strict.message;
+    EXPECT_EQ(strict.runs, 1u);
 }
 
 TEST_F(ConcreteTest, WithStrictInputsAReadJustBeforeTheEndIsUnsupported) {

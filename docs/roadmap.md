@@ -70,3 +70,7 @@ NITWIT reports the error function called before the target as 241, because Bench
 - **The 32-bit libm:** NITWIT computes the math functions of i386 programs with the host's 64-bit libm, which differs
   in the last bit for some functions (`src/interp/README.md`, "Library"). A helper process with the 32-bit libm would
   remove the difference.
+- **Constant initializers of static objects:** sema accepts any expression there, although C17 6.7.9p4 requires a
+  constant expression, and the interpreter evaluates it before `main`, calls included (`int x = f();`). No compiler
+  accepts such programs, and sv-benchmarks has none; a setjmp there ends the run as unsupported
+  (`src/interp/README.md`, "Non-local jumps"). Sema should reject them.

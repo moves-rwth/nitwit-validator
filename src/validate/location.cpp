@@ -13,10 +13,12 @@ namespace nitwit::validate {
 
 namespace {
 
-// A statement or an expression still to visit.
+// A statement or an expression still to visit; for an expression, also where the innermost statement or full
+// expression that contains it begins.
 struct Node {
     const ast::Stmt* stmt = nullptr;
     const ast::Expr* expr = nullptr;
+    SourceLocation enclosing;
 };
 
 // The statement a block's evaluation point stands for: its first statement, in nested blocks too; null if empty.
@@ -27,16 +29,18 @@ const ast::Stmt* firstStatement(const ast::Stmt* stmt) {
     return stmt;
 }
 
-// The sub-statements and expressions of a statement that run as part of it.
+// The sub-statements and expressions of a statement that run as part of it. Its expressions are full expressions
+// (C17 6.8p4): an initializer, the expression of an expression statement, a controlling expression, the increment of a
+// for loop, the value of a return.
 void pushChildren(const ast::Stmt* stmt, std::vector<Node>& pending) {
     const auto push = [&](const ast::Stmt* child) {
         if (child != nullptr) {
-            pending.push_back({.stmt = child, .expr = nullptr});
+            pending.push_back({.stmt = child, .expr = nullptr, .enclosing = {}});
         }
     };
     const auto pushExpr = [&](const ast::Expr* child) {
         if (child != nullptr) {
-            pending.push_back({.stmt = nullptr, .expr = child});
+            pending.push_back({.stmt = nullptr, .expr = child, .enclosing = child->location()});
         }
     };
     switch (stmt->kind()) {
@@ -94,11 +98,12 @@ void pushChildren(const ast::Stmt* stmt, std::vector<Node>& pending) {
     std::unreachable();
 }
 
-// The subexpressions that are evaluated with an expression (not those of sizeof and other unevaluated operands).
-void pushChildren(const ast::Expr* expr, std::vector<Node>& pending) {
+// The subexpressions that are evaluated with an expression (not those of sizeof and other unevaluated operands); they
+// are in the same statement or full expression, which begins at `enclosing`.
+void pushChildren(const ast::Expr* expr, SourceLocation enclosing, std::vector<Node>& pending) {
     const auto pushExpr = [&](const ast::Expr* child) {
         if (child != nullptr) {
-            pending.push_back({.stmt = nullptr, .expr = child});
+            pending.push_back({.stmt = nullptr, .expr = child, .enclosing = enclosing});
         }
     };
     switch (expr->kind()) {
@@ -142,7 +147,7 @@ void pushChildren(const ast::Expr* expr, std::vector<Node>& pending) {
     case ast::ExprKind::VaArg:
         return pushExpr(ast::cast<ast::VaArgExpr>(expr)->list());
     case ast::ExprKind::StatementExpr:
-        pending.push_back({.stmt = ast::cast<ast::StatementExpr>(expr)->body(), .expr = nullptr});
+        pending.push_back({.stmt = ast::cast<ast::StatementExpr>(expr)->body(), .expr = nullptr, .enclosing = {}});
         return;
     case ast::ExprKind::GenericSelection:
         return pushExpr(ast::cast<ast::GenericSelectionExpr>(expr)->selected());
@@ -243,7 +248,7 @@ LocationMap::LocationMap(const SourceManager& sources, FileId file, FileId origi
 
 // Iterative, since statements and expressions can nest as deeply as the parser allows.
 void LocationMap::collectPoints(const ast::FunctionDecl& function) {
-    std::vector<Node> pending = {{.stmt = function.body(), .expr = nullptr}};
+    std::vector<Node> pending = {{.stmt = function.body(), .expr = nullptr, .enclosing = {}}};
     const auto add = [&](std::vector<Point>& points, SourceLocation location, SourceLocation evaluated) {
         if (location.file == file_) {
             points.push_back({.offset = location.offset, .evaluated = evaluated.offset, .function = &function});
@@ -307,8 +312,9 @@ void LocationMap::collectPoints(const ast::FunctionDecl& function) {
             add(branchings_, conditional->questionLocation(), conditional->questionLocation());
         } else if (const auto* call = ast::dyn_cast<ast::CallExpr>(node.expr)) {
             add(calls_, call->rightParenLocation(), call->rightParenLocation());
+            enclosingStarts_.emplace(call, node.enclosing);
         }
-        pushChildren(node.expr, pending);
+        pushChildren(node.expr, node.enclosing, pending);
     }
 }
 
@@ -420,6 +426,11 @@ std::string LocationMap::describe(SourceLocation location) const {
         return std::format("{} (column {} after preprocessing)", presumed.line, position.column);
     }
     return std::format("{}:{}", presumed.line, position.column);
+}
+
+SourceLocation LocationMap::enclosingStart(const ast::CallExpr* call) const {
+    const auto found = enclosingStarts_.find(call);
+    return found != enclosingStarts_.end() ? found->second : call->location();
 }
 
 std::optional<LineColumn> LocationMap::witnessPosition(SourceLocation location) const {

@@ -305,6 +305,18 @@ int main(void) {
     EXPECT_THAT(result.message, HasSubstr("variably modified type"));
 }
 
+TEST_P(JumpsTest, SetjmpInTheInitializerOfAStaticObjectIsUnsupported) {
+    // C17 6.7.9p4 requires a constant initializer; the run evaluates such initializers before main, outside any frame.
+    for (const std::string_view program : {
+             "jmp_buf env;\nint x = _setjmp(env);\nint main(void) { return x; }",
+             "jmp_buf env;\nint main(void) { static int s = _setjmp(env); return s; }",
+         }) {
+        const RunResult result = runJumps(program);
+        EXPECT_EQ(result.termination, Termination::Unsupported) << program;
+        EXPECT_THAT(result.message, HasSubstr("in the initializer of a static object")) << program;
+    }
+}
+
 TEST_P(JumpsTest, GccsJumpBuiltinsAreUnsupported) {
     const RunResult result = runJumps(R"(int __builtin_setjmp(void *);
 void *buffer[5];

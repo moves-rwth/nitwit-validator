@@ -93,6 +93,23 @@ int main(void) {
     EXPECT_EQ(result.verdict, Verdict::Confirmed) << result.message << "\n" << log();
 }
 
+TEST_F(EndToEndTest, TheTargetIsTheInnermostFullExpressionOfTheCallOrTheCall) {
+    // Witness format 2.x, "Target": the first character of the innermost statement or full expression that contains
+    // the violation, here the initializer; producers also put the target at the call.
+    build(R"(void reach_error(void);
+int main(void) {
+    int a = 1 > 0 ? (reach_error(), 0) : 1;
+    return a;
+}
+)");
+    EXPECT_EQ(validate(sequence({{target(3, 13)}})).verdict, Verdict::Confirmed);
+    EXPECT_EQ(validate(sequence({{target(3, 22)}})).verdict, Verdict::Confirmed);
+    // The declaration contains the initializer: it is not the innermost.
+    const ValidationResult declaration = validate(sequence({{target(3, 5)}}));
+    EXPECT_EQ(declaration.verdict, Verdict::ErrorBeforeTarget) << declaration.message;
+    EXPECT_EQ(validate(sequence({{target(3, std::nullopt)}})).verdict, Verdict::ErrorBeforeTarget);
+}
+
 TEST_F(EndToEndTest, ConditionalExpressionsAndSwitches) {
     build(R"(extern int __VERIFIER_nondet_int(void);
 void reach_error(void);

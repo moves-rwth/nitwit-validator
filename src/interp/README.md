@@ -258,7 +258,9 @@ the evaluator (`jumps.cpp`); a program's own definition of one of the names wins
   dynamic objects (variable length arrays and alloca blocks), writes the environment's id into the first 8 bytes of
   the jmp_buf (glibc's has 156 or 200 bytes) and returns 0. So a jmp_buf works wherever it lives (static, automatic,
   heap memory) and in copies (assignment, `memcpy`). A second call at the same site in the same frame, as in a loop,
-  saves under the same id, so that the environments do not grow with the iterations. They end with their frame.
+  saves under the same id, so that the environments do not grow with the iterations. They end with their frame. A
+  setjmp in the initializer of a static object has no frame: sema accepts such initializers although C17 6.7.9p4
+  requires them to be constant, and the interpreter evaluates them before `main`, so the run ends as `Unsupported`.
 - **longjmp** reads the id. If the bytes hold no live environment, the behaviour is undefined (C11 7.13.2.1p2) and the
   run ends with `UndefinedBehavior`: setjmp did not save it (zeros, other bytes, or uninitialized bytes, which are no
   input), or the function that called setjmp has returned (also a wrapper around setjmp, as busybox's `_setjmp`).
@@ -415,7 +417,8 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   name, the frames a longjmp ends (to `main`, to a frame between, out of a statement expression) and its events, kept
   values of changed locals, copied and heap jmp_bufs, setjmp in a loop, each use that resumes, the dynamic objects that
   end, and the jumps that end the run: to a function that returned, without setjmp, from other expressions, through a
-  pointer, in a statement expression, after a variably modified type, GCC's builtins) and
+  pointer, in a statement expression, after a variably modified type, GCC's builtins, setjmp in the initializer of a
+  static object) and
   `evaluation_context_test.cpp`.
 - `tests/unit/interp/terms_test.cpp`, every run with the consistency check: input terms; copies (assignment,
   arguments, results, pointers, records, `?:` of records, `va_arg`); conversions (also pointers sign-extended to wider

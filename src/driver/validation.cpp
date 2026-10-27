@@ -2,12 +2,14 @@
 
 #include <chrono>
 #include <expected>
+#include <filesystem>
 #include <format>
 #include <fstream>
 #include <iterator>
 #include <new>
 #include <print>
 #include <regex>
+#include <system_error>
 #include <utility>
 
 #include "driver/frontend.hpp"
@@ -66,8 +68,8 @@ std::optional<std::string> errorFunctionOf(std::string_view property) {
 
 namespace {
 
-// driver/README.md, "Concrete witnesses": writes the witness of the run that confirmed; what happened, for stderr.
-// Neither the verdict nor the exit code depends on it.
+// driver/README.md, "Command line" (--write-witness): writes the witness of the run that confirmed; what happened, for
+// stderr. Neither the verdict nor the exit code depends on it.
 std::string writeConcreteWitness(const ValidationCommand& command, const validate::ProgramInput& program,
                                  const validate::ValidationOptions& options, const validate::ConfirmingRun& run) {
     const validate::ConcreteTask task{
@@ -78,12 +80,8 @@ std::string writeConcreteWitness(const ValidationCommand& command, const validat
             std::format("{:%FT%TZ}", std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())),
         .maxInputs = validate::ConcreteTask{}.maxInputs,
         .check = command.checksWitness};
-    std::expected<validate::ConcreteWitness, std::string> witness;
-    try {
-        witness = validate::writeConcreteWitness(run, program, task, options);
-    } catch (const std::bad_alloc&) {
-        return "no witness written: NITWIT ran out of memory";
-    }
+    const std::expected<validate::ConcreteWitness, std::string> witness =
+        validate::writeConcreteWitness(run, program, task, options);
     if (!witness) {
         return "no witness written: " + witness.error();
     }
@@ -91,6 +89,8 @@ std::string writeConcreteWitness(const ValidationCommand& command, const validat
     stream << witness->text;
     stream.close();
     if (!stream) {
+        std::error_code ignored;
+        std::filesystem::remove(command.witnessOutput, ignored); // no partial witness
         return std::format("no witness written: cannot write '{}'", command.witnessOutput);
     }
     const std::string note = witness->undefinedBehavior.empty()
@@ -174,10 +174,15 @@ int runSteps(const ValidationCommand& command, std::ostream& out, std::ostream& 
     if (!command.witnessOutput.empty()) {
         out.flush(); // the result first: writing the concrete witness takes another run
         options.log = nullptr;
-        const std::string written = result.verdict == validate::Verdict::Confirmed
-                                        ? writeConcreteWitness(command, input, options, confirming)
-                                        : std::string("no witness written: the witness was not confirmed");
-        std::println(log, "nitwit: {}", written);
+        // Running out of memory here costs the witness, not the verdict, which is printed already.
+        try {
+            const std::string written = result.verdict == validate::Verdict::Confirmed
+                                            ? writeConcreteWitness(command, input, options, confirming)
+                                            : std::string("no witness written: the witness was not confirmed");
+            std::println(log, "nitwit: {}", written);
+        } catch (const std::bad_alloc&) {
+            log << "nitwit: no witness written: NITWIT ran out of memory\n";
+        }
     }
     return exitCode;
 }
