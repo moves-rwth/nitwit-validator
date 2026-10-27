@@ -1,18 +1,20 @@
 # NITWIT 4: evaluation
 
 NITWIT 4 at 0914f93, the release archive built by `tools/package.sh`, as an SV-COMP violation-witness validator on
-the unreach-call witnesses of SV-COMP 2026, at SV-COMP's 90 s (2026-10-25).
+the unreach-call witnesses of SV-COMP 2026, at SV-COMP's 90 s (2026-10-25). The 373 witnesses whose programs name
+`setjmp` or `longjmp` ran again with the archive built from b146595, which supports them (2026-10-27, "setjmp and
+longjmp"); the numbers below include those runs.
 
 - **All witnesses:** of the 27,767 unreach-call witnesses in format 2.x whose program is in the dataset, NITWIT confirms
-  9,439 of the 14,841 witnesses of buggy programs (64 %; 80 % without Goblint's) and none of the 12,792 witnesses of
+  9,526 of the 14,841 witnesses of buggy programs (64 %; 80 % without Goblint's) and none of the 12,792 witnesses of
   correct programs. `validation-crafted`: 96 of 100 right, no invalid witness confirmed. `testfiles`: all 45
   format 2.x witnesses right.
-- **Against NITWIT 3.x,** on 1000 of these witnesses (100 per producer): NITWIT 4 confirms 597 of the 851 witnesses of
+- **Against NITWIT 3.x,** on 1000 of these witnesses (100 per producer): NITWIT 4 confirms 601 of the 851 witnesses of
   buggy programs, 3.x 312; neither confirms a wrong one. On the 903 witnesses both decide, NITWIT 4 takes 15 s of CPU
   time, 3.x 348 s.
 - **Against the other SV-COMP 2026 validators,** on the 11,738 witnesses of buggy programs they validated: NITWIT
-  confirms 6,988, more than any of them alone (Witch 5,392), the five together 7,934. Validators outside the
-  producer's family confirm 970 that NITWIT does not; NITWIT confirms 514 that no other validator does. NITWIT
+  confirms 7,054, more than any of them alone (Witch 5,392), the five together 7,934. Validators outside the
+  producer's family confirm 904 that NITWIT does not; NITWIT confirms 514 that no other validator does. NITWIT
   confirms no witness of a correct program, CPAchecker 4 and MetaVal 3.
 - **Memory:** no run on the 1000 witnesses takes more than 1 GB (at most 842 MB). Of all witnesses, 5 runs do, up to
   4.5 GB ("Runtime" of "All witnesses").
@@ -79,18 +81,20 @@ Witnesses of buggy programs confirmed (exit 0), and the changes per witness:
 
 | Producer | buggy | 3.x | NITWIT 4 | lost | gained |
 |---|---|---|---|---|---|
-| Automizer | 99 | 9 | 73 | 0 | 64 |
-| CPAchecker | 100 | 45 | 76 | 1 | 32 |
+| Automizer | 99 | 9 | 74 | 0 | 65 |
+| CPAchecker | 100 | 45 | 77 | 1 | 33 |
 | Goblint | 27 | 2 | 3 | 0 | 1 |
-| Kojak | 99 | 19 | 64 | 0 | 45 |
+| Kojak | 99 | 19 | 66 | 0 | 47 |
 | Mopsa | 100 | 50 | 76 | 1 | 27 |
 | Paulina (41 valid, 59 invalid) | 100 | 18 | 37 | 2 | 21 |
 | Taipan | 99 | 14 | 66 | 0 | 52 |
 | symbiotic | 100 | 75 | 88 | 0 | 13 |
 | test-to-witness | 27 | 20 | 27 | 0 | 7 |
 | witch | 100 | 60 | 87 | 0 | 27 |
-| **total** | 851 | **312** | **597** | 4 | 289 |
-| **without Paulina** | 751 | **294** | **560** | 2 | 268 |
+| **total** | 851 | **312** | **601** | 4 | 293 |
+| **without Paulina** | 751 | **294** | **564** | 2 | 272 |
+
+Four of the gained witnesses are on `longjmp` programs, which 3.x ends with exit 244 ("setjmp and longjmp" below).
 
 - **Correct programs** (Goblint 72, test-to-witness 73, Kojak 1, Taipan 1): 0 confirmed by either tool. 3.x crashes
   on 5 runs (heap corruption, segmentation fault; BenchExec: ERROR), NITWIT 4 on none.
@@ -149,23 +153,23 @@ only": confirmed by such a validator and not by NITWIT.
 
 | Producer | buggy | confirmed | SV-COMP results | others | others only |
 |---|---|---|---|---|---|
-| Automizer | 2,665 | 2,000 (75 %) | 1,442 | 647 | 119 |
-| CPAchecker | 3,619 | 2,756 (76 %) | 3,353 | 2,934 | 223 |
-| Goblint | 3,342 | 297 (9 %) | 3,342 | 637 | 361 |
-| Kojak | 665 | 463 (70 %) | 665 | 368 | 61 |
+| Automizer | 2,665 | 2,024 (76 %) | 1,442 | 647 | 107 |
+| CPAchecker | 3,619 | 2,774 (77 %) | 3,353 | 2,934 | 205 |
+| Goblint | 3,342 | 306 (9 %) | 3,342 | 637 | 352 |
+| Kojak | 665 | 472 (71 %) | 665 | 368 | 52 |
 | Mopsa | 208 | 147 (71 %) | 192 | 167 | 33 |
-| Taipan | 885 | 583 (66 %) | 885 | 475 | 88 |
-| symbiotic | 1,859 | 1,742 (94 %) | 1,859 | 1,555 | 85 |
-| test-to-witness | 1,228 | 1,118 (91 %) | – | – | – |
+| Taipan | 885 | 592 (67 %) | 885 | 475 | 79 |
+| symbiotic | 1,859 | 1,751 (94 %) | 1,859 | 1,555 | 76 |
+| test-to-witness | 1,228 | 1,127 (92 %) | – | – | – |
 | witch | 370 | 333 (90 %) | – | – | – |
-| **total** | **14,841** | **9,439 (64 %)** | 11,738 | 6,783 | 970 |
+| **total** | **14,841** | **9,526 (64 %)** | 11,738 | 6,783 | 904 |
 
 ### Soundness
 
 No wrong confirmation: 0 of the 12,792 witnesses of correct programs, 0 of the 118 invalid crafted witnesses
 (`validation-crafted` and Paulina's copies), 0 of the 15 invalid test witnesses (8 in format 2.x; the 7 in format 1.0
 give exit 4), and none of the 34 witnesses without verdict. On correct programs, most runs end because a follow
-branching fails (5,873), the program aborts (1,964), the witness does not fit the program (1,871) or the search reaches
+branching fails (5,875), the program aborts (1,964), the witness does not fit the program (1,871) or the search reaches
 its restart limit (1,094).
 
 ### Against the other validators
@@ -175,7 +179,7 @@ run: 11,738 on buggy programs, 9,909 on correct ones.
 
 | Validator | buggy confirmed | % | wrong (correct program confirmed) |
 |---|---|---|---|
-| NITWIT 4 | 6,988 | 59.5 % | 0 |
+| NITWIT 4 | 7,054 | 60.1 % | 0 |
 | Witch | 5,392 | 45.9 % | 0 |
 | CPAchecker | 4,906 | 41.8 % | 4 |
 | UAutomizer | 4,452 | 37.9 % | 0 |
@@ -183,31 +187,32 @@ run: 11,738 on buggy programs, 9,909 on correct ones.
 | Theta | 0 | 0 % | 0 |
 | any of the five | 7,934 | 67.6 % | 5 |
 
-NITWIT confirms more than any single validator, the five together confirm 946 more, and NITWIT makes no wrong
+NITWIT confirms more than any single validator, the five together confirm 880 more, and NITWIT makes no wrong
 confirmation where CPAchecker and MetaVal make 4 and 3. Counting only validators outside the producer's family, the
-five confirm 6,783. 1,460 witnesses are confirmed by another validator and not by NITWIT, 970 of them outside the
+five confirm 6,783. 1,394 witnesses are confirmed by another validator and not by NITWIT, 904 of them outside the
 producer's family; 514 are confirmed by NITWIT only.
 
-### Why NITWIT does not confirm the other 5,402
+### Why NITWIT does not confirm the other 5,315
 
 "Others": confirmed by a validator outside the producer's family.
 
 | Reason | Exit | Witnesses | Producers | Others |
 |---|---|---|---|---|
-| a follow branching did not pass, the search found no values | 241 | 2,413 | Goblint 1,119, Automizer 492, CPAchecker 471, Taipan 199, Kojak 132 | 529 |
+| a follow branching did not pass, the search found no values | 241 | 2,417 | Goblint 1,123, Automizer 492, CPAchecker 471, Taipan 199, Kojak 132 | 529 |
 | - no term: the value depends on inputs through branches between waypoints | | 742 | Goblint 564 | 123 |
 | - opaque term: nondet memory (intel-tdx), aws pointers, math functions | | 493 | CPAchecker 308 | 53 |
 | - nonlinear: `*`, `/`, `%`, shifts, an input twice | | 374 | Automizer 177 | 153 |
 | - `&` and `\|` of bits, which are not truth values (btor2c, xcsp) | | 285 | Automizer 113, Goblint 85 | 45 |
 | - one input, simple relation, contradicted by kept clauses (Goblint skips loop iterations; CPAchecker assumes `x == 0`, then `if (x)` true) | | 234 | Goblint 200 | 80 |
 | - several inputs, `?:`, deep terms, floating point | | 285 | Goblint 145 | 75 |
+| - no input: Goblint skips the rounds of a `longjmp` loop | | 4 | Goblint 4 | 0 |
 | the program ended before the target segment, no waypoint failed | 242 | 651 | Goblint 490 | 82 |
 | - the retry with inputs 1 passed more segments, but did not confirm | | 461 | Goblint 396 | 48 |
 | timeout: the run loops without reaching the next waypoint | 124 | 416 | Goblint 310, symbiotic 42 | 101 |
 | the program aborted | 4 | 389 | Goblint 349 | 32 |
 | - Goblint requires the branch into `abort()` | | 310 | | 1 |
 | - in a guard the search does not steer (`&`, `\|`, several inputs, an input twice) | | 79 | | 31 |
-| unsupported: threads 275 (CPAchecker 266), `_setjmp` 91 | 4 | 366 | CPAchecker 284 | 66 |
+| unsupported: threads | 4 | 275 | CPAchecker 266 | 0 |
 | the witness does not fit: Goblint's locations (column inside a statement 330, `case` labels 22) | 4 | 352 | Goblint 352 | 6 |
 | `exit` in `assume_exit_if_not`: Goblint repeats assumptions around calls (CIL splits `return f(x);`) | 242 | 321 | Goblint 321 | 0 |
 | undefined behaviour: null pointer 107 (LDV), out of bounds 29 (verifythis writes `x[n]`), invalid address 5 | 4 | 141 | CPAchecker 50, Automizer 45 | 38 |
@@ -218,10 +223,45 @@ producer's family; 514 are confirmed by NITWIT only.
 
 `docs/roadmap.md` ("Where NITWIT does not confirm") ranks the remedies.
 
+### setjmp and longjmp
+
+At 0914f93, `_setjmp` ended 93 runs as unsupported: 91 on buggy programs, all of `c/longjmp`, and Goblint's 2 on the
+correct programs `04-counting-local_true` and `07-returns_true`. b146595 supports setjmp and longjmp
+(`src/interp/README.md`, "Non-local jumps"). Only runs on programs that name one of their functions can change, so the
+373 witnesses on such programs ran again with its archive, with the runner and limits above, 4 in parallel
+(2026-10-27): the 93, and 280 on pthread, busybox, coreutils, ldv and openbsd programs whose headers declare them.
+The 280 give the exit codes of 0914f93. Of the 93:
+
+| Producer | buggy | confirmed | others |
+|---|---|---|---|
+| Automizer | 24 | 24 | 12; 12 have no unique SV-COMP result |
+| CPAchecker | 18 | 18 | 18 |
+| Goblint | 13 | 9 | 9 |
+| Kojak | 9 | 9 | 9 |
+| Taipan | 9 | 9 | 9 |
+| symbiotic | 9 | 9 | 9 |
+| test-to-witness | 9 | 9 | – |
+| **total** | **91** | **87** | 66 |
+
+- **Not confirmed:** Goblint's 4 witnesses of the `_unknown_1_pos` programs 04, 12, 15 and 16, whose check fails only
+  in a later round of the longjmp loop: they put the branching into the error right after the first execution of the
+  check's statement, where it does not pass (exit 241). No other validator confirms them.
+- **Correct programs:** Goblint's 2 witnesses fail at a follow branching (exit 241).
+- **The setjmp calls** of the 20 `c/longjmp` programs with witnesses are expression statements, initializers
+  (`int count = _setjmp(env);`) and assignments (`val = _setjmp(env);`), and longjmps from `main` itself or from a
+  function it calls return to all of them. The 14 other tasks of `c/longjmp`, which SV-COMP 2026 has no witnesses
+  of, also use `if (setjmp(env))` and `if (0 == setjmp(env))`. `42-poison-reduced_true` asserts the value that a local
+  changed before the longjmp keeps (`src/interp/README.md`, "Non-local jumps"), but reads a local of a returned
+  function first, which ends every run on it as undefined (exit 4). `19-simpler_true` and `20-simpler-multifun_true`
+  jump back for ever, as natively, so that a run on them ends at the time limit. A witness with the target only
+  (`reach_error` in `__VERIFIER_assert`), with `-32` and `-64`, is confirmed on each of the 20 buggy tasks and on none
+  of the 14 correct ones.
+- **Runtime:** each of the 93 runs takes less than 10 ms of CPU time and at most 6 MB.
+
 ### Runtime
 
 - **CPU time:** 18.6 h in all, 97 % of it in the 694 timeouts (2.5 % of the runs; Goblint 571). The 27,235 runs that
-  end without a timeout or running out of memory take 1,846 s (median 0.00 s, 90th percentile 0.09 s); the 9,550
+  end without a timeout or running out of memory take 1,846 s (median 0.00 s, 90th percentile 0.09 s); the 9,637
   confirmations 1,068 s. Wall time 3.8 h at 5 in parallel.
 - **Out of memory:** 64 runs; 61 exceed the interpreter's limits (4 GiB of live objects, or the 32-bit address
   space), 3 NITWIT's own memory (the `forester-heap` witnesses below).

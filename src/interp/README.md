@@ -412,10 +412,11 @@ none (`RunOptions::terms`, `maxTerms` 0). Each operation records the term of its
   calls in both data models, outputs confirmed with GCC), `termination_test.cpp` (how runs end, undefined behaviour,
   limits, endless loops without effect and loops that only look like them), `inputs_test.cpp` (oracle requests,
   uninitialized reads), `jumps_test.cpp` (setjmp and longjmp in both data models: the values setjmp returns, every
-  name, the frames a longjmp ends and its events, kept values of changed locals, copied and heap jmp_bufs, setjmp in a
-  loop, each use that resumes, the dynamic objects that end, and the jumps that end the run: to a function that
-  returned, without setjmp, from other expressions, through a pointer, in a statement expression, after a variably
-  modified type, GCC's builtins) and `evaluation_context_test.cpp`.
+  name, the frames a longjmp ends (to `main`, to a frame between, out of a statement expression) and its events, kept
+  values of changed locals, copied and heap jmp_bufs, setjmp in a loop, each use that resumes, the dynamic objects that
+  end, and the jumps that end the run: to a function that returned, without setjmp, from other expressions, through a
+  pointer, in a statement expression, after a variably modified type, GCC's builtins) and
+  `evaluation_context_test.cpp`.
 - `tests/unit/interp/terms_test.cpp`, every run with the consistency check: input terms; copies (assignment,
   arguments, results, pointers, records, `?:` of records, `va_arg`); conversions (also pointers sign-extended to wider
   integers and back, results of calls through a pointer of another type); `_Bool` values (inputs, bytes of another
