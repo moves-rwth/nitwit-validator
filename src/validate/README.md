@@ -17,6 +17,7 @@ run. It decides the verdict and the exit code (`docs/exit-codes.md`).
 - `restart.hpp`: the restart loop and its two phases, with the run as a parameter, so that tests can script runs.
 - `verdict.hpp`: the verdict of the final run.
 - `concrete.hpp`: the confirming run written as a concrete witness ("Concrete witnesses").
+- `refute.hpp`: the refutation of correctness witnesses ("Correctness witnesses").
 
 ## Semantics of witness format 2.x
 
@@ -447,6 +448,29 @@ strict inputs follows it in one run without choosing a value, and so does NITWIT
   full expression (`f(__VERIFIER_nondet_int(), __VERIFIER_nondet_int())`) appear in NITWIT's order, and a validator
   that evaluates them in another order meets the waypoints in another order.
 
+## Correctness witnesses
+
+A correctness witness (format 2.x, entries `invariant_set` and no `violation_sequence`) claims that the program
+satisfies the property. A run of the program that calls the error function shows that it does not, so no correctness
+witness of it is valid, whatever its invariants say. NITWIT looks for such a run (`refute.hpp`) and never confirms a
+correctness witness.
+
+- **The runs follow no witness:** the validation of a witness whose only segment holds a target that every call of
+  the error function reaches (`ValidationOptions::anyErrorCallIsTarget`). So the inputs get the defaults, the guards
+  of the program are searched for ("Guards"), and the retry gives inputs 1 ("Defaults"); there is nothing else to
+  search for.
+- **Refuted:** a run calls the error function, and the result names the call (`REFUTED:`, exit 253). Otherwise the
+  verdict is UNKNOWN (exit 4), with the reason of the final run.
+- **Soundness** rests on the interpreter's semantics alone, as a confirmation of a violation witness does.
+- **The invariants are not read.** A witness whose invariants do not hold, of a program that satisfies the property,
+  is not refuted. Evaluating them along the runs, like the constraints of avoid waypoints, would also refute those
+  (`docs/roadmap.md`).
+- **On SV-COMP 2026** (the correctness witnesses of unreach-call without Concurrency, programs from the census
+  mirror, 10 s per program): NITWIT refutes 415 of the 3,204 buggy programs, whose 846 witnesses are all wrong, and
+  none of the 8,822 correct ones. No validator of 2026 rejected 344 of the 846, and one confirmed 11 of them. The
+  retry finds the call in 125 of the 415, where the run with inputs 0 ends without it.
+- With `--write-witness`, the refuting run is written as a concrete violation witness ("Concrete witnesses").
+
 ## Known gaps
 
 - **Values the search does not find** ("Limits of the search"). Of all SV-COMP 2026 unreach-call witnesses
@@ -519,7 +543,8 @@ strict inputs follows it in one run without choosing a value, and so does NITWIT
   retry, a read just before the end), NaN given and hinted, the check left out, and the record of the confirming run;
   oracle tests of required hints and of taking the inputs, value tests of null pointers and NaN, location tests of the
   positions a witness gives and of the statement or full expression around a call; an end-to-end test of the
-  locations a target may have.
+  locations a target may have. `refute_test.cpp`: refutations with the interpreter (by the defaults, by a guard
+  searched for, by the retry, a correct program not refuted, the run kept).
 - `tests/corpus/validate/`, label `corpus`: runs `nitwit` per witness, as a process with a timeout of 30 s, and checks
   - `testfiles/yaml-witnesses` and the 2.x witnesses in `testfiles/sv-comp-2019`: every witness confirmed, except
     those named `*.invalid`, which must not be;

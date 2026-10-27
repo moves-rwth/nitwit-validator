@@ -17,13 +17,20 @@ The one exception: NITWIT 4 reports the case of 252 as 241 (see below the table)
 | 245 | not used (3.x, format 1.0, non-strict mode: the error function was called, but the automaton is not in a violation state) | FALSE |
 | 250 | the witness reached its target, but the error function was not called | UNKNOWN |
 | 251 | out of memory | OUT OF MEMORY |
-| 252 | reserved, reported as 241: format 2.x, the error function was called, but the witness was not followed to its target | UNKNOWN in the maintainer's fork, ERROR in BenchExec 3.35 |
+| 252 | reserved, reported as 241: format 2.x, the error function was called, but the witness was not followed to its target | UNKNOWN once BenchExec has the change below, ERROR in BenchExec 3.35 |
+| 253 | a correctness witness was refuted: a run of the program, which follows no witness, called the error function (`src/validate/README.md`, "Correctness witnesses") | FALSE once BenchExec has the change below, ERROR before |
 | 255 | wrapper script `nitwit.sh`: the executable is missing (3.x's also: unsupported property, missing files) | ERROR |
 
 **252** is what 3.x exits with when the error function is called before the witness was followed to its target.
 BenchExec 3.35 maps 252 to ERROR, so NITWIT 4 exits with 241 in that case, which every version of `nitwit.py` maps to
 UNKNOWN; the result line (`FAILED: the target was not reached: ...`) still names the case. Once BenchExec maps 252 to
 UNKNOWN, NITWIT 4 will use it (`docs/roadmap.md`).
+
+**253** is new in NITWIT 4: the verdict about the program is the same as for a confirmed violation witness, a run
+that violates the property, but the witness is a correctness witness, which the run refutes. NITWIT never confirms a
+correctness witness; a program that no run refutes is UNKNOWN (4). The change of `nitwit.py` that maps 252 to UNKNOWN
+and 253 to FALSE is on the branch `nitwit-correctness-witnesses` of the maintainer's BenchExec clone, for a pull
+request to BenchExec; with an older BenchExec, 253 is ERROR.
 
 3.x also used 244, 246 to 249 for specific interpreter errors; NITWIT 4 reports those cases as 4 with a message.
 NITWIT 4 adds no codes that the BenchExec module does not know. NITWIT's own limits (restarts, call depth, the host
@@ -34,6 +41,6 @@ runs before and 2^22 more; beyond, it ends, and the verdict is that of the first
 endless loop without effect (`L: goto L;`, `while (1);`) ends after one round of it with 4, as an infeasible path
 (`src/validate/README.md`, "Verdict").
 
-The result line printed before exiting starts with `VALIDATED:` (0), `FAILED:` (241, 242, 250), `ERROR:` (2, and 3
-for a file that cannot be read) or `UNKNOWN:` (4, 251). A wrong command line (3) and a missing witness (240) print no
+The result line printed before exiting starts with `VALIDATED:` (0), `REFUTED:` (253), `FAILED:` (241, 242, 250),
+`ERROR:` (2, and 3 for a file that cannot be read) or `UNKNOWN:` (4, 251). A wrong command line (3) and a missing witness (240) print no
 result line, but the usage or "no witness given (-w)" on stderr.

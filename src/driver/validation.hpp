@@ -12,6 +12,9 @@
 
 namespace nitwit::driver {
 
+/// The exit code of a refuted correctness witness (docs/exit-codes.md), which BenchExec reports as FALSE.
+inline constexpr int exitRefuted = 253;
+
 struct ValidationCommand {
     std::string witness;
     std::string program;

@@ -30,10 +30,11 @@ nitwit --version
 - **`-v`:** prints the validation log (segments reached, restarts, why each run ended) to stderr. (NITWIT 3.x's
   `nitwit.sh -v` printed the version, which is `--version` here.)
 - **`--strict-inputs`:** accepts only the inputs that follow `function_return` waypoints give, without defaults,
-  search or restarts (`src/validate/README.md`, "Strict inputs"). It checks that a witness is concrete.
+  search or restarts (`src/validate/README.md`, "Strict inputs"). It checks that a witness is concrete. A
+  correctness witness gives no input, so with it the refutation is UNKNOWN wherever the program requests one.
 - **`--write-witness <file>`:** when the witness is confirmed, writes the confirming run as a concrete witness in
   format 2.2 to the file, after a validation of it with strict inputs confirmed it (`src/validate/README.md`,
-  "Concrete witnesses"). One line on stderr says what happened: `nitwit: wrote a concrete witness with 3 inputs to
+  "Concrete witnesses"). A refuted correctness witness gets the refuting run as a concrete violation witness. One line on stderr says what happened: `nitwit: wrote a concrete witness with 3 inputs to
   'w.yml'`, or `nitwit: no witness written:` and the reason. It comes after the result line, and neither the verdict
   nor the exit code depends on it. Writing repeats the confirming run once, within the time limit of the
   validation; the fm-tools entry does not pass the option.
@@ -67,7 +68,7 @@ sema and the interpreter all recurse on it.
 | 3. Parse, analyze, build the program | | 4 |
 | 4. Detect the witness format; parse a witness in format 2.x | a witness in format 1.0 (GraphML, not supported) | 4 |
 | | the witness cannot be parsed | 2 |
-| 5. Validate the witness (`src/validate/README.md`) | | the verdict's code |
+| 5. Validate a violation witness (`src/validate/README.md`), or, for a correctness witness (entries `invariant_set` and no `violation_sequence`), refute it ("Correctness witnesses") | | the verdict's code; for a correctness witness 253 if refuted, else 4 (251 if out of memory) |
 | 6. With `--write-witness`, after the result line: write the concrete witness (`src/validate/README.md`, "Concrete witnesses") | no witness: the reason on stderr, also when NITWIT runs out of memory | the verdict's code |
 | NITWIT itself runs out of memory (`std::bad_alloc`) in steps 1 to 5 | | 251 |
 
@@ -77,6 +78,7 @@ sema and the interpreter all recurse on it.
   constraint's text (`<constraint>:1:5: error: ...`).
 - **Result:** one final line starts with the verdict, as in 3.x:
   - `VALIDATED:` for a confirmed witness;
+  - `REFUTED:` for a refuted correctness witness, with the call of the error function that refutes it;
   - `FAILED:` when the witness was not confirmed;
   - `UNKNOWN:` for unsupported input and limits;
   - `ERROR:` for a witness that cannot be parsed (exit code 2) and files that cannot be read (3), which BenchExec

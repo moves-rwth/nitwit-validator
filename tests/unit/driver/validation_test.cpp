@@ -156,6 +156,63 @@ TEST_F(ValidationTest, StrictInputsNeedEveryValue) {
                             "__VERIFIER_nondet_int at 4:35, occurrence 0)");
 }
 
+/// A correctness witness in format 2.x; NITWIT does not read its invariants.
+constexpr std::string_view correctnessWitness = R"(- entry_type: invariant_set
+  metadata: {format_version: "2.0"}
+  content:
+  - invariant:
+      type: location_invariant
+      location: {file_name: program.c, line: 5, column: 9}
+      value: "1"
+      format: c_expression
+)";
+
+TEST_F(ValidationTest, ACorrectnessWitnessIsRefutedByARunThatCallsTheErrorFunction) {
+    command_.program = write("buggy.c", R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    if (__VERIFIER_nondet_int() == 0) {
+        reach_error();
+    }
+    return 0;
+}
+)");
+    command_.witness = write("correctness.yml", correctnessWitness);
+    EXPECT_EQ(run(), exitRefuted);
+    EXPECT_EQ(resultLine(), "REFUTED: a run of the program calls 'reach_error' at 5:9, so the program violates the "
+                            "property and no correctness witness of it is valid");
+}
+
+TEST_F(ValidationTest, ACorrectnessWitnessThatNoRunRefutesIsUnknown) {
+    // The program of the fixture calls reach_error only for the input 5, which nothing in it leads to.
+    command_.witness = write("correctness.yml", correctnessWitness);
+    EXPECT_EQ(run(), 4);
+    EXPECT_TRUE(resultLine().starts_with("UNKNOWN: no run of the program calls 'reach_error': ")) << resultLine();
+}
+
+TEST_F(ValidationTest, ARefutationWritesItsRunAsAConcreteViolationWitness) {
+    command_.program = write("buggy.c", R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    if (__VERIFIER_nondet_int() == 0) {
+        reach_error();
+    }
+    return 0;
+}
+)");
+    command_.witness = write("correctness.yml", correctnessWitness);
+    command_.witnessOutput = (directory_ / "concrete.yml").string();
+    EXPECT_EQ(run(), exitRefuted);
+    EXPECT_EQ(log_.str(),
+              std::format("nitwit: wrote a concrete witness with 1 input to '{}'\n", command_.witnessOutput));
+    ValidationCommand strict = command_;
+    strict.witness = command_.witnessOutput;
+    strict.witnessOutput.clear();
+    strict.strictInputs = true;
+    command_ = strict;
+    EXPECT_EQ(run(), 0) << output_.str();
+}
+
 TEST_F(ValidationTest, AWitnessThatIsNotConfirmedFails) {
     command_.errorFunction = "__VERIFIER_error";
     EXPECT_EQ(run(), 250);

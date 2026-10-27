@@ -108,9 +108,9 @@ std::string describeInput(value::InputId id, const ProvidedInput& input, const P
 
 SegmentMonitor::SegmentMonitor(const witness::ViolationSequence& witness, const ProgramInput& program,
                                const std::string& errorFunction, ConstraintCompiler& constraints, WitnessOracle& oracle,
-                               std::ostream* log, std::size_t keptAtoms, bool strictInputs)
+                               std::ostream* log, std::size_t keptAtoms, bool strictInputs, bool anyErrorCallIsTarget)
     : segments_(witness.segments), program_(program), errorFunction_(errorFunction), constraints_(constraints),
-      oracle_(oracle), log_(log), isStrict_(strictInputs),
+      oracle_(oracle), log_(log), isStrict_(strictInputs), isAnyErrorCallTarget_(anyErrorCallIsTarget),
       locations_(program.sources, program.file, program.originalFile, program.unit),
       guards_(program.unit, errorFunction), kept_(keptAtoms) {
     NITWIT_ASSERT(!segments_.empty(), "a violation sequence without segments");
@@ -240,7 +240,8 @@ interp::Directive SegmentMonitor::afterArguments(const interp::CallEvent& event,
         const SourceLocation start = event.call->location();
         errorCall_ = event.call;
         isAtTarget_ = isTargetSegmentCurrent()
-                      && (target_.contains(start) || target_.contains(locations_.enclosingStart(event.call)));
+                      && (isAnyErrorCallTarget_ || target_.contains(start)
+                          || target_.contains(locations_.enclosingStart(event.call)));
         const bool isElsewhere = isTargetSegmentCurrent() && !isAtTarget_;
         return stop(State::ErrorCalled, std::format("'{}' was called at {} in segment {} of {}{}", errorFunction_,
                                                     locations_.describe(start), current_ + 1, segmentCount(),
