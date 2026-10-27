@@ -27,7 +27,10 @@ the inputs it gives (`src/validate/README.md`, "Concrete witnesses" and "Strict 
 
 - **Property:** `unreach-call`. Any other property gives UNKNOWN (exit 4).
 - **Witnesses:** violation witnesses in format 2.x (YAML; SV-COMP 2026 uses 2.0 and 2.1). Witnesses with `cycle`
-  waypoints or a `thread_id` other than 0 give UNKNOWN, and so do witnesses in format 1.0 (GraphML).
+  waypoints or a `thread_id` other than 0 give UNKNOWN, and so do witnesses in format 1.0 (GraphML). Correctness
+  witnesses in format 2.x are refuted where a run of the program, which follows no witness, calls the error function
+  (`REFUTED:`, exit 253), and are UNKNOWN otherwise: NITWIT reads none of their invariants and never confirms one
+  (`src/validate/README.md`, "Correctness witnesses").
 - **Data models:** ILP32 (`-32`, the default) and LP64 (`-64`), with the types, layouts and arithmetic of GCC on i386
   and x86-64.
 - **C:** C17 with the GNU extensions that sv-benchmarks uses (`src/parse/README.md`), pre-C99 code (implicit `int`,

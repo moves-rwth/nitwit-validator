@@ -171,6 +171,8 @@ yaml-cpp 0.8.0 (witness), pugixml 1.15 (witness).
   that gives every input by a `function_return` waypoint; unless `--no-witness-check` leaves the check out, it is
   written only if a validation of it that accepts no other inputs (strict inputs) confirms it
   (`src/validate/README.md`, "Concrete witnesses").
+- **Correctness witnesses** are refuted by a run that calls the error function: the validation of a witness with only
+  a target, which any call of the error function reaches (`src/validate/README.md`, "Correctness witnesses").
 
 ### Errors
 

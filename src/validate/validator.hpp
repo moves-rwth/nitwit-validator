@@ -78,6 +78,9 @@ struct ValidationOptions {
     /// defaults, no search, no restarts and no retry. An input that the witness does not give makes the verdict
     /// Unsupported. A concrete witness of NITWIT is confirmed this way (concrete.hpp).
     bool strictInputs = false;
+    /// Every call of the error function in the target segment is at the target, wherever the target is: the
+    /// refutation of correctness witnesses (refute.hpp) follows no witness.
+    bool anyErrorCallIsTarget = false;
     /// Where to keep the inputs and the error call of the run that confirms, if one does; null for nowhere.
     ConfirmingRun* confirmingRun = nullptr;
     /// Progress of the validation (segments reached, restarts, why a run ended); null for none.

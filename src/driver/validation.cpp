@@ -1,5 +1,6 @@
 #include "driver/validation.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <expected>
 #include <filesystem>
@@ -14,6 +15,7 @@
 
 #include "driver/frontend.hpp"
 #include "validate/concrete.hpp"
+#include "validate/refute.hpp"
 #include "validate/validator.hpp"
 #include "witness/parse.hpp"
 
@@ -34,6 +36,18 @@ std::optional<std::string> readFile(const std::string& path) {
 int finish(std::ostream& out, std::string_view outcome, std::string_view reason, int exitCode) {
     std::println(out, "{}: {}", outcome, reason);
     return exitCode;
+}
+
+// docs/exit-codes.md: a refuted correctness witness is 253, BenchExec's FALSE; the program not refuted is UNKNOWN.
+int finishRefutation(std::ostream& out, const validate::ValidationResult& result) {
+    switch (result.verdict) {
+    case validate::Verdict::Confirmed:
+        return finish(out, "REFUTED", result.message, exitRefuted);
+    case validate::Verdict::OutOfMemory:
+        return finish(out, "UNKNOWN", result.message, validate::exitCode(result));
+    default:
+        return finish(out, "UNKNOWN", result.message, 4);
+    }
 }
 
 std::string_view outcomeOf(validate::Verdict verdict) {
@@ -166,11 +180,19 @@ int runSteps(const ValidationCommand& command, std::ostream& out, std::ostream& 
     if (!command.witnessOutput.empty()) {
         options.confirmingRun = &confirming;
     }
-    const validate::ValidationResult result = validate::validate(*witness, input, options, diagnostics);
+    // A correctness witness can only be refuted, by a run that calls the error function (validate/README.md,
+    // "Correctness witnesses"); its invariants are not read.
+    const bool isCorrectnessWitness =
+        witness->violationSequences.empty() && std::ranges::contains(witness->otherEntryTypes, "invariant_set");
+    const validate::ValidationResult result = isCorrectnessWitness
+                                                  ? validate::refute(input, options, diagnostics)
+                                                  : validate::validate(*witness, input, options, diagnostics);
     for (const Diagnostic& diagnostic : diagnostics.diagnostics()) {
         std::println(out, "{}", diagnostics.format(diagnostic));
     }
-    const int exitCode = finish(out, outcomeOf(result.verdict), result.message, validate::exitCode(result));
+    const int exitCode = isCorrectnessWitness
+                             ? finishRefutation(out, result)
+                             : finish(out, outcomeOf(result.verdict), result.message, validate::exitCode(result));
     if (!command.witnessOutput.empty()) {
         out.flush(); // the result first: writing the concrete witness takes another run
         options.log = nullptr;
@@ -178,6 +200,8 @@ int runSteps(const ValidationCommand& command, std::ostream& out, std::ostream& 
         try {
             const std::string written = result.verdict == validate::Verdict::Confirmed
                                             ? writeConcreteWitness(command, input, options, confirming)
+                                        : isCorrectnessWitness
+                                            ? std::string("no witness written: no run called the error function")
                                             : std::string("no witness written: the witness was not confirmed");
             std::println(log, "nitwit: {}", written);
         } catch (const std::bad_alloc&) {

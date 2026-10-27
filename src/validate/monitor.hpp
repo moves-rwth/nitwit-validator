@@ -39,10 +39,12 @@ public:
     /// `witness` must have passed unsupportedFeature(). The monitor keeps references to all arguments. A run keeps
     /// clauses with at most `keptAtoms` atoms for the search. With `strictInputs` (validate/README.md, "Strict
     /// inputs"), the oracle must require hints: only follow waypoints give hints, nothing is searched for, and the run
-    /// stops at the first event after an input that no hint gave.
+    /// stops at the first event after an input that no hint gave. With `anyErrorCallIsTarget`, every call of the error
+    /// function in the target segment is at the target (ValidationOptions::anyErrorCallIsTarget).
     SegmentMonitor(const witness::ViolationSequence& witness, const ProgramInput& program,
                    const std::string& errorFunction, ConstraintCompiler& constraints, WitnessOracle& oracle,
-                   std::ostream* log, std::size_t keptAtoms, bool strictInputs = false);
+                   std::ostream* log, std::size_t keptAtoms, bool strictInputs = false,
+                   bool anyErrorCallIsTarget = false);
 
     /// Why the witness cannot be followed in this program, found when the monitor was built (validate/README.md,
     /// "Evaluation points"): a waypoint other than the target without evaluation point of its type, or in another
@@ -154,6 +156,7 @@ private:
     WitnessOracle& oracle_;
     std::ostream* log_;
     bool isStrict_;
+    bool isAnyErrorCallTarget_;
     LocationMap locations_;
     GuardFinder guards_;
     // Per segment: the indices of its waypoints by event type and offset, so that an event costs one lookup also for

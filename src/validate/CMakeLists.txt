@@ -6,6 +6,7 @@ nitwit_add_module(validate
         location.cpp
         monitor.cpp
         oracle.cpp
+        refute.cpp
         restart.cpp
         search.cpp
         support_check.cpp

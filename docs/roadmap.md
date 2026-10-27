@@ -56,10 +56,20 @@ of a loop condition (42), real undefined behaviour (29, verifythis) and test-to-
 **Not recommended:** reading a follow waypoint as passing at a later evaluation, as UAutomizer and Witch do, would
 confirm up to 100 more witnesses, but `validation-crafted` requires the first evaluation.
 
-## Exit code 252
+## Exit codes 252 and 253
 
 NITWIT reports the error function called before the target as 241, because BenchExec 3.35 maps 252 to ERROR
-(`docs/exit-codes.md`). Once BenchExec maps 252 to UNKNOWN, NITWIT exits with 252, as 3.x does.
+(`docs/exit-codes.md`). The change of BenchExec's `nitwit.py` that maps 252 to UNKNOWN and 253, a refuted correctness
+witness, to FALSE waits for its pull request. Once a BenchExec release has it, NITWIT exits with 252, as 3.x does;
+until then, 253 is ERROR, and a refutation scores nothing.
+
+## Invariants of correctness witnesses
+
+NITWIT refutes a correctness witness only by a run that calls the error function (`src/validate/README.md`,
+"Correctness witnesses"). Evaluating the witness's location and loop invariants along the runs would also refute
+witnesses with invariants that do not hold, also of correct programs; the search could look for inputs that make an
+invariant false, as it does for an avoid waypoint that passes. That needs a reader for `invariant_set` entries (format
+2.x, location and loop invariants first).
 
 ## Later
 
