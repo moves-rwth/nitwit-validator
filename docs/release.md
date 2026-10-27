@@ -66,7 +66,7 @@ best. Without `-32` or `-64`, the executable's name selects the data model: `bin
 The tool-info module `benchexec/tools/nitwit.py`:
 
 - requires `bin/nitwit32` and `bin/nitwit64` next to `nitwit.sh`;
-- takes the version from `nitwit.sh --version`, which prints only the version, e.g. `4.1.0`;
+- takes the version from `nitwit.sh --version`, which prints only the version, e.g. `4.2.0`;
 - runs `nitwit.sh <options> -p <property> -32 -w <witness> <program>`, with `-64` instead of `-32` for LP64 tasks.
   `nitwit.sh` passes all arguments unchanged to `bin/nitwit32`, which reads `-32` and `-64` itself, from any working
   directory. `bin/nitwit64` is only there for `REQUIRED_PATHS` and direct calls;
@@ -122,7 +122,7 @@ system's shared library, not part of the archive. Keep `release/THIRD-PARTY.md` 
 
 1. Set the version in `CMakeLists.txt` (`project(nitwit VERSION ...)`); `nitwit --version` and the name of the
    archive follow it.
-2. Commit, and tag the commit with the version (e.g. `4.1.0`, like the earlier tags).
+2. Commit, and tag the commit with the version (e.g. `4.2.0`, like the earlier tags).
 3. Build the archive with `tools/package.sh` from the tag, in a checkout where git works (see "Building it").
 4. Check that `licenses/VERSIONS` in the archive names the tagged commit, without " with local changes".
 5. Upload exactly this one zip file to Zenodo, as a new version of NITWIT's record.
