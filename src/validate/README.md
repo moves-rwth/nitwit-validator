@@ -74,6 +74,10 @@ from 1. A column 0 or beyond the end of the line (one past its text still counts
   empty block has no evaluation point, and neither has a block whose first statement has a label (`L:`, `case`,
   `default`, also the body of a `switch`): a jump enters it there without passing the `{`.
 - **Labels:** the interpreter reports a statement event for a label (or `case`) and again for the statement it labels.
+- **Non-local jumps** (`interp/README.md`, "Non-local jumps"): a function that a longjmp leaves does not return, so a
+  `function_return` waypoint at its call is not evaluated there. The setjmp call returns again, with longjmp's value:
+  the `function_return` waypoints at it and the branchings of the rest of its statement are evaluated again, its
+  assumptions not, since the statement does not start again.
 - **Preprocessed programs** (NITWIT ran `cpp`): lines are presumed lines of the original file. `cpp` expands macros,
   replaces comments by a blank and collapses runs of blanks, which moves the text after them. A column is therefore
   only used where the `cpp` line and the original line agree byte for byte up to and including it, a blank agreeing
@@ -391,9 +395,10 @@ segment:
   a guard: a loop that reads a new input and assumes something of it in every iteration (the `hardness` programs on
   which test-to-witness's witnesses run) takes a restart per iteration and can reach the limit, as can a program with
   many assumptions that the default values break one by one (xcsp).
-- **Unsupported constructs** of the interpreter end a run with exit 4: threads (`pthread_create`), `setjmp`/`longjmp`,
-  files, signals, `atexit`, the `scanf` family, inline assembly, arithmetic on complex values and the others listed in
-  `interp/README.md` ("Library") and `sema/README.md`.
+- **Unsupported constructs** of the interpreter end a run with exit 4: threads (`pthread_create`), a longjmp to a
+  setjmp that the interpreter cannot resume (`interp/README.md`, "Non-local jumps"), files, signals, `atexit`, the
+  `scanf` family, inline assembly, arithmetic on complex values and the others listed in `interp/README.md`
+  ("Library") and `sema/README.md`.
 - Long runs can exhaust the host's memory before the interpreter's memory limit; the driver then reports exit code
   251. The tables that would grow with the length of a run are bounded. A run that requests inputs without end stays
   bounded in the validator: the oracle records the first `TermLimits::maxInputs` requests of a run (112 bytes each, at
@@ -415,8 +420,10 @@ segment:
   `RunOptions::checkTerms`), so with the search: a constraint on a computed value, a loop counter, the input check of
   RERS, the result of a defined function, avoided switch cases and narrowing conversions, a NaN input, truth values in
   `unsigned char` combined with `&`, guards (`assume_abort_if_not` searched for, a follow and an avoid waypoint at
-  its `if`, `__VERIFIER_assume`, `exit` and `_Exit`, the program's own `abort`) and the retry (searching, its budget,
-  after a waypoint on the opaque term); `guard_test.cpp` which `if` statements are guards;
+  its `if`, `__VERIFIER_assume`, `exit` and `_Exit`, the program's own `abort`), the retry (searching, its budget,
+  after a waypoint on the opaque term) and longjmp (a witness followed across one, the search for its value, a function
+  it leaves, a local changed before it in sv-benchmarks' `poison-reduced_true`); `guard_test.cpp` which `if`
+  statements are guards;
   `search_test.cpp` the search on term tables built by hand, one test per rule (inversion through every invertible
   operation, candidates and their order, the special values of each format and when they are tried, the negation of a
   floating comparison, kept clauses and their index, repairs, unknown atoms, `&&`, `||` and `?:`, `&` and `|` of truth
