@@ -21,20 +21,6 @@ namespace nitwit::validate {
 
 namespace {
 
-// "input 3 (the call of __VERIFIER_nondet_int at 7:35, occurrence 0)", for the log. A call is located at its `)`,
-// as in witnesses; reads in constraints are located in the constraint's text.
-std::string describeInput(value::InputId id, const ProvidedInput& input, const ProgramInput& program,
-                          const SegmentMonitor& monitor) {
-    const std::string site = input.function != nullptr ? std::format("the call of {}", input.function->name().text())
-                                                       : std::string("the read");
-    const auto* call = ast::dyn_cast<ast::CallExpr>(input.key.site);
-    const SourceLocation location = call != nullptr ? call->rightParenLocation() : input.key.site->location();
-    const std::string where =
-        location.file == program.file ? monitor.locations().describe(location) : program.sources.describe(location);
-    return std::format("input {} ({} at {}, occurrence {})", static_cast<std::uint32_t>(id), site, where,
-                       input.key.occurrence);
-}
-
 // Each waypoint needs a restart where the search predicts its outcome, and some a few more where a prediction fails or
 // a later waypoint changes an input that an earlier one needs (a loop counter needs one per iteration); 16 more cover
 // witnesses with few waypoints. The hard cap bounds the runs of long witnesses.
@@ -105,7 +91,7 @@ PhaseEnd runPhase(const Runs& runs, std::uint32_t firstRun, std::optional<std::u
             const ProvidedInput& input = runs.oracle.input(change.input);
             if (runs.options.log != nullptr) {
                 std::println(*runs.options.log, "run {}: fixing {} to {} ({})", run,
-                             describeInput(change.input, input, runs.program, monitor),
+                             describeInput(change.input, input, runs.program, monitor.locations()),
                              toString(runs.program.context, change.value, input.type), nameOf(change.method));
             }
             runs.oracle.fix(input.key, change.value);
@@ -129,8 +115,35 @@ bool isRetried(const ValidationResult& verdict, const SegmentMonitor& monitor, c
         || (monitor.state() == SegmentMonitor::State::ErrorCalled && !monitor.isAtTarget())
         || (monitor.state() == SegmentMonitor::State::Restart && monitor.isAtGuard())
         || (monitor.state() == SegmentMonitor::State::Rejected && monitor.isBeyondSearch());
-    return verdict.verdict != Verdict::Confirmed && options.retryDefaultInput
+    return verdict.verdict != Verdict::Confirmed && !options.strictInputs && options.retryDefaultInput
            && *options.retryDefaultInput != options.defaultInput && oracle.gaveDefault() && leftNothingToSearch;
+}
+
+/// validate/README.md, "Strict inputs": a run that took an input the witness did not give is Unsupported, also where
+/// it ended before the monitor saw another event (an uninitialized read just before the end of main).
+ValidationResult withGivenInputs(ValidationResult verdict, const WitnessOracle& oracle, const SegmentMonitor& monitor,
+                                 const ProgramInput& program) {
+    const auto& ungiven = oracle.firstUngiven();
+    if (!ungiven || verdict.verdict == Verdict::Unsupported) {
+        return verdict;
+    }
+    verdict.verdict = Verdict::Unsupported;
+    verdict.message = std::format("the witness does not give the value of {}",
+                                  describeInput(ungiven->first, ungiven->second, program, monitor.locations()));
+    return verdict;
+}
+
+/// The inputs and the error call of the final run, which confirmed.
+ConfirmingRun confirmingRunOf(const WitnessOracle& oracle, const SegmentMonitor& monitor) {
+    ConfirmingRun run{.inputs = {},
+                      .requests = oracle.requestCount(),
+                      .errorCall = monitor.errorCall(),
+                      .firstUndefined = monitor.firstUndefined()};
+    run.inputs.reserve(oracle.inputCount());
+    for (std::size_t i = 0; i < oracle.inputCount(); ++i) {
+        run.inputs.push_back(oracle.input(static_cast<value::InputId>(i)));
+    }
+    return run;
 }
 
 /// The retry phase after the first phase ended in `first`, and never more: a validation like the first phase with
@@ -204,8 +217,11 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
     }
     ConstraintCompiler constraints(program, diagnostics);
     WitnessOracle oracle(program.context, options.defaultInput, options.run.terms.maxInputs());
+    if (options.strictInputs) {
+        oracle.requireHints();
+    }
     SegmentMonitor monitor(witness.violationSequences.front(), program, options.errorFunction, constraints, oracle,
-                           options.log, options.maxKeptAtoms);
+                           options.log, options.maxKeptAtoms, options.strictInputs);
     if (const std::optional<std::string>& inconsistency = monitor.inconsistency()) {
         return {.verdict = Verdict::Unsupported,
                 .message = "the witness does not fit the program: " + *inconsistency,
@@ -223,10 +239,17 @@ ValidationResult validateWithRuns(const witness::YamlWitness& witness, const Pro
                     .monitor = monitor,
                     .maxRestarts = restartLimit(options, waypoints)};
     PhaseEnd first = runPhase(runs, 1, std::nullopt);
-    if (isRetried(first.verdict, monitor, oracle, options)) {
-        return retryWithOtherDefaults(runs, std::move(first), diagnostics);
+    ValidationResult verdict = isRetried(first.verdict, monitor, oracle, options)
+                                   ? retryWithOtherDefaults(runs, std::move(first), diagnostics)
+                                   : std::move(first.verdict);
+    if (options.strictInputs) {
+        verdict = withGivenInputs(std::move(verdict), oracle, monitor, program);
     }
-    return std::move(first.verdict);
+    // The oracle and the monitor still hold the final run, which is the one that confirmed.
+    if (verdict.verdict == Verdict::Confirmed && options.confirmingRun != nullptr) {
+        *options.confirmingRun = confirmingRunOf(oracle, monitor);
+    }
+    return verdict;
 }
 
 } // namespace nitwit::validate

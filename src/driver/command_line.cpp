@@ -54,6 +54,17 @@ std::expected<CommandLine, int> parseCommandLine(std::span<const std::string_vie
         } else if (argument == "-v") {
             isValidation = true;
             validation.verbose = true;
+        } else if (argument == "--strict-inputs") {
+            isValidation = true;
+            isRight = !validation.strictInputs;
+            validation.strictInputs = true;
+        } else if (argument == "--write-witness") {
+            isValidation = true;
+            isRight = takeValue(i, validation.witnessOutput);
+        } else if (argument == "--no-witness-check") {
+            isValidation = true;
+            isRight = validation.checksWitness;
+            validation.checksWitness = false;
         } else if (argument == "-32" || argument == "-64") {
             isRight = !hasDataModel;
             hasDataModel = true;
@@ -73,7 +84,9 @@ std::expected<CommandLine, int> parseCommandLine(std::span<const std::string_vie
     const bool hasBothSources = !validation.propertyFile.empty() && !validation.errorFunction.empty();
     const bool hasReplayOptionsOnly =
         (!replay.inputLog.empty() || replay.terms != ReplayOptions::Terms::None) && !isReplay;
-    if (program.empty() || (isReplay && isValidation) || hasBothSources || hasReplayOptionsOnly) {
+    const bool hasCheckWithoutWitness = !validation.checksWitness && validation.witnessOutput.empty();
+    if (program.empty() || (isReplay && isValidation) || hasBothSources || hasReplayOptionsOnly
+        || hasCheckWithoutWitness) {
         return std::unexpected(exitUsage);
     }
     if (isReplay) {

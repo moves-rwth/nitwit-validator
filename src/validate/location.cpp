@@ -422,4 +422,21 @@ std::string LocationMap::describe(SourceLocation location) const {
     return std::format("{}:{}", presumed.line, position.column);
 }
 
+std::optional<LineColumn> LocationMap::witnessPosition(SourceLocation location) const {
+    if (location.file != file_) {
+        return std::nullopt;
+    }
+    const LineColumn position = sources_.lineColumn(location);
+    if (originalFile_ == FileId::None) {
+        return position;
+    }
+    const PresumedLocation presumed = sources_.presumed(location);
+    const bool isUnchanged =
+        position.line >= 1 && position.line <= agreeing_.size() && position.column <= agreeing_[position.line - 1];
+    if (presumed.fileName != sources_.name(originalFile_) || !isUnchanged) {
+        return std::nullopt;
+    }
+    return LineColumn{.line = presumed.line, .column = position.column};
+}
+
 } // namespace nitwit::validate

@@ -208,6 +208,13 @@ TEST_F(ProgramLocationTest, DescribeGivesLineAndColumn) {
     EXPECT_EQ(LocationMap(sources_, file_, FileId::None, unit()).describe(position(5, 17)), "5:17");
 }
 
+TEST_F(ProgramLocationTest, AWitnessPositionIsTheLineAndColumnOfTheFile) {
+    const LocationMap map(sources_, file_, FileId::None, unit());
+    EXPECT_EQ(map.witnessPosition(position(5, 17)), (LineColumn{.line = 5, .column = 17}));
+    const FileId other = sources_.addFile("other.c", std::string(source));
+    EXPECT_EQ(map.witnessPosition({other, position(5, 17).offset}), std::nullopt);
+}
+
 // prog.c and the output of cpp for it, with an included header. The second if in line 6 stands for a macro expansion,
 // which makes the line longer than the original.
 class PreprocessedLocationTest : public LocationTest {
@@ -255,6 +262,12 @@ TEST_F(PreprocessedLocationTest, DescribeGivesPresumedLines) {
     EXPECT_EQ(LocationMap(sources_, file_, original_, unit()).describe(position(3, 18)), "h.h:1:18");
 }
 
+TEST_F(PreprocessedLocationTest, AWitnessPositionIsInAPresumedLineOfTheOriginalFile) {
+    const LocationMap map(sources_, file_, original_, unit());
+    EXPECT_EQ(map.witnessPosition(position(6, 16)), (LineColumn{.line = 3, .column = 16}));
+    EXPECT_EQ(map.witnessPosition(position(3, 18)), std::nullopt); // in h.h
+}
+
 // A line that cpp changed: the tab became a blank, the macro its value, and the run of blanks one blank. Line 3 agrees
 // with the original up to column 23, before `ONE`.
 class ChangedLineLocationTest : public LocationTest {
@@ -296,6 +309,12 @@ TEST_F(ChangedLineLocationTest, DescribeGivesOriginalColumnsOnly) {
     const LocationMap map(sources_, file_, original_, unit());
     EXPECT_EQ(map.describe(position(4, 13)), "3:13");
     EXPECT_EQ(map.describe(position(4, 27)), "3 (column 27 after preprocessing)");
+}
+
+TEST_F(ChangedLineLocationTest, AWitnessCannotGiveAPositionAfterTheChange) {
+    const LocationMap map(sources_, file_, original_, unit());
+    EXPECT_EQ(map.witnessPosition(position(4, 13)), (LineColumn{.line = 3, .column = 13}));
+    EXPECT_EQ(map.witnessPosition(position(4, 27)), std::nullopt);
 }
 
 } // namespace

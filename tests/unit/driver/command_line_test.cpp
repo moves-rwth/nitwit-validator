@@ -36,6 +36,22 @@ TEST(CommandLineTest, AValidation) {
     EXPECT_TRUE(parsed->validation->verbose);
 }
 
+TEST(CommandLineTest, StrictInputsAndAConcreteWitness) {
+    const auto parsed = parse({"-w", "w.yml", "--strict-inputs", "--write-witness", "out.yml", "prog.c"});
+    ASSERT_TRUE(parsed.has_value()) << parsed.error();
+    ASSERT_TRUE(parsed->validation.has_value());
+    EXPECT_TRUE(parsed->validation->strictInputs);
+    EXPECT_EQ(parsed->validation->witnessOutput, "out.yml");
+    EXPECT_TRUE(parsed->validation->checksWitness);
+    const auto plain = parse({"-w", "w.yml", "prog.c"});
+    ASSERT_TRUE(plain.has_value());
+    EXPECT_FALSE(plain->validation->strictInputs);
+    EXPECT_EQ(plain->validation->witnessOutput, "");
+    const auto unchecked = parse({"-w", "w.yml", "--write-witness", "out.yml", "--no-witness-check", "prog.c"});
+    ASSERT_TRUE(unchecked.has_value());
+    EXPECT_FALSE(unchecked->validation->checksWitness);
+}
+
 TEST(CommandLineTest, LongOptionsAndTheDefaultDataModel) {
     const auto parsed = parse({"prog.c", "--witness", "w.yml", "--error-function", "fail"});
     ASSERT_TRUE(parsed.has_value()) << parsed.error();
@@ -138,6 +154,12 @@ TEST(CommandLineTest, WrongCommandLinesGive3) {
     EXPECT_EQ(exitOf({"-x", "-w", "w.yml", "prog.c"}), exitUsage);
     EXPECT_EQ(exitOf({"--replay", "in.txt", "-w", "w.yml", "prog.c"}), exitUsage);
     EXPECT_EQ(exitOf({"--input-log", "log.txt", "-w", "w.yml", "prog.c"}), exitUsage);
+    // Validation options with a replay; --write-witness without its value.
+    EXPECT_EQ(exitOf({"--replay", "in.txt", "--strict-inputs", "prog.c"}), exitUsage);
+    EXPECT_EQ(exitOf({"--replay", "in.txt", "--write-witness", "out.yml", "prog.c"}), exitUsage);
+    EXPECT_EQ(exitOf({"-w", "w.yml", "prog.c", "--write-witness"}), exitUsage);
+    // --no-witness-check without --write-witness.
+    EXPECT_EQ(exitOf({"-w", "w.yml", "--no-witness-check", "prog.c"}), exitUsage);
 }
 
 TEST(CommandLineTest, OptionsGivenTwiceGive3) {
@@ -148,6 +170,10 @@ TEST(CommandLineTest, OptionsGivenTwiceGive3) {
     EXPECT_EQ(exitOf({"-w", "w.yml", "-p", "a.prp", "-p", "b.prp", "prog.c"}), exitUsage);
     EXPECT_EQ(exitOf({"-w", "w.yml", "-e", "f", "-e", "g", "prog.c"}), exitUsage);
     EXPECT_EQ(exitOf({"--replay", "a.txt", "--replay", "b.txt", "prog.c"}), exitUsage);
+    EXPECT_EQ(exitOf({"-w", "w.yml", "--strict-inputs", "--strict-inputs", "prog.c"}), exitUsage);
+    EXPECT_EQ(exitOf({"-w", "w.yml", "--write-witness", "a.yml", "--write-witness", "b.yml", "prog.c"}), exitUsage);
+    EXPECT_EQ(exitOf({"-w", "w.yml", "--write-witness", "a.yml", "--no-witness-check", "--no-witness-check", "prog.c"}),
+              exitUsage);
 }
 
 } // namespace

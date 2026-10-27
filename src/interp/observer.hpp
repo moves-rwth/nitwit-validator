@@ -9,6 +9,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 
 #include "ast/decl.hpp"
 #include "ast/expr.hpp"
@@ -90,6 +91,9 @@ public:
     virtual Directive onUndefinedBehavior(value::UndefinedBehavior kind, const ast::Expr* expr,
                                           EvaluationContext& context) = 0;
 };
+
+/// What the undefined behaviour is, for messages (events.cpp).
+[[nodiscard]] std::string_view describe(value::UndefinedBehavior kind);
 
 /// An observer that observes nothing, for replay runs.
 class NullObserver final : public ExecutionObserver {

@@ -10,12 +10,16 @@
 #include <optional>
 #include <ostream>
 #include <string>
+#include <vector>
 
 #include "ast/context.hpp"
 #include "ast/decl.hpp"
+#include "ast/expr.hpp"
 #include "interp/interpreter.hpp"
 #include "support/diagnostics.hpp"
 #include "support/source_manager.hpp"
+#include "validate/oracle.hpp"
+#include "value/arithmetic.hpp"
 #include "witness/model.hpp"
 
 namespace nitwit::validate {
@@ -31,6 +35,22 @@ struct ProgramInput {
     ast::AstContext& context;
     const ast::TranslationUnit& unit;
     std::shared_ptr<const interp::Program> program;
+};
+
+/// Undefined behaviour that a run continued after (interp/observer.hpp, ExecutionObserver::onUndefinedBehavior).
+struct UndefinedOperation {
+    value::UndefinedBehavior kind = value::UndefinedBehavior::None;
+    const ast::Expr* expr = nullptr;
+};
+
+/// The run that confirmed a witness, for writing it as a concrete witness (concrete.hpp).
+struct ConfirmingRun {
+    /// The recorded requests in request order: all of them, unless `requests` is greater (WitnessOracle).
+    std::vector<ProvidedInput> inputs;
+    std::size_t requests = 0;
+    const ast::CallExpr* errorCall = nullptr;
+    /// The first undefined behaviour in the program that the run continued after, if any.
+    std::optional<UndefinedOperation> firstUndefined;
 };
 
 struct ValidationOptions {
@@ -54,6 +74,12 @@ struct ValidationOptions {
     /// true makes a run endless: 2^22, about 0.3 s, or 2 s in a loop that requests inputs in every round (2^24 took
     /// 7.4 s in stateful_check).
     std::uint64_t retryExtraEvents = std::uint64_t{1} << 22;
+    /// Accept only the inputs that follow function_return waypoints give (validate/README.md, "Strict inputs"): no
+    /// defaults, no search, no restarts and no retry. An input that the witness does not give makes the verdict
+    /// Unsupported. A concrete witness of NITWIT is confirmed this way (concrete.hpp).
+    bool strictInputs = false;
+    /// Where to keep the inputs and the error call of the run that confirms, if one does; null for nowhere.
+    ConfirmingRun* confirmingRun = nullptr;
     /// Progress of the validation (segments reached, restarts, why a run ended); null for none.
     std::ostream* log = nullptr;
 };

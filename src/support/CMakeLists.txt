@@ -4,6 +4,7 @@ nitwit_add_module(support
         diagnostics.cpp
         interner.cpp
         large_stack.cpp
+        sha256.cpp
         source_manager.cpp
         target.cpp)
 

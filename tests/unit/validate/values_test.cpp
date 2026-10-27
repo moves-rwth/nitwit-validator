@@ -134,11 +134,34 @@ TEST_F(ValuesTest, AnInputIsChosenThroughTheConversionToTheSubjectsType) {
         "27");
 }
 
-TEST_F(ValuesTest, PointersAreNotChosen) {
+TEST_F(ValuesTest, OnlyTheNullPointerIsChosenForAPointer) {
     const ast::QualType pointer = context_.pointerTo(type(ast::BuiltinKind::Int));
-    const Bound bound{
+    const value::Value null = value::Value::integer(0, {.bits = 32, .isSigned = false});
+    const value::Value other = value::Value::integer(16, {.bits = 32, .isSigned = false});
+    const std::optional<value::Value> chosen =
+        choose(context_, std::vector<Bound>{{.op = Comparison::Equal, .constant = null, .type = pointer}}, pointer);
+    ASSERT_TRUE(chosen.has_value());
+    EXPECT_EQ(chosen->bits(), 0u);
+    EXPECT_EQ(
+        choose(context_, std::vector<Bound>{{.op = Comparison::Equal, .constant = other, .type = pointer}}, pointer),
+        std::nullopt);
+    EXPECT_EQ(
+        choose(context_, std::vector<Bound>{{.op = Comparison::NotEqual, .constant = null, .type = pointer}}, pointer),
+        std::nullopt);
+    // A comparison in an integer type is no comparison of the pointer.
+    const Bound integer{
         .op = Comparison::Equal, .constant = number(0, ast::BuiltinKind::Int), .type = type(ast::BuiltinKind::Int)};
-    EXPECT_EQ(choose(context_, std::vector{bound}, pointer), std::nullopt);
+    EXPECT_EQ(choose(context_, std::vector{integer}, pointer), std::nullopt);
+}
+
+TEST_F(ValuesTest, TheNanOfAFloatingTypeIsQuiet) {
+    for (const ast::BuiltinKind kind :
+         {ast::BuiltinKind::Float, ast::BuiltinKind::Double, ast::BuiltinKind::LongDouble}) {
+        const std::optional<value::Value> nan = nanOf(context_, type(kind));
+        ASSERT_TRUE(nan.has_value());
+        EXPECT_EQ(toString(context_, *nan, type(kind)), "nan");
+    }
+    EXPECT_EQ(nanOf(context_, type(ast::BuiltinKind::Int)), std::nullopt);
 }
 
 TEST_F(ValuesTest, ConversionsFollowC) {

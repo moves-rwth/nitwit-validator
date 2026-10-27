@@ -19,6 +19,9 @@ struct ValidationCommand {
     std::string errorFunction; // empty if not given; then from the property file, else reach_error
     DataModel dataModel = DataModel::ILP32;
     bool verbose = false;
+    bool strictInputs = false; // --strict-inputs: validate::ValidationOptions::strictInputs
+    std::string witnessOutput; // --write-witness: where to write the concrete witness; empty if not given
+    bool checksWitness = true; // false with --no-witness-check: validate::ConcreteTask::check
 };
 
 /// The error function of an unreach-call property, e.g. "reach_error" for
@@ -26,7 +29,8 @@ struct ValidationCommand {
 [[nodiscard]] std::optional<std::string> errorFunctionOf(std::string_view property);
 
 /// Runs the steps of driver/README.md. Diagnostics and the result line go to `out`, the validation log (with
-/// `verbose`) to `log`. Returns the exit code. Call it on a large stack.
+/// `verbose`) and the line about the concrete witness (with `witnessOutput`) to `log`. Returns the exit code, which
+/// writing the concrete witness does not change. Call it on a large stack.
 [[nodiscard]] int validateWitness(const ValidationCommand& command, std::ostream& out, std::ostream& log);
 
 } // namespace nitwit::driver

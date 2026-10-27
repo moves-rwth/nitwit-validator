@@ -14,9 +14,11 @@ WitnessOracle::WitnessOracle(ast::AstContext& context, Int128 defaultValue, std:
 
 void WitnessOracle::beginRun() {
     inputs_.clear();
+    requests_ = 0;
     hint_.reset();
     gaveDefault_ = false;
     gaveFixedValue_ = false;
+    firstUngiven_.reset();
     ++run_;
     runStarts_.push_back(next_);
 }
@@ -93,6 +95,10 @@ value::Value WitnessOracle::provide(const interp::InputRequest& request) {
         gaveDefault_ = true;
     } else {
         input.value = value::Value::integer(0, sema::integerFormat(context_, request.type)); // a pointer: null
+    }
+    ++requests_;
+    if (requiresHints_ && input.source != InputSource::Hinted && !firstUngiven_) {
+        firstUngiven_.emplace(request.id, input);
     }
     if (index >= recordedInputs_) {
         return input.value;

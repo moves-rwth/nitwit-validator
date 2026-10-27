@@ -9,6 +9,7 @@
 #include <map>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "ast/context.hpp"
@@ -48,6 +49,15 @@ public:
 
     /// Forgets the requests and the hint of the previous run; fixed inputs stay. Runs are numbered from 1.
     void beginRun();
+    /// Makes every request that no hint answers an ungiven input (validate/README.md, "Strict inputs"); it still gets
+    /// the default, which keeps the run going until the monitor stops it.
+    void requireHints() { requiresHints_ = true; }
+    /// With requireHints(): the first request of the current run that no hint answered, if any.
+    [[nodiscard]] const std::optional<std::pair<value::InputId, ProvidedInput>>& firstUngiven() const {
+        return firstUngiven_;
+    }
+    /// The number of requests of the current run, recorded or not.
+    [[nodiscard]] std::size_t requestCount() const { return requests_; }
     /// Answers the requests that are neither fixed nor hinted with `defaultValue` from the next run on; called between
     /// runs. The runs before are no longer candidates of repeatedRun(): with another default, the same fixed inputs
     /// make another run.
@@ -115,9 +125,12 @@ private:
     RunStart next_;                         // of the run after the current one, as far as values are fixed now
     std::vector<RunStart> runStarts_;       // by run - 1
     std::vector<ProvidedInput> inputs_;     // the recorded requests of the current run, indexed by InputId
+    std::size_t requests_ = 0;              // of the current run
     std::optional<Hint> hint_;
     bool gaveDefault_ = false;    // in the current run
     bool gaveFixedValue_ = false; // to a recorded request of the current run
+    bool requiresHints_ = false;
+    std::optional<std::pair<value::InputId, ProvidedInput>> firstUngiven_; // of the current run
 };
 
 } // namespace nitwit::validate

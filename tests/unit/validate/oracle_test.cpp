@@ -183,9 +183,35 @@ TEST_F(OracleTest, RequestsBeyondTheRecordedOnesAreAnsweredButNotKept) {
     EXPECT_EQ(provided(oracle, requestAt(6, 35, 2, 2)), "9");
     EXPECT_EQ(provided(oracle, requestAt(6, 35, 3, 3)), "3");
     EXPECT_EQ(oracle.inputCount(), 2u);
+    EXPECT_EQ(oracle.requestCount(), 4u);
     oracle.beginRun();
     EXPECT_EQ(provided(oracle, requestAt(6, 35, 0, 0)), "3");
     EXPECT_EQ(oracle.inputCount(), 1u);
+    EXPECT_EQ(oracle.requestCount(), 1u);
+}
+
+TEST_F(OracleTest, WithRequiredHintsTheFirstRequestThatNoHintAnswersIsUngiven) {
+    WitnessOracle oracle(context(), 3);
+    oracle.requireHints();
+    oracle.hint(callAt(6, 35), valueOf(context(), 5, context().builtin(ast::BuiltinKind::Int)));
+    EXPECT_EQ(provided(oracle, requestAt(6, 35, 0)), "5");
+    EXPECT_EQ(oracle.firstUngiven(), std::nullopt);
+    EXPECT_EQ(provided(oracle, requestAt(8, 41, 1)), "0x0"); // still answered, so that the run reaches the monitor
+    EXPECT_EQ(provided(oracle, requestAt(9, 38, 2)), "1");
+    ASSERT_TRUE(oracle.firstUngiven().has_value());
+    EXPECT_EQ(oracle.firstUngiven()->first, value::InputId{1});
+    EXPECT_EQ(oracle.firstUngiven()->second.key.site, callAt(8, 41));
+    oracle.beginRun();
+    EXPECT_EQ(oracle.firstUngiven(), std::nullopt);
+}
+
+TEST_F(OracleTest, WithRequiredHintsAFixedInputIsUngiven) {
+    WitnessOracle oracle(context());
+    oracle.requireHints();
+    oracle.fix({.site = callAt(6, 35), .occurrence = 0},
+               valueOf(context(), 9, context().builtin(ast::BuiltinKind::Int)));
+    EXPECT_EQ(provided(oracle, requestAt(6, 35, 0)), "9");
+    EXPECT_TRUE(oracle.firstUngiven().has_value());
 }
 
 TEST_F(OracleTest, FixedInputsWinOverHints) {

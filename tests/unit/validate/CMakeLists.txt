@@ -1,5 +1,6 @@
 nitwit_add_unit_test(validate
     SOURCES
+        concrete_test.cpp
         constraints_test.cpp
         end_to_end_test.cpp
         guard_test.cpp

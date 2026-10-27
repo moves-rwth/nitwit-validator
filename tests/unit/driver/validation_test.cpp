@@ -4,6 +4,7 @@
 #include "driver/validation.hpp"
 
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -104,6 +105,55 @@ TEST_F(ValidationTest, TheLogGoesToItsStreamWithVerbose) {
     command_.verbose = true;
     EXPECT_EQ(run(), 0);
     EXPECT_TRUE(log_.str().contains("run 1: segment 1 of 2 passed at 4:35 (function_return)")) << log_.str();
+}
+
+TEST_F(ValidationTest, AConfirmationWritesAConcreteWitnessThatStrictInputsConfirm) {
+    command_.witnessOutput = (directory_ / "concrete.yml").string();
+    EXPECT_EQ(run(), 0);
+    EXPECT_TRUE(resultLine().starts_with("VALIDATED: ")) << resultLine();
+    EXPECT_EQ(log_.str(),
+              std::format("nitwit: wrote a concrete witness with 1 input to '{}'\n", command_.witnessOutput));
+    ValidationCommand strict = command_;
+    strict.witness = command_.witnessOutput;
+    strict.witnessOutput.clear();
+    strict.strictInputs = true;
+    command_ = strict;
+    EXPECT_EQ(run(), 0) << output_.str();
+}
+
+TEST_F(ValidationTest, TheCheckOfTheConcreteWitnessCanBeLeftOut) {
+    command_.witnessOutput = (directory_ / "concrete.yml").string();
+    command_.checksWitness = false;
+    EXPECT_EQ(run(), 0);
+    EXPECT_EQ(log_.str(), std::format("nitwit: wrote an unchecked concrete witness with 1 input to '{}'\n",
+                                      command_.witnessOutput));
+    EXPECT_TRUE(std::filesystem::exists(command_.witnessOutput));
+}
+
+TEST_F(ValidationTest, WithoutAConfirmationNoWitnessIsWritten) {
+    command_.errorFunction = "__VERIFIER_error";
+    command_.witnessOutput = (directory_ / "concrete.yml").string();
+    EXPECT_EQ(run(), 250);
+    EXPECT_EQ(log_.str(), "nitwit: no witness written: the witness was not confirmed\n");
+    EXPECT_FALSE(std::filesystem::exists(command_.witnessOutput));
+}
+
+TEST_F(ValidationTest, AWitnessThatCannotBeWrittenKeepsTheVerdict) {
+    command_.witnessOutput = (directory_ / "missing" / "concrete.yml").string();
+    EXPECT_EQ(run(), 0);
+    EXPECT_EQ(log_.str(), std::format("nitwit: no witness written: cannot write '{}'\n", command_.witnessOutput));
+}
+
+TEST_F(ValidationTest, StrictInputsNeedEveryValue) {
+    command_.witness = write("target-only.yml", R"(- entry_type: violation_sequence
+  content:
+  - segment:
+    - waypoint: {type: target, action: follow, location: {file_name: program.c, line: 6, column: 9}}
+)");
+    command_.strictInputs = true;
+    EXPECT_EQ(run(), 4);
+    EXPECT_EQ(resultLine(), "UNKNOWN: the witness does not give the value of input 0 (the call of "
+                            "__VERIFIER_nondet_int at 4:35, occurrence 0)");
 }
 
 TEST_F(ValidationTest, AWitnessThatIsNotConfirmedFails) {

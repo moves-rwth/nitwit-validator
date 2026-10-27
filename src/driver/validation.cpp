@@ -1,5 +1,6 @@
 #include "driver/validation.hpp"
 
+#include <chrono>
 #include <expected>
 #include <format>
 #include <fstream>
@@ -10,6 +11,7 @@
 #include <utility>
 
 #include "driver/frontend.hpp"
+#include "validate/concrete.hpp"
 #include "validate/validator.hpp"
 #include "witness/parse.hpp"
 
@@ -63,6 +65,43 @@ std::optional<std::string> errorFunctionOf(std::string_view property) {
 }
 
 namespace {
+
+// driver/README.md, "Concrete witnesses": writes the witness of the run that confirmed; what happened, for stderr.
+// Neither the verdict nor the exit code depends on it.
+std::string writeConcreteWitness(const ValidationCommand& command, const validate::ProgramInput& program,
+                                 const validate::ValidationOptions& options, const validate::ConfirmingRun& run) {
+    const validate::ConcreteTask task{
+        .programPath = command.program,
+        .specification = std::format("CHECK( init(main()), LTL(G ! call({}())) )", options.errorFunction),
+        .producerVersion = NITWIT_VERSION,
+        .creationTime =
+            std::format("{:%FT%TZ}", std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())),
+        .maxInputs = validate::ConcreteTask{}.maxInputs,
+        .check = command.checksWitness};
+    std::expected<validate::ConcreteWitness, std::string> witness;
+    try {
+        witness = validate::writeConcreteWitness(run, program, task, options);
+    } catch (const std::bad_alloc&) {
+        return "no witness written: NITWIT ran out of memory";
+    }
+    if (!witness) {
+        return "no witness written: " + witness.error();
+    }
+    std::ofstream stream(command.witnessOutput, std::ios::binary | std::ios::trunc);
+    stream << witness->text;
+    stream.close();
+    if (!stream) {
+        return std::format("no witness written: cannot write '{}'", command.witnessOutput);
+    }
+    const std::string note = witness->undefinedBehavior.empty()
+                                 ? ""
+                                 : std::format("; the run continued after undefined behaviour ({}), which the witness "
+                                               "follows as GCC-compiled code on x86 does",
+                                               witness->undefinedBehavior);
+    return std::format("wrote a{} concrete witness with {} input{} to '{}'{}",
+                       command.checksWitness ? "" : "n unchecked", witness->inputs, witness->inputs == 1 ? "" : "s",
+                       command.witnessOutput, note);
+}
 
 // The steps of driver/README.md.
 int runSteps(const ValidationCommand& command, std::ostream& out, std::ostream& log) {
@@ -121,12 +160,26 @@ int runSteps(const ValidationCommand& command, std::ostream& out, std::ostream& 
     validate::ValidationOptions options;
     options.errorFunction = errorFunction;
     options.retryDefaultInput = 1;
+    options.strictInputs = command.strictInputs;
     options.log = command.verbose ? &log : nullptr;
+    validate::ConfirmingRun confirming;
+    if (!command.witnessOutput.empty()) {
+        options.confirmingRun = &confirming;
+    }
     const validate::ValidationResult result = validate::validate(*witness, input, options, diagnostics);
     for (const Diagnostic& diagnostic : diagnostics.diagnostics()) {
         std::println(out, "{}", diagnostics.format(diagnostic));
     }
-    return finish(out, outcomeOf(result.verdict), result.message, validate::exitCode(result));
+    const int exitCode = finish(out, outcomeOf(result.verdict), result.message, validate::exitCode(result));
+    if (!command.witnessOutput.empty()) {
+        out.flush(); // the result first: writing the concrete witness takes another run
+        options.log = nullptr;
+        const std::string written = result.verdict == validate::Verdict::Confirmed
+                                        ? writeConcreteWitness(command, input, options, confirming)
+                                        : std::string("no witness written: the witness was not confirmed");
+        std::println(log, "nitwit: {}", written);
+    }
+    return exitCode;
 }
 
 } // namespace
