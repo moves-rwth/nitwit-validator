@@ -4,6 +4,7 @@ nitwit_add_module(witness
         parse.cpp
         parse_graphml.cpp
         parse_yaml.cpp
+        write_yaml.cpp
         yaml_tree.cpp
     DEPENDS nitwit_support)
 
