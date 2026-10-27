@@ -201,7 +201,7 @@ int runSteps(const ValidationCommand& command, std::ostream& out, std::ostream& 
             const std::string written = result.verdict == validate::Verdict::Confirmed
                                             ? writeConcreteWitness(command, input, options, confirming)
                                         : isCorrectnessWitness
-                                            ? std::string("no witness written: no run called the error function")
+                                            ? std::string("no witness written: the correctness witness was not refuted")
                                             : std::string("no witness written: the witness was not confirmed");
             std::println(log, "nitwit: {}", written);
         } catch (const std::bad_alloc&) {

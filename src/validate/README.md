@@ -460,15 +460,20 @@ correctness witness.
   of the program are searched for ("Guards"), and the retry gives inputs 1 ("Defaults"); there is nothing else to
   search for.
 - **Refuted:** a run calls the error function, and the result names the call (`REFUTED:`, exit 253). Otherwise the
-  verdict is UNKNOWN (exit 4), with the reason of the final run.
+  verdict is UNKNOWN (exit 4; 251 if out of memory), with the reason of the final run.
+- **Not after undefined behaviour:** a run that calls the error function after signed overflow or another undefined
+  behaviour without an end (`interp/README.md`) refutes nothing: it went on with what the processor computes, which C
+  leaves open, and a verifier that reads the operation otherwise may rightly find the program correct. The verdict is
+  UNKNOWN, with the first such operation.
 - **Soundness** rests on the interpreter's semantics alone, as a confirmation of a violation witness does.
 - **The invariants are not read.** A witness whose invariants do not hold, of a program that satisfies the property,
   is not refuted. Evaluating them along the runs, like the constraints of avoid waypoints, would also refute those
   (`docs/roadmap.md`).
 - **On SV-COMP 2026** (the correctness witnesses of unreach-call without Concurrency, programs from the census
   mirror, 10 s per program): NITWIT refutes 415 of the 3,204 buggy programs, whose 846 witnesses are all wrong, and
-  none of the 8,822 correct ones. No validator of 2026 rejected 344 of the 846, and one confirmed 11 of them. The
-  retry finds the call in 125 of the 415, where the run with inputs 0 ends without it.
+  none of the 8,822 correct ones, of which 565 time out (Hardware 221, Combinations 104, Hardness 98, ProductLines 79,
+  others 63). No refuting run passes undefined behaviour. No validator of 2026 rejected 344 of the 846, and one
+  confirmed 11 of them. The retry finds the call in 125 of the 415, where the run with inputs 0 ends without it.
 - With `--write-witness`, the refuting run is written as a concrete violation witness ("Concrete witnesses").
 
 ## Known gaps

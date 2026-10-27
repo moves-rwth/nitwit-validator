@@ -32,7 +32,7 @@ correctness witness; a program that no run refutes is UNKNOWN (4). BenchExec's p
 branch, after release 3.35) maps 252 to UNKNOWN and 253 to FALSE; with BenchExec 3.35 or older, 253 is ERROR.
 
 3.x also used 244, 246 to 249 for specific interpreter errors; NITWIT 4 reports those cases as 4 with a message.
-NITWIT 4 adds no codes that the BenchExec module does not know. NITWIT's own limits (restarts, call depth, the host
+The only code that NITWIT 4 adds is 253, which BenchExec 3.35 does not know (above). NITWIT's own limits (restarts, call depth, the host
 stack) end with 4 and a message naming the limit. NITWIT sets no time or step limit (`RunOptions::maxSteps` stays 0):
 BenchExec's time limit ends a run that does not finish, and BenchExec reports it as TIMEOUT. There are two exceptions.
 The retry with inputs 1 by default (`src/validate/README.md`, "Defaults") may take, in all its runs, the events of all

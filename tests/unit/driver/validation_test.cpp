@@ -187,7 +187,21 @@ TEST_F(ValidationTest, ACorrectnessWitnessThatNoRunRefutesIsUnknown) {
     // The program of the fixture calls reach_error only for the input 5, which nothing in it leads to.
     command_.witness = write("correctness.yml", correctnessWitness);
     EXPECT_EQ(run(), 4);
-    EXPECT_TRUE(resultLine().starts_with("UNKNOWN: no run of the program calls 'reach_error': ")) << resultLine();
+    EXPECT_TRUE(resultLine().starts_with("UNKNOWN: no run that NITWIT made called 'reach_error': ")) << resultLine();
+}
+
+TEST_F(ValidationTest, AWitnessWithAViolationSequenceAndInvariantsIsAViolationWitness) {
+    command_.witness = write("both.yml", std::string(witness) + std::string(correctnessWitness));
+    EXPECT_EQ(run(), 0);
+    EXPECT_TRUE(resultLine().starts_with("VALIDATED: ")) << resultLine();
+}
+
+TEST_F(ValidationTest, ACorrectnessWitnessThatIsNotRefutedWritesNoWitness) {
+    command_.witness = write("correctness.yml", correctnessWitness);
+    command_.witnessOutput = (directory_ / "concrete.yml").string();
+    EXPECT_EQ(run(), 4);
+    EXPECT_EQ(log_.str(), "nitwit: no witness written: the correctness witness was not refuted\n");
+    EXPECT_FALSE(std::filesystem::exists(command_.witnessOutput));
 }
 
 TEST_F(ValidationTest, ARefutationWritesItsRunAsAConcreteViolationWitness) {

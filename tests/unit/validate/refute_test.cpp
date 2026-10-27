@@ -92,7 +92,56 @@ int main(void) {
 )");
     const ValidationResult result = refute();
     EXPECT_NE(result.verdict, Verdict::Confirmed);
-    EXPECT_THAT(result.message, StartsWith("no run of the program calls 'reach_error': "));
+    EXPECT_EQ(result.message, "no run that NITWIT made called 'reach_error': main returned 0 without calling "
+                              "'reach_error'");
+}
+
+TEST_F(RefuteTest, ACallAfterUndefinedBehaviourRefutesNothing) {
+    // C leaves x + 1 open; NITWIT computes INT_MIN, as the processor does, and calls the error function.
+    build(R"(void reach_error(void);
+int main(void) {
+    int x = 2147483647;
+    if (x + 1 < x) reach_error();
+    return 0;
+}
+)");
+    const ValidationResult result = refute();
+    EXPECT_EQ(result.verdict, Verdict::Unknown) << result.message << "\n" << log();
+    EXPECT_EQ(result.message, "a run of the program calls 'reach_error' at 4:20, but after undefined behaviour (signed "
+                              "integer overflow at 4:9), whose result C leaves open, so the run refutes nothing");
+}
+
+TEST_F(RefuteTest, RunningOutOfMemoryIsKept) {
+    options_.run.memoryLimit = 1024;
+    build(R"(void *malloc(unsigned long size);
+void reach_error(void);
+int main(void) {
+    char *p = malloc(4096);
+    p[0] = 1;
+    reach_error();
+    return 0;
+}
+)");
+    const ValidationResult result = refute();
+    EXPECT_EQ(result.verdict, Verdict::OutOfMemory) << result.message << "\n" << log();
+    EXPECT_THAT(result.message, StartsWith("no run that NITWIT made called 'reach_error': out of memory"));
+}
+
+TEST_F(RefuteTest, WithStrictInputsAnInputThatNoHintGivesEndsTheRun) {
+    // A correctness witness gives no input, so only a program without inputs can be refuted.
+    options_.strictInputs = true;
+    build(R"(extern int __VERIFIER_nondet_int(void);
+void reach_error(void);
+int main(void) {
+    int x = __VERIFIER_nondet_int();
+    if (x == 0) reach_error();
+    return 0;
+}
+)");
+    const ValidationResult result = refute();
+    EXPECT_EQ(result.verdict, Verdict::Unsupported) << result.message << "\n" << log();
+    EXPECT_THAT(result.message, StartsWith("no run that NITWIT made called 'reach_error': the witness does not give "
+                                           "the value of input 0"));
 }
 
 TEST_F(RefuteTest, TheRunThatCallsTheErrorFunctionIsKept) {
